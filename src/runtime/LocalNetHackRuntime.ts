@@ -111,7 +111,6 @@ class LocalNetHackRuntime {
     this.checkpointRecoverySupported = false;
     this.resumeCheckpointSave = null;
     this.runtimePointerContract = null;
-    this.runtimePointerContractSource = "defaults";
     this.runtimePointerContractValidated = false;
     this.pointerContractViolationKeys = new Set();
 
@@ -140,17 +139,6 @@ class LocalNetHackRuntime {
         ? import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG
         : import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG;
     return this.normalizePointerAbiTag(rawValue, fallback);
-  }
-
-  readRequireRuntimePointerContract() {
-    const rawValue = import.meta.env.VITE_NH3D_REQUIRE_RUNTIME_POINTER_CONTRACT;
-    if (typeof rawValue === "boolean") {
-      return rawValue;
-    }
-    if (typeof rawValue === "string") {
-      return rawValue.trim().toLowerCase() === "true";
-    }
-    return false;
   }
 
   readRuntimeExportedPointerAbiTag() {
@@ -318,60 +306,7 @@ class LocalNetHackRuntime {
 
   resolveRuntimePointerContract() {
     const defaults = this.buildDefaultRuntimePointerContract(this.runtimeVersion);
-    const runtimeContract =
-      globalThis.nethackGlobal &&
-      typeof globalThis.nethackGlobal === "object" &&
-      globalThis.nethackGlobal.pointerContract &&
-      typeof globalThis.nethackGlobal.pointerContract === "object"
-        ? globalThis.nethackGlobal.pointerContract
-        : null;
-    if (!runtimeContract) {
-      this.runtimePointerContractSource = "defaults";
-      if (this.readRequireRuntimePointerContract()) {
-        throw new Error(
-          "Missing runtime pointer contract export. This build requires nethackGlobal.pointerContract from the WASM runtime.",
-        );
-      }
-      this.notePointerContractViolation(
-        "pointer-contract-runtime-missing",
-        "Runtime pointerContract was not exported by WASM; using bundled defaults.",
-      );
-      return defaults;
-    }
-    this.runtimePointerContractSource = "runtime";
-
-    const merged = {
-      ...defaults,
-      ...runtimeContract,
-      callbackArgCounts: {
-        ...defaults.callbackArgCounts,
-        ...(runtimeContract.callbackArgCounts || {}),
-      },
-      callbackPointers: {
-        ...defaults.callbackPointers,
-        ...(runtimeContract.callbackPointers || {}),
-      },
-      callbackModes: {
-        ...defaults.callbackModes,
-        ...(runtimeContract.callbackModes || {}),
-      },
-      extcmd: {
-        ...defaults.extcmd,
-        ...(runtimeContract.extcmd || {}),
-      },
-      menuItem: {
-        ...defaults.menuItem,
-        ...(runtimeContract.menuItem || {}),
-      },
-      glyphInfo:
-        runtimeContract.glyphInfo === null
-          ? null
-          : {
-              ...(defaults.glyphInfo || {}),
-              ...(runtimeContract.glyphInfo || {}),
-            },
-    };
-    return merged;
+    return defaults;
   }
 
   getRuntimePointerContract() {
@@ -464,7 +399,7 @@ class LocalNetHackRuntime {
 
     this.runtimePointerContractValidated = true;
     console.log(
-      `Pointer contract ready (runtime=${this.runtimeVersion}, abi=${contract.abiTag || configuredAbiTag}, source=${this.runtimePointerContractSource})`,
+      `Pointer contract ready (runtime=${this.runtimeVersion}, abi=${contract.abiTag || configuredAbiTag})`,
     );
     return true;
   }
@@ -4980,67 +4915,23 @@ class LocalNetHackRuntime {
       return -1;
     }
 
-    const helperResolvedIndex =
-      this.resolveExtendedCommandIndexFromRuntimeHelper(normalized);
-    if (Number.isInteger(helperResolvedIndex)) {
-      return helperResolvedIndex;
-    }
-
     const entries = this.getExtendedCommandEntries();
-    if (!entries.length) {
+    if (entries.length) {
+      const exact = entries.find((entry) => entry.name === normalized);
+      if (exact) {
+        return exact.index;
+      }
+
+      const prefixMatches = entries.filter((entry) =>
+        entry.name.startsWith(normalized),
+      );
+      if (prefixMatches.length === 1) {
+        return prefixMatches[0].index;
+      }
       return -1;
     }
 
-    const exact = entries.find((entry) => entry.name === normalized);
-    if (exact) {
-      return exact.index;
-    }
-
-    const prefixMatches = entries.filter((entry) =>
-      entry.name.startsWith(normalized),
-    );
-    if (prefixMatches.length === 1) {
-      return prefixMatches[0].index;
-    }
-
     return -1;
-  }
-
-  resolveExtendedCommandIndexFromRuntimeHelper(commandName) {
-    const helpers =
-      globalThis.nethackGlobal &&
-      globalThis.nethackGlobal.helpers &&
-      typeof globalThis.nethackGlobal.helpers === "object"
-        ? globalThis.nethackGlobal.helpers
-        : null;
-    if (!helpers) {
-      return null;
-    }
-
-    const resolver =
-      typeof helpers.resolveExtendedCommandIndex === "function"
-        ? helpers.resolveExtendedCommandIndex
-        : typeof helpers.extcmdIndexForName === "function"
-          ? helpers.extcmdIndexForName
-          : null;
-    if (!resolver) {
-      return null;
-    }
-
-    try {
-      const result = resolver(commandName);
-      if (!Number.isInteger(result)) {
-        return null;
-      }
-      return result >= 0 ? result : -1;
-    } catch (error) {
-      this.notePointerContractViolation(
-        "extcmd-helper-index-read-failed",
-        "Runtime extended-command index helper threw an error; falling back to table decoding.",
-        error,
-      );
-      return null;
-    }
   }
 
   resolveMetaBoundExtendedCommandName(metaKey) {
@@ -5077,12 +4968,6 @@ class LocalNetHackRuntime {
       return this.extendedCommandEntries;
     }
 
-    const helperExtracted = this.extractExtendedCommandEntriesFromRuntimeHelper();
-    if (helperExtracted.length > 0) {
-      this.extendedCommandEntries = helperExtracted;
-      return helperExtracted;
-    }
-
     const extracted = this.extractExtendedCommandEntriesFromMemory();
     if (extracted.length > 0) {
       this.extendedCommandEntries = extracted;
@@ -5093,89 +4978,6 @@ class LocalNetHackRuntime {
     // misroute commands after a wasm update.
     this.extendedCommandEntries = [];
     return this.extendedCommandEntries;
-  }
-
-  extractExtendedCommandEntriesFromRuntimeHelper() {
-    const helpers =
-      globalThis.nethackGlobal &&
-      globalThis.nethackGlobal.helpers &&
-      typeof globalThis.nethackGlobal.helpers === "object"
-        ? globalThis.nethackGlobal.helpers
-        : null;
-    if (!helpers) {
-      return [];
-    }
-
-    const listFn =
-      typeof helpers.listExtendedCommands === "function"
-        ? helpers.listExtendedCommands
-        : typeof helpers.getExtendedCommands === "function"
-          ? helpers.getExtendedCommands
-          : null;
-    if (!listFn) {
-      return [];
-    }
-
-    let rawEntries;
-    try {
-      rawEntries = listFn();
-    } catch (error) {
-      this.notePointerContractViolation(
-        "extcmd-helper-list-read-failed",
-        "Runtime extended-command list helper threw an error; falling back to table decoding.",
-        error,
-      );
-      return [];
-    }
-    if (!Array.isArray(rawEntries) || rawEntries.length === 0) {
-      return [];
-    }
-
-    const entries = [];
-    for (let index = 0; index < rawEntries.length; index += 1) {
-      const rawEntry = rawEntries[index];
-      if (typeof rawEntry === "string") {
-        const name = rawEntry.trim().toLowerCase();
-        if (!this.isLikelyExtendedCommandName(name)) {
-          continue;
-        }
-        entries.push({
-          index,
-          name,
-          keyCode: 0,
-          flags: 0,
-        });
-        continue;
-      }
-
-      if (!rawEntry || typeof rawEntry !== "object") {
-        continue;
-      }
-
-      const name = String(rawEntry.name || "")
-        .trim()
-        .toLowerCase();
-      if (!this.isLikelyExtendedCommandName(name)) {
-        continue;
-      }
-
-      const resolvedIndex = Number.isInteger(rawEntry.index)
-        ? rawEntry.index
-        : index;
-      entries.push({
-        index: resolvedIndex,
-        name,
-        keyCode: Number.isInteger(rawEntry.keyCode) ? rawEntry.keyCode : 0,
-        flags: Number.isInteger(rawEntry.flags) ? rawEntry.flags : 0,
-      });
-    }
-
-    if (entries.length > 0) {
-      console.log(
-        `Resolved extended command entries from runtime helper API (entries=${entries.length})`,
-      );
-    }
-    return entries;
   }
 
   emitExtendedCommands(source = "runtime") {
@@ -6496,7 +6298,6 @@ class LocalNetHackRuntime {
 
       this.nethackModule = this.nethackInstance;
       this.runtimePointerContract = null;
-      this.runtimePointerContractSource = "defaults";
       this.runtimePointerContractValidated = false;
       this.updateCheckpointRecoverySupport();
 
