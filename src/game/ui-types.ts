@@ -994,7 +994,11 @@ export interface Nethack3DEngineController {
   ): void;
   runExtendedCommand(
     commandText: string,
-    options?: { autoDirectionFromFpsAim?: boolean; submitDelayMs?: number },
+    options?: {
+      autoDirectionFromFpsAim?: boolean;
+      submitDelayMs?: number;
+      forceHashSubmission?: boolean;
+    },
   ): void;
   repeatLastAction(): void;
   setClientOptions(options: Nh3dClientOptions): void;

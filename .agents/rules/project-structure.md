@@ -133,12 +133,15 @@ This is a living steering doc. Update it whenever architecture, file ownership, 
 - Current fork note: wasm-367 `shim_get_ext_cmd` format is `iv`, so callback args appear as `[undefined]` and that is expected.
 - Current fork note: wasm-37 `shim_add_menu` format is `vipi00iisi` (9 args); menu text is arg index `7`, item flags are arg index `8`, and identifier is delivered as a value (not pointer slot).
 - Current fork note: wasm-37 `shim_print_glyph` format is `vi11pp` and uses glyphinfo pointers at args `3` and `4`.
+- Current fork note: wasm-37 `menu_item` output layout for `select_menu` is `stride=16`, `countOffset=8`, `itemFlagsOffset=12` (3.7 `anything` union includes 64-bit members).
 - 3.6.7 extended command resolution order (`LocalNetHackRuntime`):
   1. Decode extcmd entries from `globalThis.nethackGlobal.pointers.extcmdlist` using the active extcmd layout contract.
   2. Extcmd layout source: app-owned 3.6.7 ABI profile (`stride=24`, `textPtrOffset=4`, `flagsOffset=16`, pointer mode `direct_or_slot`).
   3. Match typed text against decoded names (exact match, then unique-prefix match) and return the corresponding extcmd index.
   4. Validation is fail-closed (`minEntries`, required names), and unresolved commands return `-1` (no command).
 - 3.7 extended command layout currently matches 3.6.7 for WASM32 (`struct ext_func_tab` stride `24`, `ef_txt` offset `4`, flags offset `16`), and uses the same decode/validation path.
+- 3.7 contextual item-action menus (`src/iactions.c`) encode action identity in `add_menu` identifiers (`anything.a_int` enum values), not extcmd indices; runtime action auto-selection should match these identifiers first, then fall back to accelerator/text heuristics.
+- Inventory-context UI actions that run extended commands should force `#...` submission so NetHack resolves through decoded `extcmdlist` (rather than direct key shortcuts) for 3.7 stability.
 - Troubleshooting and quick-fix steps: see `docs/pointer-abi-troubleshooting.md`.
 - Do not scan arbitrary heap memory to discover command tables or silently fall back to hardcoded command indices, because that can misroute commands after WASM updates.
 

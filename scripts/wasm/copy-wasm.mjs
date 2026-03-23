@@ -40,7 +40,7 @@ const targets = [
     ),
     publicJsDest: resolve(PROJECT_ROOT, "public/nethack-37.js"),
     publicWasmDest: resolve(PROJECT_ROOT, "public/nethack-37.wasm"),
-    overrideBuildDirEnvVar: null,
+    overrideBuildDirEnvVar: "NH3D_WASM_37_OVERRIDE_BUILD_DIR",
   },
 ];
 

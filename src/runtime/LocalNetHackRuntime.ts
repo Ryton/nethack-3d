@@ -290,9 +290,13 @@ class LocalNetHackRuntime {
         requiredNames: ["#", "pray"],
       },
       menuItem: {
-        stride: is37 ? 12 : 8,
-        countOffset: 4,
-        itemFlagsOffset: is37 ? 8 : null,
+        // NetHack 3.7's `anything` union includes int64/uint64 members, so
+        // `struct mi` (menu_item) is widened versus 3.6.x on wasm32.
+        // Layout used by select_menu() output in wasm-37:
+        //   item @ +0, count @ +8, itemflags @ +12, sizeof(menu_item) == 16.
+        stride: is37 ? 16 : 8,
+        countOffset: is37 ? 8 : 4,
+        itemFlagsOffset: is37 ? 12 : null,
       },
       glyphInfo: is37
         ? {
@@ -1531,6 +1535,23 @@ class LocalNetHackRuntime {
     }
 
     if (this.armInventoryContextSelectionFromInput(input)) {
+      if (
+        this.awaitingQuestionInput &&
+        Array.isArray(this.currentMenuItems) &&
+        this.currentMenuItems.some((item) => item && !item.isCategory)
+      ) {
+        const didAutoSelect =
+          this.tryAutoHandlePendingInventoryContextSelection(
+            this.currentMenuQuestionText,
+            this.currentMenuItems,
+            {
+              reason: "context action (armed during active menu wait)",
+            },
+          );
+        if (didAutoSelect) {
+          this.wakeAwaitingQuestionInputForAutoSelection(source);
+        }
+      }
       return;
     }
 
@@ -3815,7 +3836,7 @@ class LocalNetHackRuntime {
     const hasSelectableEntries = nonCategoryItems.some(
       (item) =>
         this.isPrintableAccelerator(item.originalAccelerator) ||
-        (typeof item.identifier === "number" && item.identifier > 0),
+        (typeof item.identifier === "number" && item.identifier !== 0),
     );
 
     if (items.length === 0) {
@@ -4459,6 +4480,243 @@ class LocalNetHackRuntime {
     );
   }
 
+  isInventoryActionChoiceQuestion(question) {
+    const normalized = this.normalizeQuestionText(question);
+    if (!normalized) {
+      return false;
+    }
+    return (
+      normalized.includes("do what with") ||
+      normalized.includes("what do you want to do with") ||
+      normalized.includes("what would you like to do with")
+    );
+  }
+
+  getInventoryContextActionAccelerator(actionId) {
+    switch (String(actionId || "").trim().toLowerCase()) {
+      case "apply":
+        return "a";
+      case "invoke":
+        return "V";
+      case "tip":
+        return "T";
+      case "loot":
+        return "l";
+      case "drop":
+        return "d";
+      case "eat":
+        return "e";
+      case "quaff":
+        return "q";
+      case "read":
+        return "r";
+      case "rub":
+        return "R";
+      case "throw":
+        return "t";
+      case "wield":
+      case "unwield":
+        return "w";
+      case "wear":
+        return "W";
+      case "take-off":
+        return "T";
+      case "put-on":
+        return "P";
+      case "remove":
+        return "R";
+      case "zap":
+        return "z";
+      case "cast":
+        return "Z";
+      case "quiver":
+        return "Q";
+      case "untrap":
+        return "u";
+      case "offer":
+        return "O";
+      case "name":
+        return "c";
+      case "call":
+        return "C";
+      case "adjust":
+        return "i";
+      case "engrave":
+        return "E";
+      case "dip":
+        return "a";
+      case "info":
+        return "/";
+      default:
+        return "";
+    }
+  }
+
+  getInventoryContextActionIdentifier(actionId) {
+    const normalizedActionId = String(actionId || "")
+      .trim()
+      .toLowerCase();
+    if (!normalizedActionId || this.runtimeVersion !== "3.7") {
+      return null;
+    }
+
+    // NetHack 3.7 `src/iactions.c` enum item_action_actions values.
+    const actionIdentifierMap = {
+      unwield: 1, // IA_UNWIELD
+      apply: 2, // IA_APPLY_OBJ
+      dip: 3, // IA_DIP_OBJ
+      name: 4, // IA_NAME_OBJ
+      call: 5, // IA_NAME_OTYP
+      drop: 6, // IA_DROP_OBJ
+      eat: 7, // IA_EAT_OBJ
+      engrave: 8, // IA_ENGRAVE_OBJ
+      quaff: 14, // IA_QUAFF_OBJ
+      quiver: 15, // IA_QUIVER_OBJ
+      read: 16, // IA_READ_OBJ
+      rub: 17, // IA_RUB_OBJ
+      throw: 18, // IA_THROW_OBJ
+      "take-off": 19, // IA_TAKEOFF_OBJ
+      remove: 19, // IA_TAKEOFF_OBJ
+      tip: 20, // IA_TIP_CONTAINER
+      invoke: 21, // IA_INVOKE_OBJ
+      wield: 22, // IA_WIELD_OBJ
+      wear: 23, // IA_WEAR_OBJ
+      "put-on": 23, // IA_WEAR_OBJ
+      zap: 26, // IA_ZAP_OBJ
+      info: 27, // IA_WHATIS_OBJ
+      offer: 12, // IA_SACRIFICE
+      adjust: 10, // IA_ADJUST_OBJ
+    };
+
+    const mapped = actionIdentifierMap[normalizedActionId];
+    return Number.isInteger(mapped) ? mapped : null;
+  }
+
+  resolvePendingInventoryActionMenuItem(actionId, menuQuestion, menuItems) {
+    const normalizedActionId = String(actionId || "")
+      .trim()
+      .toLowerCase();
+    if (
+      !normalizedActionId ||
+      !Array.isArray(menuItems) ||
+      menuItems.length === 0 ||
+      !this.isInventoryActionChoiceQuestion(menuQuestion)
+    ) {
+      return null;
+    }
+
+    const expectedIdentifier =
+      this.getInventoryContextActionIdentifier(normalizedActionId);
+    if (Number.isInteger(expectedIdentifier)) {
+      const byIdentifier = menuItems.find((item) => {
+        if (!item || item.isCategory) {
+          return false;
+        }
+        const identifier = Number(item.identifier);
+        return Number.isInteger(identifier) && identifier === expectedIdentifier;
+      });
+      if (byIdentifier) {
+        return byIdentifier;
+      }
+    }
+
+    const expectedAccelerator =
+      this.getInventoryContextActionAccelerator(normalizedActionId);
+    if (expectedAccelerator) {
+      const byExactAccelerator = menuItems.find((item) => {
+        if (!item || item.isCategory) {
+          return false;
+        }
+        const accel = String(item.accelerator || "").trim();
+        if (accel && accel === expectedAccelerator) {
+          return true;
+        }
+        if (this.isPrintableAccelerator(item.originalAccelerator)) {
+          return (
+            String.fromCharCode(item.originalAccelerator) ===
+            expectedAccelerator
+          );
+        }
+        return false;
+      });
+      if (byExactAccelerator) {
+        return byExactAccelerator;
+      }
+
+      const expectedLower = expectedAccelerator.toLowerCase();
+      const byAccelerator = menuItems.find((item) => {
+        if (!item || item.isCategory) {
+          return false;
+        }
+        const accel = String(item.accelerator || "").trim().toLowerCase();
+        if (accel && accel === expectedLower) {
+          return true;
+        }
+        if (this.isPrintableAccelerator(item.originalAccelerator)) {
+          return (
+            String.fromCharCode(item.originalAccelerator).toLowerCase() ===
+            expectedLower
+          );
+        }
+        return false;
+      });
+      if (byAccelerator) {
+        return byAccelerator;
+      }
+    }
+
+    const textFragmentsByAction = {
+      apply: ["apply", "use"],
+      invoke: ["invoke"],
+      tip: ["tip"],
+      loot: ["loot"],
+      drop: ["drop"],
+      eat: ["eat"],
+      quaff: ["quaff", "drink"],
+      read: ["read"],
+      rub: ["rub"],
+      throw: ["throw"],
+      wield: ["wield"],
+      unwield: ["unwield", "wield"],
+      wear: ["wear"],
+      "take-off": ["take off", "remove"],
+      "put-on": ["put on"],
+      remove: ["remove"],
+      zap: ["zap"],
+      cast: ["cast"],
+      quiver: ["quiver"],
+      untrap: ["untrap"],
+      offer: ["offer"],
+      name: ["rename", "name"],
+      call: ["the type for", "re-call", "un-call"],
+      adjust: ["adjust inventory", "assigning new letter", "splitting this stack"],
+      engrave: ["engrave"],
+      dip: ["dip"],
+      info: ["look up information", "information"],
+    };
+    const textFragments = Array.isArray(textFragmentsByAction[normalizedActionId])
+      ? textFragmentsByAction[normalizedActionId]
+      : [];
+    if (textFragments.length === 0) {
+      return null;
+    }
+
+    return (
+      menuItems.find((item) => {
+        if (!item || item.isCategory || typeof item.text !== "string") {
+          return false;
+        }
+        const normalizedText = item.text.trim().toLowerCase();
+        if (!normalizedText) {
+          return false;
+        }
+        return textFragments.some((fragment) =>
+          normalizedText.includes(fragment),
+        );
+      }) || null
+    );
+  }
+
   resolveNameInventoryRouteMenuItem(menuItems) {
     if (!Array.isArray(menuItems) || menuItems.length === 0) {
       return null;
@@ -4685,6 +4943,28 @@ class LocalNetHackRuntime {
       }
     }
 
+    if (pendingActionId) {
+      const actionMenuItem = this.resolvePendingInventoryActionMenuItem(
+        pendingActionId,
+        menuQuestion,
+        menuItems,
+      );
+      if (actionMenuItem) {
+        this.clearPendingInventoryContextSelection(
+          `${pendingActionId} action route selected`,
+        );
+        if (
+          this.tryAutoSelectMenuItem(
+            actionMenuItem,
+            `${reason} (#${pendingActionId} action route)`,
+          )
+        ) {
+          return true;
+        }
+        return false;
+      }
+    }
+
     const directInventorySelection =
       this.consumePendingInventoryContextSelection(menuItems);
     if (!directInventorySelection) {
@@ -4716,6 +4996,46 @@ class LocalNetHackRuntime {
       `Auto-selected menu item via ${reason}: ${selectionEntry.menuChar} (${selectionEntry.text})`,
     );
     return true;
+  }
+
+  wakeAwaitingQuestionInputForAutoSelection(source = "system") {
+    if (
+      !this.awaitingQuestionInput ||
+      !this.inputBroker ||
+      !this.inputBroker.hasPendingRequests("event")
+    ) {
+      return;
+    }
+    const firstSelection = Array.from(this.menuSelections.values())[0];
+    if (!firstSelection) {
+      return;
+    }
+
+    const selectedMenuItem = Array.isArray(this.currentMenuItems)
+      ? this.currentMenuItems.find(
+          (item) =>
+            item &&
+            !item.isCategory &&
+            Number.isInteger(item.menuIndex) &&
+            item.menuIndex === firstSelection.menuIndex,
+        )
+      : null;
+    let wakeInput = "Enter";
+    if (selectedMenuItem) {
+      wakeInput = this.getMenuSelectionWakeInput(selectedMenuItem);
+    } else if (
+      typeof firstSelection.menuChar === "string" &&
+      firstSelection.menuChar.length === 1
+    ) {
+      wakeInput = firstSelection.menuChar;
+    } else if (this.isPrintableAccelerator(firstSelection.originalAccelerator)) {
+      wakeInput = String.fromCharCode(firstSelection.originalAccelerator);
+    }
+
+    console.log(
+      `Waking pending menu input after auto-selection with "${wakeInput}"`,
+    );
+    this.enqueueInputKeys([wakeInput], source, ["event"]);
   }
 
   isLookAtMapMenuSelection(menuItem) {

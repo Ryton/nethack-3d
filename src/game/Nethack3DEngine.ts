@@ -9643,6 +9643,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     shouldArmRepeat: boolean,
     autoDirectionFromFpsAim: boolean = false,
     submitDelayMs: number = 0,
+    forceHashSubmission: boolean = false,
   ): boolean {
     if (!normalizedCommandText || !this.session) {
       return false;
@@ -9671,10 +9672,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.armFpsFireSuppression();
     }
     let submittedAsDirectInput = false;
-    const preferredInput =
-      this.resolvePreferredKeyboardInputForExtendedCommand(
-        normalizedCommandText,
-      );
+    const preferredInput = forceHashSubmission
+      ? null
+      : this.resolvePreferredKeyboardInputForExtendedCommand(
+          normalizedCommandText,
+        );
     if (preferredInput?.kind === "input") {
       submittedAsDirectInput = true;
       this.sendInput(preferredInput.input, { delayMs: submitDelayMs });
@@ -23380,7 +23382,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   public runExtendedCommand(
     commandText: string,
-    options?: { autoDirectionFromFpsAim?: boolean; submitDelayMs?: number },
+    options?: {
+      autoDirectionFromFpsAim?: boolean;
+      submitDelayMs?: number;
+      forceHashSubmission?: boolean;
+    },
   ): void {
     const normalizedCommandText = String(commandText || "")
       .trim()
@@ -23392,6 +23398,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(options?.submitDelayMs)
         ? Number(options?.submitDelayMs)
         : 0,
+      Boolean(options?.forceHashSubmission),
     );
   }
 

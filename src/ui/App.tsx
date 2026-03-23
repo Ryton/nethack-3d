@@ -15839,7 +15839,9 @@ export default function App(): JSX.Element {
                             `__INVCTX_SELECT__:${inventoryContextMenuRenderState.accelerator}:${action.id}`,
                           );
                         }
-                        controller?.runExtendedCommand(action.value);
+                        controller?.runExtendedCommand(action.value, {
+                          forceHashSubmission: true,
+                        });
                       } else {
                         controller?.runInventoryItemAction(
                           action.id,

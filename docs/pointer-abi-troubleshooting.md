@@ -32,6 +32,10 @@ Hard-coded ABI profile (current design):
 - Callback mode defaults:
   - `3.6.7`: `shim_add_menu.identifierMode=pointer_slot`.
   - `3.7`: `shim_add_menu.identifierMode=value`, `menuTextArgIndex=7`, `itemFlagsArgIndex=8`.
+- `menu_item` ABI defaults:
+  - `3.6.7`: `stride=8`, `countOffset=4`.
+  - `3.7`: `stride=16`, `countOffset=8`, `itemFlagsOffset=12`.
+    (`anything` in 3.7 includes `int64/uint64`, widening `struct mi` on wasm32.)
 
 So this is not hard-coded command data, but it is a hard-coded ABI profile.
 
