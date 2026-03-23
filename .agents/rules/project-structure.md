@@ -124,6 +124,19 @@ This is a living steering doc. Update it whenever architecture, file ownership, 
 - `request_runtime_globals_snapshot`
 - `set_logging`
 
+## WASM Pointer Contract
+
+- Pointer arguments with callback format type `p` are treated as direct WASM pointers (no extra dereference) in `src/runtime/LocalNetHackRuntime.ts`.
+- Extended command resolution must come from the exported pointer `globalThis.nethackGlobal.pointers.extcmdlist` (declared in `NetHack/sys/libnh/libnhmain.c` in the forked wasm source).
+- Prefer runtime-exported contracts over app-side layout guesses:
+  - `globalThis.nethackGlobal.pointerContract` for callback/struct layouts and pointer modes.
+  - `globalThis.nethackGlobal.helpers.listExtendedCommands` and `globalThis.nethackGlobal.helpers.resolveExtendedCommandIndex` (or `extcmdIndexForName`) for authoritative extcmd lookup when available.
+- Runtime pointer ABI tags are build-defined in `vite.config.ts` as `VITE_NH3D_WASM_367_POINTER_ABI_TAG` and `VITE_NH3D_WASM_37_POINTER_ABI_TAG`; pointer-sensitive callback/struct handling must align with these tags.
+- Optional strict mode: `VITE_NH3D_REQUIRE_RUNTIME_POINTER_CONTRACT=true` requires the WASM to export `nethackGlobal.pointerContract` and fails startup if missing.
+- `LocalNetHackRuntime` validates callback argument shapes and pointer layouts (menu_item, extcmd table, glyphinfo) against the active ABI contract and fails closed on mismatches.
+- Current fork note: wasm-367 `shim_print_glyph` uses 5 callback args `(winid, x, y, glyph, bkglyph)` (not a glyphinfo pointer payload).
+- Do not scan arbitrary heap memory to discover command tables or silently fall back to hardcoded command indices, because that can misroute commands after WASM updates.
+
 ## High-Risk Zones
 
 - Async input state in runtime: `activeInputRequest`, `awaitingQuestionInput`, `pendingTextRequest`, `pendingExtendedCommandRequest`, `pendingMenuSelection`.

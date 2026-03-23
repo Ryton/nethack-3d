@@ -122,6 +122,8 @@ const wasm37UsesPublicRuntimeOverride = wasm37RuntimeBuildJsPath.endsWith(
 );
 const wasm367CompatTag = `wasm-367-${resolveInstalledPackageVersion("@neth4ck/wasm-367")}`;
 const wasm37CompatTag = `wasm-37-${resolveInstalledPackageVersion("@neth4ck/wasm-37")}`;
+const wasm367PointerAbiTag = "nh367-pointer-v1";
+const wasm37PointerAbiTag = "nh37-pointer-v1";
 const wasm367HasRecoverSavefile = buildFileContains(
   wasm367RuntimeBuildJsPath,
   'Module["_recover_savefile"]',
@@ -206,6 +208,8 @@ export default defineConfig({
     ),
     "import.meta.env.VITE_NH3D_WASM_367_COMPAT_TAG":
       JSON.stringify(wasm367CompatTag),
+    "import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG":
+      JSON.stringify(wasm367PointerAbiTag),
     "import.meta.env.VITE_NH3D_WASM_367_USE_PUBLIC_RUNTIME_OVERRIDE":
       JSON.stringify(wasm367UsesPublicRuntimeOverride),
     "import.meta.env.VITE_NH3D_WASM_367_HAS_RECOVER_SAVEFILE": JSON.stringify(
@@ -215,6 +219,8 @@ export default defineConfig({
       JSON.stringify(wasm367HasCheckpointResumeBridge),
     "import.meta.env.VITE_NH3D_WASM_37_COMPAT_TAG":
       JSON.stringify(wasm37CompatTag),
+    "import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG":
+      JSON.stringify(wasm37PointerAbiTag),
     // "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":
     //   JSON.stringify(wasm37UsesPublicRuntimeOverride),
   },

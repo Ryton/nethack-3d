@@ -91,7 +91,6 @@ class LocalNetHackRuntime {
     this.deferredAreaRefreshRequests = new Map();
     this.deferredTileRefreshFlushScheduled = false;
     this.textInputMaxLength = 256;
-    this.getlinFallbackBufferPtr = 0;
     this.mouseInputTokenKey = "__MOUSE_INPUT__";
     this.mouseClickPrimaryMod = 1; // CLICK_1 (left click)
     this.mouseClickSecondaryMod = 2; // CLICK_2 (right click)
@@ -111,12 +110,700 @@ class LocalNetHackRuntime {
     this.didLogMissingLevelIdentityGlobals = false;
     this.checkpointRecoverySupported = false;
     this.resumeCheckpointSave = null;
+    this.runtimePointerContract = null;
+    this.runtimePointerContractSource = "defaults";
+    this.runtimePointerContractValidated = false;
+    this.pointerContractViolationKeys = new Set();
 
     this.ready = this.initializeNetHack();
   }
 
   normalizeRuntimeVersion(value) {
     return value === "3.7" ? "3.7" : "3.6.7";
+  }
+
+  normalizePointerAbiTag(value, fallback = "") {
+    const normalized = String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    return normalized || fallback;
+  }
+
+  readConfiguredPointerAbiTag(runtimeVersion = this.runtimeVersion) {
+    const fallback =
+      runtimeVersion === "3.7" ? "nh37-pointer-v1" : "nh367-pointer-v1";
+    const rawValue =
+      runtimeVersion === "3.7"
+        ? import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG
+        : import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG;
+    return this.normalizePointerAbiTag(rawValue, fallback);
+  }
+
+  readRequireRuntimePointerContract() {
+    const rawValue = import.meta.env.VITE_NH3D_REQUIRE_RUNTIME_POINTER_CONTRACT;
+    if (typeof rawValue === "boolean") {
+      return rawValue;
+    }
+    if (typeof rawValue === "string") {
+      return rawValue.trim().toLowerCase() === "true";
+    }
+    return false;
+  }
+
+  readRuntimeExportedPointerAbiTag() {
+    const root =
+      globalThis.nethackGlobal && typeof globalThis.nethackGlobal === "object"
+        ? globalThis.nethackGlobal
+        : null;
+    if (!root) {
+      return "";
+    }
+
+    const constants =
+      root.constants && typeof root.constants === "object"
+        ? root.constants
+        : null;
+    const nh3dConstants =
+      constants &&
+      constants.NH3D &&
+      typeof constants.NH3D === "object"
+        ? constants.NH3D
+        : null;
+    const rawValue =
+      (nh3dConstants &&
+        (nh3dConstants.POINTER_ABI_TAG ?? nh3dConstants.pointer_abi_tag)) ||
+      root.pointerAbiTag ||
+      root.pointerAbi ||
+      "";
+    return this.normalizePointerAbiTag(rawValue, "");
+  }
+
+  buildDefaultRuntimePointerContract(runtimeVersion = this.runtimeVersion) {
+    const is37 = runtimeVersion === "3.7";
+    return {
+      abiTag: this.readConfiguredPointerAbiTag(runtimeVersion),
+      callbackArgCounts: {
+        shim_nh_poskey: [3],
+        shim_getlin: [2],
+        shim_select_menu: [3],
+        shim_add_menu: [8],
+        // Forked wasm-367 currently emits [win, x, y, glyph, bkglyph] (5 args).
+        // Keep 4-arg compatibility for alternate builds.
+        shim_print_glyph: [4, 5],
+        shim_status_update: [6],
+      },
+      callbackPointers: {
+        shim_nh_poskey: [
+          { index: 0, label: "x_ptr", bytes: 4, alignment: 1, required: true },
+          { index: 1, label: "y_ptr", bytes: 4, alignment: 1, required: true },
+          {
+            index: 2,
+            label: "mod_ptr",
+            bytes: 4,
+            alignment: 1,
+            required: true,
+          },
+        ],
+        shim_getlin: [
+          {
+            index: 1,
+            label: "text_buffer_ptr",
+            bytes: 1,
+            alignment: 1,
+            required: true,
+          },
+        ],
+        shim_select_menu: [
+          {
+            index: 2,
+            label: "menu_list_ptr_ptr",
+            bytes: 4,
+            alignment: 4,
+            required: true,
+          },
+        ],
+        ...(is37
+          ? {
+              shim_add_menu: [
+                {
+                  index: 1,
+                  label: "menu_glyphinfo_ptr",
+                  bytes: 36,
+                  alignment: 4,
+                  required: false,
+                },
+              ],
+              shim_print_glyph: [
+                {
+                  index: 3,
+                  label: "print_glyphinfo_ptr",
+                  bytes: 36,
+                  alignment: 4,
+                  required: true,
+                },
+              ],
+            }
+          : {
+              shim_add_menu: [
+                {
+                  index: 2,
+                  label: "menu_identifier_ptr",
+                  bytes: 4,
+                  alignment: 4,
+                  required: false,
+                },
+              ],
+            }),
+        shim_status_update: [
+          {
+            index: 1,
+            label: "status_ptr_to_arg",
+            bytes: 1,
+            alignment: 1,
+            required: false,
+          },
+        ],
+      },
+      callbackModes: {
+        shim_nh_poskey: {
+          pointerArgsAreDirect: true,
+        },
+        shim_getlin: {
+          pointerArgsAreDirect: true,
+        },
+        shim_select_menu: {
+          pointerArgsAreDirect: true,
+          menuListMode: "pointer_to_pointer",
+        },
+        shim_add_menu: {
+          identifierMode: is37 ? "value" : "pointer_slot",
+          menuTextArgIndex: is37 ? 7 : 6,
+          glyphArgMode: is37 ? "glyphinfo_ptr" : "glyph_value",
+        },
+        shim_print_glyph: {
+          glyphArgMode: is37 ? "glyphinfo_ptr" : "glyph_value",
+        },
+      },
+      extcmd: {
+        exportedPointerName: "extcmdlist",
+        exportedPointerMode: "direct_or_slot",
+        stride: 24,
+        textPtrOffset: 4,
+        flagsOffset: 16,
+        maxEntries: 512,
+        minEntries: 10,
+        requiredNames: ["#", "pray"],
+      },
+      menuItem: {
+        stride: is37 ? 12 : 8,
+        countOffset: 4,
+        itemFlagsOffset: is37 ? 8 : null,
+      },
+      glyphInfo: is37
+        ? {
+            minBytes: 36,
+            glyphOffset: 0,
+            ttyCharOffset: 4,
+            colorOffset: 16,
+            tileIndexOffset: 30,
+            tileIndexType: "i16",
+            pointerAlignment: 4,
+          }
+        : null,
+    };
+  }
+
+  resolveRuntimePointerContract() {
+    const defaults = this.buildDefaultRuntimePointerContract(this.runtimeVersion);
+    const runtimeContract =
+      globalThis.nethackGlobal &&
+      typeof globalThis.nethackGlobal === "object" &&
+      globalThis.nethackGlobal.pointerContract &&
+      typeof globalThis.nethackGlobal.pointerContract === "object"
+        ? globalThis.nethackGlobal.pointerContract
+        : null;
+    if (!runtimeContract) {
+      this.runtimePointerContractSource = "defaults";
+      if (this.readRequireRuntimePointerContract()) {
+        throw new Error(
+          "Missing runtime pointer contract export. This build requires nethackGlobal.pointerContract from the WASM runtime.",
+        );
+      }
+      this.notePointerContractViolation(
+        "pointer-contract-runtime-missing",
+        "Runtime pointerContract was not exported by WASM; using bundled defaults.",
+      );
+      return defaults;
+    }
+    this.runtimePointerContractSource = "runtime";
+
+    const merged = {
+      ...defaults,
+      ...runtimeContract,
+      callbackArgCounts: {
+        ...defaults.callbackArgCounts,
+        ...(runtimeContract.callbackArgCounts || {}),
+      },
+      callbackPointers: {
+        ...defaults.callbackPointers,
+        ...(runtimeContract.callbackPointers || {}),
+      },
+      callbackModes: {
+        ...defaults.callbackModes,
+        ...(runtimeContract.callbackModes || {}),
+      },
+      extcmd: {
+        ...defaults.extcmd,
+        ...(runtimeContract.extcmd || {}),
+      },
+      menuItem: {
+        ...defaults.menuItem,
+        ...(runtimeContract.menuItem || {}),
+      },
+      glyphInfo:
+        runtimeContract.glyphInfo === null
+          ? null
+          : {
+              ...(defaults.glyphInfo || {}),
+              ...(runtimeContract.glyphInfo || {}),
+            },
+    };
+    return merged;
+  }
+
+  getRuntimePointerContract() {
+    if (!this.runtimePointerContract) {
+      this.runtimePointerContract = this.resolveRuntimePointerContract();
+    }
+    return this.runtimePointerContract;
+  }
+
+  validateRuntimePointerContract() {
+    if (this.runtimePointerContractValidated) {
+      return true;
+    }
+
+    const contract = this.getRuntimePointerContract();
+    if (!contract || typeof contract !== "object") {
+      throw new Error("Missing runtime pointer contract.");
+    }
+
+    const configuredAbiTag = this.readConfiguredPointerAbiTag(this.runtimeVersion);
+    const runtimeAbiTag = this.readRuntimeExportedPointerAbiTag();
+    if (
+      runtimeAbiTag &&
+      configuredAbiTag &&
+      runtimeAbiTag !== configuredAbiTag
+    ) {
+      throw new Error(
+        `WASM pointer ABI tag mismatch (runtime=${runtimeAbiTag}, configured=${configuredAbiTag}).`,
+      );
+    }
+
+    const extcmd = contract.extcmd || {};
+    const extcmdStride = Number(extcmd.stride);
+    const extcmdTextPtrOffset = Number(extcmd.textPtrOffset);
+    const extcmdFlagsOffset = Number(extcmd.flagsOffset);
+    if (
+      !Number.isInteger(extcmdStride) ||
+      extcmdStride < 8 ||
+      !Number.isInteger(extcmdTextPtrOffset) ||
+      extcmdTextPtrOffset < 0 ||
+      extcmdTextPtrOffset + 4 > extcmdStride ||
+      !Number.isInteger(extcmdFlagsOffset) ||
+      extcmdFlagsOffset < 0 ||
+      extcmdFlagsOffset + 4 > extcmdStride
+    ) {
+      throw new Error("Invalid extcmd layout in pointer contract.");
+    }
+
+    const menuItem = contract.menuItem || {};
+    const menuStride = Number(menuItem.stride);
+    const menuCountOffset = Number(menuItem.countOffset);
+    const menuItemFlagsOffset =
+      menuItem.itemFlagsOffset === null || menuItem.itemFlagsOffset === undefined
+        ? null
+        : Number(menuItem.itemFlagsOffset);
+    if (
+      !Number.isInteger(menuStride) ||
+      menuStride < 8 ||
+      !Number.isInteger(menuCountOffset) ||
+      menuCountOffset < 0 ||
+      menuCountOffset + 4 > menuStride ||
+      (menuItemFlagsOffset !== null &&
+        (!Number.isInteger(menuItemFlagsOffset) ||
+          menuItemFlagsOffset < 0 ||
+          menuItemFlagsOffset + 4 > menuStride))
+    ) {
+      throw new Error("Invalid menu_item layout in pointer contract.");
+    }
+
+    const glyphInfo = contract.glyphInfo;
+    if (glyphInfo && typeof glyphInfo === "object") {
+      const minBytes = Number(glyphInfo.minBytes);
+      const glyphOffset = Number(glyphInfo.glyphOffset);
+      const pointerAlignment =
+        glyphInfo.pointerAlignment === undefined
+          ? 1
+          : Number(glyphInfo.pointerAlignment);
+      if (
+        !Number.isInteger(minBytes) ||
+        minBytes < 8 ||
+        !Number.isInteger(glyphOffset) ||
+        glyphOffset < 0 ||
+        glyphOffset + 4 > minBytes ||
+        !Number.isInteger(pointerAlignment) ||
+        pointerAlignment <= 0
+      ) {
+        throw new Error("Invalid glyphInfo layout in pointer contract.");
+      }
+    }
+
+    this.runtimePointerContractValidated = true;
+    console.log(
+      `Pointer contract ready (runtime=${this.runtimeVersion}, abi=${contract.abiTag || configuredAbiTag}, source=${this.runtimePointerContractSource})`,
+    );
+    return true;
+  }
+
+  notePointerContractViolation(key, message, details = null) {
+    if (!key || this.pointerContractViolationKeys.has(key)) {
+      return;
+    }
+    this.pointerContractViolationKeys.add(key);
+    if (details) {
+      console.warn(`[POINTER_CONTRACT] ${message}`, details);
+      return;
+    }
+    console.warn(`[POINTER_CONTRACT] ${message}`);
+  }
+
+  normalizeWasmPointer(
+    value,
+    {
+      allowZero = false,
+      alignment = 1,
+      minBytes = 1,
+      enforceBounds = true,
+      label = "pointer",
+    } = {},
+  ) {
+    if (!this.nethackModule) {
+      return null;
+    }
+
+    const asNumber =
+      typeof value === "bigint"
+        ? Number(value)
+        : Number.isFinite(Number(value))
+          ? Number(value)
+          : NaN;
+    if (!Number.isFinite(asNumber)) {
+      return null;
+    }
+    const ptr = Math.trunc(asNumber);
+    if (ptr === 0) {
+      return allowZero ? 0 : null;
+    }
+    if (ptr < 0) {
+      return null;
+    }
+    if (Number.isInteger(alignment) && alignment > 1 && ptr % alignment !== 0) {
+      return null;
+    }
+
+    const heapSize =
+      this.nethackModule.HEAPU8 && this.nethackModule.HEAPU8.length
+        ? this.nethackModule.HEAPU8.length
+        : 0;
+    if (
+      enforceBounds &&
+      heapSize &&
+      Number.isInteger(minBytes) &&
+      minBytes > 0 &&
+      ptr + minBytes > heapSize
+    ) {
+      return null;
+    }
+    return ptr;
+  }
+
+  readPointerSlotValue(
+    ptr,
+    label = "pointer_slot",
+    normalizeValueAsPointer = false,
+  ) {
+    if (
+      !this.nethackModule ||
+      typeof this.nethackModule.getValue !== "function"
+    ) {
+      return null;
+    }
+    const slotPtr = this.normalizeWasmPointer(ptr, {
+      label,
+      minBytes: 4,
+      alignment: 4,
+    });
+    if (!slotPtr) {
+      return null;
+    }
+    const rawValue = this.readRuntimeValue(slotPtr, "*", {
+      label: `${label}_raw`,
+      minBytes: 4,
+      alignment: 4,
+    });
+    if (rawValue === null || rawValue === undefined) {
+      return null;
+    }
+    if (!normalizeValueAsPointer) {
+      const normalizedValue =
+        typeof rawValue === "bigint"
+          ? Number(rawValue)
+          : Number.isFinite(Number(rawValue))
+            ? Number(rawValue)
+            : NaN;
+      return Number.isFinite(normalizedValue)
+        ? Math.trunc(normalizedValue)
+        : null;
+    }
+    return this.normalizeWasmPointer(rawValue, {
+      allowZero: true,
+      label: `${label}_value`,
+    });
+  }
+
+  readRuntimeValue(
+    ptr,
+    valueType,
+    { label = "runtime_value", minBytes = 1, alignment = 1 } = {},
+  ) {
+    if (
+      !this.nethackModule ||
+      typeof this.nethackModule.getValue !== "function"
+    ) {
+      return null;
+    }
+    const normalizedPtr = this.normalizeWasmPointer(ptr, {
+      label,
+      minBytes,
+      alignment,
+      // Some wasm bundles do not expose HEAP* arrays on the module object.
+      // In that case we cannot do local bounds checks and must rely on getValue.
+      enforceBounds: true,
+    });
+    if (!normalizedPtr) {
+      return null;
+    }
+    try {
+      return this.nethackModule.getValue(normalizedPtr, valueType);
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  readRuntimeI8(ptr, label = "i8", unsigned = false) {
+    const rawValue = this.readRuntimeValue(ptr, "i8", {
+      label,
+      minBytes: 1,
+      alignment: 1,
+    });
+    if (rawValue === null || rawValue === undefined) {
+      return null;
+    }
+    const normalizedValue =
+      typeof rawValue === "bigint"
+        ? Number(rawValue)
+        : Number.isFinite(Number(rawValue))
+          ? Number(rawValue)
+          : NaN;
+    if (!Number.isFinite(normalizedValue)) {
+      return null;
+    }
+    const coerced = Math.trunc(normalizedValue);
+    return unsigned ? (coerced & 0xff) : coerced;
+  }
+
+  readRuntimeI16(ptr, label = "i16", unsigned = false) {
+    const rawValue = this.readRuntimeValue(ptr, "i16", {
+      label,
+      minBytes: 2,
+      alignment: 1,
+    });
+    if (rawValue === null || rawValue === undefined) {
+      return null;
+    }
+    const normalizedValue =
+      typeof rawValue === "bigint"
+        ? Number(rawValue)
+        : Number.isFinite(Number(rawValue))
+          ? Number(rawValue)
+          : NaN;
+    if (!Number.isFinite(normalizedValue)) {
+      return null;
+    }
+    const coerced = Math.trunc(normalizedValue);
+    return unsigned ? (coerced & 0xffff) : coerced;
+  }
+
+  readRuntimeI32(ptr, label = "i32") {
+    const rawValue = this.readRuntimeValue(ptr, "i32", {
+      label,
+      minBytes: 4,
+      alignment: 1,
+    });
+    if (rawValue === null || rawValue === undefined) {
+      return null;
+    }
+    const normalizedValue =
+      typeof rawValue === "bigint"
+        ? Number(rawValue)
+        : Number.isFinite(Number(rawValue))
+          ? Number(rawValue)
+          : NaN;
+    if (!Number.isFinite(normalizedValue)) {
+      return null;
+    }
+    return Math.trunc(normalizedValue);
+  }
+
+  decodeGlyphInfoPointer(ptr, contextLabel = "glyphinfo") {
+    const contract = this.getRuntimePointerContract();
+    const glyphInfo = contract?.glyphInfo;
+    if (!glyphInfo) {
+      return null;
+    }
+
+    const pointer = this.normalizeWasmPointer(ptr, {
+      label: `${contextLabel}_ptr`,
+      minBytes: Number(glyphInfo.minBytes) || 1,
+      alignment:
+        Number.isInteger(glyphInfo.pointerAlignment) &&
+        glyphInfo.pointerAlignment > 0
+          ? glyphInfo.pointerAlignment
+          : 1,
+    });
+    if (!pointer) {
+      return null;
+    }
+
+    const glyphOffset = Number(glyphInfo.glyphOffset) || 0;
+    const ttyCharOffset = Number(glyphInfo.ttyCharOffset);
+    const colorOffset = Number(glyphInfo.colorOffset);
+    const tileIndexOffset = Number(glyphInfo.tileIndexOffset);
+    const tileIndexType =
+      glyphInfo.tileIndexType === "i32" ? "i32" : "i16";
+
+    const readI32At = (offset) => {
+      if (!Number.isInteger(offset)) {
+        return null;
+      }
+      const address = pointer + offset;
+      return this.readRuntimeI32(address, `${contextLabel}_i32_${offset}`);
+    };
+
+    const glyph = readI32At(glyphOffset);
+    if (!Number.isFinite(glyph)) {
+      return null;
+    }
+    const glyphValue = Math.trunc(Number(glyph));
+    if (glyphValue < 0 || glyphValue > 1000000) {
+      return null;
+    }
+
+    const ttychar = readI32At(ttyCharOffset);
+    const color = readI32At(colorOffset);
+    let tileIndex = null;
+    if (Number.isInteger(tileIndexOffset)) {
+      const tileAddress = pointer + tileIndexOffset;
+      if (tileIndexType === "i32") {
+        const tile32 = readI32At(tileIndexOffset);
+        if (Number.isFinite(tile32)) {
+          tileIndex = tile32;
+        }
+      } else {
+        const tile16 = this.readRuntimeI16(
+          tileAddress,
+          `${contextLabel}_tile_i16_${tileIndexOffset}`,
+          true,
+        );
+        if (Number.isFinite(tile16)) {
+          tileIndex = tile16;
+        }
+      }
+    }
+
+    return {
+      pointer,
+      glyph: glyphValue,
+      ttychar: Number.isFinite(ttychar) ? Math.trunc(Number(ttychar)) : null,
+      color: Number.isFinite(color) ? Math.trunc(Number(color)) : null,
+      tileIndex:
+        Number.isFinite(tileIndex) && Number(tileIndex) >= 0
+          ? Math.trunc(Number(tileIndex))
+          : null,
+    };
+  }
+
+  validateCallbackPointerContract(name, args) {
+    const contract = this.getRuntimePointerContract();
+    if (!contract) {
+      return true;
+    }
+
+    const expectedCounts = Array.isArray(contract.callbackArgCounts?.[name])
+      ? contract.callbackArgCounts[name]
+      : [];
+    if (expectedCounts.length > 0 && !expectedCounts.includes(args.length)) {
+      this.notePointerContractViolation(
+        `arg-count-${name}`,
+        `${name} received unexpected arg count ${args.length} (expected ${expectedCounts.join(", ")}).`,
+      );
+      return false;
+    }
+
+    const pointerSpecs = Array.isArray(contract.callbackPointers?.[name])
+      ? contract.callbackPointers[name]
+      : [];
+    for (const pointerSpec of pointerSpecs) {
+      const ptrValue = args[pointerSpec.index];
+      const normalized = this.normalizeWasmPointer(ptrValue, {
+        allowZero: !pointerSpec.required,
+        alignment:
+          Number.isInteger(pointerSpec.alignment) && pointerSpec.alignment > 0
+            ? pointerSpec.alignment
+            : 1,
+        minBytes:
+          Number.isInteger(pointerSpec.bytes) && pointerSpec.bytes > 0
+            ? pointerSpec.bytes
+            : 1,
+        label: `${name}:${pointerSpec.label || pointerSpec.index}`,
+      });
+      if (pointerSpec.required && !normalized) {
+        this.notePointerContractViolation(
+          `arg-pointer-${name}-${pointerSpec.index}`,
+          `${name} received invalid pointer at arg ${pointerSpec.index} (${pointerSpec.label || "pointer"}).`,
+        );
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  getSafeCallbackDefaultReturn(name) {
+    switch (name) {
+      case "shim_get_ext_cmd":
+        return -1;
+      case "shim_nh_poskey":
+      case "shim_nhgetch":
+      case "shim_yn_function":
+        return 27;
+      default:
+        return 0;
+    }
   }
 
   getRuntimeStatusFieldMap() {
@@ -703,19 +1390,6 @@ class LocalNetHackRuntime {
     }
 
     this.inputBroker.cancelAll(27);
-    if (
-      this.nethackModule &&
-      typeof this.nethackModule._free === "function" &&
-      Number.isInteger(this.getlinFallbackBufferPtr) &&
-      this.getlinFallbackBufferPtr > 0
-    ) {
-      try {
-        this.nethackModule._free(this.getlinFallbackBufferPtr);
-      } catch (error) {
-        console.log("Error releasing fallback getlin buffer:", error);
-      }
-    }
-    this.getlinFallbackBufferPtr = 0;
   }
 
   queueMapGlyphUpdate(tile) {
@@ -1202,161 +1876,63 @@ class LocalNetHackRuntime {
   }
 
   resolvePoskeyTargetPointer(ptr, label) {
-    if (
-      !this.nethackModule ||
-      typeof this.nethackModule.getValue !== "function" ||
-      !Number.isInteger(ptr) ||
-      ptr <= 0
-    ) {
+    const resolvedPtr = this.normalizeWasmPointer(ptr, {
+      label: `nh_poskey_${label}_ptr`,
+      minBytes: 4,
+      alignment: 1,
+    });
+    if (!resolvedPtr) {
       console.log(
         `Skipping nh_poskey ${label} pointer resolve (ptr=${ptr}): invalid pointer`,
       );
       return null;
     }
 
-    const heapSize =
-      this.nethackModule.HEAPU8 && this.nethackModule.HEAPU8.length
-        ? this.nethackModule.HEAPU8.length
-        : 0;
-    const slotValue = this.nethackModule.getValue(ptr, "*");
-    const looksLikeTargetPtr =
-      Number.isInteger(slotValue) &&
-      slotValue > 1024 &&
-      (!heapSize || slotValue + 4 <= heapSize);
-    const targetPtr = looksLikeTargetPtr ? slotValue : ptr;
-    const inBounds = !heapSize || targetPtr + 4 <= heapSize;
-    if (!Number.isInteger(targetPtr) || targetPtr <= 0 || !inBounds) {
-      console.log(
-        `Skipping nh_poskey ${label} pointer resolve (slot=${ptr}, target=${targetPtr}, heapSize=${heapSize})`,
+    const callbackMode =
+      this.getRuntimePointerContract()?.callbackModes?.shim_nh_poskey || null;
+    if (callbackMode && callbackMode.pointerArgsAreDirect !== true) {
+      this.notePointerContractViolation(
+        "nh_poskey-mode",
+        "shim_nh_poskey pointer mode is not configured as direct pointers.",
       );
       return null;
     }
 
-    return targetPtr;
+    // Pointer contract: winshim.c exposes shim_nh_poskey as "ippp"; local_callback
+    // forwards each "p" argument as the raw pointer value (no implicit deref).
+    return resolvedPtr;
   }
 
   resolveTextInputBufferPointer(ptr) {
-    if (!this.nethackModule || !this.nethackModule.HEAPU8) {
+    if (!this.nethackModule) {
       return null;
     }
 
-    const heapSize = this.nethackModule.HEAPU8.length;
-    const normalizePtr = (value) => {
-      if (typeof value === "bigint") {
-        const asNumber = Number(value);
-        return Number.isFinite(asNumber) ? Math.trunc(asNumber) : null;
-      }
-      const asNumber = Number(value);
-      if (!Number.isFinite(asNumber)) {
-        return null;
-      }
-      return Math.trunc(asNumber);
-    };
-    const isInBounds = (address, byteLength = 1) =>
-      Number.isInteger(address) &&
-      address > 0 &&
-      Number.isInteger(byteLength) &&
-      byteLength > 0 &&
-      address + byteLength <= heapSize;
-    const readPointerFromSlot = (slotPtr) => {
-      if (
-        typeof this.nethackModule.getValue !== "function" ||
-        !isInBounds(slotPtr, 4)
-      ) {
-        return null;
-      }
-      try {
-        return normalizePtr(this.nethackModule.getValue(slotPtr, "*"));
-      } catch (error) {
-        console.log(`getlin pointer slot read failed at ${slotPtr}:`, error);
-        return null;
-      }
-    };
-
-    const rawPtr = normalizePtr(ptr);
-    if (!rawPtr || rawPtr <= 0) {
-      return null;
-    }
-
-    const candidatePtrs = [];
-    const pushCandidate = (candidate) => {
-      if (!Number.isInteger(candidate) || candidate <= 0) {
-        return;
-      }
-      if (!candidatePtrs.includes(candidate)) {
-        candidatePtrs.push(candidate);
-      }
-    };
-    pushCandidate(rawPtr);
-    const rawUnsigned = rawPtr >>> 0;
-    if (rawUnsigned !== rawPtr) {
-      pushCandidate(rawUnsigned);
-    }
-
-    for (const candidate of candidatePtrs) {
-      if (isInBounds(candidate, 1)) {
-        // getlin usually receives a writable char* buffer directly.
-        return candidate;
-      }
-    }
-
-    for (const candidate of candidatePtrs) {
-      const slotValue = readPointerFromSlot(candidate);
-      if (!slotValue || slotValue <= 0) {
-        continue;
-      }
-      if (isInBounds(slotValue, 1)) {
-        return slotValue;
-      }
-      const slotUnsigned = slotValue >>> 0;
-      if (slotUnsigned !== slotValue && isInBounds(slotUnsigned, 1)) {
-        return slotUnsigned;
-      }
-    }
-
-    // Last-resort compatibility fallback for builds that pass a pointer slot
-    // with a null/uninitialized target buffer.
-    if (
-      typeof this.nethackModule._malloc === "function" &&
-      typeof this.nethackModule.setValue === "function"
-    ) {
-      const writableSlot = candidatePtrs.find((candidate) =>
-        isInBounds(candidate, 4),
+    const resolvedPtr = this.normalizeWasmPointer(ptr, {
+      label: "shim_getlin_buffer_ptr",
+      minBytes: 1,
+      alignment: 1,
+    });
+    if (!resolvedPtr) {
+      console.log(
+        `Unable to resolve getlin buffer pointer (raw=${ptr})`,
       );
-      if (Number.isInteger(writableSlot)) {
-        if (
-          !Number.isInteger(this.getlinFallbackBufferPtr) ||
-          this.getlinFallbackBufferPtr <= 0 ||
-          !isInBounds(this.getlinFallbackBufferPtr, 1)
-        ) {
-          this.getlinFallbackBufferPtr =
-            this.nethackModule._malloc(this.textInputMaxLength);
-        }
-        if (isInBounds(this.getlinFallbackBufferPtr, 1)) {
-          try {
-            this.nethackModule.setValue(
-              writableSlot,
-              this.getlinFallbackBufferPtr,
-              "*",
-            );
-            console.log(
-              `Using fallback getlin buffer ${this.getlinFallbackBufferPtr} via slot ${writableSlot} (raw=${rawPtr}, heapSize=${heapSize})`,
-            );
-            return this.getlinFallbackBufferPtr;
-          } catch (error) {
-            console.log(
-              `Unable to write fallback getlin buffer pointer at slot ${writableSlot}:`,
-              error,
-            );
-          }
-        }
-      }
+      return null;
     }
 
-    console.log(
-      `Unable to resolve getlin buffer pointer details: raw=${rawPtr}, heapSize=${heapSize}, candidates=${candidatePtrs.join(",")}`,
-    );
-    return null;
+    const callbackMode =
+      this.getRuntimePointerContract()?.callbackModes?.shim_getlin || null;
+    if (callbackMode && callbackMode.pointerArgsAreDirect !== true) {
+      this.notePointerContractViolation(
+        "getlin-mode",
+        "shim_getlin pointer mode is not configured as direct pointers.",
+      );
+      return null;
+    }
+
+    // Pointer contract: winshim.c exposes shim_getlin as "vsp"; local_callback
+    // forwards "p" arguments as raw pointer values (direct writable char*).
+    return resolvedPtr;
   }
 
   getPoskeyCoordStoreType(xTargetPtr, yTargetPtr) {
@@ -4404,6 +4980,12 @@ class LocalNetHackRuntime {
       return -1;
     }
 
+    const helperResolvedIndex =
+      this.resolveExtendedCommandIndexFromRuntimeHelper(normalized);
+    if (Number.isInteger(helperResolvedIndex)) {
+      return helperResolvedIndex;
+    }
+
     const entries = this.getExtendedCommandEntries();
     if (!entries.length) {
       return -1;
@@ -4422,6 +5004,43 @@ class LocalNetHackRuntime {
     }
 
     return -1;
+  }
+
+  resolveExtendedCommandIndexFromRuntimeHelper(commandName) {
+    const helpers =
+      globalThis.nethackGlobal &&
+      globalThis.nethackGlobal.helpers &&
+      typeof globalThis.nethackGlobal.helpers === "object"
+        ? globalThis.nethackGlobal.helpers
+        : null;
+    if (!helpers) {
+      return null;
+    }
+
+    const resolver =
+      typeof helpers.resolveExtendedCommandIndex === "function"
+        ? helpers.resolveExtendedCommandIndex
+        : typeof helpers.extcmdIndexForName === "function"
+          ? helpers.extcmdIndexForName
+          : null;
+    if (!resolver) {
+      return null;
+    }
+
+    try {
+      const result = resolver(commandName);
+      if (!Number.isInteger(result)) {
+        return null;
+      }
+      return result >= 0 ? result : -1;
+    } catch (error) {
+      this.notePointerContractViolation(
+        "extcmd-helper-index-read-failed",
+        "Runtime extended-command index helper threw an error; falling back to table decoding.",
+        error,
+      );
+      return null;
+    }
   }
 
   resolveMetaBoundExtendedCommandName(metaKey) {
@@ -4458,14 +5077,105 @@ class LocalNetHackRuntime {
       return this.extendedCommandEntries;
     }
 
+    const helperExtracted = this.extractExtendedCommandEntriesFromRuntimeHelper();
+    if (helperExtracted.length > 0) {
+      this.extendedCommandEntries = helperExtracted;
+      return helperExtracted;
+    }
+
     const extracted = this.extractExtendedCommandEntriesFromMemory();
     if (extracted.length > 0) {
       this.extendedCommandEntries = extracted;
       return extracted;
     }
 
-    this.extendedCommandEntries = this.getFallbackExtendedCommandEntries();
+    // Fail closed instead of inventing an inferred/fallback table that can
+    // misroute commands after a wasm update.
+    this.extendedCommandEntries = [];
     return this.extendedCommandEntries;
+  }
+
+  extractExtendedCommandEntriesFromRuntimeHelper() {
+    const helpers =
+      globalThis.nethackGlobal &&
+      globalThis.nethackGlobal.helpers &&
+      typeof globalThis.nethackGlobal.helpers === "object"
+        ? globalThis.nethackGlobal.helpers
+        : null;
+    if (!helpers) {
+      return [];
+    }
+
+    const listFn =
+      typeof helpers.listExtendedCommands === "function"
+        ? helpers.listExtendedCommands
+        : typeof helpers.getExtendedCommands === "function"
+          ? helpers.getExtendedCommands
+          : null;
+    if (!listFn) {
+      return [];
+    }
+
+    let rawEntries;
+    try {
+      rawEntries = listFn();
+    } catch (error) {
+      this.notePointerContractViolation(
+        "extcmd-helper-list-read-failed",
+        "Runtime extended-command list helper threw an error; falling back to table decoding.",
+        error,
+      );
+      return [];
+    }
+    if (!Array.isArray(rawEntries) || rawEntries.length === 0) {
+      return [];
+    }
+
+    const entries = [];
+    for (let index = 0; index < rawEntries.length; index += 1) {
+      const rawEntry = rawEntries[index];
+      if (typeof rawEntry === "string") {
+        const name = rawEntry.trim().toLowerCase();
+        if (!this.isLikelyExtendedCommandName(name)) {
+          continue;
+        }
+        entries.push({
+          index,
+          name,
+          keyCode: 0,
+          flags: 0,
+        });
+        continue;
+      }
+
+      if (!rawEntry || typeof rawEntry !== "object") {
+        continue;
+      }
+
+      const name = String(rawEntry.name || "")
+        .trim()
+        .toLowerCase();
+      if (!this.isLikelyExtendedCommandName(name)) {
+        continue;
+      }
+
+      const resolvedIndex = Number.isInteger(rawEntry.index)
+        ? rawEntry.index
+        : index;
+      entries.push({
+        index: resolvedIndex,
+        name,
+        keyCode: Number.isInteger(rawEntry.keyCode) ? rawEntry.keyCode : 0,
+        flags: Number.isInteger(rawEntry.flags) ? rawEntry.flags : 0,
+      });
+    }
+
+    if (entries.length > 0) {
+      console.log(
+        `Resolved extended command entries from runtime helper API (entries=${entries.length})`,
+      );
+    }
+    return entries;
   }
 
   emitExtendedCommands(source = "runtime") {
@@ -4497,79 +5207,141 @@ class LocalNetHackRuntime {
   extractExtendedCommandEntriesFromMemory() {
     if (
       !this.nethackModule ||
-      !this.nethackModule.HEAPU8 ||
-      !this.nethackModule.HEAP32
+      typeof this.nethackModule.getValue !== "function"
     ) {
       return [];
     }
 
-    const heapU8 = this.nethackModule.HEAPU8;
-    const candidateStrides = [24, 20];
-
-    for (const stride of candidateStrides) {
-      const flagsOffset = stride === 24 ? 16 : 12;
-      const maxBase = heapU8.length - stride;
-      for (let base = 0; base <= maxBase; base += 4) {
-        if (heapU8[base] !== "#".charCodeAt(0)) {
-          continue;
-        }
-
-        const textPtr = this.nethackModule.HEAP32[(base + 4) >> 2];
-        if (this.readHeapCString(textPtr, 4) !== "#") {
-          continue;
-        }
-
-        const descPtr = this.nethackModule.HEAP32[(base + 8) >> 2];
-        if (
-          this.readHeapCString(descPtr, 64) !== "perform an extended command"
-        ) {
-          continue;
-        }
-
-        const entries = this.readExtendedCommandEntriesFromBase(
-          base,
-          stride,
-          flagsOffset,
-        );
-        if (
-          entries.length >= 20 &&
-          entries[0].name === "#" &&
-          entries.some((entry) => entry.name === "pray") &&
-          entries.some((entry) => entry.name === "chat")
-        ) {
-          console.log(
-            `Resolved extended command table from WASM memory (${entries.length} entries, stride=${stride}, base=${base})`,
-          );
-          return entries;
-        }
-      }
+    const extcmdContract = this.getRuntimePointerContract()?.extcmd || {};
+    const exportedPointerName =
+      typeof extcmdContract.exportedPointerName === "string" &&
+      extcmdContract.exportedPointerName.trim()
+        ? extcmdContract.exportedPointerName.trim()
+        : "extcmdlist";
+    const exportedPointerValue = this.resolveRuntimeExportedPointer(
+      exportedPointerName,
+    );
+    if (!exportedPointerValue) {
+      console.log(
+        `Missing runtime pointer contract export "${exportedPointerName}"; extended commands are unavailable for this wasm build.`,
+      );
+      return [];
     }
 
+    const exportedPointerMode =
+      extcmdContract.exportedPointerMode === "slot"
+        ? "slot"
+        : extcmdContract.exportedPointerMode === "direct"
+          ? "direct"
+          : "direct_or_slot";
+    const candidateBases = [];
+    const pushCandidateBase = (value) => {
+      const normalized = this.normalizeWasmPointer(value, {
+        label: `${exportedPointerName}_candidate_base`,
+        minBytes: 1,
+        alignment: 4,
+      });
+      if (!normalized || candidateBases.includes(normalized)) {
+        return;
+      }
+      candidateBases.push(normalized);
+    };
+    if (exportedPointerMode !== "slot") {
+      pushCandidateBase(exportedPointerValue);
+    }
+    if (exportedPointerMode !== "direct") {
+      const slotValue = this.readPointerSlotValue(
+        exportedPointerValue,
+        `${exportedPointerName}_slot`,
+        true,
+      );
+      pushCandidateBase(slotValue);
+    }
+    if (candidateBases.length === 0) {
+      console.log(
+        `No valid extcmd table base candidates for exported pointer "${exportedPointerName}" (${exportedPointerValue})`,
+      );
+      return [];
+    }
+
+    const candidateResults = [];
+    for (const basePtr of candidateBases) {
+      const entries = this.readExtendedCommandEntriesFromBase(
+        basePtr,
+        extcmdContract,
+      );
+      const looksValid = this.validateExtendedCommandEntries(
+        entries,
+        extcmdContract,
+      );
+      candidateResults.push({
+        basePtr,
+        entriesLength: entries.length,
+        looksValid,
+      });
+      if (!looksValid) {
+        continue;
+      }
+      console.log(
+        `Resolved extended command table from exported pointer "${exportedPointerName}" (entries=${entries.length}, base=${basePtr}, mode=${exportedPointerMode})`,
+      );
+      return entries;
+    }
+
+    console.log(
+      `Extcmd pointer contract validation failed for all bases derived from "${exportedPointerName}"`,
+      candidateResults,
+    );
     return [];
   }
 
-  readExtendedCommandEntriesFromBase(base, stride, flagsOffset) {
+  readExtendedCommandEntriesFromBase(extcmdlistPtr, extcmdContract = {}) {
     if (
       !this.nethackModule ||
-      !this.nethackModule.HEAPU8 ||
-      !this.nethackModule.HEAP32
+      typeof this.nethackModule.getValue !== "function"
     ) {
       return [];
     }
+    const stride = Number(extcmdContract.stride);
+    const textPtrOffset = Number(extcmdContract.textPtrOffset);
+    const flagsOffset = Number(extcmdContract.flagsOffset);
+    const maxEntries = Number(extcmdContract.maxEntries) || 512;
+    if (
+      !Number.isInteger(stride) ||
+      stride < 8 ||
+      !Number.isInteger(textPtrOffset) ||
+      textPtrOffset < 0 ||
+      textPtrOffset + 4 > stride ||
+      !Number.isInteger(flagsOffset) ||
+      flagsOffset < 0 ||
+      flagsOffset + 4 > stride
+    ) {
+      this.notePointerContractViolation(
+        "extcmd-layout-invalid",
+        "Extended command layout is invalid in the runtime pointer contract.",
+        { stride, textPtrOffset, flagsOffset },
+      );
+      return [];
+    }
 
-    const heapU8 = this.nethackModule.HEAPU8;
-    const heap32 = this.nethackModule.HEAP32;
     const entries = [];
-
-    for (let index = 0; index < 256; index++) {
-      const offset = base + index * stride;
-      if (offset + stride > heapU8.length) {
+    for (let index = 0; index < maxEntries; index++) {
+      const offset = extcmdlistPtr + index * stride;
+      if (!Number.isFinite(offset) || offset <= 0) {
         break;
       }
 
-      const keyCode = heap32[offset >> 2];
-      const textPtr = heap32[(offset + 4) >> 2];
+      const keyCode = this.readRuntimeI8(
+        offset,
+        `extcmd_${index}_key`,
+        true,
+      );
+      const textPtr = this.readRuntimeI32(
+        offset + textPtrOffset,
+        `extcmd_${index}_text_ptr`,
+      );
       if (!Number.isInteger(textPtr) || textPtr <= 0) {
+        // Sentinel row has ef_txt == NULL.
         break;
       }
 
@@ -4581,7 +5353,10 @@ class LocalNetHackRuntime {
         break;
       }
 
-      const flags = heap32[(offset + flagsOffset) >> 2];
+      const flags = this.readRuntimeI32(
+        offset + flagsOffset,
+        `extcmd_${index}_flags`,
+      );
       entries.push({
         index,
         name: name.toLowerCase(),
@@ -4593,34 +5368,99 @@ class LocalNetHackRuntime {
     return entries;
   }
 
+  validateExtendedCommandEntries(entries, extcmdContract = {}) {
+    const minEntries = Number(extcmdContract.minEntries) || 10;
+    const requiredNames = Array.isArray(extcmdContract.requiredNames)
+      ? extcmdContract.requiredNames
+      : ["#", "pray"];
+    const normalizedRequiredNames = requiredNames
+      .map((value) => String(value || "").trim().toLowerCase())
+      .filter((value) => value.length > 0);
+    const looksValid =
+      entries.length >= minEntries &&
+      normalizedRequiredNames.every((requiredName) =>
+        entries.some((entry) => entry.name === requiredName),
+      );
+    return looksValid;
+  }
+
+  resolveRuntimeExportedPointer(name) {
+    if (!name) {
+      return null;
+    }
+
+    const pointers =
+      globalThis.nethackGlobal &&
+      globalThis.nethackGlobal.pointers &&
+      typeof globalThis.nethackGlobal.pointers === "object"
+        ? globalThis.nethackGlobal.pointers
+        : null;
+    if (!pointers) {
+      return null;
+    }
+
+    const raw = pointers[name];
+    return this.normalizeWasmPointer(raw, {
+      label: `exported_pointer_${name}`,
+      minBytes: 1,
+      alignment: 1,
+    });
+  }
+
   readHeapCString(ptr, maxLength = 128) {
     if (
       !this.nethackModule ||
-      !this.nethackModule.HEAPU8 ||
       !Number.isInteger(ptr) ||
       ptr <= 0
     ) {
       return "";
     }
 
-    const heap = this.nethackModule.HEAPU8;
-    if (ptr >= heap.length) {
+    const normalizedPtr = this.normalizeWasmPointer(ptr, {
+      label: "heap_cstring_ptr",
+      minBytes: 1,
+      alignment: 1,
+      enforceBounds: true,
+    });
+    if (!normalizedPtr) {
       return "";
     }
 
-    const end = Math.min(heap.length, ptr + maxLength);
     let text = "";
-    for (let i = ptr; i < end; i++) {
-      const code = heap[i];
-      if (code === 0) {
-        break;
+    if (typeof this.nethackModule.UTF8ToString === "function") {
+      try {
+        text = String(this.nethackModule.UTF8ToString(normalizedPtr, maxLength) || "");
+      } catch (_error) {
+        text = "";
       }
+    }
+    if (!text && this.nethackModule.HEAPU8) {
+      const heap = this.nethackModule.HEAPU8;
+      if (normalizedPtr < heap.length) {
+        const end = Math.min(heap.length, normalizedPtr + maxLength);
+        let fallbackText = "";
+        for (let i = normalizedPtr; i < end; i++) {
+          const code = heap[i];
+          if (code === 0) {
+            break;
+          }
+          fallbackText += String.fromCharCode(code);
+        }
+        text = fallbackText;
+      }
+    }
+    if (!text) {
+      return "";
+    }
+
+    const truncated = text.slice(0, maxLength);
+    for (let i = 0; i < truncated.length; i += 1) {
+      const code = truncated.charCodeAt(i);
       if (code < 32 || code > 126) {
         return "";
       }
-      text += String.fromCharCode(code);
     }
-    return text;
+    return truncated;
   }
 
   isLikelyExtendedCommandName(name) {
@@ -4630,160 +5470,6 @@ class LocalNetHackRuntime {
       name.length <= 32 &&
       /^[A-Za-z0-9_?#-]+$/.test(name)
     );
-  }
-
-  getFallbackExtendedCommandEntries() {
-    const fallbackNames = [
-      "#",
-      "?",
-      "adjust",
-      "annotate",
-      "apply",
-      "attributes",
-      "autopickup",
-      "call",
-      "cast",
-      "chat",
-      "close",
-      "conduct",
-      "dip",
-      "down",
-      "drop",
-      "droptype",
-      "eat",
-      "engrave",
-      "enhance",
-      "exploremode",
-      "fire",
-      "force",
-      "glance",
-      "help",
-      "herecmdmenu",
-      "history",
-      "inventory",
-      "inventtype",
-      "invoke",
-      "jump",
-      "kick",
-      "known",
-      "knownclass",
-      "levelchange",
-      "lightsources",
-      "look",
-      "loot",
-      "monster",
-      "name",
-      "offer",
-      "open",
-      "options",
-      "overview",
-      "panic",
-      "pay",
-      "pickup",
-      "polyself",
-      "pray",
-      "prevmsg",
-      "puton",
-      "quaff",
-      "quit",
-      "quiver",
-      "read",
-      "redraw",
-      "remove",
-      "ride",
-      "rub",
-      "save",
-      "search",
-      "seeall",
-      "seeamulet",
-      "seearmor",
-      "seegold",
-      "seenv",
-      "seerings",
-      "seespells",
-      "seetools",
-      "seetrap",
-      "seeweapon",
-      "shell",
-      "sit",
-      "stats",
-      "suspend",
-      "swap",
-      "takeoff",
-      "takeoffall",
-      "teleport",
-      "terrain",
-      "therecmdmenu",
-      "throw",
-      "timeout",
-      "tip",
-      "travel",
-      "turn",
-      "twoweapon",
-      "untrap",
-      "up",
-      "vanquished",
-      "version",
-      "versionshort",
-      "vision",
-      "wait",
-      "wear",
-      "whatdoes",
-      "whatis",
-      "wield",
-      "wipe",
-      "wizdetect",
-      "wizgenesis",
-      "wizidentify",
-      "wizintrinsic",
-      "wizlevelport",
-      "wizmakemap",
-      "wizmap",
-      "wizrumorcheck",
-      "wizsmell",
-      "wizwhere",
-      "wizwish",
-      "wmode",
-      "zap",
-    ];
-    const fallbackMetaBindings = {
-      "?": "?",
-      adjust: "a",
-      annotate: "A",
-      chat: "c",
-      conduct: "C",
-      dip: "d",
-      enhance: "e",
-      force: "f",
-      invoke: "i",
-      jump: "j",
-      loot: "l",
-      monster: "m",
-      offer: "o",
-      pray: "p",
-      quit: "q",
-      ride: "R",
-      rub: "r",
-      sit: "s",
-      tip: "T",
-      turn: "t",
-      twoweapon: "2",
-      untrap: "u",
-      version: "v",
-      wipe: "w",
-    };
-
-    console.log(
-      `Using fallback extended command table (${fallbackNames.length} entries)`,
-    );
-    return fallbackNames.map((name, index) => ({
-      index,
-      name,
-      keyCode: fallbackMetaBindings[name]
-        ? fallbackMetaBindings[name].charCodeAt(0) | 0x80
-        : 0,
-      flags: 0,
-    }));
   }
 
   getStatusFieldName(field) {
@@ -5246,49 +5932,65 @@ class LocalNetHackRuntime {
       return;
     }
 
-    const heapSize =
-      this.nethackModule.HEAPU8 && this.nethackModule.HEAPU8.length
-        ? this.nethackModule.HEAPU8.length
-        : 0;
-    const isAlignedPtr =
-      Number.isInteger(menuListPtrPtr) &&
-      menuListPtrPtr > 0 &&
-      (menuListPtrPtr & 3) === 0;
-    const isInBounds = !heapSize || menuListPtrPtr + 4 <= heapSize;
-    if (!isAlignedPtr || !isInBounds) {
+    const normalizedMenuListPtrPtr = this.normalizeWasmPointer(menuListPtrPtr, {
+      label: "menu_list_ptr_ptr",
+      minBytes: 4,
+      alignment: 4,
+    });
+    if (!normalizedMenuListPtrPtr) {
       console.log(
-        `Skipping menu selection write: invalid menuListPtrPtr=${menuListPtrPtr} (aligned=${isAlignedPtr}, inBounds=${isInBounds}, heapSize=${heapSize})`,
+        `Skipping menu selection write: invalid menuListPtrPtr=${menuListPtrPtr}`,
       );
       return;
     }
 
     try {
       const selectedItems = Array.from(this.menuSelections.values());
-      // NetHack 3.7.0's menu_item layout is 12 bytes. 3.6.7 is 8 bytes.
-      // 3.7.0: { anything item; long count; unsigned itemflags; }
-      // 3.6.7: { anything item; long count; }
-      const bytesPerMenuItem = this.runtimeVersion === "3.7" ? 12 : 8;
-      const countOffsetPrimary = 4;
-      const itemFlagsOffset = 8;
-
-      const canWriteCountAt = (offset) =>
+      const menuItemContract = this.getRuntimePointerContract()?.menuItem || {};
+      const bytesPerMenuItem = Number(menuItemContract.stride) || 0;
+      const countOffset = Number(menuItemContract.countOffset);
+      const itemFlagsOffset =
+        menuItemContract.itemFlagsOffset === null ||
+        menuItemContract.itemFlagsOffset === undefined
+          ? null
+          : Number(menuItemContract.itemFlagsOffset);
+      const canWriteFieldAt = (offset) =>
         Number.isInteger(offset) &&
         offset >= 0 &&
         offset + 4 <= bytesPerMenuItem;
-
-      if (selectionCount <= 0) {
-        this.nethackModule.setValue(menuListPtrPtr, 0, "*");
-        console.log(
-          `Menu selection write: cleared output pointer at menuListPtrPtr=${menuListPtrPtr}`,
+      if (
+        !Number.isInteger(bytesPerMenuItem) ||
+        bytesPerMenuItem < 8 ||
+        !canWriteFieldAt(countOffset)
+      ) {
+        this.notePointerContractViolation(
+          "menu-item-layout-write",
+          "menu_item layout is invalid; skipping menu selection write.",
+          {
+            bytesPerMenuItem,
+            countOffset,
+            itemFlagsOffset,
+          },
         );
         return;
       }
 
-      const priorOutPtr = this.nethackModule.getValue(menuListPtrPtr, "*");
+      if (selectionCount <= 0) {
+        this.nethackModule.setValue(normalizedMenuListPtrPtr, 0, "*");
+        console.log(
+          `Menu selection write: cleared output pointer at menuListPtrPtr=${normalizedMenuListPtrPtr}`,
+        );
+        return;
+      }
+
+      const priorOutPtr = this.nethackModule.getValue(
+        normalizedMenuListPtrPtr,
+        "*",
+      );
       const outPtr = this.nethackModule._malloc(
         selectionCount * bytesPerMenuItem,
       );
-      this.nethackModule.setValue(menuListPtrPtr, outPtr, "*");
+      this.nethackModule.setValue(normalizedMenuListPtrPtr, outPtr, "*");
       if (this.nethackModule.HEAPU8 && bytesPerMenuItem > 0) {
         // Clear all bytes to avoid stale data in optional struct fields.
         this.nethackModule.HEAPU8.fill(
@@ -5297,20 +5999,21 @@ class LocalNetHackRuntime {
           outPtr + selectionCount * bytesPerMenuItem,
         );
       }
-      const confirmOutPtr = this.nethackModule.getValue(menuListPtrPtr, "*");
+      const confirmOutPtr = this.nethackModule.getValue(
+        normalizedMenuListPtrPtr,
+        "*",
+      );
       console.log(
-        `Writing ${selectionCount} selections at outPtr=${outPtr} (menuListPtrPtr=${menuListPtrPtr}, priorOutPtr=${priorOutPtr}, confirmOutPtr=${confirmOutPtr}, stride=${bytesPerMenuItem}, countOffsetPrimary=${countOffsetPrimary}, itemFlagsOffset=${itemFlagsOffset})`,
+        `Writing ${selectionCount} selections at outPtr=${outPtr} (menuListPtrPtr=${normalizedMenuListPtrPtr}, priorOutPtr=${priorOutPtr}, confirmOutPtr=${confirmOutPtr}, stride=${bytesPerMenuItem}, countOffset=${countOffset}, itemFlagsOffset=${itemFlagsOffset})`,
       );
 
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
         const structOffset = outPtr + i * bytesPerMenuItem;
         let itemIdentifier =
-          this.runtimeVersion === "3.7"
+          typeof item.identifier === "number"
             ? item.identifier
-            : typeof item.identifier === "number"
-              ? item.identifier
-              : item.originalAccelerator;
+            : item.originalAccelerator;
         if (
           typeof itemIdentifier !== "number" &&
           typeof item.menuChar === "string" &&
@@ -5341,30 +6044,20 @@ class LocalNetHackRuntime {
         const countValue =
           explicitCount !== null ? explicitCount : useAllCount ? -1 : 1;
 
-        // Write count in both likely offsets for compatibility across layouts.
-        if (canWriteCountAt(countOffsetPrimary)) {
-          this.nethackModule.setValue(
-            structOffset + countOffsetPrimary,
-            countValue,
-            "i32",
-          );
-        }
-        if (
-          canWriteCountAt(itemFlagsOffset) &&
-          itemFlagsOffset !== countOffsetPrimary
-        ) {
+        this.nethackModule.setValue(structOffset + countOffset, countValue, "i32");
+        if (itemFlagsOffset !== null && canWriteFieldAt(itemFlagsOffset)) {
           this.nethackModule.setValue(structOffset + itemFlagsOffset, 0, "i32");
         }
         const debugItem = this.nethackModule.getValue(structOffset, "i32");
-        const debugCountPrimary = canWriteCountAt(countOffsetPrimary)
+        const debugCountPrimary = canWriteFieldAt(countOffset)
           ? this.nethackModule.getValue(
-              structOffset + countOffsetPrimary,
+              structOffset + countOffset,
               "i32",
             )
           : null;
         const debugItemFlags =
-          canWriteCountAt(itemFlagsOffset) &&
-          itemFlagsOffset !== countOffsetPrimary
+          itemFlagsOffset !== null &&
+          canWriteFieldAt(itemFlagsOffset)
             ? this.nethackModule.getValue(structOffset + itemFlagsOffset, "i32")
             : null;
         console.log(
@@ -5490,18 +6183,25 @@ class LocalNetHackRuntime {
               }
 
               switch (type) {
+                case "p":
+                  this.nethackModule.setValue(ptr, value, "*");
+                  break;
                 case "s":
                   this.nethackModule.stringToUTF8(String(value), ptr, 1024);
                   break;
                 case "i":
                   this.nethackModule.setValue(ptr, value, "i32");
                   break;
+                case "1":
+                  this.nethackModule.setValue(ptr, value, "i16");
+                  break;
                 case "c":
                   this.nethackModule.setValue(ptr, value, "i8");
                   break;
-                case "f":
-                  this.nethackModule.setValue(ptr, value, "float");
+                case "b":
+                  this.nethackModule.setValue(ptr, value ? 1 : 0, "i8");
                   break;
+                case "f":
                 case "d":
                   this.nethackModule.setValue(ptr, value, "double");
                   break;
@@ -5795,6 +6495,9 @@ class LocalNetHackRuntime {
       });
 
       this.nethackModule = this.nethackInstance;
+      this.runtimePointerContract = null;
+      this.runtimePointerContractSource = "defaults";
+      this.runtimePointerContractValidated = false;
       this.updateCheckpointRecoverySupport();
 
       // Register the UI callback and start the game loop
@@ -5809,6 +6512,7 @@ class LocalNetHackRuntime {
       // local_callback argument decoding (observed in shim_get_ext_cmd).
       // Treat those as a no-op value to avoid worker crashes.
       this.installHelperCompatibilityShims();
+      this.validateRuntimePointerContract();
 
       // Start the game — ASYNCIFY pauses/resumes at each async callback boundary
       this.queueCheckpointAutosaveResumeBeforeStartup();
@@ -5983,16 +6687,7 @@ class LocalNetHackRuntime {
         `Text input context for Call prompt: "${promptContextMessage}"`,
       );
     }
-    let resolvedBufferPtr = this.resolveTextInputBufferPointer(bufferPtr);
-    if (!resolvedBufferPtr) {
-      const rawBufferPtr = Math.trunc(Number(bufferPtr));
-      if (Number.isFinite(rawBufferPtr) && rawBufferPtr > 0) {
-        console.log(
-          `Falling back to raw getlin buffer pointer ${rawBufferPtr} after resolution failure`,
-        );
-        resolvedBufferPtr = rawBufferPtr;
-      }
-    }
+    const resolvedBufferPtr = this.resolveTextInputBufferPointer(bufferPtr);
     if (!resolvedBufferPtr) {
       console.log(
         `Unable to resolve getlin buffer pointer (raw=${bufferPtr}); returning empty response`,
@@ -6040,6 +6735,9 @@ class LocalNetHackRuntime {
     }
     console.log(`🎮 UI Callback: ${name}`, args);
     this.recordRecentUICallback(name, args);
+    if (!this.validateCallbackPointerContract(name, args)) {
+      return this.getSafeCallbackDefaultReturn(name);
+    }
     const isRawPrintCallback = this.isRawPrintCallbackName(name);
     if (
       this.gameOverSequenceActive &&
@@ -6461,17 +7159,31 @@ class LocalNetHackRuntime {
           preselected,
         ] = args;
 
-        const is_37 = this.runtimeVersion === "3.7";
-
-        // NetHack 3.7's callback has an extra argument before the string.
-        const menuText = String((is_37 ? args[7] : args[6]) || "");
+        const pointerContract = this.getRuntimePointerContract();
+        const addMenuMode = pointerContract?.callbackModes?.shim_add_menu || {};
+        const menuTextArgIndex = Number.isInteger(addMenuMode.menuTextArgIndex)
+          ? addMenuMode.menuTextArgIndex
+          : this.runtimeVersion === "3.7"
+            ? 7
+            : 6;
+        const identifierMode =
+          addMenuMode.identifierMode === "pointer_slot"
+            ? "pointer_slot"
+            : "value";
+        const glyphArgMode =
+          addMenuMode.glyphArgMode === "glyphinfo_ptr"
+            ? "glyphinfo_ptr"
+            : "glyph_value";
+        const menuText = String((args[menuTextArgIndex] ?? "") || "");
 
         // In this callback shape, category headers are identified by menuAttr=7.
         const isCategory = menuAttr === 7;
-        // In 3.6.7, identifier is a pointer. In 3.7, it's a value.
-        const identifierValue = is_37
-          ? identifier
-          : this.nethackModule.getValue(identifier, "*");
+        const identifierValue =
+          identifierMode === "pointer_slot"
+            ? this.readPointerSlotValue(identifier, "menu_identifier_ptr")
+            : Number.isFinite(Number(identifier))
+              ? Math.trunc(Number(identifier))
+              : null;
         const isSelectable =
           !isCategory &&
           typeof identifierValue === "number" &&
@@ -6485,32 +7197,34 @@ class LocalNetHackRuntime {
 
         // Convert glyph to visual character and tile index using runtime helpers.
         if (menuGlyph) {
-          let finalGlyph = menuGlyph;
-          if (is_37) {
-            const mod: any = this.nethackModule;
-            const HEAPU8: Uint8Array | undefined = mod?.HEAPU8;
-            const HEAP32: Int32Array | undefined = mod?.HEAP32;
-            const ptr = menuGlyph;
-
-            if (HEAPU8 && HEAP32 && ptr > 0 && ptr + 4 <= HEAPU8.length) {
-              finalGlyph = HEAP32[ptr >> 2]; // glyph is at offset 0
+          let finalGlyph = Number.isFinite(Number(menuGlyph))
+            ? Math.trunc(Number(menuGlyph))
+            : menuGlyph;
+          if (glyphArgMode === "glyphinfo_ptr") {
+            const decodedGlyphInfo = this.decodeGlyphInfoPointer(
+              menuGlyph,
+              "shim_add_menu",
+            );
+            if (decodedGlyphInfo) {
+              finalGlyph = decodedGlyphInfo.glyph;
+              if (menuItemTileIndex === null && decodedGlyphInfo.tileIndex !== null) {
+                menuItemTileIndex = decodedGlyphInfo.tileIndex;
+              }
               console.log(
-                `Decoded 3.7 menu glyph: ptr=0x${ptr.toString(
+                `Decoded menu glyphinfo pointer: ptr=0x${decodedGlyphInfo.pointer.toString(
                   16,
-                )} -> glyph=${finalGlyph}`,
+                )} -> glyph=${decodedGlyphInfo.glyph}`,
               );
             } else {
               console.log(
-                `Could not decode 3.7 menu glyph from ptr=0x${ptr.toString(
-                  16,
-                )}`,
+                `Could not decode menu glyphinfo pointer for value ${menuGlyph}`,
               );
             }
           }
           resolvedMenuGlyph = finalGlyph;
 
           const helpers = globalThis.nethackGlobal?.helpers;
-          const mapHelper = is_37
+          const mapHelper = this.runtimeVersion === "3.7"
             ? helpers?.mapGlyphInfoHelper
             : helpers?.mapglyphHelper;
           const tileIndexForGlyphHelper =
@@ -6719,46 +7433,43 @@ class LocalNetHackRuntime {
         let decodedColor: number | null = null;
         let decodedTileIndex: number | null = null;
 
-        // 3.7 ONLY: a is a pointer to a glyphinfo-like struct (your logs show +0x28 steps)
-        if (this.runtimeVersion === "3.7" && args.length === 5) {
-          const ptr = a;
+        const printGlyphMode =
+          this.getRuntimePointerContract()?.callbackModes?.shim_print_glyph || {};
+        const glyphArgMode =
+          printGlyphMode.glyphArgMode === "glyphinfo_ptr"
+            ? "glyphinfo_ptr"
+            : "glyph_value";
+        if (glyphArgMode === "glyphinfo_ptr" && args.length >= 5) {
           const extra = b;
-
-          const mod: any = this.nethackModule; // you already set this.nethackModule = this.nethackInstance
-          const HEAPU8: Uint8Array | undefined = mod?.HEAPU8;
-          const HEAP32: Int32Array | undefined = mod?.HEAP32;
-          const HEAP16: Int16Array | undefined = mod?.HEAP16;
-
-          if (
-            HEAPU8 &&
-            HEAP32 &&
-            HEAP16 &&
-            ptr > 0 &&
-            ptr + 36 <= HEAPU8.length
-          ) {
-            // decode the REAL glyph from memory
-            printGlyph = HEAP32[ptr >> 2];
-
-            // optional: log a few fields for sanity
-            const ttychar = HEAP32[(ptr + 4) >> 2];
-            const color = HEAP32[(ptr + 16) >> 2];
-            const tileidx = HEAP16[(ptr + 30) >> 1];
-            if (Number.isFinite(tileidx) && tileidx >= 0) {
-              decodedTileIndex = Math.trunc(tileidx);
+          const decodedGlyphInfo = this.decodeGlyphInfoPointer(
+            a,
+            "shim_print_glyph",
+          );
+          if (decodedGlyphInfo) {
+            printGlyph = decodedGlyphInfo.glyph;
+            if (
+              Number.isFinite(decodedGlyphInfo.ttychar) &&
+              decodedGlyphInfo.ttychar !== null
+            ) {
+              decodedChar = String.fromCharCode(decodedGlyphInfo.ttychar & 0xff);
             }
-
+            if (
+              Number.isFinite(decodedGlyphInfo.color) &&
+              decodedGlyphInfo.color !== null
+            ) {
+              decodedColor = decodedGlyphInfo.color;
+            }
+            if (decodedGlyphInfo.tileIndex !== null) {
+              decodedTileIndex = decodedGlyphInfo.tileIndex;
+            }
             console.log(
-              `🎨 GLYPH [Win ${printWin}] at (${x},${y}): ptr=0x${ptr.toString(
+              `🎨 GLYPH [Win ${printWin}] at (${x},${y}): ptr=0x${decodedGlyphInfo.pointer.toString(
                 16,
-              )} glyph=${printGlyph} ch=${String.fromCharCode(
-                ttychar & 0xff,
-              )} color=${color} tileidx=${tileidx} extra=0x${extra.toString(16)}`,
+              )} glyph=${printGlyph} extra=0x${Number(extra || 0).toString(16)}`,
             );
           } else {
             console.log(
-              `🎨 GLYPH [Win ${printWin}] at (${x},${y}): ptr=${ptr} (0x${ptr.toString(
-                16,
-              )}) extra=${extra} (0x${extra.toString(16)}) [no HEAP access]`,
+              `🎨 GLYPH [Win ${printWin}] at (${x},${y}): ptr=${a} [pointer decode failed]`,
             );
           }
         } else {
@@ -6962,29 +7673,24 @@ class LocalNetHackRuntime {
           }
           return cancelled;
         };
-        let ptrArgSlot = 0;
-        let ptrArgValue = 0;
-        let ptrResolvedValue = 0;
-        if (
-          this.nethackModule &&
-          typeof this.nethackModule.getValue === "function"
-        ) {
-          ptrArgSlot = menuPtrArg;
-          try {
-            ptrArgValue = this.nethackModule.getValue(menuPtrArg, "*");
-            if (ptrArgValue > 0) {
-              ptrResolvedValue = this.nethackModule.getValue(ptrArgValue, "*");
-            }
-          } catch (error) {
-            console.log("Pointer decode error in shim_select_menu:", error);
-          }
-        }
-
         const ptrMode = "direct";
-        const menuListPtrPtr = menuPtrArg;
+        const menuListPtrPtr =
+          this.normalizeWasmPointer(menuPtrArg, {
+            label: "shim_select_menu_list_ptr_ptr",
+            minBytes: 4,
+            alignment: 4,
+          }) || 0;
+        const menuListCurrentOutPtr =
+          menuListPtrPtr > 0
+            ? this.readPointerSlotValue(
+                menuListPtrPtr,
+                "shim_select_menu_list_ptr_ptr",
+                true,
+              )
+            : null;
 
         console.log(
-          `Menu selection request for window ${menuSelectWinid}, how: ${menuSelectHow}, argPtr: ${menuPtrArg}, ptrArgSlot=${ptrArgSlot}, ptrArgValue=${ptrArgValue}, ptrResolvedValue=${ptrResolvedValue}, ptrMode=${ptrMode}, menuListPtrPtr=${menuListPtrPtr}`,
+          `Menu selection request for window ${menuSelectWinid}, how: ${menuSelectHow}, argPtr: ${menuPtrArg}, ptrMode=${ptrMode}, menuListPtrPtr=${menuListPtrPtr}, currentOutPtr=${menuListCurrentOutPtr}`,
         );
 
         if (menuSelectHow === 2) {
