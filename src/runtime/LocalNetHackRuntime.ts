@@ -171,16 +171,19 @@ class LocalNetHackRuntime {
 
   buildDefaultRuntimePointerContract(runtimeVersion = this.runtimeVersion) {
     const is37 = runtimeVersion === "3.7";
+    const addMenuArgCounts = is37 ? [9] : [8];
+    const printGlyphArgCounts = is37 ? [5] : [4, 5];
     return {
       abiTag: this.readConfiguredPointerAbiTag(runtimeVersion),
       callbackArgCounts: {
         shim_nh_poskey: [3],
         shim_getlin: [2],
         shim_select_menu: [3],
-        shim_add_menu: [8],
+        shim_add_menu: addMenuArgCounts,
         // Forked wasm-367 currently emits [win, x, y, glyph, bkglyph] (5 args).
-        // Keep 4-arg compatibility for alternate builds.
-        shim_print_glyph: [4, 5],
+        // 3.7 emits [win, x, y, glyphinfo_ptr, bkglyphinfo_ptr] (5 args).
+        // Keep 4-arg compatibility only for alternate 3.6.7 builds.
+        shim_print_glyph: printGlyphArgCounts,
         shim_status_update: [6],
       },
       callbackPointers: {
@@ -269,6 +272,7 @@ class LocalNetHackRuntime {
         shim_add_menu: {
           identifierMode: is37 ? "value" : "pointer_slot",
           menuTextArgIndex: is37 ? 7 : 6,
+          itemFlagsArgIndex: is37 ? 8 : 7,
           glyphArgMode: is37 ? "glyphinfo_ptr" : "glyph_value",
         },
         shim_print_glyph: {
@@ -6949,17 +6953,6 @@ class LocalNetHackRuntime {
       case "shim_display_file":
         return this.handleShimDisplayFile(args);
       case "shim_add_menu":
-        const [
-          menuWinid,
-          menuGlyph,
-          identifier,
-          accelerator,
-          groupacc,
-          menuAttr,
-          menuStr,
-          preselected,
-        ] = args;
-
         const pointerContract = this.getRuntimePointerContract();
         const addMenuMode = pointerContract?.callbackModes?.shim_add_menu || {};
         const menuTextArgIndex = Number.isInteger(addMenuMode.menuTextArgIndex)
@@ -6967,6 +6960,11 @@ class LocalNetHackRuntime {
           : this.runtimeVersion === "3.7"
             ? 7
             : 6;
+        const itemFlagsArgIndex = Number.isInteger(addMenuMode.itemFlagsArgIndex)
+          ? addMenuMode.itemFlagsArgIndex
+          : this.runtimeVersion === "3.7"
+            ? 8
+            : 7;
         const identifierMode =
           addMenuMode.identifierMode === "pointer_slot"
             ? "pointer_slot"
@@ -6975,7 +6973,13 @@ class LocalNetHackRuntime {
           addMenuMode.glyphArgMode === "glyphinfo_ptr"
             ? "glyphinfo_ptr"
             : "glyph_value";
+        const menuWinid = Number(args[0]);
+        const menuGlyph = args[1];
+        const identifier = args[2];
+        const accelerator = Number(args[3]);
+        const menuAttr = Number(args[5]);
         const menuText = String((args[menuTextArgIndex] ?? "") || "");
+        const menuItemFlags = Number(args[itemFlagsArgIndex] ?? 0);
 
         // In this callback shape, category headers are identified by menuAttr=7.
         const isCategory = menuAttr === 7;
@@ -7144,11 +7148,11 @@ class LocalNetHackRuntime {
           console.log(
             `📋 MENU ITEM: "${menuText}" (key: ${menuChar}) glyph: ${resolvedMenuGlyph} -> "${glyphChar}" tile: ${
               menuItemTileIndex !== null ? menuItemTileIndex : "n/a"
-            } - accelerator code: ${accelerator}`,
+            } - accelerator code: ${accelerator}, itemflags: ${menuItemFlags}`,
           );
         } else {
           console.log(
-            `📋 CATEGORY HEADER: "${menuText}" - accelerator code: ${accelerator}`,
+            `📋 CATEGORY HEADER: "${menuText}" - accelerator code: ${accelerator}, itemflags: ${menuItemFlags}`,
           );
         }
 

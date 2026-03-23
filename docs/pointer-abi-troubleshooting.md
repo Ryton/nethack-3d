@@ -1,8 +1,8 @@
 # NetHack WASM Pointer ABI Troubleshooting
 
-This document explains the current first-class pointer path for `3.6.7`, what can break across WASM updates, and how to fix it quickly.
+This document explains the current first-class pointer path for `3.6.7` and `3.7`, what can break across WASM updates, and how to fix it quickly.
 
-## Current First-Class Path (3.6.7)
+## Current First-Class Path (3.6.7 + 3.7)
 
 The runtime resolves extended commands from the WASM-exported extcmd table.
 
@@ -20,20 +20,25 @@ Runtime-driven:
 - Pointer values (`nethackGlobal.pointers.*`).
 - Actual command names and order (decoded from WASM memory).
 
-Hard-coded ABI profile (current design for `3.6.7`):
-- extcmd ABI layout defaults for `3.6.7`:
+Hard-coded ABI profile (current design):
+- extcmd ABI layout defaults for `3.6.7` and `3.7`:
   - `stride=24`
   - `textPtrOffset=4`
   - `flagsOffset=16`
   - `exportedPointerMode=direct_or_slot`
-- Callback arg shape defaults like `shim_print_glyph: [4, 5]`.
+- Callback arg shape defaults:
+  - `3.6.7`: `shim_add_menu: [8]`, `shim_print_glyph: [4, 5]`.
+  - `3.7`: `shim_add_menu: [9]` (`vipi00iisi`), `shim_print_glyph: [5]` (`vi11pp`).
+- Callback mode defaults:
+  - `3.6.7`: `shim_add_menu.identifierMode=pointer_slot`.
+  - `3.7`: `shim_add_menu.identifierMode=value`, `menuTextArgIndex=7`, `itemFlagsArgIndex=8`.
 
 So this is not hard-coded command data, but it is a hard-coded ABI profile.
 
 ## Expected Healthy Logs
 
 At startup:
-- `Pointer contract ready (runtime=3.6.7, abi=nh367-pointer-v1)`.
+- `Pointer contract ready (runtime=..., abi=nh...-pointer-v1)`.
 - `Resolved extended command table from exported pointer "extcmdlist" (entries=..., base=..., mode=...)`.
 
 During command execution:
@@ -77,6 +82,7 @@ How to confirm:
 Fix:
 - Update `callbackArgCounts` / `callbackModes` defaults in `buildDefaultRuntimePointerContract()`.
 - For `3.6.7` fork, `shim_print_glyph` currently expects 5 args.
+- For `3.7`, `shim_add_menu` expects 9 args and `shim_print_glyph` expects 5 args.
 
 ### Symptom: Menus/select actions break
 Likely cause:

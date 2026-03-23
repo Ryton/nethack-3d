@@ -131,11 +131,14 @@ This is a living steering doc. Update it whenever architecture, file ownership, 
 - `LocalNetHackRuntime` validates callback argument shapes and pointer layouts (menu_item, extcmd table, glyphinfo) against the active ABI contract and fails closed on mismatches.
 - Current fork note: wasm-367 `shim_print_glyph` uses 5 callback args `(winid, x, y, glyph, bkglyph)` (not a glyphinfo pointer payload).
 - Current fork note: wasm-367 `shim_get_ext_cmd` format is `iv`, so callback args appear as `[undefined]` and that is expected.
+- Current fork note: wasm-37 `shim_add_menu` format is `vipi00iisi` (9 args); menu text is arg index `7`, item flags are arg index `8`, and identifier is delivered as a value (not pointer slot).
+- Current fork note: wasm-37 `shim_print_glyph` format is `vi11pp` and uses glyphinfo pointers at args `3` and `4`.
 - 3.6.7 extended command resolution order (`LocalNetHackRuntime`):
   1. Decode extcmd entries from `globalThis.nethackGlobal.pointers.extcmdlist` using the active extcmd layout contract.
   2. Extcmd layout source: app-owned 3.6.7 ABI profile (`stride=24`, `textPtrOffset=4`, `flagsOffset=16`, pointer mode `direct_or_slot`).
   3. Match typed text against decoded names (exact match, then unique-prefix match) and return the corresponding extcmd index.
   4. Validation is fail-closed (`minEntries`, required names), and unresolved commands return `-1` (no command).
+- 3.7 extended command layout currently matches 3.6.7 for WASM32 (`struct ext_func_tab` stride `24`, `ef_txt` offset `4`, flags offset `16`), and uses the same decode/validation path.
 - Troubleshooting and quick-fix steps: see `docs/pointer-abi-troubleshooting.md`.
 - Do not scan arbitrary heap memory to discover command tables or silently fall back to hardcoded command indices, because that can misroute commands after WASM updates.
 
