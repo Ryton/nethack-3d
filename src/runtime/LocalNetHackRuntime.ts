@@ -727,7 +727,17 @@ class LocalNetHackRuntime {
       ) {
         return;
       }
-      this.queueExtendedCommandSubmission(extendedCommandText, "synthetic");
+      const queued = this.queueExtendedCommandSubmission(
+        extendedCommandText,
+        "synthetic",
+      );
+      if (!queued) {
+        // Fall back to normal key processing when command submission cannot
+        // start (for example while NetHack is waiting on a prompt answer).
+        for (const input of normalized) {
+          this.handleClientInput(input, "synthetic");
+        }
+      }
       return;
     }
 
@@ -815,6 +825,7 @@ class LocalNetHackRuntime {
 
     if (
       this.activeInputRequest?.kind === "position" &&
+      (this.positionInputActive || this.isFarLookPositionRequest()) &&
       !this.isPositionRequestContinuationInput(input)
     ) {
       console.log(
@@ -872,6 +883,16 @@ class LocalNetHackRuntime {
       const mappedExtCommand =
         this.resolveMetaBoundExtendedCommandName(metaKey);
       if (mappedExtCommand) {
+        if (!this.canQueueExtendedCommandSubmission()) {
+          console.log(
+            `Meta extended command "${mappedExtCommand}" blocked by active prompt state; forwarding "${metaKey}" as normal event input`,
+          );
+          this.clearQueuedExtendedCommandSubmission(
+            "blocked meta extended command",
+          );
+          this.enqueueInputKeys([metaKey], "meta", ["event"]);
+          return;
+        }
         console.log(
           `Meta input Alt+${metaKey.toLowerCase()} mapped to extended command "${mappedExtCommand}"`,
         );
@@ -1327,19 +1348,57 @@ class LocalNetHackRuntime {
   }
 
   queueExtendedCommandSubmission(commandText, source = "synthetic") {
+    if (!this.canQueueExtendedCommandSubmission()) {
+      console.log(
+        `Skipping extended command submission while prompt input is active (command="${commandText}")`,
+      );
+      this.clearQueuedExtendedCommandSubmission(
+        "prompt input active during queue request",
+      );
+      return false;
+    }
     const normalizedCommand =
       typeof commandText === "string" ? commandText : "";
     if (this.resolvePendingExtendedCommandRequestFromText(normalizedCommand)) {
-      return;
+      return true;
     }
     this.pendingExtendedCommand = normalizedCommand;
-    if (this.extendedCommandTriggerQueued) {
-      return;
-    }
+    // Do not gate trigger injection on previous attempts. If a prior "#"
+    // trigger was consumed without reaching shim_get_ext_cmd, we still need to
+    // enqueue a fresh trigger to avoid command deadlock.
     this.extendedCommandTriggerQueued = true;
     // Route "#" through the normal input path so whichever callback is active
-    // (event or position) can trigger NetHack's extended-command flow.
+    // can kick NetHack into extended-command resolution.
     this.enqueueInputKeys(["#"], source);
+    return true;
+  }
+
+  canQueueExtendedCommandSubmission() {
+    return (
+      !this.awaitingQuestionInput &&
+      !this.pendingTextRequest &&
+      !this.pendingMenuSelection &&
+      !this.isInMultiPickup
+    );
+  }
+
+  clearQueuedExtendedCommandSubmission(reason = "reset") {
+    const hadQueuedTrigger = this.extendedCommandTriggerQueued;
+    const hadPendingCommand =
+      this.pendingExtendedCommand !== null &&
+      this.pendingExtendedCommand !== undefined;
+    if (!hadQueuedTrigger && !hadPendingCommand) {
+      return;
+    }
+    console.log(`Clearing queued extended command submission (${reason})`, {
+      hadQueuedTrigger,
+      pendingCommand:
+        typeof this.pendingExtendedCommand === "string"
+          ? this.pendingExtendedCommand
+          : null,
+    });
+    this.pendingExtendedCommand = null;
+    this.extendedCommandTriggerQueued = false;
   }
 
   dequeuePendingExtendedCommandSubmission() {
@@ -5433,6 +5492,10 @@ class LocalNetHackRuntime {
   }
 
   waitForQuestionInput() {
+    // A question prompt consumes single-key answers; queued extended command
+    // triggers are stale in this mode and can poison later command dispatch.
+    this.resolvePendingExtendedCommandRequest(-1);
+    this.clearQueuedExtendedCommandSubmission("question input requested");
     this.awaitingQuestionInput = true;
     const requested = this.requestInputCode("event");
     if (requested && typeof requested.then === "function") {
