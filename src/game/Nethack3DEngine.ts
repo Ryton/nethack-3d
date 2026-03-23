@@ -23290,9 +23290,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     };
 
     const commandKey = commandMap[normalizedActionId];
+    const contextSelectionInput = `${this.inventoryContextSelectionPrefix}${accelerator}:${normalizedActionId}`;
     if (normalizedActionId === "info") {
       this.sendInputSequence([
-        `${this.inventoryContextSelectionPrefix}${accelerator}`,
+        contextSelectionInput,
         "/",
       ]);
       return;
@@ -23302,7 +23303,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (normalizedActionId === "unwield") {
-      this.sendInputSequence([`${this.inventoryContextSelectionPrefix}-`, "w"]);
+      this.sendInputSequence([
+        `${this.inventoryContextSelectionPrefix}-:${normalizedActionId}`,
+        "w",
+      ]);
       this.queueRepeatDirectionCandidate({
         kind: "inventory_command",
         value: "w",
@@ -23311,7 +23315,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.sendInputSequence([
-      `${this.inventoryContextSelectionPrefix}${accelerator}`,
+      contextSelectionInput,
       commandKey,
     ]);
     if (normalizedActionId === "drop" || normalizedActionId === "eat") {

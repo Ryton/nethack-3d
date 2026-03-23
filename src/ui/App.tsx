@@ -1804,7 +1804,6 @@ const inventoryContextActions: InventoryContextAction[] = [
     label: "Call",
     kind: "extended",
     value: "call",
-    armInventorySelection: false,
   },
   { id: "adjust", label: "Adjust", kind: "extended", value: "adjust" },
   { id: "engrave", label: "Engrave", kind: "extended", value: "engrave" },
@@ -15837,7 +15836,7 @@ export default function App(): JSX.Element {
                           // Use the special prefix to ensure the runtime intercepts it and reliably
                           // applies it to the next inventory prompt menu without race conditions.
                           controller?.sendInput(
-                            `__INVCTX_SELECT__:${inventoryContextMenuRenderState.accelerator}`,
+                            `__INVCTX_SELECT__:${inventoryContextMenuRenderState.accelerator}:${action.id}`,
                           );
                         }
                         controller?.runExtendedCommand(action.value);

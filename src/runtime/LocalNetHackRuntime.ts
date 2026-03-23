@@ -32,6 +32,8 @@ class LocalNetHackRuntime {
     this.playerPosition = { x: 0, y: 0 };
     this.gameMessages = [];
     this.lastPromptContextMessage = "";
+    this.lastPromptContextEntry = null;
+    this.promptContextHistory = [];
     this.recentUICallbackHistory = [];
     this.latestInventoryItems = [];
     this.latestStatusUpdates = new Map();
@@ -89,6 +91,7 @@ class LocalNetHackRuntime {
     this.deferredAreaRefreshRequests = new Map();
     this.deferredTileRefreshFlushScheduled = false;
     this.textInputMaxLength = 256;
+    this.getlinFallbackBufferPtr = 0;
     this.mouseInputTokenKey = "__MOUSE_INPUT__";
     this.mouseClickPrimaryMod = 1; // CLICK_1 (left click)
     this.mouseClickSecondaryMod = 2; // CLICK_2 (right click)
@@ -679,6 +682,9 @@ class LocalNetHackRuntime {
     this.pendingInventoryContextSelection = null;
     this.awaitingQuestionInput = false;
     this.windowTextBuffers.clear();
+    this.lastPromptContextMessage = "";
+    this.lastPromptContextEntry = null;
+    this.promptContextHistory = [];
     this.lastMenuInteractionCancelled = false;
     this.gameOverSequenceActive = false;
     this.gameOverEmptyRawPrintCount = 0;
@@ -697,6 +703,19 @@ class LocalNetHackRuntime {
     }
 
     this.inputBroker.cancelAll(27);
+    if (
+      this.nethackModule &&
+      typeof this.nethackModule._free === "function" &&
+      Number.isInteger(this.getlinFallbackBufferPtr) &&
+      this.getlinFallbackBufferPtr > 0
+    ) {
+      try {
+        this.nethackModule._free(this.getlinFallbackBufferPtr);
+      } catch (error) {
+        console.log("Error releasing fallback getlin buffer:", error);
+      }
+    }
+    this.getlinFallbackBufferPtr = 0;
   }
 
   queueMapGlyphUpdate(tile) {
@@ -837,9 +856,37 @@ class LocalNetHackRuntime {
     if (
       source === "user" &&
       this.hasPendingInventoryContextSelection() &&
-      !this.isAnyInventoryContextSelectionInput(input)
+      !this.isAnyInventoryContextSelectionInput(input) &&
+      !this.awaitingQuestionInput
     ) {
-      this.clearPendingInventoryContextSelection("new user input");
+      // Preserve freshly-armed contextual inventory selections through the
+      // immediate command key (for example "__INVCTX_SELECT__:i" + "N").
+      // Clear only if the pending state has gone stale.
+      const pending =
+        this.pendingInventoryContextSelection &&
+        typeof this.pendingInventoryContextSelection === "object"
+          ? this.pendingInventoryContextSelection
+          : null;
+      const armedAtMs =
+        pending && Number.isFinite(pending.armedAtMs)
+          ? Math.trunc(Number(pending.armedAtMs))
+          : 0;
+      const staleWindowMs = 3000;
+      if (armedAtMs > 0 && Date.now() - armedAtMs > staleWindowMs) {
+        this.clearPendingInventoryContextSelection("stale after user input");
+      } else {
+        const issuedAtMs =
+          pending && Number.isFinite(pending.commandIssuedAtMs)
+            ? Math.trunc(Number(pending.commandIssuedAtMs))
+            : 0;
+        if (issuedAtMs <= 0 && pending) {
+          pending.commandIssuedAtMs = Date.now();
+        } else if (issuedAtMs > 0) {
+          this.clearPendingInventoryContextSelection(
+            "superseded by subsequent user input",
+          );
+        }
+      }
     }
 
     if (
@@ -1189,30 +1236,127 @@ class LocalNetHackRuntime {
   }
 
   resolveTextInputBufferPointer(ptr) {
-    if (
-      !this.nethackModule ||
-      !this.nethackModule.HEAPU8 ||
-      typeof this.nethackModule.getValue !== "function" ||
-      !Number.isInteger(ptr) ||
-      ptr <= 0
-    ) {
+    if (!this.nethackModule || !this.nethackModule.HEAPU8) {
       return null;
     }
 
     const heapSize = this.nethackModule.HEAPU8.length;
-    const directInBounds = ptr > 0 && ptr + 1 <= heapSize;
-    if (directInBounds) {
-      // getlin receives a writable char* buffer. Prefer using it directly to
-      // avoid accidentally treating plain text bytes as a pointer value.
-      return ptr;
+    const normalizePtr = (value) => {
+      if (typeof value === "bigint") {
+        const asNumber = Number(value);
+        return Number.isFinite(asNumber) ? Math.trunc(asNumber) : null;
+      }
+      const asNumber = Number(value);
+      if (!Number.isFinite(asNumber)) {
+        return null;
+      }
+      return Math.trunc(asNumber);
+    };
+    const isInBounds = (address, byteLength = 1) =>
+      Number.isInteger(address) &&
+      address > 0 &&
+      Number.isInteger(byteLength) &&
+      byteLength > 0 &&
+      address + byteLength <= heapSize;
+    const readPointerFromSlot = (slotPtr) => {
+      if (
+        typeof this.nethackModule.getValue !== "function" ||
+        !isInBounds(slotPtr, 4)
+      ) {
+        return null;
+      }
+      try {
+        return normalizePtr(this.nethackModule.getValue(slotPtr, "*"));
+      } catch (error) {
+        console.log(`getlin pointer slot read failed at ${slotPtr}:`, error);
+        return null;
+      }
+    };
+
+    const rawPtr = normalizePtr(ptr);
+    if (!rawPtr || rawPtr <= 0) {
+      return null;
     }
 
-    // Fallback for potential marshalling oddities where a pointer slot was
-    // passed instead of the final char*.
-    const slotValue = this.nethackModule.getValue(ptr, "*");
-    const derefInBounds =
-      Number.isInteger(slotValue) && slotValue > 0 && slotValue + 1 <= heapSize;
-    return derefInBounds ? slotValue : null;
+    const candidatePtrs = [];
+    const pushCandidate = (candidate) => {
+      if (!Number.isInteger(candidate) || candidate <= 0) {
+        return;
+      }
+      if (!candidatePtrs.includes(candidate)) {
+        candidatePtrs.push(candidate);
+      }
+    };
+    pushCandidate(rawPtr);
+    const rawUnsigned = rawPtr >>> 0;
+    if (rawUnsigned !== rawPtr) {
+      pushCandidate(rawUnsigned);
+    }
+
+    for (const candidate of candidatePtrs) {
+      if (isInBounds(candidate, 1)) {
+        // getlin usually receives a writable char* buffer directly.
+        return candidate;
+      }
+    }
+
+    for (const candidate of candidatePtrs) {
+      const slotValue = readPointerFromSlot(candidate);
+      if (!slotValue || slotValue <= 0) {
+        continue;
+      }
+      if (isInBounds(slotValue, 1)) {
+        return slotValue;
+      }
+      const slotUnsigned = slotValue >>> 0;
+      if (slotUnsigned !== slotValue && isInBounds(slotUnsigned, 1)) {
+        return slotUnsigned;
+      }
+    }
+
+    // Last-resort compatibility fallback for builds that pass a pointer slot
+    // with a null/uninitialized target buffer.
+    if (
+      typeof this.nethackModule._malloc === "function" &&
+      typeof this.nethackModule.setValue === "function"
+    ) {
+      const writableSlot = candidatePtrs.find((candidate) =>
+        isInBounds(candidate, 4),
+      );
+      if (Number.isInteger(writableSlot)) {
+        if (
+          !Number.isInteger(this.getlinFallbackBufferPtr) ||
+          this.getlinFallbackBufferPtr <= 0 ||
+          !isInBounds(this.getlinFallbackBufferPtr, 1)
+        ) {
+          this.getlinFallbackBufferPtr =
+            this.nethackModule._malloc(this.textInputMaxLength);
+        }
+        if (isInBounds(this.getlinFallbackBufferPtr, 1)) {
+          try {
+            this.nethackModule.setValue(
+              writableSlot,
+              this.getlinFallbackBufferPtr,
+              "*",
+            );
+            console.log(
+              `Using fallback getlin buffer ${this.getlinFallbackBufferPtr} via slot ${writableSlot} (raw=${rawPtr}, heapSize=${heapSize})`,
+            );
+            return this.getlinFallbackBufferPtr;
+          } catch (error) {
+            console.log(
+              `Unable to write fallback getlin buffer pointer at slot ${writableSlot}:`,
+              error,
+            );
+          }
+        }
+      }
+    }
+
+    console.log(
+      `Unable to resolve getlin buffer pointer details: raw=${rawPtr}, heapSize=${heapSize}, candidates=${candidatePtrs.join(",")}`,
+    );
+    return null;
   }
 
   getPoskeyCoordStoreType(xTargetPtr, yTargetPtr) {
@@ -1680,6 +1824,9 @@ class LocalNetHackRuntime {
       this.pendingInventoryContextSelection = {
         accelerator,
         count,
+        actionId: null,
+        armedAtMs: Date.now(),
+        commandIssuedAtMs: 0,
       };
       console.log(
         `Armed inventory context selection accelerator with count: "${accelerator}" x${count}`,
@@ -1688,18 +1835,31 @@ class LocalNetHackRuntime {
     }
 
     if (this.isInventoryContextSelectionInput(input)) {
-      const accelerator = input
+      const raw = input
         .slice(this.inventoryContextSelectionPrefix.length)
         .trim();
+      const separatorIndex = raw.indexOf(":");
+      const accelerator =
+        separatorIndex >= 0 ? raw.slice(0, separatorIndex).trim() : raw;
+      const actionIdRaw =
+        separatorIndex >= 0 ? raw.slice(separatorIndex + 1).trim() : "";
+      const actionId = /^[a-z0-9_-]+$/i.test(actionIdRaw)
+        ? actionIdRaw.toLowerCase()
+        : "";
       if (accelerator.length !== 1) {
         return false;
       }
 
       this.pendingInventoryContextSelection = {
         accelerator,
+        actionId: actionId || null,
+        armedAtMs: Date.now(),
+        commandIssuedAtMs: 0,
       };
       console.log(
-        `Armed inventory context selection accelerator: "${accelerator}"`,
+        `Armed inventory context selection accelerator: "${accelerator}"${
+          actionId ? ` (action=${actionId})` : ""
+        }`,
       );
       return true;
     }
@@ -1714,6 +1874,16 @@ class LocalNetHackRuntime {
     }
     const accelerator = String(pending.accelerator || "");
     return accelerator.length === 1;
+  }
+
+  getPendingInventoryContextActionId() {
+    const pending = this.pendingInventoryContextSelection;
+    if (!pending) {
+      return "";
+    }
+    const actionId =
+      typeof pending.actionId === "string" ? pending.actionId.trim() : "";
+    return actionId ? actionId.toLowerCase() : "";
   }
 
   clearPendingInventoryContextSelection(reason = "") {
@@ -1818,12 +1988,13 @@ class LocalNetHackRuntime {
     if (!this.nethackModule || !bufferPtr) {
       return;
     }
+    const normalizedBufferPtr = Math.trunc(Number(bufferPtr));
+    if (!Number.isFinite(normalizedBufferPtr) || normalizedBufferPtr <= 0) {
+      return;
+    }
     const safeText = typeof text === "string" ? text : String(text ?? "");
     const limit = Math.max(1, Math.floor(maxLength));
     const truncated = safeText.slice(0, Math.max(0, limit - 1));
-    if (!this.nethackModule.HEAPU8) {
-      return;
-    }
 
     let bytes = null;
     if (typeof TextEncoder !== "undefined") {
@@ -1838,13 +2009,36 @@ class LocalNetHackRuntime {
     }
 
     const heap = this.nethackModule.HEAPU8;
+    if (!heap || normalizedBufferPtr + 1 > heap.length) {
+      if (typeof this.nethackModule.setValue !== "function") {
+        return;
+      }
+      try {
+        const maxBytes = Math.max(0, limit - 1);
+        const writeLength = Math.min(bytes.length, maxBytes);
+        for (let i = 0; i < writeLength; i += 1) {
+          this.nethackModule.setValue(
+            normalizedBufferPtr + i,
+            bytes[i],
+            "i8",
+          );
+        }
+        this.nethackModule.setValue(normalizedBufferPtr + writeLength, 0, "i8");
+      } catch (error) {
+        console.log(
+          `Text input pointer write fallback failed at ${normalizedBufferPtr}:`,
+          error,
+        );
+      }
+      return;
+    }
     const maxBytes = Math.max(0, limit - 1);
-    const available = Math.max(0, heap.length - bufferPtr - 1);
+    const available = Math.max(0, heap.length - normalizedBufferPtr - 1);
     const length = Math.min(bytes.length, maxBytes, available);
     if (length > 0) {
-      heap.set(bytes.slice(0, length), bufferPtr);
+      heap.set(bytes.slice(0, length), normalizedBufferPtr);
     }
-    heap[bufferPtr + length] = 0;
+    heap[normalizedBufferPtr + length] = 0;
   }
 
   resolveMenuSelection(selectionCount) {
@@ -2731,12 +2925,57 @@ class LocalNetHackRuntime {
     return text.replace(/\u0000/g, "").trim();
   }
 
-  rememberPromptContextMessage(text) {
+  normalizePromptContextSource(source) {
+    const normalized =
+      typeof source === "string" ? source.trim().toLowerCase() : "";
+    return normalized || "unknown";
+  }
+
+  isCurrentMenuQuestionText(text) {
+    const normalized = this.normalizePromptContextMessage(text).toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    const currentMenuQuestion = this.normalizePromptContextMessage(
+      this.currentMenuQuestionText,
+    ).toLowerCase();
+    return Boolean(currentMenuQuestion) && normalized === currentMenuQuestion;
+  }
+
+  derivePromptContextSource(text, source = "unknown") {
+    const normalizedSource = this.normalizePromptContextSource(source);
+    if (this.isCurrentMenuQuestionText(text)) {
+      return "menu_question_echo";
+    }
+    return normalizedSource;
+  }
+
+  isMenuRelatedPromptContextSource(source) {
+    const normalizedSource = this.normalizePromptContextSource(source);
+    return (
+      normalizedSource === "menu_question" ||
+      normalizedSource === "menu_question_echo" ||
+      normalizedSource === "inventory_menu_question"
+    );
+  }
+
+  rememberPromptContextMessage(text, source = "unknown") {
     const normalized = this.normalizePromptContextMessage(text);
     if (!normalized) {
       return;
     }
+    const resolvedSource = this.derivePromptContextSource(normalized, source);
+    const entry = {
+      text: normalized,
+      source: resolvedSource,
+      timestamp: Date.now(),
+    };
     this.lastPromptContextMessage = normalized;
+    this.lastPromptContextEntry = entry;
+    this.promptContextHistory.push(entry);
+    if (this.promptContextHistory.length > 120) {
+      this.promptContextHistory.shift();
+    }
   }
 
   isRawPrintCallbackName(name) {
@@ -2812,10 +3051,29 @@ class LocalNetHackRuntime {
   }
 
   getMostRecentToplineMessage() {
+    for (
+      let index = this.promptContextHistory.length - 1;
+      index >= 0;
+      index -= 1
+    ) {
+      const entry = this.promptContextHistory[index];
+      if (!entry) {
+        continue;
+      }
+      const text = this.normalizePromptContextMessage(entry.text);
+      if (!text) {
+        continue;
+      }
+      if (this.isMenuRelatedPromptContextSource(entry.source)) {
+        continue;
+      }
+      return text;
+    }
+
     const latestRemembered = this.normalizePromptContextMessage(
       this.lastPromptContextMessage,
     );
-    if (latestRemembered) {
+    if (latestRemembered && !this.isCurrentMenuQuestionText(latestRemembered)) {
       return latestRemembered;
     }
 
@@ -2825,7 +3083,7 @@ class LocalNetHackRuntime {
         continue;
       }
       const text = this.normalizePromptContextMessage(entry.text);
-      if (text) {
+      if (text && !this.isCurrentMenuQuestionText(text)) {
         return text;
       }
     }
@@ -2846,6 +3104,9 @@ class LocalNetHackRuntime {
       this.getRecentRawPrintContextMessage() ||
       this.getMostRecentToplineMessage();
     if (!context) {
+      return "";
+    }
+    if (this.isCurrentMenuQuestionText(context)) {
       return "";
     }
 
@@ -2938,7 +3199,7 @@ class LocalNetHackRuntime {
         continue;
       }
       if (Number(winId) === 1) {
-        this.rememberPromptContextMessage(text);
+        this.rememberPromptContextMessage(text, "message_window");
       }
       this.gameMessages.push({
         text: text,
@@ -3672,6 +3933,17 @@ class LocalNetHackRuntime {
     return normalized.startsWith("what do you want to name");
   }
 
+  isCallRootQuestion(question) {
+    const normalized = this.normalizeQuestionText(question);
+    if (!normalized) {
+      return false;
+    }
+    return (
+      normalized.startsWith("what do you want to call") ||
+      normalized.startsWith("call what")
+    );
+  }
+
   resolveNameInventoryRouteMenuItem(menuItems) {
     if (!Array.isArray(menuItems) || menuItems.length === 0) {
       return null;
@@ -3719,6 +3991,64 @@ class LocalNetHackRuntime {
           !item.isCategory &&
           typeof item.accelerator === "string" &&
           item.accelerator.toLowerCase() === "i",
+      ) || null
+    );
+  }
+
+  resolveCallInventoryRouteMenuItem(menuItems) {
+    if (!Array.isArray(menuItems) || menuItems.length === 0) {
+      return null;
+    }
+
+    const byText = menuItems.find((item) => {
+      if (!item || item.isCategory || typeof item.text !== "string") {
+        return false;
+      }
+      const normalizedText = item.text.toLowerCase();
+      if (normalizedText.includes("type of an object in inventory")) {
+        return true;
+      }
+      return (
+        normalizedText.includes("inventory") &&
+        normalizedText.includes("type") &&
+        normalizedText.includes("object")
+      );
+    });
+    if (byText) {
+      return byText;
+    }
+
+    const normalizedEntries = menuItems
+      .filter((item) => item && !item.isCategory)
+      .map((item) =>
+        typeof item.text === "string" ? item.text.trim().toLowerCase() : "",
+      )
+      .filter((text) => text.length > 0);
+    if (normalizedEntries.length === 0) {
+      return null;
+    }
+
+    const rootMarkers = [
+      "a monster",
+      "a particular object in inventory",
+      "the type of an object upon the floor",
+      "the type of an object on discoveries list",
+      "record an annotation for the current level",
+    ];
+    const matchedRootMarkers = rootMarkers.filter((marker) =>
+      normalizedEntries.some((text) => text.includes(marker)),
+    );
+    if (matchedRootMarkers.length < 2) {
+      return null;
+    }
+
+    return (
+      menuItems.find(
+        (item) =>
+          item &&
+          !item.isCategory &&
+          typeof item.accelerator === "string" &&
+          item.accelerator.toLowerCase() === "o",
       ) || null
     );
   }
@@ -3782,6 +4112,29 @@ class LocalNetHackRuntime {
         : "context action";
     if (!this.hasPendingInventoryContextSelection()) {
       return false;
+    }
+
+    const pendingActionId = this.getPendingInventoryContextActionId();
+
+    const shouldRouteAsCall =
+      pendingActionId === "call" || this.isCallRootQuestion(menuQuestion);
+    if (shouldRouteAsCall) {
+      const callInventoryRouteItem =
+        this.resolveCallInventoryRouteMenuItem(menuItems);
+      if (callInventoryRouteItem) {
+        if (
+          this.tryAutoSelectMenuItem(
+            callInventoryRouteItem,
+            `${reason} (#call inventory route)`,
+          )
+        ) {
+          return true;
+        }
+        this.clearPendingInventoryContextSelection(
+          "#call routing option unavailable",
+        );
+        return false;
+      }
     }
 
     if (this.isNameRootQuestion(menuQuestion)) {
@@ -5630,7 +5983,16 @@ class LocalNetHackRuntime {
         `Text input context for Call prompt: "${promptContextMessage}"`,
       );
     }
-    const resolvedBufferPtr = this.resolveTextInputBufferPointer(bufferPtr);
+    let resolvedBufferPtr = this.resolveTextInputBufferPointer(bufferPtr);
+    if (!resolvedBufferPtr) {
+      const rawBufferPtr = Math.trunc(Number(bufferPtr));
+      if (Number.isFinite(rawBufferPtr) && rawBufferPtr > 0) {
+        console.log(
+          `Falling back to raw getlin buffer pointer ${rawBufferPtr} after resolution failure`,
+        );
+        resolvedBufferPtr = rawBufferPtr;
+      }
+    }
     if (!resolvedBufferPtr) {
       console.log(
         `Unable to resolve getlin buffer pointer (raw=${bufferPtr}); returning empty response`,
@@ -6322,7 +6684,7 @@ class LocalNetHackRuntime {
         console.log(`💬 TEXT [Win ${win}]: "${textStr}"`);
         this.appendWindowTextBuffer(win, textStr);
         if (Number(win) === 1) {
-          this.rememberPromptContextMessage(textStr);
+          this.rememberPromptContextMessage(textStr, "message_window");
         }
 
         if (!this.shouldCaptureWindowTextForDialog(win)) {
@@ -6519,7 +6881,7 @@ class LocalNetHackRuntime {
           this.gameOverEmptyRawPrintCount = 0;
         }
         if (normalizedRawText) {
-          this.rememberPromptContextMessage(normalizedRawText);
+          this.rememberPromptContextMessage(normalizedRawText, "raw_print");
         }
 
         // Send raw print messages to the UI log
@@ -6542,7 +6904,10 @@ class LocalNetHackRuntime {
           );
         }
         if (normalizedRawBoldText) {
-          this.rememberPromptContextMessage(normalizedRawBoldText);
+          this.rememberPromptContextMessage(
+            normalizedRawBoldText,
+            "raw_print_bold",
+          );
         }
         if (this.eventHandler && normalizedRawBoldText) {
           this.emit({
@@ -6558,7 +6923,7 @@ class LocalNetHackRuntime {
           `NetHack message_menu: let=${menuLet}, how=${menuHow}, message="${menuMessage}"`,
         );
         if (this.eventHandler && menuMessage && String(menuMessage).trim()) {
-          this.rememberPromptContextMessage(String(menuMessage));
+          this.rememberPromptContextMessage(String(menuMessage), "message_menu");
           this.emit({
             type: "text",
             text: String(menuMessage),
@@ -6972,7 +7337,7 @@ class LocalNetHackRuntime {
         if (typeof msg === "string" && msg.trim()) {
           const text = msg.replace(/\u0000/g, "").trim();
           if (text) {
-            this.rememberPromptContextMessage(text);
+            this.rememberPromptContextMessage(text, "putmsghistory");
             this.gameMessages.push({
               text,
               window: 1,
@@ -7016,7 +7381,10 @@ class LocalNetHackRuntime {
             : "";
         console.log("Exiting NetHack windows");
         if (normalizedExitMessage && this.eventHandler) {
-          this.rememberPromptContextMessage(normalizedExitMessage);
+          this.rememberPromptContextMessage(
+            normalizedExitMessage,
+            "exit_nhwindows",
+          );
           this.emit({
             type: "raw_print",
             text: normalizedExitMessage,
