@@ -1605,7 +1605,6 @@ class LocalNetHackRuntime {
     }
 
     if (
-      source === "user" &&
       this.hasPendingInventoryContextSelection() &&
       !this.isAnyInventoryContextSelectionInput(input) &&
       !this.awaitingQuestionInput
@@ -1623,15 +1622,19 @@ class LocalNetHackRuntime {
           ? Math.trunc(Number(pending.armedAtMs))
           : 0;
       const staleWindowMs = 3000;
-      if (armedAtMs > 0 && Date.now() - armedAtMs > staleWindowMs) {
+      const nowMs = Date.now();
+      if (armedAtMs > 0 && nowMs - armedAtMs > staleWindowMs) {
         this.clearPendingInventoryContextSelection("stale after user input");
       } else {
         const issuedAtMs =
           pending && Number.isFinite(pending.commandIssuedAtMs)
             ? Math.trunc(Number(pending.commandIssuedAtMs))
             : 0;
-        if (issuedAtMs <= 0 && pending) {
-          pending.commandIssuedAtMs = Date.now();
+        if (source === "system") {
+          // Internal synthetic/system keys should not extend contextual
+          // selection lifetime.
+        } else if (issuedAtMs <= 0 && pending) {
+          pending.commandIssuedAtMs = nowMs;
         } else if (issuedAtMs > 0) {
           this.clearPendingInventoryContextSelection(
             "superseded by subsequent user input",
