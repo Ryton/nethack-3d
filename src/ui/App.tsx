@@ -1869,9 +1869,18 @@ const inventoryCategoryActionBlocklist: Record<
     "put-on",
     "remove",
     "zap",
+    "wield",
   ]),
-  rings: new Set(["quaff", "wear", "take-off", "zap", "read", "eat"]),
-  amulets: new Set(["quaff", "wear", "take-off", "zap", "read", "eat"]),
+  rings: new Set(["quaff", "wear", "take-off", "zap", "read", "eat", "wield"]),
+  amulets: new Set([
+    "quaff",
+    "wear",
+    "take-off",
+    "zap",
+    "read",
+    "eat",
+    "wield",
+  ]),
   tools: new Set([
     "quaff",
     "wear",
@@ -1912,6 +1921,7 @@ const inventoryCategoryActionBlocklist: Record<
     "zap",
     "engrave",
     "eat",
+    "wield",
   ]),
   spellbooks: new Set([
     "quaff",
@@ -1922,8 +1932,9 @@ const inventoryCategoryActionBlocklist: Record<
     "zap",
     "engrave",
     "eat",
+    "wield",
   ]),
-  wands: new Set(["quaff", "wear", "take-off", "put-on", "remove"]),
+  wands: new Set(["quaff", "wear", "take-off", "put-on", "remove", "wield"]),
   coins: new Set([
     "quaff",
     "wear",
@@ -1945,6 +1956,7 @@ const inventoryCategoryActionBlocklist: Record<
     "zap",
     "eat",
     "read",
+    "wield",
   ]),
   boulders_statues: new Set([
     "quaff",
@@ -1955,6 +1967,7 @@ const inventoryCategoryActionBlocklist: Record<
     "zap",
     "engrave",
     "eat",
+    "wield",
   ]),
   iron_balls: new Set([
     "quaff",
@@ -1966,6 +1979,7 @@ const inventoryCategoryActionBlocklist: Record<
     "engrave",
     "eat",
     "read",
+    "wield",
   ]),
   chains: new Set([
     "quaff",
@@ -1976,6 +1990,7 @@ const inventoryCategoryActionBlocklist: Record<
     "zap",
     "engrave",
     "read",
+    "wield",
   ]),
   venoms: new Set(["wear", "take-off", "put-on", "remove", "zap"]),
   // Mixed contents; keep this category permissive.
