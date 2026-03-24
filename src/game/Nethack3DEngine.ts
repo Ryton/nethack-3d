@@ -23611,7 +23611,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.hideInventoryDialog();
 
     this.sendInputSequence([
-      `${this.inventoryContextSelectionCountPrefix}${accelerator}:${String(normalizedCount)}`,
+      `${this.inventoryContextSelectionCountPrefix}${accelerator}:${String(normalizedCount)}:drop`,
       "d",
     ]);
     this.requestPlayerTileRefresh("inventory-drop-count");

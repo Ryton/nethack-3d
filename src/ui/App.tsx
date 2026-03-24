@@ -1858,6 +1858,9 @@ const inventoryCategoryActionBlocklist: Record<
   tools: new Set(["quaff", "wear", "take-off", "zap"]),
   comestibles: new Set([
     "quaff",
+    "read",
+    "engrave",
+    "wield",
     "wear",
     "take-off",
     "put-on",

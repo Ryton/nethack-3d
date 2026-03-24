@@ -1813,24 +1813,37 @@ class LocalNetHackRuntime {
       Array.isArray(this.currentMenuItems) &&
       this.currentMenuItems.length > 0
     ) {
-      const menuItem = this.currentMenuItems.find(
-        (item) => item.accelerator === normalizedInput && !item.isCategory,
-      );
-      if (menuItem) {
-        this.menuSelections.clear();
-        const selectionEntry = this.createSelectionEntryFromMenuItem(menuItem);
-        if (!selectionEntry) {
-          return;
-        }
-        const selectionKey = this.getMenuSelectionKey(selectionEntry);
-        this.menuSelections.set(selectionKey, selectionEntry);
-        this.lastMenuInteractionCancelled = false;
+      const suppressSyntheticSelectionOverride =
+        source === "synthetic" &&
+        this.menuSelections.size > 0 &&
+        this.hasPendingInventoryContextSelection() &&
+        this.lastEndedMenuWindow === 4 &&
+        !this.lastEndedMenuHadQuestion &&
+        this.lastEndedInventoryMenuKind === "inventory";
+      if (suppressSyntheticSelectionOverride) {
         console.log(
-          `Recorded single menu selection: ${normalizedInput} (${menuItem.text})`,
+          `Ignoring synthetic menu accelerator "${normalizedInput}" while preserving contextual inventory auto-selection`,
         );
-        if (this.isLookAtMapMenuSelection(menuItem)) {
-          this.enqueueInputKeys([";"], source, ["event"]);
-          return;
+      } else {
+        const menuItem = this.currentMenuItems.find(
+          (item) => item.accelerator === normalizedInput && !item.isCategory,
+        );
+        if (menuItem) {
+          this.menuSelections.clear();
+          const selectionEntry = this.createSelectionEntryFromMenuItem(menuItem);
+          if (!selectionEntry) {
+            return;
+          }
+          const selectionKey = this.getMenuSelectionKey(selectionEntry);
+          this.menuSelections.set(selectionKey, selectionEntry);
+          this.lastMenuInteractionCancelled = false;
+          console.log(
+            `Recorded single menu selection: ${normalizedInput} (${menuItem.text})`,
+          );
+          if (this.isLookAtMapMenuSelection(menuItem)) {
+            this.enqueueInputKeys([";"], source, ["event"]);
+            return;
+          }
         }
       }
     }
@@ -2478,12 +2491,16 @@ class LocalNetHackRuntime {
       const raw = input
         .slice(this.inventoryContextSelectionCountPrefix.length)
         .trim();
-      const separatorIndex = raw.indexOf(":");
-      if (separatorIndex <= 0) {
+      const parts = raw.split(":");
+      if (parts.length < 2) {
         return false;
       }
-      const accelerator = raw.slice(0, separatorIndex).trim();
-      const countRaw = raw.slice(separatorIndex + 1).trim();
+      const accelerator = String(parts.shift() || "").trim();
+      const countRaw = String(parts.shift() || "").trim();
+      const actionIdRaw = parts.join(":").trim();
+      const actionId = /^[a-z0-9_-]+$/i.test(actionIdRaw)
+        ? actionIdRaw.toLowerCase()
+        : "";
       if (accelerator.length !== 1 || !/^\d+$/.test(countRaw)) {
         return false;
       }
@@ -2494,12 +2511,14 @@ class LocalNetHackRuntime {
       this.pendingInventoryContextSelection = {
         accelerator,
         count,
-        actionId: null,
+        actionId: actionId || null,
         armedAtMs: Date.now(),
         commandIssuedAtMs: 0,
       };
       console.log(
-        `Armed inventory context selection accelerator with count: "${accelerator}" x${count}`,
+        `Armed inventory context selection accelerator with count: "${accelerator}" x${count}${
+          actionId ? ` (action=${actionId})` : ""
+        }`,
       );
       return true;
     }
@@ -2567,7 +2586,7 @@ class LocalNetHackRuntime {
   }
 
   consumePendingInventoryContextSelection(menuItems, options = {}) {
-    const { clearOnMiss = true } = options;
+    const { clearOnMiss = true, preserveActionRoute = false } = options;
     const pending = this.pendingInventoryContextSelection;
 
     if (!pending || !Array.isArray(menuItems) || menuItems.length === 0) {
@@ -2594,7 +2613,18 @@ class LocalNetHackRuntime {
         item.accelerator === accelerator,
     );
     if (exact) {
-      this.clearPendingInventoryContextSelection("consumed exact match");
+      const shouldPreservePendingAction =
+        preserveActionRoute &&
+        this.runtimeVersion === "3.7" &&
+        typeof pending.actionId === "string" &&
+        pending.actionId.trim().length > 0;
+      if (!shouldPreservePendingAction) {
+        this.clearPendingInventoryContextSelection("consumed exact match");
+      } else {
+        console.log(
+          "Preserving pending inventory context selection after exact item match for 3.7 action routing",
+        );
+      }
       return {
         menuItem: exact,
         selectionCount: pendingCount > 0 ? pendingCount : undefined,
@@ -2609,9 +2639,20 @@ class LocalNetHackRuntime {
         item.accelerator.toLowerCase() === accelerator.toLowerCase(),
     );
     if (caseInsensitive) {
-      this.clearPendingInventoryContextSelection(
-        "consumed case-insensitive match",
-      );
+      const shouldPreservePendingAction =
+        preserveActionRoute &&
+        this.runtimeVersion === "3.7" &&
+        typeof pending.actionId === "string" &&
+        pending.actionId.trim().length > 0;
+      if (!shouldPreservePendingAction) {
+        this.clearPendingInventoryContextSelection(
+          "consumed case-insensitive match",
+        );
+      } else {
+        console.log(
+          "Preserving pending inventory context selection after case-insensitive item match for 3.7 action routing",
+        );
+      }
       return {
         menuItem: caseInsensitive,
         selectionCount: pendingCount > 0 ? pendingCount : undefined,
@@ -4904,27 +4945,6 @@ class LocalNetHackRuntime {
       if (byExactAccelerator) {
         return byExactAccelerator;
       }
-
-      const expectedLower = expectedAccelerator.toLowerCase();
-      const byAccelerator = menuItems.find((item) => {
-        if (!item || item.isCategory) {
-          return false;
-        }
-        const accel = String(item.accelerator || "").trim().toLowerCase();
-        if (accel && accel === expectedLower) {
-          return true;
-        }
-        if (this.isPrintableAccelerator(item.originalAccelerator)) {
-          return (
-            String.fromCharCode(item.originalAccelerator).toLowerCase() ===
-            expectedLower
-          );
-        }
-        return false;
-      });
-      if (byAccelerator) {
-        return byAccelerator;
-      }
     }
 
     const textFragmentsByAction = {
@@ -5225,10 +5245,18 @@ class LocalNetHackRuntime {
         }
         return false;
       }
+      if (this.isInventoryActionChoiceQuestion(menuQuestion)) {
+        this.clearPendingInventoryContextSelection(
+          `${pendingActionId} action route unavailable on inventory action menu`,
+        );
+        return false;
+      }
     }
 
-    const directInventorySelection =
-      this.consumePendingInventoryContextSelection(menuItems);
+    const directInventorySelection = this.consumePendingInventoryContextSelection(
+      menuItems,
+      { preserveActionRoute: true },
+    );
     if (!directInventorySelection) {
       return false;
     }
@@ -8310,8 +8338,22 @@ class LocalNetHackRuntime {
             return 0;
           }
 
+          if (!this.hasPendingInventoryContextSelection()) {
+            console.log(
+              "Suppressing questionless WIN_INVEN PICK_ONE prompt for passive inventory refresh; returning 0",
+            );
+            this.writeMenuSelectionResult(menuListPtrPtr, 0);
+            this.menuSelections.clear();
+            this.isInMultiPickup = false;
+            this.lastMenuInteractionCancelled = false;
+            return 0;
+          }
+
           const directInventorySelection =
-            this.consumePendingInventoryContextSelection(this.currentMenuItems);
+            this.consumePendingInventoryContextSelection(
+              this.currentMenuItems,
+              { preserveActionRoute: true },
+            );
           if (directInventorySelection) {
             if (
               this.tryAutoSelectMenuItem(
