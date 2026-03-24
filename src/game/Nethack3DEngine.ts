@@ -83,6 +83,7 @@ import {
 } from "./tilesets";
 import {
   shouldTranslateNh367TilesetForNh37Runtime,
+  translateNh367TileIndexToNh37,
   translateNh37TileIndexToNh367,
 } from "./tileset-367-to-37-translation";
 import { getItemTextClassName } from "./helpers/helpers";
@@ -3443,7 +3444,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!Number.isFinite(overrideTileIndex) || overrideTileIndex < 0) {
       return fallbackTileIndex;
     }
-    return overrideTileIndex;
+    return this.resolveOverrideTileIndexForRuntime(overrideTileIndex);
   }
 
   private resolveInferredDarkCorridorWallSolidColorHex(
@@ -7823,7 +7824,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeChar: ".",
       runtimeColor: null,
       runtimeTileIndex: shouldUseTilesetBackgroundTileUnderlay
-        ? this.clientOptions.tilesetBackgroundTileId
+        ? this.resolveOverrideTileIndexForRuntime(
+            this.clientOptions.tilesetBackgroundTileId,
+          )
         : null,
       priorTerrain: null,
     });
@@ -11539,15 +11542,60 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!Number.isFinite(normalizedTileIndex) || normalizedTileIndex < 0) {
       return normalizedTileIndex;
     }
-    if (
-      !shouldTranslateNh367TilesetForNh37Runtime(
-        this.resolveRuntimeVersion(),
-        atlasTileCount,
-      )
-    ) {
+    try {
+      if (
+        !shouldTranslateNh367TilesetForNh37Runtime(
+          this.resolveRuntimeVersion(),
+          atlasTileCount,
+        )
+      ) {
+        return normalizedTileIndex;
+      }
+      return translateNh37TileIndexToNh367(normalizedTileIndex);
+    } catch {
       return normalizedTileIndex;
     }
-    return translateNh37TileIndexToNh367(normalizedTileIndex);
+  }
+
+  private resolveLoadedAtlasTileCount(): number {
+    const imageCandidate = this.tilesetTexture?.image as
+      | { width?: unknown; height?: unknown }
+      | undefined;
+    if (!imageCandidate || typeof imageCandidate !== "object") {
+      return 0;
+    }
+    const atlasWidth = Math.max(
+      0,
+      Math.trunc(Number(imageCandidate.width) || 0),
+    );
+    const atlasHeight = Math.max(
+      0,
+      Math.trunc(Number(imageCandidate.height) || 0),
+    );
+    const tileSize = Math.max(1, Math.trunc(this.tileSourceSize) || 1);
+    const tilesPerRow = Math.floor(atlasWidth / tileSize);
+    const rows = Math.floor(atlasHeight / tileSize);
+    return tilesPerRow > 0 && rows > 0 ? tilesPerRow * rows : 0;
+  }
+
+  private resolveOverrideTileIndexForRuntime(tileIndex: number): number {
+    const normalizedTileIndex = Math.trunc(tileIndex);
+    if (!Number.isFinite(normalizedTileIndex) || normalizedTileIndex < 0) {
+      return normalizedTileIndex;
+    }
+    try {
+      if (
+        !shouldTranslateNh367TilesetForNh37Runtime(
+          this.resolveRuntimeVersion(),
+          this.resolveLoadedAtlasTileCount(),
+        )
+      ) {
+        return normalizedTileIndex;
+      }
+      return translateNh367TileIndexToNh37(normalizedTileIndex);
+    } catch {
+      return normalizedTileIndex;
+    }
   }
 
   private resolveFpsChamferWallUvRotation(

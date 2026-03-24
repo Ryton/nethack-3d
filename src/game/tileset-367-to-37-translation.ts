@@ -174,6 +174,27 @@ function buildNh367TileIndexByNh37TileIndex(): ReadonlyArray<number> {
 }
 
 const NH367_TILE_INDEX_BY_NH37_TILE_INDEX = buildNh367TileIndexByNh37TileIndex();
+const NH37_TILE_INDEX_BY_NH367_TILE_INDEX = new Map<number, number>();
+for (
+  let nh37TileIndex = 0;
+  nh37TileIndex < NH367_TILE_INDEX_BY_NH37_TILE_INDEX.length;
+  nh37TileIndex += 1
+) {
+  const rawMappedTileIndex = NH367_TILE_INDEX_BY_NH37_TILE_INDEX[nh37TileIndex];
+  const normalizedMappedTileIndex =
+    rawMappedTileIndex < 0
+      ? Math.abs(rawMappedTileIndex)
+      : Math.trunc(rawMappedTileIndex);
+  if (!Number.isFinite(normalizedMappedTileIndex) || normalizedMappedTileIndex < 0) {
+    continue;
+  }
+  if (!NH37_TILE_INDEX_BY_NH367_TILE_INDEX.has(normalizedMappedTileIndex)) {
+    NH37_TILE_INDEX_BY_NH367_TILE_INDEX.set(
+      normalizedMappedTileIndex,
+      nh37TileIndex,
+    );
+  }
+}
 
 export const nh37ExpectedTileCount =
   NH_TILES_PER_ROW * NH37_OUTPUT_ROWS;
@@ -207,4 +228,19 @@ export function translateNh37TileIndexToNh367(
   return mappedTileIndex < 0
     ? Math.abs(mappedTileIndex)
     : Math.trunc(mappedTileIndex);
+}
+
+export function translateNh367TileIndexToNh37(
+  tileIndex: number,
+): number {
+  const normalizedTileIndex = Math.trunc(tileIndex);
+  if (!Number.isFinite(normalizedTileIndex) || normalizedTileIndex < 0) {
+    return normalizedTileIndex;
+  }
+  const shiftedTileIndex =
+    NH37_TILE_INDEX_BY_NH367_TILE_INDEX.get(normalizedTileIndex);
+  if (!Number.isFinite(shiftedTileIndex)) {
+    return normalizedTileIndex;
+  }
+  return Math.trunc(shiftedTileIndex);
 }

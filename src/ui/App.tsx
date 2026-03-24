@@ -1558,12 +1558,16 @@ function resolvePreviewAtlasTileIdForRuntime(
   if (!Number.isFinite(normalizedTileId) || normalizedTileId < 0) {
     return normalizedTileId;
   }
-  if (
-    !shouldTranslateNh367TilesetForNh37Runtime(runtimeVersion, atlasTileCount)
-  ) {
+  try {
+    if (
+      !shouldTranslateNh367TilesetForNh37Runtime(runtimeVersion, atlasTileCount)
+    ) {
+      return normalizedTileId;
+    }
+    return translateNh37TileIndexToNh367(normalizedTileId);
+  } catch {
     return normalizedTileId;
   }
-  return translateNh37TileIndexToNh367(normalizedTileId);
 }
 
 type StartupFlowStep = "choose" | "create" | "random" | "resume";
