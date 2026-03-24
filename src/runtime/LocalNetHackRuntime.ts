@@ -129,7 +129,19 @@ class LocalNetHackRuntime {
       runtimeVersion === "3.7"
         ? import.meta.env.VITE_NH3D_WASM_37_RUNTIME_BUILD_TAG
         : import.meta.env.VITE_NH3D_WASM_367_RUNTIME_BUILD_TAG;
-    return typeof rawValue === "string" ? rawValue.trim() : "";
+    const runtimeBuildTag =
+      typeof rawValue === "string" ? rawValue.trim() : "";
+    const rawDevSessionTag = import.meta.env.VITE_NH3D_DEV_SESSION_TAG;
+    const devSessionTag =
+      import.meta.env.DEV && typeof rawDevSessionTag === "string"
+        ? rawDevSessionTag.trim()
+        : "";
+    if (!devSessionTag) {
+      return runtimeBuildTag;
+    }
+    return runtimeBuildTag
+      ? `${runtimeBuildTag}.${devSessionTag}`
+      : devSessionTag;
   }
 
   appendRuntimeBuildTagToUrl(rawUrl, runtimeVersion = this.runtimeVersion) {
@@ -1034,6 +1046,14 @@ class LocalNetHackRuntime {
     return candidates;
   }
 
+  getTemporaryRuntimeLockBaseNames() {
+    const candidates = [];
+    for (let index = 0; index < 26; index += 1) {
+      candidates.push(`${String.fromCharCode(97 + index)}lock`);
+    }
+    return candidates;
+  }
+
   shouldCleanupCheckpointShardsBeforeStartup() {
     if (!this.buildStartupInitRuntimeOptions().includes("checkpoint")) {
       return false;
@@ -1070,7 +1090,7 @@ class LocalNetHackRuntime {
       entries = mod.FS.readdir(saveDir);
     } catch (error) {
       console.warn(
-        `Failed to enumerate ${saveDir} for checkpoint cleanup (${reason}):`,
+        `Failed to enumerate ${saveDir} for save-shard cleanup (${reason}):`,
         error,
       );
       return 0;
@@ -1085,7 +1105,7 @@ class LocalNetHackRuntime {
     }
 
     console.log(
-      `Removing ${shardPaths.length} checkpoint shard(s) for "${lockBaseName}" (${reason})`,
+      `Removing ${shardPaths.length} save shard(s) for "${lockBaseName}" (${reason})`,
     );
 
     let removedCount = 0;
@@ -1095,7 +1115,7 @@ class LocalNetHackRuntime {
         removedCount += 1;
       } catch (error) {
         console.warn(
-          `Failed to remove checkpoint shard ${shardPath} (${reason}):`,
+          `Failed to remove save shard ${shardPath} (${reason}):`,
           error,
         );
       }
@@ -1178,6 +1198,23 @@ class LocalNetHackRuntime {
         saveDir,
         lockBaseName,
         "before startup",
+      );
+    }
+    return removedCount;
+  }
+
+  cleanupStaleTemporaryRuntimeLocksBeforeStartup(mod, saveDir) {
+    if (!mod?.FS) {
+      return 0;
+    }
+
+    let removedCount = 0;
+    for (const lockBaseName of this.getTemporaryRuntimeLockBaseNames()) {
+      removedCount += this.removeCheckpointShardsByLockBaseName(
+        mod,
+        saveDir,
+        lockBaseName,
+        "before startup (temporary runtime lock)",
       );
     }
     return removedCount;
@@ -6789,7 +6826,15 @@ class LocalNetHackRuntime {
                       mod,
                       saveDir,
                     );
-                  if (removedCheckpointShardCount > 0) {
+                  const removedTemporaryLockShardCount =
+                    this.cleanupStaleTemporaryRuntimeLocksBeforeStartup(
+                      mod,
+                      saveDir,
+                    );
+                  if (
+                    removedCheckpointShardCount + removedTemporaryLockShardCount >
+                    0
+                  ) {
                     mod.FS.syncfs(false, (syncErr) => {
                       if (syncErr) {
                         console.warn(

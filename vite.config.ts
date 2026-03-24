@@ -209,6 +209,8 @@ const bundledClientUpdateState = (() => {
   }
 })();
 
+const devSessionTag = String(Date.now());
+
 export default defineConfig({
   plugins: [copyWasmPlugin(), tilesetManifestPlugin(), react()],
   optimizeDeps: {
@@ -227,6 +229,7 @@ export default defineConfig({
     "import.meta.env.VITE_NH3D_BUNDLED_UPDATE_COMMIT_SHA": JSON.stringify(
       bundledClientUpdateState.commitSha,
     ),
+    "import.meta.env.VITE_NH3D_DEV_SESSION_TAG": JSON.stringify(devSessionTag),
     "import.meta.env.VITE_NH3D_WASM_367_COMPAT_TAG":
       JSON.stringify(wasm367CompatTag),
     "import.meta.env.VITE_NH3D_WASM_367_RUNTIME_BUILD_TAG":
