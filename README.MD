@@ -115,6 +115,10 @@ NetHack 3D lets you play classic NetHack in a fully interactive 3D dungeon, in y
 - Worker runtime host: `src/runtime/runtime-worker.ts`
 - NetHack callback adapter/state machine: `src/runtime/LocalNetHackRuntime.ts`
 
+## Credits
+
+- NetHack 3.6.7 to 3.7 tile-order translation logic is adapted from [`horlogeislux/tileto370`](https://github.com/horlogeislux/tileto370) (MIT License).
+
 ## GitHub Pages Deploy
 
 1. Push this repo to GitHub.

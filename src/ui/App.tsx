@@ -71,6 +71,10 @@ import {
   setNh3dUserTilesets,
 } from "../game/tilesets";
 import {
+  shouldTranslateNh367TilesetForNh37Runtime,
+  translateNh37TileIndexToNh367,
+} from "../game/tileset-367-to-37-translation";
+import {
   deleteStoredUserTileset,
   listStoredUserTilesets,
   saveStoredUserTileset,
@@ -1543,6 +1547,23 @@ function getAtlasTilePixels(
     tileSourceSize,
   );
   return context.getImageData(0, 0, tileSourceSize, tileSourceSize).data;
+}
+
+function resolvePreviewAtlasTileIdForRuntime(
+  runtimeVersion: NethackRuntimeVersion,
+  tileId: number,
+  atlasTileCount: number,
+): number {
+  const normalizedTileId = Math.trunc(tileId);
+  if (!Number.isFinite(normalizedTileId) || normalizedTileId < 0) {
+    return normalizedTileId;
+  }
+  if (
+    !shouldTranslateNh367TilesetForNh37Runtime(runtimeVersion, atlasTileCount)
+  ) {
+    return normalizedTileId;
+  }
+  return translateNh37TileIndexToNh367(normalizedTileId);
 }
 
 type StartupFlowStep = "choose" | "create" | "random" | "resume";
@@ -6254,6 +6275,21 @@ export default function App(): JSX.Element {
     );
     return tilePreviewDataUrlById.get(clampedTileId) ?? null;
   };
+  const getRuntimeTilePreviewDataUrl = (tileId: number): string | null => {
+    if (tileAtlasState.tileCount <= 0) {
+      return null;
+    }
+    const remappedTileId = resolvePreviewAtlasTileIdForRuntime(
+      runtimeVersion,
+      tileId,
+      tileAtlasState.tileCount,
+    );
+    const clampedTileId = Math.max(
+      0,
+      Math.min(tileAtlasState.tileCount - 1, Math.trunc(remappedTileId)),
+    );
+    return tilePreviewDataUrlById.get(clampedTileId) ?? null;
+  };
   const renderTilePreviewImageFromDataUrl = (
     tilePreviewDataUrl: string,
   ): JSX.Element | null => {
@@ -6287,7 +6323,11 @@ export default function App(): JSX.Element {
     if (tileId === null) {
       return null;
     }
-    return renderTilePreviewImage(tileId);
+    const tilePreviewDataUrl = getRuntimeTilePreviewDataUrl(tileId);
+    if (!tilePreviewDataUrl) {
+      return null;
+    }
+    return renderTilePreviewImageFromDataUrl(tilePreviewDataUrl);
   };
   const tilesetManagerTilePickerEntries = useMemo<TilePickerEntry[]>(() => {
     if (

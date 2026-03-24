@@ -81,6 +81,10 @@ import {
   inferNh3dTilesetTileSizeFromAtlasWidth,
   resolveNh3dTilesetAssetUrl,
 } from "./tilesets";
+import {
+  shouldTranslateNh367TilesetForNh37Runtime,
+  translateNh37TileIndexToNh367,
+} from "./tileset-367-to-37-translation";
 import { getItemTextClassName } from "./helpers/helpers";
 import { MessageSoundHooks } from "./message-sound-hooks";
 import {
@@ -92,6 +96,7 @@ import DirectionPromptOverlay, {
   type DirectionPromptOverlayButtonId,
 } from "./DirectionPromptOverlay";
 import { sanitizeStartupInitOptionTokens } from "../runtime/startup-init-options";
+import type { NethackRuntimeVersion } from "../runtime/types";
 
 type PendingCharacterDamage = {
   amount: number;
@@ -11522,6 +11527,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
+  private resolveRuntimeVersion(): NethackRuntimeVersion {
+    return this.characterCreationConfig.runtimeVersion ?? "3.6.7";
+  }
+
+  private resolveAtlasTileIndexForRuntime(
+    tileIndex: number,
+    atlasTileCount: number,
+  ): number {
+    const normalizedTileIndex = Math.trunc(tileIndex);
+    if (!Number.isFinite(normalizedTileIndex) || normalizedTileIndex < 0) {
+      return normalizedTileIndex;
+    }
+    if (
+      !shouldTranslateNh367TilesetForNh37Runtime(
+        this.resolveRuntimeVersion(),
+        atlasTileCount,
+      )
+    ) {
+      return normalizedTileIndex;
+    }
+    return translateNh37TileIndexToNh367(normalizedTileIndex);
+  }
+
   private resolveFpsChamferWallUvRotation(
     glyphChar: string,
     sourceGlyph: number | null,
@@ -11937,7 +11965,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const tileCount =
         tilesPerRow > 0 && tileRows > 0 ? tilesPerRow * tileRows : 0;
       if (tilesPerRow > 0 && tileCount > 0) {
-        const atlasTileIndex = Math.max(0, Math.trunc(tileIndex));
+        const atlasTileIndex = Math.max(
+          0,
+          this.resolveAtlasTileIndexForRuntime(tileIndex, tileCount),
+        );
         const sx = (atlasTileIndex % tilesPerRow) * size;
         const sy = Math.floor(atlasTileIndex / tilesPerRow) * size;
 
