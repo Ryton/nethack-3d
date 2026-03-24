@@ -113,12 +113,47 @@ class LocalNetHackRuntime {
     this.runtimePointerContract = null;
     this.runtimePointerContractValidated = false;
     this.pointerContractViolationKeys = new Set();
+    this.uiCallbackCount = 0;
+    this.startupNoCallbackTimer = null;
+    this.lastConfiguredNethackOptions = "";
 
     this.ready = this.initializeNetHack();
   }
 
   normalizeRuntimeVersion(value) {
     return value === "3.7" ? "3.7" : "3.6.7";
+  }
+
+  readRuntimeBuildTag(runtimeVersion = this.runtimeVersion) {
+    const rawValue =
+      runtimeVersion === "3.7"
+        ? import.meta.env.VITE_NH3D_WASM_37_RUNTIME_BUILD_TAG
+        : import.meta.env.VITE_NH3D_WASM_367_RUNTIME_BUILD_TAG;
+    return typeof rawValue === "string" ? rawValue.trim() : "";
+  }
+
+  appendRuntimeBuildTagToUrl(rawUrl, runtimeVersion = this.runtimeVersion) {
+    const normalizedUrl = String(rawUrl ?? "").trim();
+    if (!normalizedUrl) {
+      return normalizedUrl;
+    }
+
+    const runtimeBuildTag = this.readRuntimeBuildTag(runtimeVersion);
+    if (!runtimeBuildTag || normalizedUrl.startsWith("file:")) {
+      return normalizedUrl;
+    }
+
+    const referenceUrl =
+      typeof globalThis.location?.href === "string" && globalThis.location.href
+        ? globalThis.location.href
+        : import.meta.url;
+    try {
+      const taggedUrl = new URL(normalizedUrl, referenceUrl);
+      taggedUrl.searchParams.set("nh3d_rt", runtimeBuildTag);
+      return taggedUrl.href;
+    } catch {
+      return normalizedUrl;
+    }
   }
 
   normalizePointerAbiTag(value, fallback = "") {
@@ -835,6 +870,30 @@ class LocalNetHackRuntime {
       }
       return false;
     };
+    const resolveDevPackageRuntimeModuleUrl = (packageBuildPath) => {
+      const normalizedPackageBuildPath = String(packageBuildPath || "").replace(
+        /^\/+/,
+        "",
+      );
+      const baseUrl =
+        typeof import.meta.env.BASE_URL === "string" &&
+        import.meta.env.BASE_URL.trim()
+          ? import.meta.env.BASE_URL.trim()
+          : "/";
+      const normalizedBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+      const referenceUrl =
+        typeof globalThis.location?.href === "string" &&
+        globalThis.location.href
+          ? globalThis.location.href
+          : import.meta.url;
+      return this.appendRuntimeBuildTagToUrl(
+        new URL(
+          `${normalizedBaseUrl}node_modules/${normalizedPackageBuildPath}`,
+          referenceUrl,
+        ).href,
+        version,
+      );
+    };
     const resolvePublicRuntimeModuleUrl = (assetPath) => {
       const normalizedAssetPath = String(assetPath || "").replace(/^\/+/, "");
       const baseUrl =
@@ -848,8 +907,20 @@ class LocalNetHackRuntime {
         globalThis.location.href
           ? globalThis.location.href
           : import.meta.url;
-      return new URL(`${normalizedBaseUrl}${normalizedAssetPath}`, referenceUrl)
-        .href;
+      return this.appendRuntimeBuildTagToUrl(
+        new URL(`${normalizedBaseUrl}${normalizedAssetPath}`, referenceUrl).href,
+        version,
+      );
+    };
+    const importFactoryFromUrl = async (moduleUrl, source) => {
+      console.log("Loading NetHack runtime factory", {
+        runtimeVersion: version,
+        source,
+        moduleUrl,
+        runtimeBuildTag: this.readRuntimeBuildTag(version) || null,
+      });
+      const { default: factory } = await import(/* @vite-ignore */ moduleUrl);
+      return factory;
     };
 
     if (version === "3.7") {
@@ -859,9 +930,20 @@ class LocalNetHackRuntime {
         )
       ) {
         const moduleUrl = resolvePublicRuntimeModuleUrl("nethack-37.js");
-        const { default: factory } = await import(/* @vite-ignore */ moduleUrl);
-        return factory;
+        return importFactoryFromUrl(moduleUrl, "public-override");
       }
+      if (import.meta.env.DEV) {
+        const moduleUrl = resolveDevPackageRuntimeModuleUrl(
+          "@neth4ck/wasm-37/build/nethack.js",
+        );
+        return importFactoryFromUrl(moduleUrl, "dev-package-build");
+      }
+      console.log("Loading NetHack runtime factory", {
+        runtimeVersion: version,
+        source: "package",
+        packageName: "@neth4ck/wasm-37",
+        runtimeBuildTag: this.readRuntimeBuildTag(version) || null,
+      });
       const { default: factory } = await import("@neth4ck/wasm-37");
       return factory;
     }
@@ -871,9 +953,20 @@ class LocalNetHackRuntime {
       )
     ) {
       const moduleUrl = resolvePublicRuntimeModuleUrl("nethack-367.js");
-      const { default: factory } = await import(/* @vite-ignore */ moduleUrl);
-      return factory;
+      return importFactoryFromUrl(moduleUrl, "public-override");
     }
+    if (import.meta.env.DEV) {
+      const moduleUrl = resolveDevPackageRuntimeModuleUrl(
+        "@neth4ck/wasm-367/build/nethack.js",
+      );
+      return importFactoryFromUrl(moduleUrl, "dev-package-build");
+    }
+    console.log("Loading NetHack runtime factory", {
+      runtimeVersion: version,
+      source: "package",
+      packageName: "@neth4ck/wasm-367",
+      runtimeBuildTag: this.readRuntimeBuildTag(version) || null,
+    });
     const { default: factory } = await import("@neth4ck/wasm-367");
     return factory;
   }
@@ -1187,9 +1280,13 @@ class LocalNetHackRuntime {
   }
 
   buildStartupInitRuntimeOptions() {
-    return appendRequiredStartupInitOptionTokens(
+    const tokens = appendRequiredStartupInitOptionTokens(
       this.startupOptions?.initOptions,
     );
+    if (this.runtimeVersion !== "3.6.7") {
+      return tokens.filter((token) => !/^!?checkpoint(?:$|:)/i.test(token));
+    }
+    return tokens;
   }
 
   resolveStartupExtmenuEnabled(rawTokens) {
@@ -2855,7 +2952,7 @@ class LocalNetHackRuntime {
 
       if (mapHelper) {
         try {
-          const mgflags = this.runtimeVersion === "3.7" ? 0x02 : 0;
+          const mgflags = 0;
           const glyphInfo = mapHelper(glyph, x, y, mgflags);
           if (glyphInfo) {
             if (glyphInfo.ch !== undefined) {
@@ -2951,7 +3048,7 @@ class LocalNetHackRuntime {
 
         if (mapHelper) {
           try {
-            const mgflags = this.runtimeVersion === "3.7" ? 0x02 : 0;
+            const mgflags = 0;
             const glyphInfo = mapHelper(normalizedGlyph, x, y, mgflags);
             if (glyphInfo) {
               if (glyphInfo.ch !== undefined) {
@@ -3104,7 +3201,7 @@ class LocalNetHackRuntime {
 
               if (mapHelper) {
                 try {
-                  const mgflags = this.runtimeVersion === "3.7" ? 0x02 : 0;
+                  const mgflags = 0;
                   const glyphInfo = mapHelper(glyph, x, y, mgflags);
                   if (glyphInfo) {
                     if (glyphInfo.ch !== undefined) {
@@ -6204,7 +6301,7 @@ class LocalNetHackRuntime {
     }
   }
 
-  resolveWasmAssetUrl(assetPath) {
+  resolveWasmAssetUrl(assetPath, runtimeVersion = this.runtimeVersion) {
     const normalizedAsset = String(assetPath || "").replace(/^\/+/, "");
     const baseUrl =
       typeof import.meta !== "undefined" &&
@@ -6225,14 +6322,66 @@ class LocalNetHackRuntime {
     const isFileWorker = workerLocationHref.startsWith("file:");
     if (isFileWorker && (baseUrl === "./" || baseUrl === ".")) {
       try {
-        return new URL(`../${normalizedAsset}`, workerLocationHref).toString();
+        return this.appendRuntimeBuildTagToUrl(
+          new URL(`../${normalizedAsset}`, workerLocationHref).toString(),
+          runtimeVersion,
+        );
       } catch {
         // Fall through to default base handling.
       }
     }
 
     const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    return `${normalizedBase}${normalizedAsset}`;
+    return this.appendRuntimeBuildTagToUrl(
+      `${normalizedBase}${normalizedAsset}`,
+      runtimeVersion,
+    );
+  }
+
+  clearStartupNoCallbackTimer() {
+    if (this.startupNoCallbackTimer !== null) {
+      clearTimeout(this.startupNoCallbackTimer);
+      this.startupNoCallbackTimer = null;
+    }
+  }
+
+  scheduleStartupNoCallbackDiagnostic() {
+    this.clearStartupNoCallbackTimer();
+    if (this.uiCallbackCount > 0 || this.isClosed) {
+      return;
+    }
+    this.startupNoCallbackTimer = setTimeout(() => {
+      this.startupNoCallbackTimer = null;
+      if (this.uiCallbackCount > 0 || this.isClosed) {
+        return;
+      }
+      const helpers =
+        globalThis.nethackGlobal && globalThis.nethackGlobal.helpers
+          ? globalThis.nethackGlobal.helpers
+          : null;
+      const globals =
+        globalThis.nethackGlobal && globalThis.nethackGlobal.globals
+          ? globalThis.nethackGlobal.globals
+          : null;
+      const helperNames = helpers ? Object.keys(helpers) : [];
+      const windowInited =
+        globals &&
+        globals.iflags &&
+        typeof globals.iflags.window_inited !== "undefined"
+          ? globals.iflags.window_inited
+          : null;
+
+      console.warn(
+        "No shim UI callbacks received after startup. Runtime may be using a non-shim window port (for example tty), or callback wiring is broken.",
+      );
+      console.warn("Startup diagnostics:", {
+        runtimeVersion: this.runtimeVersion,
+        configuredNethackOptions: this.lastConfiguredNethackOptions,
+        helperCount: helperNames.length,
+        helperNamesSample: helperNames.slice(0, 12),
+        windowInited,
+      });
+    }, 3000);
   }
 
   async initializeNetHack() {
@@ -6347,7 +6496,6 @@ class LocalNetHackRuntime {
         // Input/menu behavior expected by the browser port.
         "number_pad:1",
         "mouse_support",
-        "clicklook",
         "runmode:walk",
         // Status tracking fields consumed by the HUD.
         "time",
@@ -6358,6 +6506,9 @@ class LocalNetHackRuntime {
         "force_invmenu",
         "boulder:0",
       ];
+      if (runtimeVersion !== "3.7") {
+        runtimeOptions.push("clicklook");
+      }
       const characterRuntimeOptions =
         this.buildCharacterCreationRuntimeOptions();
       if (characterRuntimeOptions.length > 0) {
@@ -6367,9 +6518,23 @@ class LocalNetHackRuntime {
       if (startupInitRuntimeOptions.length > 0) {
         runtimeOptions.push(...startupInitRuntimeOptions);
       }
+      // NetHack parses NETHACKOPTIONS right-to-left, so put windowtype last
+      // to ensure it is applied first.
+      runtimeOptions.push("windowtype:shim");
       if (runtimeOptions.includes("checkpoint")) {
         console.log("Checkpoint startup option is enabled.");
       }
+
+      const resolvedWasmAssetUrl = this.resolveWasmAssetUrl(
+        wasmAssetPath,
+        runtimeVersion,
+      );
+      console.log("Resolved NetHack wasm asset URL", {
+        runtimeVersion,
+        wasmAssetPath,
+        resolvedWasmAssetUrl,
+        runtimeBuildTag: this.readRuntimeBuildTag(runtimeVersion) || null,
+      });
 
       const createModule = await this.loadRuntimeFactory(runtimeVersion);
 
@@ -6377,9 +6542,15 @@ class LocalNetHackRuntime {
         noInitialRun: true,
         locateFile: (assetPath) => {
           if (assetPath.endsWith(".wasm")) {
-            return this.resolveWasmAssetUrl(wasmAssetPath);
+            return resolvedWasmAssetUrl;
           }
-          return this.resolveWasmAssetUrl(assetPath);
+          return this.resolveWasmAssetUrl(assetPath, runtimeVersion);
+        },
+        print: (...args) => {
+          console.log("[WASM stdout]", ...args);
+        },
+        printErr: (...args) => {
+          console.warn("[WASM stderr]", ...args);
         },
         quit: (status, toThrow) => {
           const exitCode = Number.isFinite(status) ? Number(status) : 0;
@@ -6422,7 +6593,28 @@ class LocalNetHackRuntime {
             mod.ENV.NETHACKOPTIONS = existingOptions
               ? `${existingOptions},${runtimeOptions.join(",")}`
               : runtimeOptions.join(",");
+            this.lastConfiguredNethackOptions = mod.ENV.NETHACKOPTIONS;
             console.log(`Configured NETHACKOPTIONS: ${mod.ENV.NETHACKOPTIONS}`);
+
+            // Ensure NetHack chdirs into a valid data root inside the wasm FS.
+            // If HACKDIR/NETHACKDIR points at a host path, main() will abort
+            // before js_helpers_init/js_constants_init run.
+            const fallbackHackDir = "/";
+            if (!mod.ENV.HACKDIR) {
+              mod.ENV.HACKDIR = fallbackHackDir;
+            }
+            if (!mod.ENV.NETHACKDIR) {
+              mod.ENV.NETHACKDIR = fallbackHackDir;
+            }
+            const resolvedHackDir = mod.ENV.NETHACKDIR || mod.ENV.HACKDIR;
+            if (mod.FS && typeof mod.FS.analyzePath === "function") {
+              const exists = mod.FS.analyzePath(resolvedHackDir).exists;
+              if (!exists) {
+                console.warn(
+                  `HACKDIR/NETHACKDIR does not exist in wasm FS: ${resolvedHackDir}`,
+                );
+              }
+            }
 
             // Setup IndexedDB file system for persisting saves
             const IDBFS =
@@ -6631,7 +6823,12 @@ class LocalNetHackRuntime {
         null,
         ["string"],
       );
+      console.log("Registering shim callback", {
+        callbackName: "nethackCallback",
+        callbackType: typeof globalThis.nethackCallback,
+      });
       setCallback("nethackCallback");
+      console.log("shim_graphics_set_callback invoked");
 
       // NetHack's generated helper may reject "v" (void) arg types in
       // local_callback argument decoding (observed in shim_get_ext_cmd).
@@ -6639,9 +6836,33 @@ class LocalNetHackRuntime {
       this.installHelperCompatibilityShims();
       this.validateRuntimePointerContract();
 
-      // Start the game — ASYNCIFY pauses/resumes at each async callback boundary
+      // Start the game — ASYNCIFY pauses/resumes at each async callback boundary.
+      // Pass a valid argc/argv block instead of _main(0, 0) to avoid undefined
+      // behavior in main() when it reads argv[0].
       this.queueCheckpointAutosaveResumeBeforeStartup();
-      this.nethackInstance._main(0, 0);
+      const programName = "nethack";
+      const argv0Ptr = this.nethackInstance._malloc(programName.length + 1);
+      this.nethackInstance.stringToUTF8(
+        programName,
+        argv0Ptr,
+        programName.length + 1,
+      );
+      const argvPtr = this.nethackInstance._malloc(8);
+      this.nethackInstance.setValue(argvPtr, argv0Ptr, "*");
+      this.nethackInstance.setValue(argvPtr + 4, 0, "*");
+      const mainReturn = this.nethackInstance._main(1, argvPtr);
+      const helperNamesAfterMain =
+        globalThis.nethackGlobal && globalThis.nethackGlobal.helpers
+          ? Object.keys(globalThis.nethackGlobal.helpers)
+          : [];
+      console.log("NetHack _main invoked", {
+        returnValue: mainReturn,
+        argc: 1,
+        argv0: programName,
+        helperCountAfterMain: helperNamesAfterMain.length,
+        helperNamesSample: helperNamesAfterMain.slice(0, 12),
+      });
+      this.scheduleStartupNoCallbackDiagnostic();
     } catch (error) {
       console.error("Error initializing local NetHack:", error);
       throw error;
@@ -6858,7 +7079,9 @@ class LocalNetHackRuntime {
     if (this.isClosed) {
       return 0;
     }
-    console.log(`🎮 UI Callback: ${name}`, args);
+    this.uiCallbackCount += 1;
+    this.clearStartupNoCallbackTimer();
+    console.log(`UI Callback: ${name}`, args);
     this.recordRecentUICallback(name, args);
     if (!this.validateCallbackPointerContract(name, args)) {
       return this.getSafeCallbackDefaultReturn(name);
@@ -7619,7 +7842,7 @@ class LocalNetHackRuntime {
                 printGlyph,
                 x,
                 y,
-                this.runtimeVersion === "3.7" ? 0x02 : 0,
+                0,
               );
 
               if (glyphInfo) {

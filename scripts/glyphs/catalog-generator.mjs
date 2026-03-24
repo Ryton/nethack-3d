@@ -273,12 +273,12 @@ function buildGlyphEntries(
 ) {
   /** @type {GlyphEntry[]} */
   const entries = [];
-  const MG_FLAG_RETURNIDX = 0x02;
+  const MG_FLAG_NORMAL = 0x00;
 
   for (let glyph = 0; glyph < maxGlyph; glyph++) {
     const info =
       version === "3.7"
-        ? helpers.mapGlyphInfoHelper?.(glyph, 0, 0, MG_FLAG_RETURNIDX)
+        ? helpers.mapGlyphInfoHelper?.(glyph, 0, 0, MG_FLAG_NORMAL)
         : helpers.mapglyphHelper?.(glyph, 0, 0, 0);
 
     const kind = glyphKindForGlyph(ranges, glyph);

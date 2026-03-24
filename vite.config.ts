@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { defineConfig, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
@@ -53,6 +53,19 @@ function buildFileContains(filePath: string, snippet: string): boolean {
   } catch {
     return false;
   }
+}
+
+function buildRuntimeAssetTag(filePaths: string[]): string {
+  const parts: string[] = [];
+  for (const filePath of filePaths) {
+    try {
+      const stats = statSync(filePath);
+      parts.push(`${stats.size}-${Math.trunc(stats.mtimeMs)}`);
+    } catch {
+      parts.push("missing");
+    }
+  }
+  return parts.join(".");
 }
 
 function copyWasmPlugin() {
@@ -122,6 +135,14 @@ const wasm37UsesPublicRuntimeOverride = wasm37RuntimeBuildJsPath.endsWith(
 );
 const wasm367CompatTag = `wasm-367-${resolveInstalledPackageVersion("@neth4ck/wasm-367")}`;
 const wasm37CompatTag = `wasm-37-${resolveInstalledPackageVersion("@neth4ck/wasm-37")}`;
+const wasm367RuntimeBuildTag = buildRuntimeAssetTag([
+  wasm367RuntimeBuildJsPath,
+  path.join(process.cwd(), "public", "nethack-367.wasm"),
+]);
+const wasm37RuntimeBuildTag = buildRuntimeAssetTag([
+  wasm37RuntimeBuildJsPath,
+  path.join(process.cwd(), "public", "nethack-37.wasm"),
+]);
 const wasm367PointerAbiTag = "nh367-pointer-v1";
 const wasm37PointerAbiTag = "nh37-pointer-v1";
 const wasm367HasRecoverSavefile = buildFileContains(
@@ -208,6 +229,8 @@ export default defineConfig({
     ),
     "import.meta.env.VITE_NH3D_WASM_367_COMPAT_TAG":
       JSON.stringify(wasm367CompatTag),
+    "import.meta.env.VITE_NH3D_WASM_367_RUNTIME_BUILD_TAG":
+      JSON.stringify(wasm367RuntimeBuildTag),
     "import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG":
       JSON.stringify(wasm367PointerAbiTag),
     "import.meta.env.VITE_NH3D_WASM_367_USE_PUBLIC_RUNTIME_OVERRIDE":
@@ -219,6 +242,8 @@ export default defineConfig({
       JSON.stringify(wasm367HasCheckpointResumeBridge),
     "import.meta.env.VITE_NH3D_WASM_37_COMPAT_TAG":
       JSON.stringify(wasm37CompatTag),
+    "import.meta.env.VITE_NH3D_WASM_37_RUNTIME_BUILD_TAG":
+      JSON.stringify(wasm37RuntimeBuildTag),
     "import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG":
       JSON.stringify(wasm37PointerAbiTag),
     // "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":

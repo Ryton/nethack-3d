@@ -156,7 +156,13 @@ export function copyWasm() {
       // dev server restart imports the swapped-in JS instead of a cached copy.
       copyFileSync(sourceJsPath, target.packageJsDest);
       copyFileSync(sourceWasmPath, target.packageWasmDest);
+      // Keep the browser-facing public runtime pair in sync with the swapped-in
+      // package build so locateFile() never loads an older checked-in wasm next
+      // to a newer forked JS module during local dev.
+      copyFileSync(sourceJsPath, target.publicJsDest);
+      copyFileSync(sourceWasmPath, target.publicWasmDest);
       purgeViteOptimizedDepCache(target);
+      continue;
     }
 
     if (useCheckedInPublicRuntimeOverride) {
