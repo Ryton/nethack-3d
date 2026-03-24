@@ -5253,10 +5253,8 @@ class LocalNetHackRuntime {
       }
     }
 
-    const directInventorySelection = this.consumePendingInventoryContextSelection(
-      menuItems,
-      { preserveActionRoute: true },
-    );
+    const directInventorySelection =
+      this.consumePendingInventoryContextSelection(menuItems);
     if (!directInventorySelection) {
       return false;
     }
