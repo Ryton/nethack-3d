@@ -2932,6 +2932,100 @@ class LocalNetHackRuntime {
       this.handleTileUpdateRequest(x, y);
     }
   }
+
+  decodeFloorUnderlayAtPosition(
+    x,
+    y,
+    helpers,
+    mapHelper,
+    canQueryWasmHelpers = true,
+  ) {
+    if (!canQueryWasmHelpers) {
+      return null;
+    }
+    if (
+      !helpers ||
+      typeof helpers.floorGlyphAtHelper !== "function" ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      return null;
+    }
+
+    let floorGlyph = -1;
+    try {
+      const raw = helpers.floorGlyphAtHelper(Math.trunc(x), Math.trunc(y));
+      floorGlyph = Number(raw);
+    } catch (error) {
+      console.log("[WARN] floorGlyphAtHelper failed:", error);
+      return null;
+    }
+
+    if (!Number.isFinite(floorGlyph) || floorGlyph < 0) {
+      return null;
+    }
+
+    const normalizedFloorGlyph = Math.trunc(floorGlyph);
+    let floorChar = null;
+    let floorColor = null;
+    let floorTileIndex = null;
+
+    if (mapHelper) {
+      try {
+        const glyphInfo = mapHelper(normalizedFloorGlyph, x, y, 0);
+        if (glyphInfo) {
+          if (glyphInfo.ch !== undefined) {
+            floorChar =
+              typeof glyphInfo.ch === "number"
+                ? String.fromCharCode(glyphInfo.ch)
+                : String(glyphInfo.ch);
+          }
+          if (
+            typeof glyphInfo.color === "number" &&
+            Number.isFinite(glyphInfo.color)
+          ) {
+            floorColor = Math.trunc(glyphInfo.color);
+          }
+          const tileIndexCandidate =
+            typeof glyphInfo.tileidx === "number"
+              ? glyphInfo.tileidx
+              : glyphInfo.tileIdx;
+          if (
+            typeof tileIndexCandidate === "number" &&
+            Number.isFinite(tileIndexCandidate) &&
+            tileIndexCandidate >= 0
+          ) {
+            floorTileIndex = Math.trunc(tileIndexCandidate);
+          }
+        }
+      } catch (error) {
+        console.log("[WARN] floor underlay mapGlyph decode failed:", error);
+      }
+    }
+
+    if (
+      floorTileIndex === null &&
+      typeof helpers.tileIndexForGlyph === "function"
+    ) {
+      try {
+        const fallbackTileIndex = Number(
+          helpers.tileIndexForGlyph(normalizedFloorGlyph),
+        );
+        if (Number.isFinite(fallbackTileIndex) && fallbackTileIndex >= 0) {
+          floorTileIndex = Math.trunc(fallbackTileIndex);
+        }
+      } catch (error) {
+        console.log("[WARN] floor underlay tileIndexForGlyph failed:", error);
+      }
+    }
+
+    return {
+      glyph: normalizedFloorGlyph,
+      char: floorChar,
+      color: floorColor,
+      tileIndex: floorTileIndex,
+    };
+  }
   // Handle request for tile update from client
   handleTileUpdateRequest(x, y) {
     if (this.isClosed) {
@@ -2986,6 +3080,7 @@ class LocalNetHackRuntime {
       let decodedChar = tileData ? tileData.char : "";
       let decodedColor = tileData ? tileData.color : null;
       let decodedTileIndex = tileData ? tileData.tileIndex : null;
+      let floorUnderlay = null;
 
       if (mapHelper) {
         try {
@@ -3021,6 +3116,14 @@ class LocalNetHackRuntime {
         }
       }
 
+      floorUnderlay = this.decodeFloorUnderlayAtPosition(
+        x,
+        y,
+        helpers,
+        mapHelper,
+        canQueryWasmHelpers,
+      );
+
       this.gameMap.set(key, {
         x,
         y,
@@ -3028,6 +3131,10 @@ class LocalNetHackRuntime {
         char: decodedChar,
         color: decodedColor,
         tileIndex: decodedTileIndex,
+        floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+        floorUnderlayChar: floorUnderlay?.char ?? null,
+        floorUnderlayColor: floorUnderlay?.color ?? null,
+        floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
         timestamp: Date.now(),
       });
 
@@ -3040,6 +3147,10 @@ class LocalNetHackRuntime {
           char: decodedChar,
           color: decodedColor,
           tileIndex: decodedTileIndex,
+          floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+          floorUnderlayChar: floorUnderlay?.char ?? null,
+          floorUnderlayColor: floorUnderlay?.color ?? null,
+          floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
           window: 2,
           isRefresh: true,
         });
@@ -3235,6 +3346,7 @@ class LocalNetHackRuntime {
               let decodedChar = tileData ? tileData.char : "";
               let decodedColor = tileData ? tileData.color : null;
               let decodedTileIndex = tileData ? tileData.tileIndex : null;
+              let floorUnderlay = null;
 
               if (mapHelper) {
                 try {
@@ -3273,6 +3385,14 @@ class LocalNetHackRuntime {
                 }
               }
 
+              floorUnderlay = this.decodeFloorUnderlayAtPosition(
+                x,
+                y,
+                helpers,
+                mapHelper,
+                canQueryWasmHelpers,
+              );
+
               this.gameMap.set(key, {
                 x,
                 y,
@@ -3280,6 +3400,10 @@ class LocalNetHackRuntime {
                 char: decodedChar,
                 color: decodedColor,
                 tileIndex: decodedTileIndex,
+                floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+                floorUnderlayChar: floorUnderlay?.char ?? null,
+                floorUnderlayColor: floorUnderlay?.color ?? null,
+                floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                 timestamp: Date.now(),
               });
 
@@ -3292,6 +3416,10 @@ class LocalNetHackRuntime {
                   char: decodedChar,
                   color: decodedColor,
                   tileIndex: decodedTileIndex,
+                  floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+                  floorUnderlayChar: floorUnderlay?.char ?? null,
+                  floorUnderlayColor: floorUnderlay?.color ?? null,
+                  floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                   window: 2,
                   isRefresh: true,
                   isAreaRefresh: true,
@@ -7879,6 +8007,7 @@ class LocalNetHackRuntime {
             this.runtimeVersion === "3.7"
               ? helpers?.mapGlyphInfoHelper
               : helpers?.mapglyphHelper;
+          let floorUnderlay = null;
 
           if (mapHelper) {
             try {
@@ -7926,6 +8055,14 @@ class LocalNetHackRuntime {
             }
           }
 
+          floorUnderlay = this.decodeFloorUnderlayAtPosition(
+            x,
+            y,
+            helpers,
+            mapHelper,
+            true,
+          );
+
           this.gameMap.set(key, {
             x,
             y,
@@ -7933,6 +8070,10 @@ class LocalNetHackRuntime {
             char: decodedChar,
             color: decodedColor,
             tileIndex: decodedTileIndex,
+            floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+            floorUnderlayChar: floorUnderlay?.char ?? null,
+            floorUnderlayColor: floorUnderlay?.color ?? null,
+            floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
             timestamp: Date.now(),
           });
 
@@ -7946,6 +8087,10 @@ class LocalNetHackRuntime {
               char: decodedChar,
               color: decodedColor,
               tileIndex: decodedTileIndex,
+              floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+              floorUnderlayChar: floorUnderlay?.char ?? null,
+              floorUnderlayColor: floorUnderlay?.color ?? null,
+              floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
               window: printWin,
             });
           }

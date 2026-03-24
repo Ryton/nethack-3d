@@ -314,6 +314,10 @@ type TileUpdateOptions = {
   inferredDarkCorridorWall?: boolean;
   restartRevealFade?: boolean;
   runtimeTileIndex?: number;
+  runtimeFloorUnderlayGlyph?: number;
+  runtimeFloorUnderlayChar?: string;
+  runtimeFloorUnderlayColor?: number;
+  runtimeFloorUnderlayTileIndex?: number;
 };
 
 type LevelCacheObservedTile = {
@@ -2050,8 +2054,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
     char?: string;
     color?: number;
     tileIndex?: number;
+    floorUnderlayGlyph?: number;
+    floorUnderlayChar?: string;
+    floorUnderlayColor?: number;
+    floorUnderlayTileIndex?: number;
   }): string {
-    return `${tile.glyph}|${tile.char ?? ""}|${tile.color ?? ""}|ti:${typeof tile.tileIndex === "number" ? Math.trunc(tile.tileIndex) : ""}`;
+    const tileIndexPart =
+      typeof tile.tileIndex === "number" ? Math.trunc(tile.tileIndex) : "";
+    const floorGlyphPart =
+      typeof tile.floorUnderlayGlyph === "number"
+        ? Math.trunc(tile.floorUnderlayGlyph)
+        : "";
+    const floorTileIndexPart =
+      typeof tile.floorUnderlayTileIndex === "number"
+        ? Math.trunc(tile.floorUnderlayTileIndex)
+        : "";
+    const floorColorPart =
+      typeof tile.floorUnderlayColor === "number"
+        ? Math.trunc(tile.floorUnderlayColor)
+        : "";
+    return `${tile.glyph}|${tile.char ?? ""}|${tile.color ?? ""}|ti:${tileIndexPart}|fg:${floorGlyphPart}|fc:${tile.floorUnderlayChar ?? ""}|fco:${floorColorPart}|fti:${floorTileIndexPart}`;
   }
 
   private normalizeLevelCacheName(rawValue: unknown): string | null {
@@ -8693,6 +8715,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
           runtimeTileIndex:
             typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
+          runtimeFloorUnderlayGlyph:
+            typeof tile.floorUnderlayGlyph === "number"
+              ? tile.floorUnderlayGlyph
+              : undefined,
+          runtimeFloorUnderlayChar:
+            typeof tile.floorUnderlayChar === "string"
+              ? tile.floorUnderlayChar
+              : undefined,
+          runtimeFloorUnderlayColor:
+            typeof tile.floorUnderlayColor === "number"
+              ? tile.floorUnderlayColor
+              : undefined,
+          runtimeFloorUnderlayTileIndex:
+            typeof tile.floorUnderlayTileIndex === "number"
+              ? tile.floorUnderlayTileIndex
+              : undefined,
         });
       } else if (
         !shouldHaveElevatedBillboard &&
@@ -8707,6 +8745,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
       runtimeTileIndex:
         typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
+      runtimeFloorUnderlayGlyph:
+        typeof tile.floorUnderlayGlyph === "number"
+          ? tile.floorUnderlayGlyph
+          : undefined,
+      runtimeFloorUnderlayChar:
+        typeof tile.floorUnderlayChar === "string"
+          ? tile.floorUnderlayChar
+          : undefined,
+      runtimeFloorUnderlayColor:
+        typeof tile.floorUnderlayColor === "number"
+          ? tile.floorUnderlayColor
+          : undefined,
+      runtimeFloorUnderlayTileIndex:
+        typeof tile.floorUnderlayTileIndex === "number"
+          ? tile.floorUnderlayTileIndex
+          : undefined,
     });
   }
 
@@ -8821,6 +8875,94 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeColor: null,
       priorTerrain: null,
     });
+  }
+
+  private isDisallowedSpecialDotFloorBehavior(
+    behavior: TileBehaviorResult | null,
+  ): boolean {
+    if (!behavior) {
+      return false;
+    }
+    if (behavior.effective.kind !== "cmap") {
+      return false;
+    }
+    const effectiveGlyph =
+      typeof behavior.effective.glyph === "number" &&
+      Number.isFinite(behavior.effective.glyph)
+        ? Math.trunc(behavior.effective.glyph)
+        : null;
+    if (effectiveGlyph === null) {
+      return false;
+    }
+    return (
+      isDoorwayCmapGlyph(effectiveGlyph) || behavior.materialKind === "door"
+    );
+  }
+
+  private resolveFloorBehaviorFromNeighborTiles(
+    tileX: number,
+    tileY: number,
+  ): TileBehaviorResult | null {
+    const neighborOffsets = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 1 },
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: 1 },
+      { dx: -1, dy: -1 },
+    ];
+
+    let bestRoomLikeFallback: TileBehaviorResult | null = null;
+    let bestGeneralFallback: TileBehaviorResult | null = null;
+    for (const offset of neighborOffsets) {
+      const neighborX = tileX + offset.dx;
+      const neighborY = tileY + offset.dy;
+      const neighborKey = `${neighborX},${neighborY}`;
+      const snapshot = this.lastKnownTerrain.get(neighborKey);
+      if (!snapshot) {
+        continue;
+      }
+      const neighborBehavior = classifyTileBehavior({
+        glyph: snapshot.glyph,
+        runtimeChar: snapshot.char ?? null,
+        runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
+        runtimeTileIndex:
+          typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
+        priorTerrain: snapshot,
+      });
+      if (
+        neighborBehavior.isWall ||
+        this.isMonsterLikeBehavior(neighborBehavior) ||
+        this.isLootLikeBehavior(neighborBehavior) ||
+        neighborBehavior.materialKind === "player" ||
+        this.isDisallowedSpecialDotFloorBehavior(neighborBehavior)
+      ) {
+        continue;
+      }
+
+      const isRoomLikeMaterial =
+        neighborBehavior.materialKind === "floor" ||
+        neighborBehavior.materialKind === "feature" ||
+        neighborBehavior.materialKind === "default" ||
+        neighborBehavior.materialKind === "dark";
+      if (isRoomLikeMaterial) {
+        if (neighborBehavior.materialKind !== "dark") {
+          return neighborBehavior;
+        }
+        if (!bestRoomLikeFallback) {
+          bestRoomLikeFallback = neighborBehavior;
+        }
+        continue;
+      }
+
+      if (!bestGeneralFallback) {
+        bestGeneralFallback = neighborBehavior;
+      }
+    }
+
+    return bestRoomLikeFallback ?? bestGeneralFallback;
   }
 
   private shouldEmitAsciiPlayerTileDebugLog(
@@ -19619,6 +19761,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
     const isMonsterLikeCharacter = this.isMonsterLikeBehavior(behavior);
     const isLootLikeCharacter = this.isLootLikeBehavior(behavior);
+    const runtimeFloorUnderlaySnapshot: TerrainSnapshot | null =
+      typeof options.runtimeFloorUnderlayGlyph === "number" &&
+      Number.isFinite(options.runtimeFloorUnderlayGlyph)
+        ? {
+            glyph: Math.trunc(options.runtimeFloorUnderlayGlyph),
+            char:
+              typeof options.runtimeFloorUnderlayChar === "string"
+                ? options.runtimeFloorUnderlayChar
+                : undefined,
+            color:
+              typeof options.runtimeFloorUnderlayColor === "number" &&
+              Number.isFinite(options.runtimeFloorUnderlayColor)
+                ? Math.trunc(options.runtimeFloorUnderlayColor)
+                : undefined,
+            tileIndex:
+              typeof options.runtimeFloorUnderlayTileIndex === "number" &&
+              Number.isFinite(options.runtimeFloorUnderlayTileIndex) &&
+              options.runtimeFloorUnderlayTileIndex >= 0
+                ? Math.trunc(options.runtimeFloorUnderlayTileIndex)
+                : undefined,
+          }
+        : null;
     const isSink = isSinkCmapGlyph(behavior.effective.glyph);
     const isFountain = behavior.materialKind === "fountain";
     const isStairsUp = behavior.materialKind === "stairs_up";
@@ -19863,7 +20027,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         renderBehavior = this.resolveRaisedSpecialTileFloorBehavior();
       } else {
-        const floorSnapshot = this.lastKnownTerrain.get(key);
+        let floorSnapshot = this.lastKnownTerrain.get(key) ?? null;
+        if (!floorSnapshot && runtimeFloorUnderlaySnapshot) {
+          floorSnapshot = runtimeFloorUnderlaySnapshot;
+          this.lastKnownTerrain.set(key, runtimeFloorUnderlaySnapshot);
+        }
         if (floorSnapshot) {
           const floorBehavior = classifyTileBehavior({
             glyph: floorSnapshot.glyph,
@@ -19878,50 +20046,61 @@ class Nethack3DEngine implements Nethack3DEngineController {
                 : null,
             priorTerrain: floorSnapshot,
           });
-          const shouldKeepBaseFloorUnderRaisedSpecialInVulture =
-            this.shouldUseVultureTiles() &&
-            useTiles &&
-            this.shouldUseRaisedSpecialTileBillboardInTiles(floorBehavior);
-          const shouldKeepBaseFloorUnderRaisedSpecialForPlayerTile =
-            useTiles &&
-            isCurrentKnownPlayerTile &&
-            this.shouldUseRaisedSpecialTileBillboardInTiles(floorBehavior);
-          const shouldKeepBaseFloorUnderRaisedSpecialForOverlayEntity =
+          const shouldForceCanonicalFloorForSpecialDotOverlayEntity =
             useTiles &&
             (isMonsterLikeCharacter || isLootLikeCharacter) &&
-            this.shouldUseRaisedSpecialTileBillboardInTiles(floorBehavior);
-          if (
-            shouldKeepBaseFloorUnderRaisedSpecialInVulture ||
-            shouldKeepBaseFloorUnderRaisedSpecialForPlayerTile ||
-            shouldKeepBaseFloorUnderRaisedSpecialForOverlayEntity
-          ) {
-            // In Vulture mode, raised special tiles should remain billboards
-            // while the tile underlay stays a floor texture. Apply the same
-            // floor underlay rule for overlay entities (monster/loot/player)
-            // so the cached fountain/stairs/etc. does not flatten onto the
-            // floor mesh when an entity is rendered on top.
-            renderBehavior = this.resolveRaisedSpecialTileFloorBehavior();
-          } else if (
-            isMonsterLikeCharacter &&
-            floorBehavior.materialKind === "door" &&
-            floorBehavior.isWall
-          ) {
-            const openDoorGlyph = getOpenDoorGlyphFrom(floorSnapshot.glyph);
-            renderBehavior =
-              typeof openDoorGlyph === "number"
-                ? classifyTileBehavior({
-                    glyph: openDoorGlyph,
-                    runtimeChar: null,
-                    runtimeColor:
-                      typeof floorSnapshot.color === "number"
-                        ? floorSnapshot.color
-                        : null,
-                    runtimeTileIndex: null,
-                    priorTerrain: floorSnapshot,
-                  })
-                : floorBehavior;
+            this.isDisallowedSpecialDotFloorBehavior(floorBehavior);
+          if (shouldForceCanonicalFloorForSpecialDotOverlayEntity) {
+            // Cached tile data is authoritative; if it resolves to a special
+            // dot-floor variant (doorway/open-door-ish), normalize to canonical
+            // room floor for entity underlays.
+            renderBehavior = this.resolveNormalRoomFloorBehavior();
           } else {
-            renderBehavior = floorBehavior;
+            const shouldKeepBaseFloorUnderRaisedSpecialInVulture =
+              this.shouldUseVultureTiles() &&
+              useTiles &&
+              this.shouldUseRaisedSpecialTileBillboardInTiles(floorBehavior);
+            const shouldKeepBaseFloorUnderRaisedSpecialForPlayerTile =
+              useTiles &&
+              isCurrentKnownPlayerTile &&
+              this.shouldUseRaisedSpecialTileBillboardInTiles(floorBehavior);
+            const shouldKeepBaseFloorUnderRaisedSpecialForOverlayEntity =
+              useTiles &&
+              (isMonsterLikeCharacter || isLootLikeCharacter) &&
+              this.shouldUseRaisedSpecialTileBillboardInTiles(floorBehavior);
+            if (
+              shouldKeepBaseFloorUnderRaisedSpecialInVulture ||
+              shouldKeepBaseFloorUnderRaisedSpecialForPlayerTile ||
+              shouldKeepBaseFloorUnderRaisedSpecialForOverlayEntity
+            ) {
+              // In Vulture mode, raised special tiles should remain billboards
+              // while the tile underlay stays a floor texture. Apply the same
+              // floor underlay rule for overlay entities (monster/loot/player)
+              // so the cached fountain/stairs/etc. does not flatten onto the
+              // floor mesh when an entity is rendered on top.
+              renderBehavior = this.resolveRaisedSpecialTileFloorBehavior();
+            } else if (
+              isMonsterLikeCharacter &&
+              floorBehavior.materialKind === "door" &&
+              floorBehavior.isWall
+            ) {
+              const openDoorGlyph = getOpenDoorGlyphFrom(floorSnapshot.glyph);
+              renderBehavior =
+                typeof openDoorGlyph === "number"
+                  ? classifyTileBehavior({
+                      glyph: openDoorGlyph,
+                      runtimeChar: null,
+                      runtimeColor:
+                        typeof floorSnapshot.color === "number"
+                          ? floorSnapshot.color
+                          : null,
+                      runtimeTileIndex: null,
+                      priorTerrain: floorSnapshot,
+                    })
+                  : floorBehavior;
+            } else {
+              renderBehavior = floorBehavior;
+            }
           }
           if (this.isFpsMode() && renderBehavior.isWall) {
             renderBehavior = classifyTileBehavior({
@@ -19932,15 +20111,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
             });
           }
         } else {
-          const fallbackGlyph = this.isFpsMode()
-            ? getDefaultDarkFloorGlyph()
-            : getDefaultFloorGlyph();
-          renderBehavior = classifyTileBehavior({
-            glyph: fallbackGlyph,
-            runtimeChar: ".",
-            runtimeColor: null,
-            priorTerrain: null,
-          });
+          const inferredNeighborFloorBehavior =
+            useTiles && (isMonsterLikeCharacter || isLootLikeCharacter)
+              ? this.resolveFloorBehaviorFromNeighborTiles(x, y)
+              : null;
+          if (inferredNeighborFloorBehavior) {
+            renderBehavior = inferredNeighborFloorBehavior;
+          } else {
+            const fallbackGlyph = this.isFpsMode()
+              ? getDefaultDarkFloorGlyph()
+              : getDefaultFloorGlyph();
+            renderBehavior = classifyTileBehavior({
+              glyph: fallbackGlyph,
+              runtimeChar: ".",
+              runtimeColor: null,
+              priorTerrain: null,
+            });
+          }
         }
       }
       tileGlyphChar = " ";

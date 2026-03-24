@@ -239,7 +239,7 @@ export function translateNh367TileIndexToNh37(
   }
   const shiftedTileIndex =
     NH37_TILE_INDEX_BY_NH367_TILE_INDEX.get(normalizedTileIndex);
-  if (!Number.isFinite(shiftedTileIndex)) {
+  if (typeof shiftedTileIndex !== "number" || !Number.isFinite(shiftedTileIndex)) {
     return normalizedTileIndex;
   }
   return Math.trunc(shiftedTileIndex);
