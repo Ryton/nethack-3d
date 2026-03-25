@@ -3028,6 +3028,42 @@ class LocalNetHackRuntime {
     }
   }
 
+  extractGlyphInfoTileIndex(glyphInfo) {
+    if (!glyphInfo || typeof glyphInfo !== "object") {
+      return null;
+    }
+    const tileIndexCandidate =
+      typeof glyphInfo.tileidx === "number"
+        ? glyphInfo.tileidx
+        : glyphInfo.tileIdx;
+    if (
+      typeof tileIndexCandidate === "number" &&
+      Number.isFinite(tileIndexCandidate) &&
+      tileIndexCandidate >= 0
+    ) {
+      return Math.trunc(tileIndexCandidate);
+    }
+    return null;
+  }
+
+  extractGlyphInfoSymidx(glyphInfo) {
+    if (!glyphInfo || typeof glyphInfo !== "object") {
+      return null;
+    }
+    const symidxCandidate =
+      typeof glyphInfo.symidx === "number"
+        ? glyphInfo.symidx
+        : glyphInfo.symIdx;
+    if (
+      typeof symidxCandidate === "number" &&
+      Number.isFinite(symidxCandidate) &&
+      symidxCandidate >= 0
+    ) {
+      return Math.trunc(symidxCandidate);
+    }
+    return null;
+  }
+
   decodeFloorUnderlayAtPosition(
     x,
     y,
@@ -3064,6 +3100,7 @@ class LocalNetHackRuntime {
     let floorChar = null;
     let floorColor = null;
     let floorTileIndex = null;
+    let floorSymidx = null;
 
     if (mapHelper) {
       try {
@@ -3081,17 +3118,8 @@ class LocalNetHackRuntime {
           ) {
             floorColor = Math.trunc(glyphInfo.color);
           }
-          const tileIndexCandidate =
-            typeof glyphInfo.tileidx === "number"
-              ? glyphInfo.tileidx
-              : glyphInfo.tileIdx;
-          if (
-            typeof tileIndexCandidate === "number" &&
-            Number.isFinite(tileIndexCandidate) &&
-            tileIndexCandidate >= 0
-          ) {
-            floorTileIndex = Math.trunc(tileIndexCandidate);
-          }
+          floorTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
+          floorSymidx = this.extractGlyphInfoSymidx(glyphInfo);
         }
       } catch (error) {
         console.log("[WARN] floor underlay mapGlyph decode failed:", error);
@@ -3119,6 +3147,7 @@ class LocalNetHackRuntime {
       char: floorChar,
       color: floorColor,
       tileIndex: floorTileIndex,
+      symidx: floorSymidx,
     };
   }
   // Handle request for tile update from client
@@ -3175,6 +3204,10 @@ class LocalNetHackRuntime {
       let decodedChar = tileData ? tileData.char : "";
       let decodedColor = tileData ? tileData.color : null;
       let decodedTileIndex = tileData ? tileData.tileIndex : null;
+      let decodedSymidx =
+        tileData && Number.isFinite(Number(tileData.symidx))
+          ? Math.trunc(Number(tileData.symidx))
+          : null;
       let floorUnderlay = null;
 
       if (mapHelper) {
@@ -3194,17 +3227,8 @@ class LocalNetHackRuntime {
             ) {
               decodedColor = glyphInfo.color;
             }
-            const tileIndexCandidate =
-              typeof glyphInfo.tileidx === "number"
-                ? glyphInfo.tileidx
-                : glyphInfo.tileIdx;
-            if (
-              typeof tileIndexCandidate === "number" &&
-              Number.isFinite(tileIndexCandidate) &&
-              tileIndexCandidate >= 0
-            ) {
-              decodedTileIndex = Math.trunc(tileIndexCandidate);
-            }
+            decodedTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
+            decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
           }
         } catch (error) {
           console.log("⚠️ Error decoding glyph for refresh:", error);
@@ -3226,10 +3250,12 @@ class LocalNetHackRuntime {
         char: decodedChar,
         color: decodedColor,
         tileIndex: decodedTileIndex,
+        symidx: decodedSymidx,
         floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
         floorUnderlayChar: floorUnderlay?.char ?? null,
         floorUnderlayColor: floorUnderlay?.color ?? null,
         floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+        floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
         timestamp: Date.now(),
       });
 
@@ -3242,10 +3268,12 @@ class LocalNetHackRuntime {
           char: decodedChar,
           color: decodedColor,
           tileIndex: decodedTileIndex,
+          symidx: decodedSymidx,
           floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
           floorUnderlayChar: floorUnderlay?.char ?? null,
           floorUnderlayColor: floorUnderlay?.color ?? null,
           floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+          floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
           window: 2,
           isRefresh: true,
         });
@@ -3276,6 +3304,7 @@ class LocalNetHackRuntime {
         let decodedChar = null;
         let decodedColor = null;
         let decodedTileIndex = null;
+        let decodedSymidx = null;
 
         if (topItemTileIndexUnderPlayer) {
           try {
@@ -3306,18 +3335,14 @@ class LocalNetHackRuntime {
               ) {
                 decodedColor = Math.trunc(glyphInfo.color);
               }
-              const tileIndexCandidate =
-                typeof glyphInfo.tileidx === "number"
-                  ? glyphInfo.tileidx
-                  : glyphInfo.tileIdx;
-              if (
-                decodedTileIndex === null &&
-                typeof tileIndexCandidate === "number" &&
-                Number.isFinite(tileIndexCandidate) &&
-                tileIndexCandidate >= 0
-              ) {
-                decodedTileIndex = Math.trunc(tileIndexCandidate);
+              if (decodedTileIndex === null) {
+                const resolvedTileIndex =
+                  this.extractGlyphInfoTileIndex(glyphInfo);
+                if (resolvedTileIndex !== null) {
+                  decodedTileIndex = resolvedTileIndex;
+                }
               }
+              decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
             }
           } catch (error) {
             console.log(
@@ -3338,6 +3363,7 @@ class LocalNetHackRuntime {
           char: decodedChar,
           color: decodedColor,
           tileIndex: decodedTileIndex,
+          symidx: decodedSymidx,
         });
       } catch (error) {
         console.log("[WARN] topItemGlyphUnderPlayer failed:", error);
@@ -3370,6 +3396,12 @@ class LocalNetHackRuntime {
           char: tileData.char,
           color: tileData.color,
           tileIndex: tileData.tileIndex,
+          symidx: tileData.symidx,
+          floorUnderlayGlyph: tileData.floorUnderlayGlyph ?? null,
+          floorUnderlayChar: tileData.floorUnderlayChar ?? null,
+          floorUnderlayColor: tileData.floorUnderlayColor ?? null,
+          floorUnderlayTileIndex: tileData.floorUnderlayTileIndex ?? null,
+          floorUnderlaySymidx: tileData.floorUnderlaySymidx ?? null,
           window: 2, // WIN_MAP
           isRefresh: true, // Mark this as a refresh to distinguish from new data
         });
@@ -3441,6 +3473,10 @@ class LocalNetHackRuntime {
               let decodedChar = tileData ? tileData.char : "";
               let decodedColor = tileData ? tileData.color : null;
               let decodedTileIndex = tileData ? tileData.tileIndex : null;
+              let decodedSymidx =
+                tileData && Number.isFinite(Number(tileData.symidx))
+                  ? Math.trunc(Number(tileData.symidx))
+                  : null;
               let floorUnderlay = null;
 
               if (mapHelper) {
@@ -3460,17 +3496,8 @@ class LocalNetHackRuntime {
                     ) {
                       decodedColor = glyphInfo.color;
                     }
-                    const tileIndexCandidate =
-                      typeof glyphInfo.tileidx === "number"
-                        ? glyphInfo.tileidx
-                        : glyphInfo.tileIdx;
-                    if (
-                      typeof tileIndexCandidate === "number" &&
-                      Number.isFinite(tileIndexCandidate) &&
-                      tileIndexCandidate >= 0
-                    ) {
-                      decodedTileIndex = Math.trunc(tileIndexCandidate);
-                    }
+                    decodedTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
+                    decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
                   }
                 } catch (error) {
                   console.log(
@@ -3495,10 +3522,12 @@ class LocalNetHackRuntime {
                 char: decodedChar,
                 color: decodedColor,
                 tileIndex: decodedTileIndex,
+                symidx: decodedSymidx,
                 floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
                 floorUnderlayChar: floorUnderlay?.char ?? null,
                 floorUnderlayColor: floorUnderlay?.color ?? null,
                 floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+                floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
                 timestamp: Date.now(),
               });
 
@@ -3511,10 +3540,12 @@ class LocalNetHackRuntime {
                   char: decodedChar,
                   color: decodedColor,
                   tileIndex: decodedTileIndex,
+                  symidx: decodedSymidx,
                   floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
                   floorUnderlayChar: floorUnderlay?.char ?? null,
                   floorUnderlayColor: floorUnderlay?.color ?? null,
                   floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+                  floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
                   window: 2,
                   isRefresh: true,
                   isAreaRefresh: true,
@@ -3538,6 +3569,12 @@ class LocalNetHackRuntime {
               char: tileData.char,
               color: tileData.color,
               tileIndex: tileData.tileIndex,
+              symidx: tileData.symidx,
+              floorUnderlayGlyph: tileData.floorUnderlayGlyph ?? null,
+              floorUnderlayChar: tileData.floorUnderlayChar ?? null,
+              floorUnderlayColor: tileData.floorUnderlayColor ?? null,
+              floorUnderlayTileIndex: tileData.floorUnderlayTileIndex ?? null,
+              floorUnderlaySymidx: tileData.floorUnderlaySymidx ?? null,
               window: 2, // WIN_MAP
               isRefresh: true,
               isAreaRefresh: true,
@@ -8117,6 +8154,7 @@ class LocalNetHackRuntime {
         let decodedChar: string | null = null;
         let decodedColor: number | null = null;
         let decodedTileIndex: number | null = null;
+        let decodedSymidx: number | null = null;
 
         const printGlyphMode =
           this.getRuntimePointerContract()?.callbackModes?.shim_print_glyph || {};
@@ -8199,17 +8237,8 @@ class LocalNetHackRuntime {
                 ) {
                   decodedColor = glyphInfo.color;
                 }
-                const tileIndexCandidate =
-                  typeof glyphInfo.tileidx === "number"
-                    ? glyphInfo.tileidx
-                    : glyphInfo.tileIdx;
-                if (
-                  typeof tileIndexCandidate === "number" &&
-                  Number.isFinite(tileIndexCandidate) &&
-                  tileIndexCandidate >= 0
-                ) {
-                  decodedTileIndex = Math.trunc(tileIndexCandidate);
-                }
+                decodedTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
+                decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
               }
             } catch (error) {
               console.log(
@@ -8234,10 +8263,12 @@ class LocalNetHackRuntime {
             char: decodedChar,
             color: decodedColor,
             tileIndex: decodedTileIndex,
+            symidx: decodedSymidx,
             floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
             floorUnderlayChar: floorUnderlay?.char ?? null,
             floorUnderlayColor: floorUnderlay?.color ?? null,
             floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+            floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
             timestamp: Date.now(),
           });
 
@@ -8251,10 +8282,12 @@ class LocalNetHackRuntime {
               char: decodedChar,
               color: decodedColor,
               tileIndex: decodedTileIndex,
+              symidx: decodedSymidx,
               floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
               floorUnderlayChar: floorUnderlay?.char ?? null,
               floorUnderlayColor: floorUnderlay?.color ?? null,
               floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+              floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
               window: printWin,
             });
           }

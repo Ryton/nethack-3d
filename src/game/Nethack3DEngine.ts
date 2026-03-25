@@ -319,10 +319,12 @@ type TileUpdateOptions = {
   inferredDarkCorridorWall?: boolean;
   restartRevealFade?: boolean;
   runtimeTileIndex?: number;
+  runtimeSymidx?: number;
   runtimeFloorUnderlayGlyph?: number;
   runtimeFloorUnderlayChar?: string;
   runtimeFloorUnderlayColor?: number;
   runtimeFloorUnderlayTileIndex?: number;
+  runtimeFloorUnderlaySymidx?: number;
 };
 
 type LevelCacheObservedTile = {
@@ -332,6 +334,7 @@ type LevelCacheObservedTile = {
   char?: string;
   color?: number;
   tileIndex?: number;
+  symidx?: number;
 };
 
 type LevelTerrainCacheSnapshot = {
@@ -2061,13 +2064,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     char?: string;
     color?: number;
     tileIndex?: number;
+    symidx?: number;
     floorUnderlayGlyph?: number;
     floorUnderlayChar?: string;
     floorUnderlayColor?: number;
     floorUnderlayTileIndex?: number;
+    floorUnderlaySymidx?: number;
   }): string {
+    const encodedGlyphChar = encodeURIComponent(tile.char ?? "");
+    const encodedFloorUnderlayChar = encodeURIComponent(
+      tile.floorUnderlayChar ?? "",
+    );
     const tileIndexPart =
       typeof tile.tileIndex === "number" ? Math.trunc(tile.tileIndex) : "";
+    const symidxPart =
+      typeof tile.symidx === "number" ? Math.trunc(tile.symidx) : "";
     const floorGlyphPart =
       typeof tile.floorUnderlayGlyph === "number"
         ? Math.trunc(tile.floorUnderlayGlyph)
@@ -2080,7 +2091,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof tile.floorUnderlayColor === "number"
         ? Math.trunc(tile.floorUnderlayColor)
         : "";
-    return `${tile.glyph}|${tile.char ?? ""}|${tile.color ?? ""}|ti:${tileIndexPart}|fg:${floorGlyphPart}|fc:${tile.floorUnderlayChar ?? ""}|fco:${floorColorPart}|fti:${floorTileIndexPart}`;
+    const floorSymidxPart =
+      typeof tile.floorUnderlaySymidx === "number"
+        ? Math.trunc(tile.floorUnderlaySymidx)
+        : "";
+    return `${tile.glyph}|${encodedGlyphChar}|${tile.color ?? ""}|ti:${tileIndexPart}|si:${symidxPart}|fg:${floorGlyphPart}|fc:${encodedFloorUnderlayChar}|fco:${floorColorPart}|fti:${floorTileIndexPart}|fsi:${floorSymidxPart}`;
   }
 
   private normalizeLevelCacheName(rawValue: unknown): string | null {
@@ -2594,6 +2609,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         typeof tile.tileIndex === "number"
           ? Math.trunc(tile.tileIndex)
           : undefined,
+      symidx:
+        typeof tile.symidx === "number" ? Math.trunc(tile.symidx) : undefined,
     });
   }
 
@@ -2608,15 +2625,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     char?: string;
     color?: number;
     tileIndex?: number;
+    symidx?: number;
   } | null {
     const parts = String(signature || "").split("|");
-    if (parts.length < 2) {
+    if (parts.length < 3) {
       return null;
     }
 
-    const glyphToken = parts.shift();
-    const lastToken = parts.pop();
-    if (!glyphToken || lastToken === undefined) {
+    const [glyphToken, charToken, colorToken, ...encodedTokens] = parts;
+    if (!glyphToken) {
       return null;
     }
 
@@ -2625,30 +2642,41 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return null;
     }
 
-    let tileIndexToken: string | undefined;
-    let colorToken: string = lastToken;
-    if (lastToken.startsWith("ti:")) {
-      tileIndexToken = lastToken.slice(3);
-      const explicitColorToken = parts.pop();
-      if (explicitColorToken === undefined) {
-        return null;
+    const readEncodedInteger = (tokenKey: string): number | undefined => {
+      const token = encodedTokens.find((value) => value.startsWith(`${tokenKey}:`));
+      if (!token) {
+        return undefined;
       }
-      colorToken = explicitColorToken;
-    }
+      const rawValue = token.slice(tokenKey.length + 1).trim();
+      if (!rawValue) {
+        return undefined;
+      }
+      const parsed = Number.parseInt(rawValue, 10);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
 
-    const joinedChar = parts.join("|");
-    const normalizedChar = joinedChar.length > 0 ? joinedChar : undefined;
-    const color =
-      colorToken.trim().length > 0 ? Number.parseInt(colorToken, 10) : NaN;
-    const tileIndex =
-      typeof tileIndexToken === "string" && tileIndexToken.trim().length > 0
-        ? Number.parseInt(tileIndexToken, 10)
-        : NaN;
+    const decodeSignatureToken = (rawValue: string | undefined): string => {
+      const normalizedValue = typeof rawValue === "string" ? rawValue : "";
+      if (!normalizedValue) {
+        return "";
+      }
+      try {
+        return decodeURIComponent(normalizedValue);
+      } catch {
+        return normalizedValue;
+      }
+    };
+    const decodedChar = decodeSignatureToken(charToken);
+    const normalizedChar = decodedChar.length > 0 ? decodedChar : undefined;
+    const parsedColor = Number.parseInt(String(colorToken ?? "").trim(), 10);
+    const tileIndex = readEncodedInteger("ti");
+    const symidx = readEncodedInteger("si");
     return {
       glyph,
       char: normalizedChar,
-      color: Number.isFinite(color) ? color : undefined,
-      tileIndex: Number.isFinite(tileIndex) ? tileIndex : undefined,
+      color: Number.isFinite(parsedColor) ? parsedColor : undefined,
+      tileIndex,
+      symidx,
     };
   }
 
@@ -2680,6 +2708,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       char: parsed.char,
       color: parsed.color,
       tileIndex: parsed.tileIndex,
+      symidx: parsed.symidx,
     };
   }
 
@@ -2690,7 +2719,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
       runtimeTileIndex:
         typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
-      priorTerrain: null,
+      runtimeSymidx:
+        typeof snapshot.symidx === "number" ? snapshot.symidx : null,
+      priorTerrain: snapshot,
     });
     return behavior.isWall;
   }
@@ -7673,8 +7704,43 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (behavior.isPlayerGlyph || behavior.resolved.kind !== "cmap") {
       return false;
     }
-    return (
-      behavior.effective.glyph === 2387 || behavior.effective.tileIndex === 878
+    if (
+      behavior.effective.glyph === 2387 ||
+      behavior.effective.tileIndex === 878
+    ) {
+      return true;
+    }
+    const chars = [
+      behavior.glyphChar,
+      behavior.effective.char,
+      behavior.resolved.char,
+    ];
+    const isPipeGlyph = chars.some(
+      (value) => typeof value === "string" && value.trim() === "|",
+    );
+    if (!isPipeGlyph) {
+      return false;
+    }
+    if (behavior.materialKind === "door" || behavior.isWall) {
+      return false;
+    }
+    return true;
+  }
+
+  private isSinkLikeBehavior(behavior: TileBehaviorResult): boolean {
+    if (behavior.isPlayerGlyph || behavior.resolved.kind !== "cmap") {
+      return false;
+    }
+    if (behavior.materialKind !== "feature") {
+      return false;
+    }
+    const chars = [
+      behavior.glyphChar,
+      behavior.effective.char,
+      behavior.resolved.char,
+    ];
+    return chars.some(
+      (value) => typeof value === "string" && value.trim() === "{",
     );
   }
 
@@ -7696,7 +7762,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (behavior.effective.kind === "statue") {
       return true;
     }
-    if (isSinkCmapGlyph(behavior.effective.glyph)) {
+    if (
+      this.isSinkLikeBehavior(behavior) ||
+      isSinkCmapGlyph(behavior.effective.glyph)
+    ) {
       return true;
     }
     if (
@@ -7952,6 +8021,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeColor: typeof tile.color === "number" ? tile.color : null,
       runtimeTileIndex:
         typeof tile.tileIndex === "number" ? tile.tileIndex : null,
+      runtimeSymidx:
+        typeof tile.symidx === "number" ? tile.symidx : null,
       priorTerrain: this.lastKnownTerrain.get(key) ?? null,
     });
   }
@@ -7974,6 +8045,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       char: behavior.resolved.char ?? undefined,
       color: behavior.resolved.color ?? undefined,
       tileIndex: behavior.resolved.tileIndex,
+      symidx:
+        typeof tile.symidx === "number" && Number.isFinite(tile.symidx)
+          ? Math.trunc(tile.symidx)
+          : undefined,
     };
   }
 
@@ -8019,6 +8094,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       char: behavior.resolved.char ?? undefined,
       color: behavior.resolved.color ?? undefined,
       tileIndex: behavior.resolved.tileIndex,
+      symidx:
+        typeof tile.symidx === "number" && Number.isFinite(tile.symidx)
+          ? Math.trunc(tile.symidx)
+          : undefined,
     };
   }
 
@@ -8729,6 +8808,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
           runtimeTileIndex:
             typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
+          runtimeSymidx:
+            typeof tile.symidx === "number" ? tile.symidx : undefined,
           runtimeFloorUnderlayGlyph:
             typeof tile.floorUnderlayGlyph === "number"
               ? tile.floorUnderlayGlyph
@@ -8745,6 +8826,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
             typeof tile.floorUnderlayTileIndex === "number"
               ? tile.floorUnderlayTileIndex
               : undefined,
+          runtimeFloorUnderlaySymidx:
+            typeof tile.floorUnderlaySymidx === "number"
+              ? tile.floorUnderlaySymidx
+              : undefined,
         });
       } else if (
         !shouldHaveElevatedBillboard &&
@@ -8759,6 +8844,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
       runtimeTileIndex:
         typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
+      runtimeSymidx:
+        typeof tile.symidx === "number" ? tile.symidx : undefined,
       runtimeFloorUnderlayGlyph:
         typeof tile.floorUnderlayGlyph === "number"
           ? tile.floorUnderlayGlyph
@@ -8774,6 +8861,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeFloorUnderlayTileIndex:
         typeof tile.floorUnderlayTileIndex === "number"
           ? tile.floorUnderlayTileIndex
+          : undefined,
+      runtimeFloorUnderlaySymidx:
+        typeof tile.floorUnderlaySymidx === "number"
+          ? tile.floorUnderlaySymidx
           : undefined,
     });
   }
@@ -9342,6 +9433,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       data.tileIndex >= 0
         ? Math.trunc(data.tileIndex)
         : null;
+    const runtimeSymidx =
+      typeof data.symidx === "number" &&
+      Number.isFinite(data.symidx) &&
+      data.symidx >= 0
+        ? Math.trunc(data.symidx)
+        : null;
     const rememberedUnderPlayerFeature =
       this.flatFeatureUnderPlayerCache.get(key) ??
       this.lastKnownTerrain.get(key) ??
@@ -9355,6 +9452,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
       rememberedUnderPlayerFeature.tileIndex >= 0
         ? Math.trunc(rememberedUnderPlayerFeature.tileIndex)
         : runtimeTileIndex;
+    const resolvedRuntimeSymidx =
+      runtimeSymidx === null &&
+      rememberedUnderPlayerFeature &&
+      rememberedUnderPlayerFeature.glyph === normalizedGlyph &&
+      typeof rememberedUnderPlayerFeature.symidx === "number" &&
+      Number.isFinite(rememberedUnderPlayerFeature.symidx) &&
+      rememberedUnderPlayerFeature.symidx >= 0
+        ? Math.trunc(rememberedUnderPlayerFeature.symidx)
+        : runtimeSymidx;
     const resolvedRuntimeChar =
       runtimeChar ??
       (rememberedUnderPlayerFeature &&
@@ -9377,6 +9483,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeChar: resolvedRuntimeChar,
       runtimeColor: resolvedRuntimeColor,
       runtimeTileIndex: resolvedRuntimeTileIndex,
+      runtimeSymidx: resolvedRuntimeSymidx,
       priorTerrain: this.lastKnownTerrain.get(key) ?? null,
     });
     console.log(
@@ -9396,6 +9503,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       char: resolvedRuntimeChar ?? undefined,
       color: resolvedRuntimeColor ?? undefined,
       tileIndex: resolvedRuntimeTileIndex ?? undefined,
+      symidx: resolvedRuntimeSymidx ?? undefined,
     });
     this.refreshTileVisualFromStateCache(tileX, tileY);
   }
@@ -11713,6 +11821,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     sourceGlyph: number,
     runtimeTileIndex: number,
     materialKind: TileMaterialKind,
+    runtimeSymidx: number | null = null,
   ): boolean {
     if (this.clientOptions.tilesetMode !== "tiles") {
       return false;
@@ -11736,14 +11845,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return false;
     }
-    const glyphEntry = getGlyphCatalogEntry(normalizedSourceGlyph);
-    if (!glyphEntry || glyphEntry.kind !== "cmap") {
-      return false;
-    }
     const symidx =
-      typeof glyphEntry.symidx === "number" && Number.isFinite(glyphEntry.symidx)
-        ? Math.trunc(glyphEntry.symidx)
-        : null;
+      typeof runtimeSymidx === "number" &&
+      Number.isFinite(runtimeSymidx) &&
+      runtimeSymidx >= 0
+        ? Math.trunc(runtimeSymidx)
+        : (() => {
+            const glyphEntry = getGlyphCatalogEntry(normalizedSourceGlyph);
+            if (!glyphEntry || glyphEntry.kind !== "cmap") {
+              return null;
+            }
+            return typeof glyphEntry.symidx === "number" &&
+              Number.isFinite(glyphEntry.symidx)
+              ? Math.trunc(glyphEntry.symidx)
+              : null;
+          })();
     if (symidx === null) {
       return false;
     }
@@ -19868,6 +19984,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.inferredDarkCorridorWallTiles.has(key) ||
       this.inferredDarkCorridorTileFlags.has(key);
     let mesh = this.tileMap.get(key);
+    const previousTerrainSnapshot = this.lastKnownTerrain.get(key) ?? null;
+    const runtimeSymidxForTileBehavior =
+      typeof options.runtimeSymidx === "number" &&
+      Number.isFinite(options.runtimeSymidx) &&
+      options.runtimeSymidx >= 0
+        ? Math.trunc(options.runtimeSymidx)
+        : null;
     const behavior = classifyTileBehavior({
       glyph,
       runtimeChar: char ?? null,
@@ -19876,7 +19999,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         typeof options.runtimeTileIndex === "number"
           ? options.runtimeTileIndex
           : null,
-      priorTerrain: this.lastKnownTerrain.get(key) ?? null,
+      runtimeSymidx: runtimeSymidxForTileBehavior,
+      priorTerrain: previousTerrainSnapshot,
     });
     const runtimeTileIndexForDarkCorridorCompatibility =
       typeof options.runtimeTileIndex === "number" &&
@@ -19892,6 +20016,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         glyph,
         runtimeTileIndexForDarkCorridorCompatibility,
         behavior.materialKind,
+        runtimeSymidxForTileBehavior,
       );
     const isMonsterLikeCharacter = this.isMonsterLikeBehavior(behavior);
     const isLootLikeCharacter = this.isLootLikeBehavior(behavior);
@@ -19914,6 +20039,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
               Number.isFinite(options.runtimeFloorUnderlayTileIndex) &&
               options.runtimeFloorUnderlayTileIndex >= 0
                 ? Math.trunc(options.runtimeFloorUnderlayTileIndex)
+                : undefined,
+            symidx:
+              typeof options.runtimeFloorUnderlaySymidx === "number" &&
+              Number.isFinite(options.runtimeFloorUnderlaySymidx) &&
+              options.runtimeFloorUnderlaySymidx >= 0
+                ? Math.trunc(options.runtimeFloorUnderlaySymidx)
                 : undefined,
           }
         : null;
@@ -20036,12 +20167,33 @@ class Nethack3DEngine implements Nethack3DEngineController {
         isCurrentKnownPlayerTile &&
         this.flatFeatureUnderPlayerCache.has(key) &&
         this.shouldShowUnderPlayerFeaturesInOverheadTilesMode();
+      const previousFlatFeatureSnapshot =
+        this.flatFeatureUnderPlayerCache.get(key) ?? null;
+      const resolvedTerrainSymidx =
+        runtimeSymidxForTileBehavior !== null
+          ? runtimeSymidxForTileBehavior
+          : previousTerrainSnapshot &&
+              previousTerrainSnapshot.glyph === glyph &&
+              typeof previousTerrainSnapshot.symidx === "number" &&
+              Number.isFinite(previousTerrainSnapshot.symidx)
+            ? Math.trunc(previousTerrainSnapshot.symidx)
+            : undefined;
+      const resolvedFlatFeatureSymidx =
+        runtimeSymidxForTileBehavior !== null
+          ? runtimeSymidxForTileBehavior
+          : previousFlatFeatureSnapshot &&
+              previousFlatFeatureSnapshot.glyph === glyph &&
+              typeof previousFlatFeatureSnapshot.symidx === "number" &&
+              Number.isFinite(previousFlatFeatureSnapshot.symidx)
+            ? Math.trunc(previousFlatFeatureSnapshot.symidx)
+            : resolvedTerrainSymidx;
       if (this.isPersistentTerrainKind(behavior.resolved.kind)) {
         this.lastKnownTerrain.set(key, {
           glyph,
           char: behavior.resolved.char ?? undefined,
           color: behavior.resolved.color ?? undefined,
           tileIndex: behavior.resolved.tileIndex,
+          symidx: resolvedTerrainSymidx,
         });
       }
       if (shouldCacheFlatUnderPlayer) {
@@ -20050,6 +20202,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           char: behavior.resolved.char ?? undefined,
           color: behavior.resolved.color ?? undefined,
           tileIndex: behavior.resolved.tileIndex,
+          symidx: resolvedFlatFeatureSymidx,
         });
       } else if (
         !(this.isFpsMode() && shouldSuppressPlayerTileVisualInFps) &&
@@ -24033,8 +24186,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ? mesh.userData.tileIndex
         : null;
     const glyph = parsed?.glyph ?? null;
+    const glyphChar = parsed?.char ?? null;
+    const symidx =
+      typeof parsed?.symidx === "number" ? Math.trunc(parsed.symidx) : null;
     console.log(
-      `[clicklook:${source}] tile=${key} glyph=${glyph ?? "unknown"} tileId=${tileId ?? "unknown"}`,
+      `[clicklook:${source}] tile=${key} glyph=${glyph ?? "unknown"} char=${glyphChar ?? "unknown"} symidx=${symidx ?? "unknown"} tileId=${tileId ?? "unknown"}`,
     );
   }
 

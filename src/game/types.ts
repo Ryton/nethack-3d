@@ -15,4 +15,5 @@ export type TerrainSnapshot = {
   char?: string;
   color?: number;
   tileIndex?: number;
+  symidx?: number;
 };

@@ -2,6 +2,7 @@ import {
   GENERATED_TILESET_MANIFEST,
   type GeneratedTilesetManifestEntry,
 } from "./tilesets.generated";
+import type { NethackRuntimeVersion } from "../runtime/types";
 
 export type Nh3dTilesetSource = "builtin" | "user" | "vulture";
 export type Nh3dTilesetTileLayoutVersion = "3.6.7" | "3.7" | "unknown";
@@ -326,6 +327,38 @@ export function resolveNh3dTilesetTileLayoutVersion(
   path: string | null | undefined,
 ): Nh3dTilesetTileLayoutVersion {
   return findNh3dTilesetByPath(path)?.tileLayoutVersion ?? "unknown";
+}
+
+export function resolveNh3dCompatibleTilesetPathForRuntime(
+  path: string | null | undefined,
+  runtimeVersion: NethackRuntimeVersion,
+): string {
+  const selectedTileset = findNh3dTilesetByPath(path);
+  if (!selectedTileset) {
+    return defaultNh3dTilesetPath;
+  }
+  if (
+    runtimeVersion !== "3.6.7" ||
+    selectedTileset.tileLayoutVersion !== "3.7"
+  ) {
+    return selectedTileset.path;
+  }
+  const selectedLookupLabel = normalizeTilesetPresetLookupLabel(
+    selectedTileset.label,
+  ).toLowerCase();
+  const labelMatchedNh367Tileset = tilesetCatalog.find(
+    (entry) =>
+      entry.tileLayoutVersion === "3.6.7" &&
+      normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+        selectedLookupLabel,
+  );
+  if (labelMatchedNh367Tileset) {
+    return labelMatchedNh367Tileset.path;
+  }
+  const firstNh367Tileset = tilesetCatalog.find(
+    (entry) => entry.tileLayoutVersion === "3.6.7",
+  );
+  return firstNh367Tileset?.path ?? defaultNh3dTilesetPath;
 }
 
 function normalizeHexColorOrFallback(

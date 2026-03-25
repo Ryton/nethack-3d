@@ -65,6 +65,7 @@ import {
   nh3dTilesetAtlasTileColumns,
   getNh3dTilesetCatalog,
   getNh3dUserTilesetPath,
+  resolveNh3dCompatibleTilesetPathForRuntime,
   resolveDefaultNh3dTilesetBackgroundTileId,
   resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
@@ -4806,8 +4807,29 @@ export default function App(): JSX.Element {
         normalizedInitOptions,
       );
     }
+    const runtimeVersionForLaunch = config.runtimeVersion ?? runtimeVersion;
+    const currentTilesetPath = String(clientOptions.tilesetPath || "").trim();
+    const compatibleTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
+      currentTilesetPath,
+      runtimeVersionForLaunch,
+    );
+    if (compatibleTilesetPath && compatibleTilesetPath !== currentTilesetPath) {
+      setClientOptions((previous) =>
+        normalizeNh3dClientOptions({
+          ...previous,
+          tilesetPath: compatibleTilesetPath,
+        }),
+      );
+      setClientOptionsDraft((previous) =>
+        normalizeNh3dClientOptions({
+          ...previous,
+          tilesetPath: compatibleTilesetPath,
+        }),
+      );
+    }
     setCharacterCreationConfig({
       ...config,
+      runtimeVersion: runtimeVersionForLaunch,
       name: effectiveCharacterName,
       initOptions: normalizedInitOptions,
     });
@@ -12768,6 +12790,31 @@ export default function App(): JSX.Element {
                             width: "auto",
                           }}
                           onClick={() => {
+                            const currentTilesetPath = String(
+                              clientOptions.tilesetPath || "",
+                            ).trim();
+                            const compatibleTilesetPath =
+                              resolveNh3dCompatibleTilesetPathForRuntime(
+                                currentTilesetPath,
+                                runtimeVersion,
+                              );
+                            if (
+                              compatibleTilesetPath &&
+                              compatibleTilesetPath !== currentTilesetPath
+                            ) {
+                              setClientOptions((previous) =>
+                                normalizeNh3dClientOptions({
+                                  ...previous,
+                                  tilesetPath: compatibleTilesetPath,
+                                }),
+                              );
+                              setClientOptionsDraft((previous) =>
+                                normalizeNh3dClientOptions({
+                                  ...previous,
+                                  tilesetPath: compatibleTilesetPath,
+                                }),
+                              );
+                            }
                             setCharacterCreationConfig({
                               mode: "resume",
                               playMode: clientOptions.fpsMode
