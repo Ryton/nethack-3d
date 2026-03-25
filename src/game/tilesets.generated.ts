@@ -7,6 +7,7 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
+  readonly tileLayoutVersion: "3.6.7" | "3.7";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =
@@ -14,31 +15,49 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
   {
     "label": "Absurdly Evil",
     "path": "assets/3.6/Absurdly Evil.png",
-    "tileSize": 32
+    "tileSize": 32,
+    "tileLayoutVersion": "3.6.7"
   },
   {
     "label": "DawnHack",
     "path": "assets/3.6/DawnHack.bmp",
-    "tileSize": 32
+    "tileSize": 32,
+    "tileLayoutVersion": "3.6.7"
   },
   {
     "label": "NetHack Modern",
     "path": "assets/3.6/NetHack Modern.bmp",
-    "tileSize": 32
+    "tileSize": 32,
+    "tileLayoutVersion": "3.6.7"
   },
   {
     "label": "Nevanda",
     "path": "assets/3.6/Nevanda.png",
-    "tileSize": 32
+    "tileSize": 32,
+    "tileLayoutVersion": "3.6.7"
   },
   {
     "label": "RZTiles",
     "path": "assets/3.6/RZTiles.bmp",
-    "tileSize": 32
+    "tileSize": 32,
+    "tileLayoutVersion": "3.6.7"
   },
   {
     "label": "Vanilla NetHack Tiles",
     "path": "assets/3.6/Vanilla NetHack Tiles.png",
-    "tileSize": 32
+    "tileSize": 32,
+    "tileLayoutVersion": "3.6.7"
+  },
+  {
+    "label": "Nevanda (3.7)",
+    "path": "assets/3.7/Nevanda (3.7).png",
+    "tileSize": 32,
+    "tileLayoutVersion": "3.7"
+  },
+  {
+    "label": "Vanilla NetHack Tiles (3.7)",
+    "path": "assets/3.7/Vanilla NetHack Tiles (3.7).png",
+    "tileSize": 32,
+    "tileLayoutVersion": "3.7"
   }
 ] as const;

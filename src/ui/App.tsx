@@ -66,6 +66,7 @@ import {
   getNh3dTilesetCatalog,
   getNh3dUserTilesetPath,
   resolveDefaultNh3dTilesetBackgroundTileId,
+  resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
   resolveNh3dTilesetAssetUrl,
   setNh3dUserTilesets,
@@ -79,6 +80,7 @@ import {
   listStoredUserTilesets,
   saveStoredUserTileset,
   type StoredUserTilesetRecord,
+  type StoredUserTilesetTileLayoutVersion,
 } from "../game/user-tileset-storage";
 import {
   loadPersistedNh3dClientOptionsWithMigration,
@@ -1744,6 +1746,7 @@ type ClientOptionToggleKey =
   | "soundEnabled"
   | "blockAmbientOcclusion"
   | "darkCorridorWalls367"
+  | "overrideNh37DarkCorridorWallTiles"
   | "darkCorridorWallTileOverrideEnabled"
   | "darkCorridorWallSolidColorOverrideEnabled";
 
@@ -3398,15 +3401,22 @@ const clientOptionsConfig: ClientOption[] = [
     type: "boolean",
   },
   {
-    key: "darkCorridorWallTileOverrideEnabled",
-    label: "Override inferred dark wall tile",
+    key: "overrideNh37DarkCorridorWallTiles",
+    label: "Override NetHack 3.7 dark wall tiles",
     description:
-      "Use a custom atlas tile for inferred dark corridor walls, saved per tileset.",
+      "Apply dark wall override settings to NetHack 3.7 dark corridor wall tiles.",
+    type: "boolean",
+  },
+  {
+    key: "darkCorridorWallTileOverrideEnabled",
+    label: "Override dark wall tile",
+    description:
+      "Use a custom atlas tile for dark wall overrides, saved per tileset.",
     type: "boolean",
   },
   {
     key: "darkCorridorWallSolidColorOverrideEnabled",
-    label: "Use solid color for inferred dark walls",
+    label: "Use solid color for dark walls",
     description: "Use a picked RGB color instead of a tileset tile.",
     type: "boolean",
   },
@@ -4032,18 +4042,23 @@ function appendUserTilesetNameSuffix(value: string): string {
   return normalized ? `${normalized} (user)` : "User Tileset (user)";
 }
 
+const defaultUserTilesetTileLayoutVersion: StoredUserTilesetTileLayoutVersion =
+  "3.6.7";
+
 function toUserTilesetRegistrations(
   records: ReadonlyArray<StoredUserTilesetRecord>,
 ): ReadonlyArray<{
   id: string;
   label: string;
   tileSize: number;
+  tileLayoutVersion: StoredUserTilesetTileLayoutVersion;
   blob: Blob;
 }> {
   return records.map((record) => ({
     id: record.id,
     label: record.label,
     tileSize: record.tileSize,
+    tileLayoutVersion: record.tileLayoutVersion,
     blob: record.blob,
   }));
 }
@@ -4912,6 +4927,10 @@ export default function App(): JSX.Element {
     "edit",
   );
   const [tilesetManagerName, setTilesetManagerName] = useState("");
+  const [tilesetManagerTileLayoutVersion, setTilesetManagerTileLayoutVersion] =
+    useState<StoredUserTilesetTileLayoutVersion>(
+      defaultUserTilesetTileLayoutVersion,
+    );
   const [tilesetManagerEditPath, setTilesetManagerEditPath] = useState("");
   const [tilesetManagerFile, setTilesetManagerFile] = useState<File | null>(
     null,
@@ -6114,7 +6133,7 @@ export default function App(): JSX.Element {
     ) {
       return mappedMode;
     }
-    return "tile";
+    return resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath);
   };
   const resolveDraftSolidChromaKeyByTilesetPath = (
     rawTilesetPath: string | null | undefined,
@@ -9434,6 +9453,7 @@ export default function App(): JSX.Element {
     setTilesetManagerMode("new");
     setTilesetManagerEditPath("");
     setTilesetManagerName("");
+    setTilesetManagerTileLayoutVersion(defaultUserTilesetTileLayoutVersion);
     setTilesetManagerAtlasState(createDefaultTileAtlasState());
     setTilesetManagerAtlasImage(null);
     resetTilesetManagerSelectedFile();
@@ -9459,6 +9479,13 @@ export default function App(): JSX.Element {
       userRecord
         ? stripUserTilesetNameSuffix(userRecord.label)
         : tilesetEntry.label,
+    );
+    setTilesetManagerTileLayoutVersion(
+      userRecord
+        ? userRecord.tileLayoutVersion
+        : tilesetEntry.tileLayoutVersion === "3.7"
+          ? "3.7"
+          : "3.6.7",
     );
     if (tilesetPath !== currentEditPath) {
       setTilesetManagerAtlasState(createDefaultTileAtlasState());
@@ -9492,6 +9519,7 @@ export default function App(): JSX.Element {
     setTilesetManagerMode("edit");
     setTilesetManagerEditPath("");
     setTilesetManagerName("");
+    setTilesetManagerTileLayoutVersion(defaultUserTilesetTileLayoutVersion);
     setTilesetManagerAtlasState(createDefaultTileAtlasState());
     setTilesetManagerAtlasImage(null);
     resetTilesetManagerSelectedFile();
@@ -9593,6 +9621,7 @@ export default function App(): JSX.Element {
     const file = tilesetManagerFile;
     const label = stripUserTilesetNameSuffix(tilesetManagerName);
     const userLabel = appendUserTilesetNameSuffix(label);
+    const tileLayoutVersion = tilesetManagerTileLayoutVersion;
     if (tilesetManagerInNewMode) {
       if (!file) {
         setTilesetManagerError("Choose a PNG/BMP/GIF/JPEG tileset file.");
@@ -9620,6 +9649,7 @@ export default function App(): JSX.Element {
         const savedRecord = await saveStoredUserTileset({
           label: userLabel,
           tileSize,
+          tileLayoutVersion,
           fileName: (file as File).name,
           file: file as File,
         });
@@ -9638,6 +9668,7 @@ export default function App(): JSX.Element {
           id: selectedTilesetManagerEditUserRecord.id,
           label: userLabel,
           tileSize: nextTileSize,
+          tileLayoutVersion,
           fileName: nextFileName,
           file: nextFile,
         });
@@ -10001,7 +10032,7 @@ export default function App(): JSX.Element {
           ? "solid"
           : mappedBackgroundRemovalMode === "none"
             ? "none"
-            : "tile";
+            : resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath);
       const nextSolidColorHex = normalizeSolidChromaKeyHex(
         typeof mappedSolidColorHex === "string"
           ? mappedSolidColorHex
@@ -10383,10 +10414,16 @@ export default function App(): JSX.Element {
   }, [clientOptionsDraft.darkCorridorWallTileOverrideEnabled]);
 
   useEffect(() => {
-    if (!clientOptionsDraft.darkCorridorWalls367) {
+    if (
+      !clientOptionsDraft.darkCorridorWalls367 &&
+      !clientOptionsDraft.overrideNh37DarkCorridorWallTiles
+    ) {
       setIsDarkWallTilePickerVisible(false);
     }
-  }, [clientOptionsDraft.darkCorridorWalls367]);
+  }, [
+    clientOptionsDraft.darkCorridorWalls367,
+    clientOptionsDraft.overrideNh37DarkCorridorWallTiles,
+  ]);
 
   useEffect(() => {
     if (isVultureTilesetSelected) {
@@ -13386,6 +13423,8 @@ export default function App(): JSX.Element {
                       option.key === "inventoryTileOnlyMotion";
                     const isDarkCorridorWallsOption =
                       option.key === "darkCorridorWalls367";
+                    const isNh37DarkWallOverrideOption =
+                      option.key === "overrideNh37DarkCorridorWallTiles";
                     const isDarkWallTileOverrideOption =
                       option.key === "darkCorridorWallTileOverrideEnabled";
                     const isDarkWallSolidColorOverrideOption =
@@ -13396,7 +13435,9 @@ export default function App(): JSX.Element {
                       isDarkWallSolidColorOverrideOption;
                     const darkCorridorOptionSuppressedByVulture =
                       isVultureTilesetSelected &&
-                      (isDarkCorridorWallsOption || isDarkWallOverrideOption);
+                      (isDarkCorridorWallsOption ||
+                        isNh37DarkWallOverrideOption ||
+                        isDarkWallOverrideOption);
                     const darkCorridorWallsForcedOnByVulture =
                       isVultureTilesetSelected && isDarkCorridorWallsOption;
                     const invertLookOptionDisabledByFpsMode =
@@ -13404,7 +13445,8 @@ export default function App(): JSX.Element {
                       !clientOptionsDraft.fpsMode;
                     const darkWallOverrideDisabledByDarkCorridorWalls =
                       isDarkWallOverrideOption &&
-                      !clientOptionsDraft.darkCorridorWalls367;
+                      !clientOptionsDraft.darkCorridorWalls367 &&
+                      !clientOptionsDraft.overrideNh37DarkCorridorWallTiles;
                     const enabled = darkCorridorWallsForcedOnByVulture
                       ? true
                       : Boolean(clientOptionsDraft[option.key]);
@@ -13420,7 +13462,7 @@ export default function App(): JSX.Element {
                         : darkCorridorOptionSuppressedByVulture
                           ? " Disabled while Vulture tiles are active."
                           : darkWallOverrideDisabledByDarkCorridorWalls
-                            ? " Enable NetHack 3.6.7 dark corridor walls first."
+                            ? " Enable NetHack 3.6.7 dark corridor walls or NetHack 3.7 dark wall overrides first."
                             : invertLookOptionDisabledByFpsMode
                               ? " Enable First-person mode in Display first."
                               : "";
@@ -14066,6 +14108,34 @@ export default function App(): JSX.Element {
                   <div className="nh3d-tileset-manager-upload-row">
                     <label
                       className="nh3d-option-label"
+                      htmlFor="nh3d-tileset-version"
+                    >
+                      Tile Layout Version
+                    </label>
+                    <select
+                      className="nh3d-startup-config-select"
+                      id="nh3d-tileset-version"
+                      onChange={(event) =>
+                        setTilesetManagerTileLayoutVersion(
+                          event.target.value === "3.7" ? "3.7" : "3.6.7",
+                        )
+                      }
+                      value={tilesetManagerTileLayoutVersion}
+                    >
+                      <option value="3.6.7">NetHack 3.6.7 layout</option>
+                      <option value="3.7">NetHack 3.7 layout</option>
+                    </select>
+                    <div className="nh3d-option-description">
+                      Choose the tile index layout used by this uploaded
+                      atlas.
+                    </div>
+                  </div>
+                ) : null}
+                {tilesetManagerInNewMode ||
+                selectedTilesetManagerEditUserRecord ? (
+                  <div className="nh3d-tileset-manager-upload-row">
+                    <label
+                      className="nh3d-option-label"
                       htmlFor="nh3d-tileset-upload-file"
                     >
                       {tilesetManagerInNewMode
@@ -14319,7 +14389,7 @@ export default function App(): JSX.Element {
                           </div>
                           <div className="nh3d-option-description">
                             {isUserTileset
-                              ? `${userRecord?.fileName || tilesetPath} | uploaded`
+                              ? `${userRecord?.fileName || tilesetPath} | uploaded | layout ${userRecord?.tileLayoutVersion || "3.6.7"}`
                               : `${tilesetPath} | built-in`}
                           </div>
                         </div>

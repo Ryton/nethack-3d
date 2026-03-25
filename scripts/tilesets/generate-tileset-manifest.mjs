@@ -5,7 +5,22 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../..");
 
-export const TILESET_MANIFEST_SOURCE_DIR = resolve(PROJECT_ROOT, "public/assets/3.6");
+const TILESET_MANIFEST_SOURCES = [
+  {
+    sourceDir: resolve(PROJECT_ROOT, "public/assets/3.6"),
+    assetPrefix: "assets/3.6",
+    tileLayoutVersion: "3.6.7",
+  },
+  {
+    sourceDir: resolve(PROJECT_ROOT, "public/assets/3.7"),
+    assetPrefix: "assets/3.7",
+    tileLayoutVersion: "3.7",
+  },
+];
+
+export const TILESET_MANIFEST_SOURCE_DIRS = TILESET_MANIFEST_SOURCES.map(
+  (source) => source.sourceDir,
+);
 const TILESET_MANIFEST_OUTPUT_FILE = resolve(
   PROJECT_ROOT,
   "src/game/tilesets.generated.ts",
@@ -37,11 +52,11 @@ function toDisplayLabel(fileName) {
   return raw.length > 0 ? raw : fileName;
 }
 
-function listTilesetFiles() {
-  if (!existsSync(TILESET_MANIFEST_SOURCE_DIR)) {
+function listTilesetFiles(sourceDir) {
+  if (!existsSync(sourceDir)) {
     return [];
   }
-  return readdirSync(TILESET_MANIFEST_SOURCE_DIR, { withFileTypes: true })
+  return readdirSync(sourceDir, { withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
     .filter((fileName) =>
@@ -53,11 +68,14 @@ function listTilesetFiles() {
 }
 
 function buildManifestSource() {
-  const entries = listTilesetFiles().map((fileName) => ({
-    label: toDisplayLabel(fileName),
-    path: join("assets/3.6", fileName).replace(/\\/g, "/"),
-    tileSize: inferTileSizeFromFileName(fileName),
-  }));
+  const entries = TILESET_MANIFEST_SOURCES.flatMap((source) =>
+    listTilesetFiles(source.sourceDir).map((fileName) => ({
+      label: toDisplayLabel(fileName),
+      path: join(source.assetPrefix, fileName).replace(/\\/g, "/"),
+      tileSize: inferTileSizeFromFileName(fileName),
+      tileLayoutVersion: source.tileLayoutVersion,
+    })),
+  );
 
   const serializedEntries = JSON.stringify(entries, null, 2);
   return `/* AUTO-GENERATED FILE. DO NOT EDIT.
@@ -69,6 +87,7 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
+  readonly tileLayoutVersion: "3.6.7" | "3.7";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =

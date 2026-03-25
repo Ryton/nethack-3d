@@ -32,7 +32,11 @@ import {
   isSinkCmapGlyph,
   isVerticalDoorCmapGlyph,
 } from "./glyphs/behavior";
-import { getGlyphCatalogEntry, setActiveGlyphCatalog } from "./glyphs/registry";
+import {
+  getGlyphCatalogEntry,
+  getGlyphCatalogRanges,
+  setActiveGlyphCatalog,
+} from "./glyphs/registry";
 import type {
   TileBehaviorResult,
   TileEffectKind,
@@ -80,6 +84,7 @@ import {
   findNh3dTilesetByPath,
   inferNh3dTilesetTileSizeFromAtlasWidth,
   resolveNh3dTilesetAssetUrl,
+  type Nh3dTilesetTileLayoutVersion,
 } from "./tilesets";
 import {
   shouldTranslateNh367TilesetForNh37Runtime,
@@ -1136,6 +1141,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private runtimeLoadingVisible = true;
   private tilesetCompilationLoadingVisible = false;
   private tilesetTextureLoadRequestId = 0;
+  private loadedTilesetTileLayoutVersion: Nh3dTilesetTileLayoutVersion =
+    "unknown";
   private readonly handleVultureTilesetAssetReady = (): void => {
     if (this.clientOptions.tilesetMode !== "tiles") {
       this.refreshTilesetCompilationLoadingState();
@@ -3939,6 +3946,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const darkCorridorWallsChanged =
       previous.darkCorridorWalls367 !== normalized.darkCorridorWalls367;
     const darkCorridorWallTileOverrideChanged =
+      previous.overrideNh37DarkCorridorWallTiles !==
+        normalized.overrideNh37DarkCorridorWallTiles ||
       previous.darkCorridorWallTileOverrideEnabled !==
         normalized.darkCorridorWallTileOverrideEnabled ||
       previous.darkCorridorWallTileOverrideTileId !==
@@ -4055,6 +4064,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (darkCorridorWallsChanged || darkCorridorWallTileOverrideChanged) {
       this.requestInferredDarkCorridorWallReconcile({ forceImmediate: true });
+      if (this.resolveRuntimeVersion() === "3.7") {
+        this.invalidateBillboardTextureCaches();
+        this.refreshTilesFromStateCache();
+      }
       this.markLightingDirty();
     }
     if (soundEnabledChanged && !normalized.soundEnabled) {
@@ -4415,6 +4428,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldShowCompileLoading = options.tilesetMode === "tiles";
     this.setTilesetCompilationLoadingVisible(shouldShowCompileLoading);
     const tileset = findNh3dTilesetByPath(options.tilesetPath);
+    this.loadedTilesetTileLayoutVersion = tileset?.tileLayoutVersion ?? "unknown";
     const tilesetAssetUrl = resolveNh3dTilesetAssetUrl(options.tilesetPath);
     if (!tileset) {
       this.disposeVultureTilesetTranslator();
@@ -11540,17 +11554,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof mesh.userData?.tileIndex === "number"
         ? mesh.userData.tileIndex
         : -1;
+    const darkCorridorWallCompatibilityActive =
+      this.isDarkCorridorWallCompatibilityActiveOnMesh(mesh);
     const inferredDarkWallSolidColorHex =
       this.resolveInferredDarkCorridorWallSolidColorHex(
-        mesh.userData?.isInferredDarkCorridorWall === true,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorGridEnabled =
       this.resolveInferredDarkCorridorWallSolidColorGridEnabled(
-        mesh.userData?.isInferredDarkCorridorWall === true,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorGridDarknessPercent =
       this.resolveInferredDarkCorridorWallSolidColorGridDarknessPercent(
-        mesh.userData?.isInferredDarkCorridorWall === true,
+        darkCorridorWallCompatibilityActive,
       );
     this.applyGlyphMaterial(
       key,
@@ -11560,7 +11576,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       textColor,
       true,
       darkenFactor,
-      this.isFpsMode() && mesh.userData?.isInferredDarkCorridorWall !== true,
+      this.isFpsMode() && !darkCorridorWallCompatibilityActive,
       tileIndex,
       inferredDarkWallSolidColorHex,
       inferredDarkWallSolidColorGridEnabled,
@@ -11676,6 +11692,105 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.characterCreationConfig.runtimeVersion ?? "3.6.7";
   }
 
+  private shouldUseNh37LegacyTilesetCompatibility(): boolean {
+    if (this.resolveRuntimeVersion() !== "3.7") {
+      return false;
+    }
+    if (this.loadedTilesetTileLayoutVersion === "3.7") {
+      return false;
+    }
+    if (this.loadedTilesetTileLayoutVersion === "3.6.7") {
+      return true;
+    }
+    return shouldTranslateNh367TilesetForNh37Runtime(
+      "3.7",
+      this.resolveLoadedAtlasTileCount(),
+      this.loadedTilesetTileLayoutVersion,
+    );
+  }
+
+  private isNh37DarkCorridorWallVariantForLegacyTileset(
+    sourceGlyph: number,
+    runtimeTileIndex: number,
+    materialKind: TileMaterialKind,
+  ): boolean {
+    if (this.clientOptions.tilesetMode !== "tiles") {
+      return false;
+    }
+    if (this.resolveRuntimeVersion() !== "3.7") {
+      return false;
+    }
+    if (!this.clientOptions.overrideNh37DarkCorridorWallTiles) {
+      return false;
+    }
+    if (materialKind !== "wall" && materialKind !== "dark_wall") {
+      return false;
+    }
+    const normalizedSourceGlyph = Math.trunc(sourceGlyph);
+    const normalizedRuntimeTileIndex = Math.trunc(runtimeTileIndex);
+    if (
+      !Number.isFinite(normalizedSourceGlyph) ||
+      normalizedSourceGlyph < 0 ||
+      !Number.isFinite(normalizedRuntimeTileIndex) ||
+      normalizedRuntimeTileIndex < 0
+    ) {
+      return false;
+    }
+    const glyphEntry = getGlyphCatalogEntry(normalizedSourceGlyph);
+    if (!glyphEntry || glyphEntry.kind !== "cmap") {
+      return false;
+    }
+    const symidx =
+      typeof glyphEntry.symidx === "number" && Number.isFinite(glyphEntry.symidx)
+        ? Math.trunc(glyphEntry.symidx)
+        : null;
+    if (symidx === null) {
+      return false;
+    }
+    // NetHack 3.7 dark corridor wall tiles can come through as cmap symidx=0
+    // (stone/out-of-bounds semantic). Legacy 3.6 tilesets do not contain those
+    // dedicated textures, and some 3.7 tilesets still prefer compatibility
+    // overrides for consistency, so route them through dark-wall overrides.
+    if (symidx === 0) {
+      return true;
+    }
+    if (!this.shouldUseNh37LegacyTilesetCompatibility()) {
+      return false;
+    }
+    if (symidx < 1 || symidx > 11) {
+      return false;
+    }
+    const cmapRange = getGlyphCatalogRanges().find(
+      (range) => range.kind === "cmap",
+    );
+    if (!cmapRange || !Number.isFinite(cmapRange.start)) {
+      return false;
+    }
+    const canonicalGlyph = Math.trunc(cmapRange.start) + symidx;
+    if (normalizedSourceGlyph !== canonicalGlyph) {
+      return true;
+    }
+    const canonicalEntry = getGlyphCatalogEntry(canonicalGlyph);
+    if (
+      !canonicalEntry ||
+      typeof canonicalEntry.tileIndex !== "number" ||
+      !Number.isFinite(canonicalEntry.tileIndex)
+    ) {
+      return false;
+    }
+    const canonicalTileIndex = Math.trunc(canonicalEntry.tileIndex);
+    return normalizedRuntimeTileIndex !== canonicalTileIndex;
+  }
+
+  private isDarkCorridorWallCompatibilityActiveOnMesh(
+    mesh: THREE.Mesh,
+  ): boolean {
+    return (
+      mesh.userData?.isInferredDarkCorridorWall === true ||
+      mesh.userData?.useDarkCorridorWallCompatibility === true
+    );
+  }
+
   private resolveAtlasTileIndexForRuntime(
     tileIndex: number,
     atlasTileCount: number,
@@ -11689,6 +11804,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         !shouldTranslateNh367TilesetForNh37Runtime(
           this.resolveRuntimeVersion(),
           atlasTileCount,
+          this.loadedTilesetTileLayoutVersion,
         )
       ) {
         return normalizedTileIndex;
@@ -11730,6 +11846,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         !shouldTranslateNh367TilesetForNh37Runtime(
           this.resolveRuntimeVersion(),
           this.resolveLoadedAtlasTileCount(),
+          this.loadedTilesetTileLayoutVersion,
         )
       ) {
         return normalizedTileIndex;
@@ -17735,17 +17852,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof mesh.userData?.tileIndex === "number"
         ? mesh.userData.tileIndex
         : -1;
+    const darkCorridorWallCompatibilityActive =
+      this.isDarkCorridorWallCompatibilityActiveOnMesh(mesh);
     const inferredDarkWallSolidColorHex =
       this.resolveInferredDarkCorridorWallSolidColorHex(
-        mesh.userData?.isInferredDarkCorridorWall === true,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorGridEnabled =
       this.resolveInferredDarkCorridorWallSolidColorGridEnabled(
-        mesh.userData?.isInferredDarkCorridorWall === true,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorGridDarknessPercent =
       this.resolveInferredDarkCorridorWallSolidColorGridDarknessPercent(
-        mesh.userData?.isInferredDarkCorridorWall === true,
+        darkCorridorWallCompatibilityActive,
       );
     this.applyGlyphMaterial(
       key,
@@ -17755,7 +17874,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       textColor,
       true,
       darkenFactor,
-      this.isFpsMode(),
+      this.isFpsMode() && !darkCorridorWallCompatibilityActive,
       tileIndex,
       inferredDarkWallSolidColorHex,
       inferredDarkWallSolidColorGridEnabled,
@@ -19759,6 +19878,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
           : null,
       priorTerrain: this.lastKnownTerrain.get(key) ?? null,
     });
+    const runtimeTileIndexForDarkCorridorCompatibility =
+      typeof options.runtimeTileIndex === "number" &&
+      Number.isFinite(options.runtimeTileIndex)
+        ? Math.trunc(options.runtimeTileIndex)
+        : typeof behavior.effective.tileIndex === "number" &&
+            Number.isFinite(behavior.effective.tileIndex)
+          ? Math.trunc(behavior.effective.tileIndex)
+          : -1;
+    const darkCorridorWallCompatibilityActive =
+      isInferredDarkCorridorWall ||
+      this.isNh37DarkCorridorWallVariantForLegacyTileset(
+        glyph,
+        runtimeTileIndexForDarkCorridorCompatibility,
+        behavior.materialKind,
+      );
     const isMonsterLikeCharacter = this.isMonsterLikeBehavior(behavior);
     const isLootLikeCharacter = this.isLootLikeBehavior(behavior);
     const runtimeFloorUnderlaySnapshot: TerrainSnapshot | null =
@@ -20250,6 +20384,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.userData.tileX = x;
     mesh.userData.tileY = y;
     mesh.userData.isInferredDarkCorridorWall = isInferredDarkCorridorWall;
+    mesh.userData.useDarkCorridorWallCompatibility =
+      darkCorridorWallCompatibilityActive;
     mesh.userData.isWall = renderBehavior.isWall;
     mesh.userData.materialKind = renderBehavior.materialKind;
     mesh.userData.effectKind = behavior.effectKind;
@@ -20276,19 +20412,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tileTextureIndex =
       this.resolveInferredDarkCorridorWallTileTextureIndex(
         renderBehavior.effective.tileIndex,
-        isInferredDarkCorridorWall,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorHex =
       this.resolveInferredDarkCorridorWallSolidColorHex(
-        isInferredDarkCorridorWall,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorGridEnabled =
       this.resolveInferredDarkCorridorWallSolidColorGridEnabled(
-        isInferredDarkCorridorWall,
+        darkCorridorWallCompatibilityActive,
       );
     const inferredDarkWallSolidColorGridDarknessPercent =
       this.resolveInferredDarkCorridorWallSolidColorGridDarknessPercent(
-        isInferredDarkCorridorWall,
+        darkCorridorWallCompatibilityActive,
       );
     mesh.userData.tileIndex = tileTextureIndex;
     const shouldCompositeFloorUnderFlatFeatureOnTile =
@@ -20353,7 +20489,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       visualScale * fpsClosedDoorChamferTransform.scaleY,
       visualScale,
     );
-    const drawFpsFloorGrid = this.isFpsMode() && !isInferredDarkCorridorWall;
+    const drawFpsFloorGrid =
+      this.isFpsMode() && !darkCorridorWallCompatibilityActive;
 
     this.applyGlyphMaterial(
       key,

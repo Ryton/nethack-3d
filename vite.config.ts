@@ -5,7 +5,7 @@ import { defineConfig, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { copyWasm } from "./scripts/wasm/copy-wasm.mjs";
 import {
-  TILESET_MANIFEST_SOURCE_DIR,
+  TILESET_MANIFEST_SOURCE_DIRS,
   generateTilesetManifest,
 } from "./scripts/tilesets/generate-tileset-manifest.mjs";
 
@@ -78,11 +78,13 @@ function copyWasmPlugin() {
 }
 
 function tilesetManifestPlugin() {
-  const watchedPath = TILESET_MANIFEST_SOURCE_DIR.replace(/\\/g, "/");
+  const watchedPaths = TILESET_MANIFEST_SOURCE_DIRS.map((sourceDir) =>
+    sourceDir.replace(/\\/g, "/"),
+  );
   const isTilesetAssetPath = (path: string): boolean => {
     const normalizedPath = path.replace(/\\/g, "/");
     return (
-      normalizedPath.startsWith(watchedPath) &&
+      watchedPaths.some((watchedPath) => normalizedPath.startsWith(watchedPath)) &&
       /\.(png|bmp|gif|jpe?g|webp)$/i.test(normalizedPath)
     );
   };
@@ -98,7 +100,7 @@ function tilesetManifestPlugin() {
     },
     configureServer(server: ViteDevServer) {
       regenerate();
-      server.watcher.add(TILESET_MANIFEST_SOURCE_DIR);
+      server.watcher.add(TILESET_MANIFEST_SOURCE_DIRS);
       const handleTilesetFileEvent = (path: string) => {
         if (!isTilesetAssetPath(path)) {
           return;

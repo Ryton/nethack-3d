@@ -202,8 +202,12 @@ export const nh37ExpectedTileCount =
 export function shouldTranslateNh367TilesetForNh37Runtime(
   runtimeVersion: NethackRuntimeVersion,
   atlasTileCount: number,
+  tileLayoutVersion: "3.6.7" | "3.7" | "unknown" = "unknown",
 ): boolean {
   if (runtimeVersion !== "3.7") {
+    return false;
+  }
+  if (tileLayoutVersion === "3.7") {
     return false;
   }
   const normalizedAtlasTileCount = Math.max(0, Math.trunc(atlasTileCount));
