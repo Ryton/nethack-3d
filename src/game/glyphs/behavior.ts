@@ -1,6 +1,6 @@
 import type { TerrainSnapshot } from "../types";
 import { getMergedGlyphOverride } from "./overrides";
-import { getGlyphCatalogRanges, resolveGlyph } from "./registry";
+import { getGlyphCatalogEntry, getGlyphCatalogRanges, resolveGlyph } from "./registry";
 import type {
   GlyphDisposition,
   ResolvedGlyph,
@@ -23,6 +23,19 @@ function getGlyphKindRange(
 }
 
 function getCmapIndex(glyph: number): number | null {
+  const entry = getGlyphCatalogEntry(glyph);
+  if (entry) {
+    if (entry.kind !== "cmap") {
+      return null;
+    }
+    if (typeof entry.symidx === "number" && Number.isFinite(entry.symidx)) {
+      const semanticIndex = Math.trunc(entry.symidx);
+      if (semanticIndex >= 0) {
+        return semanticIndex;
+      }
+    }
+  }
+
   const range = getGlyphKindRange("cmap");
   if (!range) {
     return null;
@@ -33,47 +46,88 @@ function getCmapIndex(glyph: number): number | null {
   return glyph - range.start;
 }
 
-export function getDefaultFloorGlyph(): number {
+let cmapRepresentativeGlyphCache:
+  | {
+      cacheKey: string;
+      byCmapIndex: Map<number, number>;
+    }
+  | null = null;
+
+function getCmapRepresentativeLookup(
+  range: { start: number; endExclusive: number },
+): Map<number, number> {
+  const cacheKey = `${range.start}:${range.endExclusive}`;
+  if (cmapRepresentativeGlyphCache?.cacheKey === cacheKey) {
+    return cmapRepresentativeGlyphCache.byCmapIndex;
+  }
+
+  const byCmapIndex = new Map<number, number>();
+  for (let glyph = range.start; glyph < range.endExclusive; glyph += 1) {
+    const entry = getGlyphCatalogEntry(glyph);
+    if (!entry || entry.kind !== "cmap") {
+      continue;
+    }
+    const cmapIndex =
+      typeof entry.symidx === "number" && Number.isFinite(entry.symidx)
+        ? Math.trunc(entry.symidx)
+        : glyph - range.start;
+    if (cmapIndex < 0 || byCmapIndex.has(cmapIndex)) {
+      continue;
+    }
+    byCmapIndex.set(cmapIndex, glyph);
+  }
+
+  cmapRepresentativeGlyphCache = { cacheKey, byCmapIndex };
+  return byCmapIndex;
+}
+
+function getRepresentativeCmapGlyph(cmapIndex: number): number | null {
   const range = getGlyphKindRange("cmap");
   if (!range) {
-    return 0;
+    return null;
   }
+
+  const representativeGlyph =
+    getCmapRepresentativeLookup(range).get(Math.trunc(cmapIndex)) ?? null;
+  if (representativeGlyph !== null) {
+    return representativeGlyph;
+  }
+
+  const fallbackGlyph = range.start + cmapIndex;
+  if (fallbackGlyph >= range.start && fallbackGlyph < range.endExclusive) {
+    return fallbackGlyph;
+  }
+  return null;
+}
+
+export function getDefaultFloorGlyph(): number {
   // drawing.c: S_room is index 19 ("floor of a room").
-  return range.start + 19;
+  return getRepresentativeCmapGlyph(19) ?? 0;
 }
 
 export function getDefaultDarkFloorGlyph(): number {
-  const range = getGlyphKindRange("cmap");
-  if (!range) {
-    return getDefaultFloorGlyph();
-  }
   // drawing.c: index 21 is dark corridor, which is a good unseen-dark fallback.
-  return range.start + 21;
+  return getRepresentativeCmapGlyph(21) ?? getDefaultFloorGlyph();
 }
 
 export function getDefaultDarkWallGlyph(): number {
-  const range = getGlyphKindRange("cmap");
-  if (!range) {
-    return getDefaultDarkFloorGlyph();
-  }
   // drawing.c: index 0 is stone/out-of-bounds and classifies as dark wall.
-  return range.start;
+  return getRepresentativeCmapGlyph(0) ?? getDefaultDarkFloorGlyph();
 }
 
 export function getOpenDoorGlyphFrom(glyph: number): number | null {
-  const range = getGlyphKindRange("cmap");
   const cmapIndex = getCmapIndex(glyph);
-  if (!range || cmapIndex === null) {
+  if (cmapIndex === null) {
     return null;
   }
   if (cmapIndex === 13 || cmapIndex === 14) {
     return glyph;
   }
   if (cmapIndex === 15) {
-    return range.start + 13;
+    return getRepresentativeCmapGlyph(13);
   }
   if (cmapIndex === 16) {
-    return range.start + 14;
+    return getRepresentativeCmapGlyph(14);
   }
   return null;
 }
