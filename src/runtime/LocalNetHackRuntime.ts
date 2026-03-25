@@ -107,6 +107,9 @@ class LocalNetHackRuntime {
     this.travelSpeedDelayMs = 60; // Default to normal
     this.travelClickMoveBlockExtraMs = 5;
     this.clickMoveBlockedUntilMs = 0;
+    this.lastAppliedDelayOutputTurn = null;
+    this.lastAppliedDelayOutputPosition = null;
+    this.lastAppliedDelayOutputAtMs = null;
     this.didLogMissingLevelIdentityGlobals = false;
     this.checkpointRecoverySupported = false;
     this.resumeCheckpointSave = null;
@@ -8788,6 +8791,54 @@ class LocalNetHackRuntime {
 
       case "shim_delay_output":
         this.beginClickMoveBlockWindow();
+        if (this.runtimeVersion === "3.7") {
+          const nowMs = Date.now();
+          const latestTurn = this.readLatestStatusInteger("BL_TIME");
+          const posX = Number.isFinite(this.playerPosition?.x)
+            ? Math.trunc(Number(this.playerPosition.x))
+            : null;
+          const posY = Number.isFinite(this.playerPosition?.y)
+            ? Math.trunc(Number(this.playerPosition.y))
+            : null;
+          const sameTurn =
+            Number.isInteger(latestTurn) &&
+            Number.isInteger(this.lastAppliedDelayOutputTurn) &&
+            latestTurn === this.lastAppliedDelayOutputTurn;
+          const samePosition =
+            this.lastAppliedDelayOutputPosition &&
+            Number.isInteger(posX) &&
+            Number.isInteger(posY) &&
+            posX === this.lastAppliedDelayOutputPosition.x &&
+            posY === this.lastAppliedDelayOutputPosition.y;
+          const recentDuplicateWindowMs = Math.max(
+            25,
+            Number(this.travelSpeedDelayMs) + 40,
+          );
+          const recentlyAppliedAtSamePosition =
+            samePosition &&
+            Number.isFinite(this.lastAppliedDelayOutputAtMs) &&
+            nowMs - this.lastAppliedDelayOutputAtMs <=
+              recentDuplicateWindowMs;
+          const oneTurnDriftSamePosition =
+            recentlyAppliedAtSamePosition &&
+            Number.isInteger(latestTurn) &&
+            Number.isInteger(this.lastAppliedDelayOutputTurn) &&
+            latestTurn === this.lastAppliedDelayOutputTurn + 1;
+          if ((sameTurn && samePosition) || oneTurnDriftSamePosition) {
+            console.log(
+              `Skipping duplicate 3.7 travel delay at (${posX}, ${posY}) turn ${latestTurn} (lastTurn=${this.lastAppliedDelayOutputTurn})`,
+            );
+            return 0;
+          }
+          this.lastAppliedDelayOutputTurn = Number.isInteger(latestTurn)
+            ? latestTurn
+            : null;
+          this.lastAppliedDelayOutputPosition =
+            Number.isInteger(posX) && Number.isInteger(posY)
+              ? { x: posX, y: posY }
+              : null;
+          this.lastAppliedDelayOutputAtMs = nowMs;
+        }
         if (this.travelSpeedDelayMs <= 0) {
           return 0; // No delay for instant
         }
@@ -8879,6 +8930,24 @@ class LocalNetHackRuntime {
         this.emit(payload);
       }
     }
+  }
+
+  readLatestStatusInteger(fieldName) {
+    const target = String(fieldName || "").trim();
+    if (!target) {
+      return null;
+    }
+    let latestPayload = null;
+    for (const payload of this.latestStatusUpdates.values()) {
+      if (payload && payload.fieldName === target) {
+        latestPayload = payload;
+      }
+    }
+    if (!latestPayload) {
+      return null;
+    }
+    const parsed = Number.parseInt(String(latestPayload.value ?? "").trim(), 10);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   emitRuntimeTerminated(reason, exitCode) {
