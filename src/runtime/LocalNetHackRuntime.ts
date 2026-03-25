@@ -71,6 +71,8 @@ class LocalNetHackRuntime {
     this.farLookOrigin = null; // null | "direct" | "look_menu"
     this.pendingLookMenuFarLookArm = false;
     this.pendingTextResponses = [];
+    this.pendingStdinByteQueue = [];
+    this.didAutoQueueRawRecoverChoice = false;
     this.positionInputActive = false;
     this.positionCursor = null;
     this.activeInputRequest = null;
@@ -1231,6 +1233,78 @@ class LocalNetHackRuntime {
     return removedCount;
   }
 
+  getRecoverableSaveArtifactNames(lockBaseName) {
+    if (!lockBaseName) {
+      return [];
+    }
+    return [
+      lockBaseName,
+      `${lockBaseName}.e`,
+      `${lockBaseName}.e;1`,
+      `${lockBaseName}.gz`,
+      `${lockBaseName}.Z`,
+    ];
+  }
+
+  prepareRecoverableSaveArtifactsBeforeAutosaveResume(mod, saveDir) {
+    if (!mod?.FS || !this.isAutosaveResumeRequested()) {
+      return 0;
+    }
+    const lockBaseNames = this.getStartupCheckpointLockBaseNameCandidates();
+    if (lockBaseNames.length <= 0) {
+      return 0;
+    }
+
+    let preparedCount = 0;
+    for (const lockBaseName of lockBaseNames) {
+      for (const artifactName of this.getRecoverableSaveArtifactNames(
+        lockBaseName,
+      )) {
+        const artifactPath = `${saveDir}/${artifactName}`;
+        let exists = false;
+        try {
+          exists = Boolean(mod.FS.analyzePath(artifactPath)?.exists);
+        } catch {
+          exists = false;
+        }
+        if (!exists) {
+          continue;
+        }
+
+        try {
+          if (typeof mod.FS.chmod === "function") {
+            mod.FS.chmod(artifactPath, 0o600);
+            preparedCount += 1;
+            console.log(
+              `Prepared recoverable save artifact for autosave resume: ${artifactPath}`,
+            );
+            continue;
+          }
+        } catch (error) {
+          console.warn(
+            `Failed to chmod recoverable save artifact ${artifactPath} before autosave resume:`,
+            error,
+          );
+        }
+
+        try {
+          mod.FS.unlink(artifactPath);
+          preparedCount += 1;
+          console.log(
+            `Removed stale recoverable save artifact for autosave resume: ${artifactPath}`,
+          );
+        } catch (error) {
+          console.warn(
+            `Failed to remove stale recoverable save artifact ${artifactPath} before autosave resume:`,
+            error,
+          );
+        }
+      }
+    }
+
+    return preparedCount;
+  }
+
   setRuntimePlayerName(name) {
     const normalized = this.normalizeCharacterNameValue(name);
     if (!normalized) {
@@ -1416,6 +1490,38 @@ class LocalNetHackRuntime {
     this.handleClientInput(input);
   }
 
+  queueStdinTextInput(text, reason = "runtime") {
+    const normalized = typeof text === "string" ? text : String(text ?? "");
+    if (!normalized) {
+      return;
+    }
+    const bytes = [];
+    for (const ch of normalized) {
+      bytes.push(ch.charCodeAt(0) & 0xff);
+    }
+    if (bytes.length <= 0) {
+      return;
+    }
+    this.pendingStdinByteQueue.push(...bytes);
+    console.log(
+      `Queued ${bytes.length} stdin byte(s) for ${reason} (queue=${this.pendingStdinByteQueue.length})`,
+    );
+  }
+
+  consumeStdinByte() {
+    if (
+      !Array.isArray(this.pendingStdinByteQueue) ||
+      this.pendingStdinByteQueue.length <= 0
+    ) {
+      return null;
+    }
+    const next = this.pendingStdinByteQueue.shift();
+    if (typeof next !== "number" || !Number.isFinite(next)) {
+      return null;
+    }
+    return Math.max(0, Math.min(255, Math.trunc(next)));
+  }
+
   sendInputSequence(inputs) {
     this.handleClientInputSequence(inputs);
   }
@@ -1448,6 +1554,8 @@ class LocalNetHackRuntime {
     console.log(`Shutting down NetHack session: ${reason}`);
     this.inputBroker.drain();
     this.pendingTextResponses = [];
+    this.pendingStdinByteQueue = [];
+    this.didAutoQueueRawRecoverChoice = false;
     this.farLookMode = "none";
     this.farLookOrigin = null;
     this.pendingLookMenuFarLookArm = false;
@@ -4697,9 +4805,6 @@ class LocalNetHackRuntime {
   }
 
   shouldAutoRecoverCheckpointResume(question) {
-    if (!this.checkpointRecoverySupported) {
-      return false;
-    }
     const characterCreation = this.startupOptions?.characterCreation;
     if (
       !characterCreation ||
@@ -4740,6 +4845,32 @@ class LocalNetHackRuntime {
     }
 
     try {
+      let wrappedResumeCheckpointSave = null;
+      if (typeof this.nethackInstance.cwrap === "function") {
+        try {
+          wrappedResumeCheckpointSave = this.nethackInstance.cwrap(
+            "resume_checkpoint_save",
+            "number",
+            ["string"],
+          );
+        } catch (error) {
+          console.warn(
+            "Failed to bind cwrap resume_checkpoint_save bridge from NetHack runtime:",
+            error,
+          );
+        }
+      }
+
+      if (typeof wrappedResumeCheckpointSave === "function") {
+        this.resumeCheckpointSave = (playerName) => {
+          const normalizedName = this.normalizeCharacterNameValue(playerName);
+          if (!normalizedName) {
+            return 0;
+          }
+          return Number(wrappedResumeCheckpointSave(normalizedName));
+        };
+      }
+
       const directResumeCheckpointSave =
         typeof this.nethackInstance._resume_checkpoint_save === "function"
           ? this.nethackInstance._resume_checkpoint_save
@@ -4757,7 +4888,13 @@ class LocalNetHackRuntime {
           ? this.nethackInstance.stringToUTF8
           : null;
 
-      if (directResumeCheckpointSave && malloc && free && stringToUtf8) {
+      if (
+        !this.resumeCheckpointSave &&
+        directResumeCheckpointSave &&
+        malloc &&
+        free &&
+        stringToUtf8
+      ) {
         this.resumeCheckpointSave = (playerName) => {
           const normalizedName = this.normalizeCharacterNameValue(playerName);
           if (!normalizedName) {
@@ -4810,6 +4947,17 @@ class LocalNetHackRuntime {
       return;
     }
 
+    if (this.runtimeVersion === "3.7") {
+      // NetHack 3.7's SELF_RECOVER path is wired through getlock().
+      // Calling resume_checkpoint_save() directly before startup has proven
+      // unstable in this build (function signature mismatch + partial side
+      // effects), so defer to getlock() and auto-answer "r".
+      console.log(
+        "Deferring checkpoint autosave resume to getlock() prompt flow for runtime 3.7",
+      );
+      return;
+    }
+
     if (
       !this.checkpointRecoverySupported ||
       typeof this.resumeCheckpointSave !== "function"
@@ -4826,7 +4974,28 @@ class LocalNetHackRuntime {
       );
     }
 
-    const didRecover = Number(this.resumeCheckpointSave(playerName));
+    let didRecover = 0;
+    try {
+      didRecover = Number(this.resumeCheckpointSave(playerName));
+    } catch (error) {
+      const errorText =
+        error instanceof Error && error.message
+          ? error.message
+          : String(error ?? "");
+      // Some builds can still recover through getlock()'s SELF_RECOVER prompt
+      // even when direct pre-main bridge invocation fails.
+      if (
+        /function signature mismatch/i.test(errorText) ||
+        /runtimeerror/i.test(errorText)
+      ) {
+        console.warn(
+          `Direct checkpoint resume bridge failed before startup (${errorText}). Falling back to getlock() recovery prompt.`,
+          error,
+        );
+        return;
+      }
+      throw error;
+    }
     if (didRecover !== 1) {
       throw new Error(
         `Failed to queue checkpoint autosave resume for "${playerName}" before startup.`,
@@ -6833,6 +7002,7 @@ class LocalNetHackRuntime {
           }
           return this.resolveWasmAssetUrl(assetPath, runtimeVersion);
         },
+        stdin: () => this.consumeStdinByte(),
         print: (...args) => {
           console.log("[WASM stdout]", ...args);
         },
@@ -7118,6 +7288,29 @@ class LocalNetHackRuntime {
                   }
 
                   console.log(`IDBFS mounted and synced at ${saveDir}`);
+                  try {
+                    const sysconfPath = "/sysconf";
+                    if (
+                      mod.FS.analyzePath(sysconfPath).exists &&
+                      typeof mod.FS.readFile === "function"
+                    ) {
+                      const sysconfRaw = String(
+                        mod.FS.readFile(sysconfPath, { encoding: "utf8" }) || "",
+                      );
+                      const maxPlayersLine =
+                        sysconfRaw
+                          .split(/\r?\n/)
+                          .find((line) => /^MAXPLAYERS=/i.test(line.trim())) ||
+                        "";
+                      if (maxPlayersLine) {
+                        console.log(
+                          `Embedded runtime sysconf ${maxPlayersLine.trim()}`,
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    console.warn("Failed to inspect embedded /sysconf:", error);
+                  }
                   const removedCheckpointShardCount =
                     this.cleanupStaleCheckpointShardsBeforeStartup(
                       mod,
@@ -7128,8 +7321,15 @@ class LocalNetHackRuntime {
                       mod,
                       saveDir,
                     );
+                  const preparedRecoverableSaveArtifactCount =
+                    this.prepareRecoverableSaveArtifactsBeforeAutosaveResume(
+                      mod,
+                      saveDir,
+                    );
                   if (
-                    removedCheckpointShardCount + removedTemporaryLockShardCount >
+                    removedCheckpointShardCount +
+                      removedTemporaryLockShardCount +
+                      preparedRecoverableSaveArtifactCount >
                     0
                   ) {
                     mod.FS.syncfs(false, (syncErr) => {
@@ -7288,10 +7488,11 @@ class LocalNetHackRuntime {
       // checkpoint resume bridge, accept NetHack's follow-up recover prompt
       // automatically so resume goes straight into the recovered save without
       // asking the player twice.
+      const recoveryChoice = /r/i.test(normalizedChoices) ? "r" : "y";
       console.log(
-        'Auto-confirming checkpoint recovery with "y" during autosave resume',
+        `Auto-confirming checkpoint recovery with "${recoveryChoice}" during autosave resume`,
       );
-      return this.processKey("y");
+      return this.processKey(recoveryChoice);
     }
 
     if (this.shouldAutoConfirmCheckpointCleanup(question)) {
@@ -8380,6 +8581,29 @@ class LocalNetHackRuntime {
         }
         if (normalizedRawText) {
           this.rememberPromptContextMessage(normalizedRawText, "raw_print");
+        }
+        if (
+          normalizedRawText &&
+          this.runtimeVersion === "3.7" &&
+          this.isAutosaveResumeRequested() &&
+          !this.didAutoQueueRawRecoverChoice
+        ) {
+          const loweredRawText = normalizedRawText.toLowerCase();
+          const isRawRecoverPrompt =
+            (loweredRawText.includes(
+              "there is already a game in progress under your name",
+            ) ||
+              loweredRawText.includes(
+                "there are files from a game in progress under your name",
+              )) &&
+            loweredRawText.includes("do what");
+          if (isRawRecoverPrompt) {
+            this.queueStdinTextInput("r", "autosave raw recover prompt");
+            this.didAutoQueueRawRecoverChoice = true;
+            console.log(
+              'Auto-queued "r" for raw startup recovery prompt during autosave resume',
+            );
+          }
         }
 
         // Send raw print messages to the UI log

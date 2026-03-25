@@ -257,6 +257,35 @@ self.onmessage = async (message: MessageEvent<RuntimeCommand>) => {
       case "set_logging":
         setLoggingEnabled(Boolean(command.enabled));
         return;
+      case "shutdown":
+        if (runtime) {
+          try {
+            runtime.shutdown("runtime bridge dispose");
+          } catch (error) {
+            console.warn("Runtime shutdown hook error:", error);
+          }
+          const moduleFs =
+            (runtime as any).nethackModule &&
+            (runtime as any).nethackModule.FS;
+          if (moduleFs && typeof moduleFs.syncfs === "function") {
+            try {
+              await new Promise<void>((resolve) => {
+                moduleFs.syncfs(false, (err: unknown) => {
+                  if (err) {
+                    console.warn("Worker shutdown IDBFS sync error:", err);
+                  }
+                  resolve();
+                });
+              });
+            } catch (error) {
+              console.warn("Worker shutdown IDBFS sync exception:", error);
+            }
+          }
+        }
+        runtime = null;
+        started = false;
+        terminationReported = false;
+        return;
       default:
         return;
     }

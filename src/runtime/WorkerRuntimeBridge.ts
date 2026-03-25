@@ -154,6 +154,11 @@ export default class WorkerRuntimeBridge implements RuntimeBridge {
     if (this.disposed) {
       return;
     }
+    try {
+      this.worker.postMessage({ type: "shutdown" } as RuntimeCommand);
+    } catch {
+      // Best-effort shutdown; worker might already be unavailable.
+    }
     this.disposed = true;
     if (this.startReject) {
       this.startReject(new Error("Runtime bridge disposed"));
@@ -164,7 +169,13 @@ export default class WorkerRuntimeBridge implements RuntimeBridge {
     this.worker.onmessage = null;
     this.worker.onerror = null;
     this.worker.onmessageerror = null;
-    this.worker.terminate();
+    globalThis.setTimeout(() => {
+      try {
+        this.worker.terminate();
+      } catch {
+        // Ignore termination races during disposal.
+      }
+    }, 150);
   }
 
   private postCommand(command: RuntimeCommand): void {
