@@ -337,28 +337,42 @@ export function resolveNh3dCompatibleTilesetPathForRuntime(
   if (!selectedTileset) {
     return defaultNh3dTilesetPath;
   }
-  if (
-    runtimeVersion !== "3.6.7" ||
-    selectedTileset.tileLayoutVersion !== "3.7"
-  ) {
-    return selectedTileset.path;
-  }
   const selectedLookupLabel = normalizeTilesetPresetLookupLabel(
     selectedTileset.label,
   ).toLowerCase();
-  const labelMatchedNh367Tileset = tilesetCatalog.find(
-    (entry) =>
-      entry.tileLayoutVersion === "3.6.7" &&
-      normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
-        selectedLookupLabel,
-  );
-  if (labelMatchedNh367Tileset) {
-    return labelMatchedNh367Tileset.path;
+  if (
+    runtimeVersion === "3.6.7" &&
+    selectedTileset.tileLayoutVersion === "3.7"
+  ) {
+    const labelMatchedNh367Tileset = tilesetCatalog.find(
+      (entry) =>
+        entry.tileLayoutVersion === "3.6.7" &&
+        normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+          selectedLookupLabel,
+    );
+    if (labelMatchedNh367Tileset) {
+      return labelMatchedNh367Tileset.path;
+    }
+    const firstNh367Tileset = tilesetCatalog.find(
+      (entry) => entry.tileLayoutVersion === "3.6.7",
+    );
+    return firstNh367Tileset?.path ?? defaultNh3dTilesetPath;
   }
-  const firstNh367Tileset = tilesetCatalog.find(
-    (entry) => entry.tileLayoutVersion === "3.6.7",
-  );
-  return firstNh367Tileset?.path ?? defaultNh3dTilesetPath;
+  if (
+    runtimeVersion === "3.7" &&
+    selectedTileset.tileLayoutVersion === "3.6.7"
+  ) {
+    const labelMatchedNh37Tileset = tilesetCatalog.find(
+      (entry) =>
+        entry.tileLayoutVersion === "3.7" &&
+        normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+          selectedLookupLabel,
+    );
+    if (labelMatchedNh37Tileset) {
+      return labelMatchedNh37Tileset.path;
+    }
+  }
+  return selectedTileset.path;
 }
 
 function normalizeHexColorOrFallback(
