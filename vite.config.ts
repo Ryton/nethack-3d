@@ -158,6 +158,14 @@ const wasm367HasCheckpointResumeBridge = buildFileContains(
   wasm367RuntimeBuildJsPath,
   'Module["_resume_checkpoint_save"]',
 );
+const wasm37HasRecoverSavefile = buildFileContains(
+  wasm37RuntimeBuildJsPath,
+  'Module["_recover_savefile"]',
+);
+const wasm37HasCheckpointResumeBridge = buildFileContains(
+  wasm37RuntimeBuildJsPath,
+  'Module["_resume_checkpoint_save"]',
+);
 const resolvedBuildCommitSha = (() => {
   const result = spawnSync("git", ["rev-parse", "HEAD"], {
     cwd: process.cwd(),
@@ -251,8 +259,13 @@ export default defineConfig({
       JSON.stringify(wasm37RuntimeBuildTag),
     "import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG":
       JSON.stringify(wasm37PointerAbiTag),
-    // "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":
-    //   JSON.stringify(wasm37UsesPublicRuntimeOverride),
+    "import.meta.env.VITE_NH3D_WASM_37_HAS_RECOVER_SAVEFILE": JSON.stringify(
+      wasm37HasRecoverSavefile,
+    ),
+    "import.meta.env.VITE_NH3D_WASM_37_HAS_CHECKPOINT_RESUME_BRIDGE":
+      JSON.stringify(wasm37HasCheckpointResumeBridge),
+    "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":
+      JSON.stringify(wasm37UsesPublicRuntimeOverride),
   },
   base: isGitHubActions ? "/nethack-3d/" : isElectronBuild ? "./" : "/",
   server: {

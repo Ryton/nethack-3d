@@ -1065,17 +1065,22 @@ class LocalNetHackRuntime {
       return false;
     }
     const characterCreation = this.startupOptions?.characterCreation;
-    if (characterCreation?.mode === "resume") {
-      // Autosave resume needs checkpoint shards intact so the wasm bridge can
-      // recover them into a real save before startup.
-      if (characterCreation.resumeCategory === "autosave") {
-        return false;
-      }
-      // Manual-save resume should discard stale checkpoint shards to avoid
-      // lock-file prompts before the normal UI callback path is ready.
-      return this.getStartupCheckpointLockBaseNameCandidates().length > 0;
+    if (characterCreation?.mode !== "resume") {
+      return false;
     }
+    // Autosave resume needs checkpoint shards intact so the wasm bridge can
+    // recover them into a real save before startup.
+    if (characterCreation.resumeCategory === "autosave") {
+      return false;
+    }
+    // Manual-save resume should discard stale checkpoint shards to avoid
+    // lock-file prompts before the normal UI callback path is ready.
     return this.getStartupCheckpointLockBaseNameCandidates().length > 0;
+  }
+
+  shouldCleanupTemporaryRuntimeLocksBeforeStartup() {
+    const characterCreation = this.startupOptions?.characterCreation;
+    return characterCreation?.mode === "resume";
   }
 
   removeCheckpointShardsByLockBaseName(mod, saveDir, lockBaseName, reason) {
@@ -1210,7 +1215,7 @@ class LocalNetHackRuntime {
   }
 
   cleanupStaleTemporaryRuntimeLocksBeforeStartup(mod, saveDir) {
-    if (!mod?.FS) {
+    if (!mod?.FS || !this.shouldCleanupTemporaryRuntimeLocksBeforeStartup()) {
       return 0;
     }
 
@@ -1326,7 +1331,10 @@ class LocalNetHackRuntime {
     const tokens = appendRequiredStartupInitOptionTokens(
       this.startupOptions?.initOptions,
     );
-    if (this.runtimeVersion !== "3.6.7") {
+    if (
+      this.runtimeVersion !== "3.6.7" &&
+      !supportsRuntimeCheckpointRecovery(this.runtimeVersion)
+    ) {
       return tokens.filter((token) => !/^!?checkpoint(?:$|:)/i.test(token));
     }
     return tokens;
@@ -4724,9 +4732,6 @@ class LocalNetHackRuntime {
     this.checkpointRecoverySupported = false;
     this.resumeCheckpointSave = null;
 
-    if (this.runtimeVersion !== "3.6.7") {
-      return;
-    }
     if (
       !this.nethackInstance ||
       typeof this.nethackInstance.cwrap !== "function"
@@ -7016,6 +7021,53 @@ class LocalNetHackRuntime {
               };
               wrapFsPathMethod("open");
               wrapFsPathMethod("unlink");
+
+              const originalSyncfs =
+                typeof mod.FS.syncfs === "function"
+                  ? mod.FS.syncfs.bind(mod.FS)
+                  : null;
+              if (originalSyncfs) {
+                const syncfsQueue = [];
+                let syncfsInFlight = false;
+
+                const queueSyncfs = (populate, callback) => {
+                  syncfsQueue.push({
+                    populate: Boolean(populate),
+                    callback: typeof callback === "function" ? callback : null,
+                  });
+                  if (syncfsInFlight) {
+                    return;
+                  }
+
+                  const runNext = () => {
+                    const next = syncfsQueue.shift();
+                    if (!next) {
+                      syncfsInFlight = false;
+                      return;
+                    }
+                    syncfsInFlight = true;
+                    originalSyncfs(next.populate, (err) => {
+                      try {
+                        if (next.callback) {
+                          next.callback(err);
+                        }
+                      } finally {
+                        runNext();
+                      }
+                    });
+                  };
+
+                  runNext();
+                };
+
+                mod.FS.syncfs = function (populateOrCallback, maybeCallback) {
+                  if (typeof populateOrCallback === "function") {
+                    queueSyncfs(false, populateOrCallback);
+                    return;
+                  }
+                  queueSyncfs(populateOrCallback, maybeCallback);
+                };
+              }
 
               let checkpointSyncInFlight = false;
               let checkpointSyncQueued = false;

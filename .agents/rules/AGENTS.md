@@ -76,10 +76,12 @@ Start here before making changes.
 
 ## NetHack Reference
 
-- The pinned NetHack source in `imported/nethack-3.6.7` is the source of truth for game behavior, data files, and shim expectations.
+- The pinned NetHack source in `third_party/nethack-3.6.7` and `third_party/nethack-3.7` is the source of truth for game behavior, data files, and shim expectations.
 - Forked NetHack WASM monorepo reference (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo`.
 - Forked 3.6.7 WASM package path (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367`.
-- Forked NetHack source inside that package (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\NetHack`.
+- Forked NetHack 3.6.7 source inside that package (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\NetHack`.
+- Forked 3.7 WASM package path (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-37`.
+- Forked NetHack 3.7 source inside that package (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\NetHack`.
 - If you need an upstream reference, use the official NetHack repository: https://github.com/NetHack/NetHack.
 - Never modify the imported NetHack source unless the user explicitly asks for it.
 - Do not patch WASM shims directly here; adjust our runtime integration instead. If shim changes are unavoidable, call that out clearly so they can be made upstream or in the WASM package.

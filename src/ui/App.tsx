@@ -4354,6 +4354,11 @@ async function fetchSavedGames(
         if (!filename) continue;
         const normalizedFilename = filename.toLowerCase();
 
+        const isCheckpointShard = isCheckpointShardFilename(filename);
+        const isTemporaryLockCheckpointShard = /^[a-z]lock\.\d+$/i.test(
+          normalizedFilename,
+        );
+
         // Ignore structural/metadata files used by NetHack
         const knownNonSaves = [
           "record",
@@ -4364,10 +4369,21 @@ async function fetchSavedGames(
           ".keep",
         ];
         if (knownNonSaves.includes(normalizedFilename)) continue;
-        if (
-          normalizedFilename.includes("level") ||
-          normalizedFilename.includes("lock")
-        ) {
+        if (normalizedFilename.includes("level")) {
+          continue;
+        }
+        // These shards come from lock-letter mode (MAXPLAYERS>0). Our current
+        // browser resume bridge targets UID+name locknames, so these cannot be
+        // resumed by character selection and should not be listed as loadable.
+        if (isTemporaryLockCheckpointShard) {
+          continue;
+        }
+        // Drop non-shard lock artifacts.
+        const isLockArtifact =
+          normalizedFilename === "lock" ||
+          /^[a-z]lock$/i.test(normalizedFilename) ||
+          normalizedFilename.endsWith(".lock");
+        if (isLockArtifact && !isCheckpointShard) {
           continue;
         }
 
@@ -4377,7 +4393,6 @@ async function fetchSavedGames(
         if (name && value && value.timestamp) {
           const timestamp = new Date(value.timestamp);
           const logicalKey = `${category}:${name}`;
-          const isCheckpointShard = isCheckpointShardFilename(filename);
           const presentationMetadata =
             savePresentationMetadataByKey[logicalKey];
           const displayPlayMode =

@@ -32,7 +32,7 @@ export const nh3dSoundEffectDefinitions = [
   {
     key: "door-kick",
     label: "Door kick",
-    messageLogKeywords: ["WHAMMM!!!"],
+    messageLogKeywords: ["WHAMMM!!!", "Whammm!!", "Thwack!!"],
   },
   {
     key: "door-smash",
