@@ -42,6 +42,7 @@ class LocalNetHackRuntime {
     this.currentMenuQuestionText = "";
     this.hasShownCharacterSelection = false;
     this.lastQuestionText = null; // Store the last question for menu expansion
+    this.activeYnPrompt = null;
 
     // Multi-pickup selection tracking
     this.menuSelections = new Map(); // Track selected items: key=menuChar, value={menuChar, originalAccelerator, menuIndex}
@@ -85,6 +86,8 @@ class LocalNetHackRuntime {
     this.contextualGlanceProbeMouseDeadlineMs = 0;
     this.contextualGlanceAutoCancelPositionUntilMs = 0;
     this.contextualGlanceAutoCancelPositionWindowMs = 450;
+    this.runtime37TileContextAutoPickFirstUntilMs = 0;
+    this.runtime37TileContextAutoPickFirstWindowMs = 2000;
     this.pendingInventoryContextSelection = null;
     this.pendingTextRequest = null;
     this.deferredTileRefreshKeys = new Set();
@@ -2122,6 +2125,10 @@ class LocalNetHackRuntime {
     console.log(
       `Delivered mouse input to nh_poskey: (${mouseX}, ${mouseY}) mod=${mouseMod} (xPtr=${xTargetPtr}, yPtr=${yTargetPtr}, modPtr=${modTargetPtr}, coordType=${coordStoreType})`,
     );
+    if (this.runtimeVersion === "3.7" && mouseMod > 0) {
+      this.runtime37TileContextAutoPickFirstUntilMs =
+        Date.now() + this.runtime37TileContextAutoPickFirstWindowMs;
+    }
     return true;
   }
 
@@ -2130,6 +2137,33 @@ class LocalNetHackRuntime {
       return "Enter";
     }
     return input;
+  }
+
+  shouldAutoPickFirstRuntime37TileContextAction(menuQuestion, menuItems) {
+    if (this.runtimeVersion !== "3.7") {
+      return false;
+    }
+    if (this.hasPendingInventoryContextSelection()) {
+      return false;
+    }
+    if (
+      !Number.isFinite(this.runtime37TileContextAutoPickFirstUntilMs) ||
+      Date.now() > this.runtime37TileContextAutoPickFirstUntilMs
+    ) {
+      return false;
+    }
+
+    const normalizedQuestion = this.normalizeQuestionText(menuQuestion);
+    if (!normalizedQuestion.includes("what do you want to do")) {
+      return false;
+    }
+
+    if (!Array.isArray(menuItems) || menuItems.length === 0) {
+      return false;
+    }
+
+    const selectableItems = menuItems.filter((item) => item && !item.isCategory);
+    return selectableItems.length > 0;
   }
 
   isLikelyNameInputForDebug(input) {
@@ -2812,12 +2846,26 @@ class LocalNetHackRuntime {
     }
 
     const rawKey = token && typeof token.key === "string" ? token.key : "";
-    const key =
+    let key =
       requestKind === "position"
         ? this.normalizeFarLookPositionInput(rawKey)
         : rawKey;
     if (!key) {
       return 0;
+    }
+
+    if (requestKind === "event" && key === "Escape") {
+      const replacement = this.resolveEscapeForActiveYnPrompt();
+      if (replacement) {
+        console.log(
+          `Mapping Escape to "${replacement}" for active yn_function prompt`,
+          {
+            choices: this.activeYnPrompt?.choices || "",
+            defaultChoice: this.activeYnPrompt?.defaultChoice ?? 0,
+          },
+        );
+        key = replacement;
+      }
     }
 
     if (this.farLookMode === "none" && this.isPositionModeInitiatorInput(key)) {
@@ -7127,11 +7175,18 @@ class LocalNetHackRuntime {
 
   handleShimYnFunction(args) {
     const [question, choices, defaultChoice] = args;
+    const normalizedChoices =
+      typeof choices === "string" ? choices : String(choices ?? "");
+    const normalizedDefaultChoice =
+      typeof defaultChoice === "number" && Number.isFinite(defaultChoice)
+        ? Math.trunc(defaultChoice)
+        : 0;
     console.log(
       `Y/N Question: "${question}" choices: "${choices}" default: ${defaultChoice}`,
     );
 
     this.lastQuestionText = question;
+    this.activeYnPrompt = null;
     this.pendingGameOverPossessionsInventoryFlow =
       this.isGameOverPossessionsIdentifyQuestion(question);
     if (this.pendingGameOverPossessionsInventoryFlow) {
@@ -7166,6 +7221,10 @@ class LocalNetHackRuntime {
     }
 
     if (question && question.toLowerCase().includes("direction")) {
+      this.activeYnPrompt = {
+        choices: normalizedChoices,
+        defaultChoice: normalizedDefaultChoice,
+      };
       if (this.eventHandler) {
         this.emit({
           type: "direction_question",
@@ -7174,9 +7233,20 @@ class LocalNetHackRuntime {
           default: defaultChoice,
         });
       }
-      return this.waitForQuestionInput();
+      const requested = this.waitForQuestionInput();
+      if (requested && typeof requested.then === "function") {
+        return requested.finally(() => {
+          this.activeYnPrompt = null;
+        });
+      }
+      this.activeYnPrompt = null;
+      return requested;
     }
 
+    this.activeYnPrompt = {
+      choices: normalizedChoices,
+      defaultChoice: normalizedDefaultChoice,
+    };
     if (this.eventHandler) {
       this.emit({
         type: "question",
@@ -7187,7 +7257,48 @@ class LocalNetHackRuntime {
       });
     }
 
-    return this.waitForQuestionInput();
+    const requested = this.waitForQuestionInput();
+    if (requested && typeof requested.then === "function") {
+      return requested.finally(() => {
+        this.activeYnPrompt = null;
+      });
+    }
+    this.activeYnPrompt = null;
+    return requested;
+  }
+
+  resolveEscapeForActiveYnPrompt() {
+    const prompt = this.activeYnPrompt;
+    if (!prompt || typeof prompt !== "object") {
+      return null;
+    }
+
+    const choices =
+      typeof prompt.choices === "string" ? prompt.choices : String(prompt.choices ?? "");
+    if (!choices) {
+      return null;
+    }
+    const choicesLower = choices.toLowerCase();
+
+    const defaultCode =
+      typeof prompt.defaultChoice === "number" &&
+      Number.isFinite(prompt.defaultChoice)
+        ? Math.trunc(prompt.defaultChoice)
+        : 0;
+    const defaultChar =
+      defaultCode > 0 && defaultCode <= 255
+        ? String.fromCharCode(defaultCode).toLowerCase()
+        : "";
+    if (defaultChar && choicesLower.includes(defaultChar)) {
+      return defaultChar;
+    }
+    if (choicesLower.includes("n")) {
+      return "n";
+    }
+    if (choicesLower.includes("q")) {
+      return "q";
+    }
+    return null;
   }
 
   handleShimNhPoskey(args) {
@@ -7493,6 +7604,27 @@ class LocalNetHackRuntime {
         }
         // Special handling for inventory window WITH questions (like drop, wear, etc.)
         if (isInventoryWindow && hasMenuQuestion) {
+          if (
+            this.shouldAutoPickFirstRuntime37TileContextAction(
+              menuQuestion,
+              this.currentMenuItems,
+            )
+          ) {
+            const firstSelectableItem =
+              this.currentMenuItems.find((item) => item && !item.isCategory) ||
+              null;
+            this.runtime37TileContextAutoPickFirstUntilMs = 0;
+            if (
+              firstSelectableItem &&
+              this.tryAutoSelectMenuItem(
+                firstSelectableItem,
+                "runtime 3.7 tile context menu auto-first-option",
+              )
+            ) {
+              return 0;
+            }
+          }
+
           this.lastEndedInventoryMenuKind = "inventory";
           console.log(
             `📋 Inventory action question detected: "${menuQuestion}" with ${this.currentMenuItems.length} items`,
