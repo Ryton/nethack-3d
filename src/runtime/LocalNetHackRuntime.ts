@@ -4492,7 +4492,6 @@ class LocalNetHackRuntime {
   classifyInventoryWindowMenu(menuItems) {
     const items = Array.isArray(menuItems) ? menuItems : [];
     const nonCategoryItems = items.filter((item) => !item.isCategory);
-    const hasCategoryHeaders = items.some((item) => item.isCategory);
     const hasSelectableEntries = nonCategoryItems.some(
       (item) =>
         this.isPrintableAccelerator(item.originalAccelerator) ||
@@ -4526,8 +4525,39 @@ class LocalNetHackRuntime {
       };
     }
 
-    if (hasCategoryHeaders || hasSelectableEntries) {
+    if (hasSelectableEntries) {
       return { kind: "inventory", lines: [] };
+    }
+
+    const orderedLines = items
+      .map((item) => String(item?.text || "").trim())
+      .filter((text) => text.length > 0);
+    const categoryLines = items
+      .filter((item) => item && item.isCategory)
+      .map((item) => String(item.text || "").trim())
+      .filter((text) => text.length > 0);
+
+    // NetHack 3.7 routes reports like Ctrl+O dungeon overview through WIN_INVEN
+    // even though none of the rows are actually selectable. Preserve category
+    // headers for those informational panels instead of treating them as
+    // inventory snapshots.
+    if (categoryLines.length > 0) {
+      if (
+        categoryLines.length === 1 &&
+        orderedLines.length > 1 &&
+        orderedLines[0] === categoryLines[0]
+      ) {
+        return {
+          kind: "info_menu",
+          title: categoryLines[0],
+          lines: orderedLines.slice(1),
+        };
+      }
+      return {
+        kind: "info_menu",
+        title: "NetHack Information",
+        lines: orderedLines,
+      };
     }
 
     // WIN_INVEN is also used by NetHack for reports like self-knowledge.
