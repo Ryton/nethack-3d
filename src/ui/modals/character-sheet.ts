@@ -68,9 +68,16 @@ const sectionTitleById: Record<
 const sectionIdByHeading: Record<string, CharacterSheetSectionId> = {
   background: "background",
   basics: "basics",
+  characteristics: "characteristics",
   "current characteristics": "characteristics",
+  "final characteristics": "characteristics",
+  status: "status",
   "current status": "status",
+  "final status": "status",
+  attributes: "attributes",
   "current attributes": "attributes",
+  "final attributes": "attributes",
+  miscellaneous: "misc",
 };
 
 const orderedPrimarySectionIds: Exclude<CharacterSheetSectionId, "misc">[] = [
@@ -86,6 +93,18 @@ function normalizeInfoLine(rawLine: unknown): string {
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function resolveCharacterSectionHeading(
+  rawLine: string,
+): CharacterSheetSectionId | null {
+  const headingMatch = rawLine.match(/^([A-Za-z][A-Za-z ]+):$/);
+  if (!headingMatch || !headingMatch[1]) {
+    return null;
+  }
+
+  const normalizedHeading = headingMatch[1].trim().toLowerCase();
+  return sectionIdByHeading[normalizedHeading] ?? null;
 }
 
 function splitCharacterSections(lines: string[]): CharacterSheetSection[] {
@@ -115,8 +134,7 @@ function splitCharacterSections(lines: string[]): CharacterSheetSection[] {
     const headingMatch = line.match(/^([A-Za-z][A-Za-z ]+):$/);
     if (headingMatch && headingMatch[1]) {
       const rawHeading = headingMatch[1].trim();
-      const normalizedHeading = rawHeading.toLowerCase();
-      const id = sectionIdByHeading[normalizedHeading] ?? "misc";
+      const id = resolveCharacterSectionHeading(line) ?? "misc";
       const section: CharacterSheetSection = {
         id,
         title:
@@ -177,13 +195,15 @@ function parseStatCurrentAndLimit(value: string): {
     return { currentValue: null, limitValue: null };
   }
 
-  const currentLimitMatch = normalized.match(
-    /^(.+?)\s*\(\s*current\s*;\s*limit\s*:?\s*([^)]+)\)\s*$/i,
-  );
-  if (currentLimitMatch) {
+  const parentheticalMatch = normalized.match(/^(.+?)\s*\((.+)\)\s*$/);
+  if (parentheticalMatch) {
+    const detailText = parentheticalMatch[2]?.trim() || "";
+    const limitMatch = detailText.match(
+      /(?:^|[,;])\s*(?:innate\s+)?limit\s*:\s*([^,;]+)/i,
+    );
     return {
-      currentValue: currentLimitMatch[1]?.trim() || null,
-      limitValue: currentLimitMatch[2]?.trim() || null,
+      currentValue: parentheticalMatch[1]?.trim() || null,
+      limitValue: limitMatch?.[1]?.trim() || null,
     };
   }
 
@@ -226,12 +246,9 @@ export function parseCharacterSheetInfoMenu(
   }
 
   const allText = normalizedLines.join("\n").toLowerCase();
-  const hasKnownAttributeHeading =
-    allText.includes("background:") ||
-    allText.includes("basics:") ||
-    allText.includes("current characteristics:") ||
-    allText.includes("current status:") ||
-    allText.includes("current attributes:");
+  const hasKnownCharacterHeading = normalizedLines.some(
+    (line) => resolveCharacterSectionHeading(line) !== null,
+  );
   const hasCoreStats =
     allText.includes("your strength is") &&
     allText.includes("your dexterity is") &&
@@ -246,7 +263,7 @@ export function parseCharacterSheetInfoMenu(
     normalizedTitle.includes("character");
 
   if (
-    !hasKnownAttributeHeading &&
+    !hasKnownCharacterHeading &&
     !(hasCoreStats && hasCharacterIdentitySignals) &&
     !(titleSuggestsCharacterSheet && hasCoreStats)
   ) {
