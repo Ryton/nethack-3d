@@ -9403,7 +9403,6 @@ class LocalNetHackRuntime {
         return 0;
 
       case "shim_delay_output":
-        this.beginClickMoveBlockWindow();
         if (this.runtimeVersion === "3.7") {
           const nowMs = Date.now();
           const latestTurn = this.readLatestStatusInteger("BL_TIME");
@@ -9467,6 +9466,7 @@ class LocalNetHackRuntime {
         if (this.travelSpeedDelayMs <= 0) {
           return 0; // No delay for instant
         }
+        this.beginClickMoveBlockWindow();
         console.log(
           `NetHack requesting output delay for travel (${this.travelSpeedDelayMs}ms).`,
         );
