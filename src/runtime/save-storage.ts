@@ -1,6 +1,11 @@
 import type { NethackRuntimeVersion } from "./types";
 
 const knownSaveRuntimeRoots = ["/", "/nethack"] as const;
+// NetHack's recover_savefile() expects level-0 checkpoint files to contain
+// more than the bare pid lock. A real checkpoint header is significantly
+// larger than this; 80 bytes is a conservative lower bound across our wasm
+// builds and cleanly excludes plain 4-byte lock files.
+export const MIN_RECOVERABLE_CHECKPOINT_LEVEL_ZERO_BYTES = 80;
 
 function normalizeCompatTag(value: unknown, fallback: string): string {
   const normalized = String(value ?? "")
@@ -21,6 +26,40 @@ function normalizeRuntimeRoot(root: string): string {
     return "/";
   }
   return slashNormalized.startsWith("/") ? slashNormalized : `/${slashNormalized}`;
+}
+
+export function getStoredFileByteLength(value: unknown): number | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const contents = (value as { contents?: unknown }).contents;
+  if (!contents || typeof contents !== "object") {
+    return null;
+  }
+
+  const rawByteLength =
+    typeof (contents as { byteLength?: unknown }).byteLength === "number"
+      ? Number((contents as { byteLength: number }).byteLength)
+      : typeof (contents as { length?: unknown }).length === "number"
+        ? Number((contents as { length: number }).length)
+        : null;
+
+  if (rawByteLength === null || !Number.isFinite(rawByteLength) || rawByteLength < 0) {
+    return null;
+  }
+
+  return Math.trunc(rawByteLength);
+}
+
+export function isRecoverableCheckpointLevelZeroByteLength(
+  byteLength: number | null | undefined,
+): boolean {
+  return (
+    typeof byteLength === "number" &&
+    Number.isFinite(byteLength) &&
+    byteLength >= MIN_RECOVERABLE_CHECKPOINT_LEVEL_ZERO_BYTES
+  );
 }
 
 export function getRuntimeSaveCompatTag(

@@ -10,7 +10,11 @@ import {
   hasRuntimeCheckpointRecoveryPrimitiveExport,
   supportsRuntimeCheckpointRecovery,
 } from "./runtime-capabilities";
-import { getRuntimeSaveDbName, getRuntimeSaveMountDir } from "./save-storage";
+import {
+  getRuntimeSaveDbName,
+  getRuntimeSaveMountDir,
+  isRecoverableCheckpointLevelZeroByteLength,
+} from "./save-storage";
 import { STATUS_FIELD_MAP_367, STATUS_FIELD_MAP_37 } from "./status-map";
 
 const process =
@@ -1246,7 +1250,144 @@ class LocalNetHackRuntime {
     ];
   }
 
-  prepareRecoverableSaveArtifactsBeforeAutosaveResume(mod, saveDir) {
+  getCheckpointLevelZeroArtifactSizeBytes(mod, saveDir, lockBaseName) {
+    if (!mod?.FS || !saveDir || !lockBaseName) {
+      return null;
+    }
+
+    const checkpointLevelZeroPath = `${saveDir}/${lockBaseName}.0`;
+    try {
+      if (!mod.FS.analyzePath(checkpointLevelZeroPath)?.exists) {
+        return null;
+      }
+      if (typeof mod.FS.stat !== "function") {
+        return null;
+      }
+      const statResult = mod.FS.stat(checkpointLevelZeroPath);
+      if (
+        !statResult ||
+        typeof statResult.size !== "number" ||
+        !Number.isFinite(statResult.size)
+      ) {
+        return null;
+      }
+      return Math.trunc(statResult.size);
+    } catch {
+      return null;
+    }
+  }
+
+  logAutosaveCheckpointArtifactsBeforeStartup() {
+    if (!this.isAutosaveResumeRequested()) {
+      return;
+    }
+
+    const mod = this.nethackModule;
+    if (!mod?.FS || typeof mod.FS.readdir !== "function") {
+      return;
+    }
+
+    const cwd =
+      typeof mod.FS.cwd === "function"
+        ? String(mod.FS.cwd() || "/")
+        : "/";
+    const saveDir = getRuntimeSaveMountDir(this.runtimeVersion, cwd);
+    const lockBaseNames = this.getStartupCheckpointLockBaseNameCandidates();
+    if (lockBaseNames.length <= 0) {
+      return;
+    }
+
+    try {
+      const entries = mod.FS.readdir(saveDir);
+      for (const lockBaseName of lockBaseNames) {
+        const escapedLockBaseName = lockBaseName.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          "\\$&",
+        );
+        const shardPattern = new RegExp(`^${escapedLockBaseName}\\.\\d+$`);
+        const shardDiagnostics = entries
+          .filter((entry) => shardPattern.test(String(entry)))
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+          .map((entry) => {
+            const artifactPath = `${saveDir}/${entry}`;
+            let byteLength = null;
+            try {
+              if (typeof mod.FS.stat === "function") {
+                const statResult = mod.FS.stat(artifactPath);
+                if (
+                  statResult &&
+                  typeof statResult.size === "number" &&
+                  Number.isFinite(statResult.size)
+                ) {
+                  byteLength = Math.trunc(statResult.size);
+                }
+              }
+            } catch {
+              byteLength = null;
+            }
+            return {
+              path: artifactPath,
+              byteLength,
+            };
+          });
+        if (shardDiagnostics.length > 0) {
+          console.log("Autosave checkpoint artifacts before startup", shardDiagnostics);
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to inspect autosave checkpoint artifacts before startup:", error);
+    }
+  }
+
+  ensureAutosaveResumeHasRecoverableCheckpoint() {
+    if (!this.isAutosaveResumeRequested()) {
+      return;
+    }
+
+    const mod = this.nethackModule;
+    if (!mod?.FS) {
+      return;
+    }
+
+    const cwd =
+      typeof mod.FS.cwd === "function"
+        ? String(mod.FS.cwd() || "/")
+        : "/";
+    const saveDir = getRuntimeSaveMountDir(this.runtimeVersion, cwd);
+    const lockBaseNames = this.getStartupCheckpointLockBaseNameCandidates();
+    if (lockBaseNames.length <= 0) {
+      return;
+    }
+
+    const invalidCheckpointPaths = [];
+    for (const lockBaseName of lockBaseNames) {
+      const byteLength = this.getCheckpointLevelZeroArtifactSizeBytes(
+        mod,
+        saveDir,
+        lockBaseName,
+      );
+      if (isRecoverableCheckpointLevelZeroByteLength(byteLength)) {
+        return;
+      }
+      if (byteLength !== null) {
+        invalidCheckpointPaths.push(`${saveDir}/${lockBaseName}.0 (${byteLength} bytes)`);
+      }
+    }
+
+    const playerName =
+      this.normalizeCharacterNameValue(this.startupOptions?.characterCreation?.name) ||
+      "selected autosave";
+    if (invalidCheckpointPaths.length > 0) {
+      throw new Error(
+        `Autosave "${playerName}" has only lock-file checkpoint data (${invalidCheckpointPaths.join(", ")}). NetHack has not written a recoverable checkpoint yet.`,
+      );
+    }
+    throw new Error(
+      `Autosave "${playerName}" does not have a recoverable checkpoint file yet.`,
+    );
+  }
+
+  removeStaleRecoverableSaveArtifactsBeforeAutosaveResume(mod, saveDir) {
     if (!mod?.FS || !this.isAutosaveResumeRequested()) {
       return 0;
     }
@@ -1271,27 +1412,34 @@ class LocalNetHackRuntime {
           continue;
         }
 
+        let artifactSize = null;
         try {
-          if (typeof mod.FS.chmod === "function") {
-            mod.FS.chmod(artifactPath, 0o600);
-            preparedCount += 1;
-            console.log(
-              `Prepared recoverable save artifact for autosave resume: ${artifactPath}`,
-            );
-            continue;
+          if (typeof mod.FS.stat === "function") {
+            const statResult = mod.FS.stat(artifactPath);
+            if (
+              statResult &&
+              typeof statResult.size === "number" &&
+              Number.isFinite(statResult.size)
+            ) {
+              artifactSize = Math.trunc(statResult.size);
+            }
           }
         } catch (error) {
-          console.warn(
-            `Failed to chmod recoverable save artifact ${artifactPath} before autosave resume:`,
-            error,
-          );
+          console.warn(`Failed to stat recoverable save artifact ${artifactPath}:`, error);
         }
 
         try {
+          // NetHack's SELF_RECOVER path treats a too-short "<lock>.0" as a
+          // potentially interrupted prior recover attempt. If a stale regular
+          // save file still exists, recover_savefile() returns success and
+          // restore_saved_game() will try to load that artifact instead of
+          // rebuilding it from the checkpoint shards.
           mod.FS.unlink(artifactPath);
           preparedCount += 1;
           console.log(
-            `Removed stale recoverable save artifact for autosave resume: ${artifactPath}`,
+            `Removed stale recoverable save artifact for autosave resume: ${artifactPath}${
+              artifactSize !== null ? ` (${artifactSize} bytes)` : ""
+            }`,
           );
         } catch (error) {
           console.warn(
@@ -4799,7 +4947,10 @@ class LocalNetHackRuntime {
       ) ||
         normalized.includes(
           "there are files from a game in progress under your name",
-        )) &&
+        ) ||
+        // NetHack 3.7's SELF_RECOVER prompt is shorter:
+        // "Old game in progress. Destroy [y], Recover [r], or Cancel [n]?"
+        normalized.includes("old game in progress")) &&
       normalized.includes("recover")
     );
   }
@@ -4946,6 +5097,9 @@ class LocalNetHackRuntime {
     if (!this.isAutosaveResumeRequested()) {
       return;
     }
+
+    this.logAutosaveCheckpointArtifactsBeforeStartup();
+    this.ensureAutosaveResumeHasRecoverableCheckpoint();
 
     if (this.runtimeVersion === "3.7") {
       // NetHack 3.7's SELF_RECOVER path is wired through getlock().
@@ -7241,6 +7395,8 @@ class LocalNetHackRuntime {
 
               let checkpointSyncInFlight = false;
               let checkpointSyncQueued = false;
+              let checkpointSyncTimer = 0;
+              const checkpointSyncDebounceMs = 150;
               const flushCheckpointSync = () => {
                 if (checkpointSyncInFlight) {
                   checkpointSyncQueued = true;
@@ -7258,6 +7414,15 @@ class LocalNetHackRuntime {
                   }
                 });
               };
+              const scheduleCheckpointSync = () => {
+                if (checkpointSyncTimer) {
+                  clearTimeout(checkpointSyncTimer);
+                }
+                checkpointSyncTimer = globalThis.setTimeout(() => {
+                  checkpointSyncTimer = 0;
+                  flushCheckpointSync();
+                }, checkpointSyncDebounceMs);
+              };
 
               const originalClose = mod.FS.close;
               if (typeof originalClose === "function") {
@@ -7271,7 +7436,7 @@ class LocalNetHackRuntime {
                     /\/[^/]+\.\d+$/.test(streamPath);
                   const result = originalClose.call(this, stream, ...args);
                   if (shouldSyncCheckpoint) {
-                    flushCheckpointSync();
+                    scheduleCheckpointSync();
                   }
                   return result;
                 };
@@ -7321,15 +7486,15 @@ class LocalNetHackRuntime {
                       mod,
                       saveDir,
                     );
-                  const preparedRecoverableSaveArtifactCount =
-                    this.prepareRecoverableSaveArtifactsBeforeAutosaveResume(
+                  const removedRecoverableSaveArtifactCount =
+                    this.removeStaleRecoverableSaveArtifactsBeforeAutosaveResume(
                       mod,
                       saveDir,
                     );
                   if (
                     removedCheckpointShardCount +
                       removedTemporaryLockShardCount +
-                      preparedRecoverableSaveArtifactCount >
+                      removedRecoverableSaveArtifactCount >
                     0
                   ) {
                     mod.FS.syncfs(false, (syncErr) => {

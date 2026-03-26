@@ -56,7 +56,11 @@ import {
   type StartupInitOptionValues,
 } from "../runtime/startup-init-options";
 import { supportsRuntimeCheckpointRecovery } from "../runtime/runtime-capabilities";
-import { getRuntimeSaveDbNames } from "../runtime/save-storage";
+import {
+  getRuntimeSaveDbNames,
+  getStoredFileByteLength,
+  isRecoverableCheckpointLevelZeroByteLength,
+} from "../runtime/save-storage";
 import { GLYPH_CATALOG as GLYPH_CATALOG_367 } from "../game/glyphs/glyph-catalog.367.generated";
 import {
   findNh3dTilesetByPath,
@@ -4355,6 +4359,11 @@ async function fetchSavedGames(
         const normalizedFilename = filename.toLowerCase();
 
         const isCheckpointShard = isCheckpointShardFilename(filename);
+        const isCheckpointLevelZero = /\.0$/i.test(normalizedFilename);
+        const fileByteLength = getStoredFileByteLength(value);
+        const isRecoverableCheckpointLevelZero =
+          isCheckpointLevelZero &&
+          isRecoverableCheckpointLevelZeroByteLength(fileByteLength);
         const isTemporaryLockCheckpointShard = /^[a-z]lock\.\d+$/i.test(
           normalizedFilename,
         );
@@ -4418,7 +4427,10 @@ async function fetchSavedGames(
               filename,
               timestamp,
             });
-            if (!isCheckpointShard || checkpointRecoverySupported) {
+            if (
+              !isCheckpointShard ||
+              (checkpointRecoverySupported && isRecoverableCheckpointLevelZero)
+            ) {
               existing.isResumable = true;
             }
             if (existing.timestamp < timestamp) {
@@ -4434,7 +4446,11 @@ async function fetchSavedGames(
             displayName,
             displayPlayMode,
             category,
-            isResumable: !isCheckpointShard || checkpointRecoverySupported,
+            // A lone "<lock>.0" file at 4 bytes is just NetHack's pid lock,
+            // not a recoverable checkpoint autosave.
+            isResumable:
+              !isCheckpointShard ||
+              (checkpointRecoverySupported && isRecoverableCheckpointLevelZero),
             timestamp,
             dateFormatted: timestamp.toLocaleString(),
             files: [
