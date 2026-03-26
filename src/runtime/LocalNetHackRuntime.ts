@@ -94,6 +94,7 @@ class LocalNetHackRuntime {
     this.contextualGlanceAutoCancelPositionWindowMs = 450;
     this.runtime37TileContextAutoPickFirstUntilMs = 0;
     this.runtime37TileContextAutoPickFirstWindowMs = 2000;
+    this.pendingPostActionPlayerTileRefreshReason = null;
     this.pendingInventoryContextSelection = null;
     this.pendingTextRequest = null;
     this.deferredTileRefreshKeys = new Set();
@@ -2046,6 +2047,9 @@ class LocalNetHackRuntime {
       );
 
       if (this.awaitingQuestionInput) {
+        this.armPendingPostActionPlayerTileRefreshForQuestion(
+          this.currentMenuQuestionText,
+        );
         const wakeInput = this.getMenuSelectionWakeInput(selectedMenuItem);
         this.enqueueInputKeys([wakeInput], source, ["event"]);
       }
@@ -2115,6 +2119,9 @@ class LocalNetHackRuntime {
           console.log(
             `Recorded single menu selection: ${normalizedInput} (${menuItem.text})`,
           );
+          this.armPendingPostActionPlayerTileRefreshForQuestion(
+            this.currentMenuQuestionText,
+          );
           if (this.isLookAtMapMenuSelection(menuItem)) {
             this.enqueueInputKeys([";"], source, ["event"]);
             return;
@@ -2174,6 +2181,9 @@ class LocalNetHackRuntime {
         (item) => `${item.menuChar}:${item.text}`,
       );
       console.log("Confirming multi-pickup with selections:", selectedItems);
+      this.armPendingPostActionPlayerTileRefreshForQuestion(
+        this.currentMenuQuestionText,
+      );
       this.lastMenuInteractionCancelled = false;
       this.resolveMenuSelection(this.menuSelections.size);
       if (this.inputBroker.hasPendingRequests("event")) {
@@ -2430,6 +2440,140 @@ class LocalNetHackRuntime {
 
     const selectableItems = menuItems.filter((item) => item && !item.isCategory);
     return selectableItems.length > 0;
+  }
+
+  getPostActionPlayerTileRefreshReasonForMenuItem(menuItem) {
+    if (!menuItem || typeof menuItem !== "object") {
+      return null;
+    }
+    const normalizedText =
+      typeof menuItem.text === "string"
+        ? menuItem.text.trim().toLowerCase()
+        : "";
+    if (!normalizedText) {
+      return null;
+    }
+    if (normalizedText.startsWith("pick up")) {
+      return "pickup-auto-menu";
+    }
+    if (
+      normalizedText.startsWith("drop ") ||
+      normalizedText === "drop items"
+    ) {
+      return "drop-auto-menu";
+    }
+    if (normalizedText.startsWith("eat ")) {
+      return "eat-auto-menu";
+    }
+    return null;
+  }
+
+  getPostActionPlayerTileRefreshReasonForQuestion(question) {
+    const normalizedQuestion = this.normalizeQuestionText(question);
+    if (!normalizedQuestion) {
+      return null;
+    }
+    if (
+      normalizedQuestion.includes("pick up what") ||
+      normalizedQuestion.includes("what do you want to pick up") ||
+      normalizedQuestion.includes("what would you like to pick up")
+    ) {
+      return "pickup-question";
+    }
+    if (
+      normalizedQuestion.includes("drop what") ||
+      normalizedQuestion.includes("what do you want to drop") ||
+      normalizedQuestion.includes("what would you like to drop") ||
+      normalizedQuestion.includes("drop what type of items")
+    ) {
+      return "drop-question";
+    }
+    if (
+      normalizedQuestion.includes("eat what") ||
+      normalizedQuestion.includes("what do you want to eat") ||
+      normalizedQuestion.includes("what would you like to eat")
+    ) {
+      return "eat-question";
+    }
+    return null;
+  }
+
+  armPendingPostActionPlayerTileRefresh(menuItem) {
+    const refreshReason =
+      this.getPostActionPlayerTileRefreshReasonForMenuItem(menuItem);
+    if (!refreshReason) {
+      return;
+    }
+    this.pendingPostActionPlayerTileRefreshReason = refreshReason;
+    console.log(
+      `Armed post-action player tile refresh (${refreshReason}) for auto-selected menu item "${menuItem.text}"`,
+    );
+  }
+
+  armPendingPostActionPlayerTileRefreshForQuestion(question) {
+    const refreshReason =
+      this.getPostActionPlayerTileRefreshReasonForQuestion(question);
+    if (!refreshReason) {
+      return;
+    }
+    this.pendingPostActionPlayerTileRefreshReason = refreshReason;
+    console.log(
+      `Armed post-action player tile refresh (${refreshReason}) for question "${question}"`,
+    );
+  }
+
+  isAutopickupInventoryAssignmentRawPrint(text) {
+    if (typeof text !== "string") {
+      return false;
+    }
+    const normalizedText = text.trim();
+    if (normalizedText.length < 5) {
+      return false;
+    }
+    return /^[^\s] - \S/.test(normalizedText);
+  }
+
+  armPendingPostActionPlayerTileRefreshForAutopickupRawPrint(text) {
+    if (!this.isAutopickupInventoryAssignmentRawPrint(text)) {
+      return;
+    }
+    const refreshReason = "autopickup-raw-print";
+    this.pendingPostActionPlayerTileRefreshReason = refreshReason;
+    console.log(
+      `Armed post-action player tile refresh (${refreshReason}) for raw_print "${text}"`,
+    );
+  }
+
+  maybeRefreshPendingPostActionPlayerTile(trigger = "unknown") {
+    const pendingReason =
+      typeof this.pendingPostActionPlayerTileRefreshReason === "string" &&
+      this.pendingPostActionPlayerTileRefreshReason.trim().length > 0
+        ? this.pendingPostActionPlayerTileRefreshReason.trim()
+        : "";
+    if (!pendingReason) {
+      return false;
+    }
+
+    const tileX = Number(this.playerPosition?.x);
+    const tileY = Number(this.playerPosition?.y);
+    if (!Number.isFinite(tileX) || !Number.isFinite(tileY)) {
+      this.pendingPostActionPlayerTileRefreshReason = null;
+      return false;
+    }
+
+    if (!this.canQueryWasmHelpers()) {
+      this.deferTileRefreshRequest(tileX, tileY);
+      console.log(
+        `Deferring post-action player tile refresh (${pendingReason}) until helpers are queryable [trigger=${trigger}]`,
+      );
+      return false;
+    }
+
+    console.log(
+      `Refreshing player tile after pending action (${pendingReason}) [trigger=${trigger}] at (${tileX}, ${tileY})`,
+    );
+    this.handleTileUpdateRequest(tileX, tileY);
+    return true;
   }
 
   isLikelyNameInputForDebug(input) {
@@ -3442,11 +3586,15 @@ class LocalNetHackRuntime {
         ? helpers.glyphAtHelper
         : null;
     const topItemGlyphUnderPlayer =
-      helpers && typeof helpers.topItemGlyphUnderPlayer === "function"
+      canQueryWasmHelpers &&
+      helpers &&
+      typeof helpers.topItemGlyphUnderPlayer === "function"
         ? helpers.topItemGlyphUnderPlayer
         : null;
     const topItemTileIndexUnderPlayer =
-      helpers && typeof helpers.topItemTileIndexUnderPlayer === "function"
+      canQueryWasmHelpers &&
+      helpers &&
+      typeof helpers.topItemTileIndexUnderPlayer === "function"
         ? helpers.topItemTileIndexUnderPlayer
         : null;
     const mapHelper = helpers
@@ -5737,6 +5885,7 @@ class LocalNetHackRuntime {
     console.log(
       `Auto-selected menu item via ${reason}: ${selectionEntry.menuChar} (${selectionEntry.text})`,
     );
+    this.armPendingPostActionPlayerTileRefresh(menuItem);
     return true;
   }
 
@@ -7794,6 +7943,9 @@ class LocalNetHackRuntime {
   handleShimNhPoskey(args) {
     const [xPtr, yPtr, modPtr] = args;
     console.log("NetHack requesting position key");
+    if (this.maybeRefreshPendingPostActionPlayerTile("nh_poskey")) {
+      this.pendingPostActionPlayerTileRefreshReason = null;
+    }
     if (this.contextualGlanceAutoCancelPositionUntilMs > 0) {
       const nowMs = Date.now();
       if (nowMs <= this.contextualGlanceAutoCancelPositionUntilMs) {
@@ -8781,6 +8933,9 @@ class LocalNetHackRuntime {
         }
         if (normalizedRawText) {
           this.rememberPromptContextMessage(normalizedRawText, "raw_print");
+          this.armPendingPostActionPlayerTileRefreshForAutopickupRawPrint(
+            normalizedRawText,
+          );
         }
         if (
           normalizedRawText &&
@@ -8860,6 +9015,9 @@ class LocalNetHackRuntime {
         console.log("NetHack update inventory callback received");
         // This callback is usually triggered after inventory changes.
         // We can use it to signal the UI to refresh its inventory display if needed.
+        if (this.maybeRefreshPendingPostActionPlayerTile("inventory_update")) {
+          this.pendingPostActionPlayerTileRefreshReason = null;
+        }
         if (this.eventHandler) {
           this.emit({
             type: "inventory_updated_signal",
