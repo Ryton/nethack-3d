@@ -1577,7 +1577,7 @@ function resolvePreviewAtlasTileIdForRuntime(
   }
 }
 
-type StartupFlowStep = "choose" | "create" | "random" | "resume";
+type StartupFlowStep = "variant" | "choose" | "create" | "random" | "resume";
 const startupDefaultCharacterName = "Web_user";
 
 function createDefaultStartupCharacterPreferences(): StartupCharacterPreferences {
@@ -4599,7 +4599,7 @@ export default function App(): JSX.Element {
   const [characterCreationConfig, setCharacterCreationConfig] =
     useState<CharacterCreationConfig | null>(null);
   const [startupFlowStep, setStartupFlowStep] =
-    useState<StartupFlowStep>("choose");
+    useState<StartupFlowStep>("variant");
   const [runtimeVersion, setRuntimeVersion] =
     useState<NethackRuntimeVersion>("3.6.7");
   const [createRole, setCreateRole] = useState(
@@ -7335,6 +7335,10 @@ export default function App(): JSX.Element {
     : "";
   const startupUpdateDialogOpen =
     startupMenuVisible && isStartupUpdateDialogVisible;
+  const startupVariantDialogVisible =
+    startupMenuVisible &&
+    startupFlowStep === "variant" &&
+    !startupUpdateDialogOpen;
   const startupChooseDialogVisible =
     startupMenuVisible &&
     startupFlowStep === "choose" &&
@@ -8763,7 +8767,7 @@ export default function App(): JSX.Element {
     setCharacterSheetInterceptionArmed(false);
     characterSheetAwaitingInfoRef.current = false;
     setCharacterCreationConfig(null);
-    setStartupFlowStep("choose");
+    setStartupFlowStep("variant");
   };
 
   const dismissNewGamePromptUntilInteraction = (): void => {
@@ -12259,7 +12263,9 @@ export default function App(): JSX.Element {
           closeControllerRemapDialog();
         } else if (isClientOptionsVisible) {
           requestCloseClientOptionsDialog();
-        } else if (startupFlowStep !== "choose") {
+        } else if (startupFlowStep === "choose") {
+          setStartupFlowStep("variant");
+        } else if (startupFlowStep !== "variant") {
           setStartupFlowStep("choose");
         }
       }
@@ -12674,6 +12680,64 @@ export default function App(): JSX.Element {
       <AnimatedDialog
         className="nh3d-dialog nh3d-dialog-question nh3d-dialog-fixed-actions startup nh3d-character-setup-dialog"
         disableAnimations={startupInitialLoadingVisible}
+        open={startupVariantDialogVisible}
+        id="character-setup-dialog-variant"
+        onBlurCapture={handleStartupMainMenuBlurCapture}
+        onChangeCapture={handleStartupMainMenuChangeCapture}
+        onKeyDown={handleStartupMainMenuKeyDown}
+        onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
+      >
+        <div className="nh3d-question-text">Choose your NetHack Variant:</div>
+        <div className="nh3d-overflow-glow-frame">
+          <div
+            className="nh3d-choice-list nh3d-choice-list-startup-choose"
+            data-nh3d-overflow-glow
+            data-nh3d-overflow-glow-host="parent"
+          >
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                setRuntimeVersion("3.7");
+                setStartupFlowStep("choose");
+              }}
+              type="button"
+            >
+              NetHack 3.7
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                setRuntimeVersion("3.6.7");
+                setStartupFlowStep("choose");
+              }}
+              type="button"
+            >
+              NetHack 3.6.7
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={openClientOptionsDialog}
+              style={{ marginTop: "14px" }}
+              type="button"
+            >
+              NetHack 3D Options
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                void requestGameQuit();
+              }}
+              type="button"
+            >
+              Quit Game
+            </button>
+          </div>
+        </div>
+      </AnimatedDialog>
+
+      <AnimatedDialog
+        className="nh3d-dialog nh3d-dialog-question nh3d-dialog-fixed-actions startup nh3d-character-setup-dialog"
+        disableAnimations={startupInitialLoadingVisible}
         open={startupChooseDialogVisible}
         id="character-setup-dialog-choose"
         onBlurCapture={handleStartupMainMenuBlurCapture}
@@ -12688,23 +12752,6 @@ export default function App(): JSX.Element {
             data-nh3d-overflow-glow
             data-nh3d-overflow-glow-host="parent"
           >
-            <div className="nh3d-startup-config-grid centered">
-              <label className="nh3d-startup-config-field">
-                <span>NetHack Version</span>
-                <select
-                  className="nh3d-startup-config-select"
-                  onChange={(event) =>
-                    setRuntimeVersion(
-                      event.target.value as NethackRuntimeVersion,
-                    )
-                  }
-                  value={runtimeVersion}
-                >
-                  <option value="3.6.7">3.6.x (3.6.7)</option>
-                  {import.meta.env.DEV && <option value="3.7">3.7</option>}
-                </select>
-              </label>
-            </div>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => setStartupFlowStep("random")}
@@ -12728,19 +12775,10 @@ export default function App(): JSX.Element {
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
-              onClick={openClientOptionsDialog}
+              onClick={() => setStartupFlowStep("variant")}
               type="button"
             >
-              NetHack 3D Options
-            </button>
-            <button
-              className="nh3d-choice-button nh3d-character-setup-choice-button"
-              onClick={() => {
-                void requestGameQuit();
-              }}
-              type="button"
-            >
-              Quit Game
+              Back
             </button>
           </div>
         </div>
