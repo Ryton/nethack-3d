@@ -443,13 +443,17 @@ function normalizeMessageLogText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function normalizeMessageLogSearchText(value: string): string {
+  return normalizeMessageLogText(value).toLowerCase();
+}
+
 function doesMessageLogKeywordMatch(
   keyword: Nh3dMessageLogKeyword,
   message: string,
   normalizedLowerMessage: string,
 ): boolean {
   if (typeof keyword === "string") {
-    const normalizedKeyword = normalizeMessageLogText(keyword).toLowerCase();
+    const normalizedKeyword = normalizeMessageLogSearchText(keyword);
     if (!normalizedKeyword) {
       return false;
     }
@@ -474,7 +478,7 @@ export function resolveNh3dMessageLogSoundEffectKeys(
     return [];
   }
 
-  const normalizedLowerMessage = normalizedMessage.toLowerCase();
+  const normalizedLowerMessage = normalizeMessageLogSearchText(normalizedMessage);
   const matchedKeys: Nh3dSoundEffectKey[] = [];
   for (const definition of nh3dSoundEffectDefinitions) {
     const keywords =
