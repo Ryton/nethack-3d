@@ -12687,7 +12687,7 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
-        <div className="nh3d-question-text">Choose your NetHack Variant:</div>
+        <div className="nh3d-question-text">Choose your NetHack variant:</div>
         <div className="nh3d-overflow-glow-frame">
           <div
             className="nh3d-choice-list nh3d-choice-list-startup-choose"
@@ -14242,8 +14242,7 @@ export default function App(): JSX.Element {
                       <option value="3.7">NetHack 3.7 layout</option>
                     </select>
                     <div className="nh3d-option-description">
-                      Choose the tile index layout used by this uploaded
-                      atlas.
+                      Choose the tile index layout used by this uploaded atlas.
                     </div>
                   </div>
                 ) : null}
