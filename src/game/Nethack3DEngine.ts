@@ -1149,6 +1149,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     Promise<HTMLImageElement | null>
   >();
   private readonly menuTilePreviewDataUrlCache = new Map<string, string>();
+  private boulderGlyphLookupVersion: NethackRuntimeVersion | null = null;
+  private boulderGlyphLookup: Set<number> = new Set();
   private menuTilePreviewCanvas: HTMLCanvasElement | null = null;
   private runtimeLoadingVisible = true;
   private tilesetCompilationLoadingVisible = false;
@@ -8233,31 +8235,69 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
-  private isBoulderTileIndex(tileIndex: number): boolean {
-    return (
-      tileIndex === 844 ||
-      tileIndex === 845 ||
-      tileIndex === 869 ||
-      tileIndex === 871
-    );
+  private rebuildBoulderGlyphLookupIfNeeded(): void {
+    const runtimeVersion = this.resolveRuntimeVersion();
+    if (this.boulderGlyphLookupVersion === runtimeVersion) {
+      return;
+    }
+    const lookup = new Set<number>();
+    const backtickObjGlyphs: number[] = [];
+    const ranges = getGlyphCatalogRanges();
+    for (const range of ranges) {
+      if (range.kind !== "obj") {
+        continue;
+      }
+      for (let glyph = range.start; glyph < range.endExclusive; glyph += 1) {
+        const entry = getGlyphCatalogEntry(glyph);
+        if (!entry || entry.kind !== "obj") {
+          continue;
+        }
+        if (
+          typeof entry.symidx === "number" &&
+          Number.isFinite(entry.symidx) &&
+          Math.trunc(entry.symidx) === 192
+        ) {
+          lookup.add(glyph);
+          continue;
+        }
+        const catalogCharCode =
+          typeof entry.ttychar === "number" && Number.isFinite(entry.ttychar)
+            ? Math.trunc(entry.ttychar)
+            : typeof entry.ch === "number" && Number.isFinite(entry.ch)
+              ? Math.trunc(entry.ch)
+              : null;
+        if (catalogCharCode === 96) {
+          backtickObjGlyphs.push(glyph);
+        }
+      }
+    }
+    if (lookup.size === 0 && backtickObjGlyphs.length > 0) {
+      // 3.6.7 catalogs don't expose obj symidx; boulder is the first rock-class obj glyph.
+      lookup.add(Math.min(...backtickObjGlyphs));
+    }
+    this.boulderGlyphLookup = lookup;
+    this.boulderGlyphLookupVersion = runtimeVersion;
+  }
+
+  private isBoulderGlyphByCatalog(glyph: number): boolean {
+    if (!Number.isFinite(glyph)) {
+      return false;
+    }
+    this.rebuildBoulderGlyphLookupIfNeeded();
+    return this.boulderGlyphLookup.has(Math.trunc(glyph));
   }
 
   private isBoulderLikeBehavior(behavior: TileBehaviorResult): boolean {
     if (behavior.effective.kind !== "obj") {
       return false;
     }
-    const tileIndex = behavior.effective.tileIndex;
-    if (this.isBoulderTileIndex(tileIndex)) {
+    if (
+      this.isBoulderGlyphByCatalog(behavior.effective.glyph) ||
+      this.isBoulderGlyphByCatalog(behavior.resolved.glyph)
+    ) {
       return true;
     }
-    const chars = [
-      behavior.glyphChar,
-      behavior.effective.char,
-      behavior.resolved.char,
-    ];
-    return chars.some(
-      (value) => typeof value === "string" && value.trim() === "`",
-    );
+    return false;
   }
 
   private captureAutopickupStateFromMessage(messageLike: unknown): void {
@@ -20197,26 +20237,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
           )
         : null;
 
-    const isBoulderTileIndex = this.isBoulderTileIndex(tileIndex);
-    const isBoulder =
+    const shouldForceBoulderScale =
       entityType === "loot" &&
-      (isBoulderTileIndex || String(glyphChar || "").trim() === "`");
-
-    const overrideSize = (normalScale: number, fpsScale: number) => {
-      return this.isFpsMode() ? fpsScale : normalScale;
-    };
+      normalizedSourceGlyph !== null &&
+      this.isBoulderGlyphByCatalog(normalizedSourceGlyph);
 
     // Determine sprite scale based on mode
     let scaleBase = this.isFpsMode()
       ? entityType === "loot"
         ? 0.5
         : 0.75
-      : entityType === "loot"
-        ? 1
-        : 1;
-
-    if (isBoulder) {
-      scaleBase = overrideSize(1, 1);
+      : 1;
+    if (shouldForceBoulderScale) {
+      scaleBase = 1;
     }
     let scaleX = scaleBase;
     let scaleY = scaleBase;
@@ -20489,12 +20522,36 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!isInferredDarkCorridorWall) {
       const shouldCacheFlatUnderPlayer =
         this.shouldRenderFlatFeatureUnderPlayer(behavior);
-      const shouldPreserveExistingUnderPlayerFeatureCache =
-        isCurrentKnownPlayerTile &&
-        this.flatFeatureUnderPlayerCache.has(key) &&
-        this.shouldShowUnderPlayerFeaturesInOverheadTilesMode();
       const previousFlatFeatureSnapshot =
         this.flatFeatureUnderPlayerCache.get(key) ?? null;
+      const previousFlatFeatureBehavior =
+        previousFlatFeatureSnapshot !== null
+          ? classifyTileBehavior({
+              glyph: previousFlatFeatureSnapshot.glyph,
+              runtimeChar: previousFlatFeatureSnapshot.char ?? null,
+              runtimeColor:
+                typeof previousFlatFeatureSnapshot.color === "number"
+                  ? previousFlatFeatureSnapshot.color
+                  : null,
+              runtimeTileIndex:
+                typeof previousFlatFeatureSnapshot.tileIndex === "number"
+                  ? previousFlatFeatureSnapshot.tileIndex
+                  : null,
+              runtimeSymidx:
+                typeof previousFlatFeatureSnapshot.symidx === "number"
+                  ? previousFlatFeatureSnapshot.symidx
+                  : null,
+              priorTerrain: this.lastKnownTerrain.get(key) ?? null,
+            })
+          : null;
+      const shouldPreserveExistingUnderPlayerFeatureCache =
+        isCurrentKnownPlayerTile &&
+        this.shouldShowUnderPlayerFeaturesInOverheadTilesMode() &&
+        previousFlatFeatureBehavior !== null &&
+        (this.shouldRenderFlatFeatureUnderPlayer(previousFlatFeatureBehavior) ||
+          this.shouldUseRaisedSpecialTileBillboardInTiles(
+            previousFlatFeatureBehavior,
+          ));
       const resolvedTerrainSymidx =
         runtimeSymidxForTileBehavior !== null
           ? runtimeSymidxForTileBehavior
