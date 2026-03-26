@@ -196,6 +196,8 @@ for (
   }
 }
 
+export const nh37TilesPerRow = NH_TILES_PER_ROW;
+export const nh37OutputRows = NH37_OUTPUT_ROWS;
 export const nh37ExpectedTileCount =
   NH_TILES_PER_ROW * NH37_OUTPUT_ROWS;
 
@@ -232,6 +234,21 @@ export function translateNh37TileIndexToNh367(
   return mappedTileIndex < 0
     ? Math.abs(mappedTileIndex)
     : Math.trunc(mappedTileIndex);
+}
+
+export function translateNh37TileIndexToNh367PreservingAliases(
+  tileIndex: number,
+): number {
+  const normalizedTileIndex = Math.trunc(tileIndex);
+  if (!Number.isFinite(normalizedTileIndex) || normalizedTileIndex < 0) {
+    return normalizedTileIndex;
+  }
+  const mappedTileIndex =
+    NH367_TILE_INDEX_BY_NH37_TILE_INDEX[normalizedTileIndex];
+  if (!Number.isFinite(mappedTileIndex)) {
+    return normalizedTileIndex;
+  }
+  return Math.trunc(mappedTileIndex);
 }
 
 export function translateNh367TileIndexToNh37(

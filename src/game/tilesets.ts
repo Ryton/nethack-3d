@@ -273,6 +273,7 @@ export const nh3dTilesetCatalog: ReadonlyArray<Nh3dTilesetEntry> =
 
 const preferredDefaultTilesetPath = "assets/3.6/Nevanda 3.6.png";
 const preferredDefaultTilesetLabel = "Nevanda";
+const defaultNh37FuseTilesetLabel = "Vanilla NetHack Tiles (3.7)";
 export const defaultNh3dTilesetPath: string =
   builtinTilesets.find((entry) => entry.path === preferredDefaultTilesetPath)
     ?.path ??
@@ -358,21 +359,40 @@ export function resolveNh3dCompatibleTilesetPathForRuntime(
     );
     return firstNh367Tileset?.path ?? defaultNh3dTilesetPath;
   }
-  if (
-    runtimeVersion === "3.7" &&
-    selectedTileset.tileLayoutVersion === "3.6.7"
-  ) {
-    const labelMatchedNh37Tileset = tilesetCatalog.find(
-      (entry) =>
-        entry.tileLayoutVersion === "3.7" &&
-        normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
-          selectedLookupLabel,
-    );
-    if (labelMatchedNh37Tileset) {
-      return labelMatchedNh37Tileset.path;
-    }
-  }
   return selectedTileset.path;
+}
+
+export function resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(
+  path: string | null | undefined,
+): string | null {
+  const selectedTileset = findNh3dTilesetByPath(path);
+  if (!selectedTileset || selectedTileset.tileLayoutVersion !== "3.6.7") {
+    return null;
+  }
+  const selectedLookupLabel = normalizeTilesetPresetLookupLabel(
+    selectedTileset.label,
+  ).toLowerCase();
+  const labelMatchedNh37Tileset = tilesetCatalog.find(
+    (entry) =>
+      entry.tileLayoutVersion === "3.7" &&
+      normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+        selectedLookupLabel,
+  );
+  if (labelMatchedNh37Tileset) {
+    return labelMatchedNh37Tileset.path;
+  }
+  const defaultNh37FuseTileset = tilesetCatalog.find(
+    (entry) =>
+      entry.tileLayoutVersion === "3.7" &&
+      entry.label === defaultNh37FuseTilesetLabel,
+  );
+  if (defaultNh37FuseTileset) {
+    return defaultNh37FuseTileset.path;
+  }
+  const firstNh37Tileset = tilesetCatalog.find(
+    (entry) => entry.tileLayoutVersion === "3.7",
+  );
+  return firstNh37Tileset?.path ?? null;
 }
 
 function normalizeHexColorOrFallback(

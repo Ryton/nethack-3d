@@ -83,13 +83,18 @@ import {
 import {
   findNh3dTilesetByPath,
   inferNh3dTilesetTileSizeFromAtlasWidth,
+  resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime,
   resolveNh3dTilesetAssetUrl,
   type Nh3dTilesetTileLayoutVersion,
 } from "./tilesets";
 import {
+  nh37ExpectedTileCount,
+  nh37OutputRows,
+  nh37TilesPerRow,
   shouldTranslateNh367TilesetForNh37Runtime,
   translateNh367TileIndexToNh37,
   translateNh37TileIndexToNh367,
+  translateNh37TileIndexToNh367PreservingAliases,
 } from "./tileset-367-to-37-translation";
 import { getItemTextClassName } from "./helpers/helpers";
 import { MessageSoundHooks } from "./message-sound-hooks";
@@ -1144,6 +1149,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private runtimeLoadingVisible = true;
   private tilesetCompilationLoadingVisible = false;
   private tilesetTextureLoadRequestId = 0;
+  private loadedTilesetSourceLayoutVersion: Nh3dTilesetTileLayoutVersion =
+    "unknown";
   private loadedTilesetTileLayoutVersion: Nh3dTilesetTileLayoutVersion =
     "unknown";
   private readonly handleVultureTilesetAssetReady = (): void => {
@@ -4454,18 +4461,125 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.ensureVulturePrebakedProjectionManifest(normalizedDataRootUrl);
   }
 
+  private loadTilesetImage(url: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () =>
+        reject(new Error(`Failed to load tileset atlas image: ${url}`));
+      image.src = url;
+    });
+  }
+
+  private createTilesetTextureFromSource(
+    source: HTMLImageElement | HTMLCanvasElement,
+  ): THREE.Texture {
+    const texture =
+      source instanceof HTMLCanvasElement
+        ? new THREE.CanvasTexture(source)
+        : new THREE.Texture(source);
+    this.configureTilesetTextureSampling(texture);
+    return texture;
+  }
+
+  private shouldCompileLegacyTilesetAtlasForNh37Runtime(
+    tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
+    atlasTileCount: number,
+  ): boolean {
+    return shouldTranslateNh367TilesetForNh37Runtime(
+      this.resolveRuntimeVersion(),
+      atlasTileCount,
+      tileLayoutVersion,
+    );
+  }
+
+  private compileLegacyTilesetAtlasToNh37(
+    legacyAtlasImage: HTMLImageElement,
+    tileSize: number,
+    fuseBaseImage: HTMLImageElement | null,
+  ): HTMLCanvasElement {
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = nh37TilesPerRow * tileSize;
+    outputCanvas.height = nh37OutputRows * tileSize;
+    const context = outputCanvas.getContext("2d");
+    if (!context) {
+      throw new Error("Failed to create compiled tileset atlas canvas context");
+    }
+    context.imageSmoothingEnabled = false;
+    context.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+    if (fuseBaseImage) {
+      context.drawImage(
+        fuseBaseImage,
+        0,
+        0,
+        fuseBaseImage.width,
+        fuseBaseImage.height,
+        0,
+        0,
+        outputCanvas.width,
+        outputCanvas.height,
+      );
+    }
+
+    const sourceTilesPerRow = Math.floor(legacyAtlasImage.width / tileSize);
+    const sourceRows = Math.floor(legacyAtlasImage.height / tileSize);
+    const sourceTileCount =
+      sourceTilesPerRow > 0 && sourceRows > 0 ? sourceTilesPerRow * sourceRows : 0;
+    for (let nh37TileIndex = 0; nh37TileIndex < nh37ExpectedTileCount; nh37TileIndex += 1) {
+      const rawMappedTileIndex =
+        translateNh37TileIndexToNh367PreservingAliases(nh37TileIndex);
+      const shouldLeaveFuseBaseTile = rawMappedTileIndex < 0;
+      const sourceTileIndex = shouldLeaveFuseBaseTile
+        ? Math.abs(rawMappedTileIndex)
+        : rawMappedTileIndex;
+      if (
+        !Number.isFinite(sourceTileIndex) ||
+        sourceTileIndex < 0 ||
+        sourceTileIndex >= sourceTileCount
+      ) {
+        continue;
+      }
+      if (shouldLeaveFuseBaseTile && fuseBaseImage) {
+        continue;
+      }
+      const sourceX = (sourceTileIndex % sourceTilesPerRow) * tileSize;
+      const sourceY = Math.floor(sourceTileIndex / sourceTilesPerRow) * tileSize;
+      const destX = (nh37TileIndex % nh37TilesPerRow) * tileSize;
+      const destY = Math.floor(nh37TileIndex / nh37TilesPerRow) * tileSize;
+      context.clearRect(destX, destY, tileSize, tileSize);
+      context.drawImage(
+        legacyAtlasImage,
+        sourceX,
+        sourceY,
+        tileSize,
+        tileSize,
+        destX,
+        destY,
+        tileSize,
+        tileSize,
+      );
+    }
+
+    return outputCanvas;
+  }
+
   private loadTilesetTexture(options: Nh3dClientOptions): void {
     const loadRequestId = ++this.tilesetTextureLoadRequestId;
     const shouldShowCompileLoading = options.tilesetMode === "tiles";
     this.setTilesetCompilationLoadingVisible(shouldShowCompileLoading);
     const tileset = findNh3dTilesetByPath(options.tilesetPath);
-    this.loadedTilesetTileLayoutVersion = tileset?.tileLayoutVersion ?? "unknown";
+    this.loadedTilesetSourceLayoutVersion =
+      tileset?.tileLayoutVersion ?? "unknown";
+    this.loadedTilesetTileLayoutVersion =
+      tileset?.tileLayoutVersion ?? "unknown";
     const tilesetAssetUrl = resolveNh3dTilesetAssetUrl(options.tilesetPath);
     if (!tileset) {
       this.disposeVultureTilesetTranslator();
       this.tilesetTexture?.dispose();
       this.tilesetTexture = null;
       this.tileSourceSize = 32;
+      this.loadedTilesetSourceLayoutVersion = "unknown";
+      this.loadedTilesetTileLayoutVersion = "unknown";
       this.invalidateTilesetDependentCaches();
       if (this.clientOptions.tilesetMode === "tiles") {
         this.refreshTilesFromStateCache();
@@ -4481,6 +4595,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.ensureVultureTilesetTranslator(tilesetAssetUrl || "");
       this.tileSourceSize =
         this.vultureTilesetTranslator?.nominalTileSize ?? 112;
+      this.loadedTilesetSourceLayoutVersion = tileset.tileLayoutVersion;
+      this.loadedTilesetTileLayoutVersion = tileset.tileLayoutVersion;
       this.invalidateTilesetDependentCaches();
       if (this.clientOptions.tilesetMode === "tiles") {
         this.refreshTilesFromStateCache();
@@ -4493,41 +4609,88 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.disposeVultureTilesetTranslator();
     this.syncVultureWallProjectionDebugPanelVisibility();
     this.tileSourceSize = 32;
-    const textureLoader = new THREE.TextureLoader();
-    let nextTexture: THREE.Texture;
-    nextTexture = textureLoader.load(
-      tilesetAssetUrl || tileset.path,
-      () => {
+    const atlasUrl = tilesetAssetUrl || tileset.path;
+    void (async () => {
+      try {
+        const sourceImage = await this.loadTilesetImage(atlasUrl);
         if (loadRequestId !== this.tilesetTextureLoadRequestId) {
           return;
         }
-        const atlasWidth = Math.max(
-          0,
-          Math.trunc(Number(nextTexture.image?.width) || 0),
-        );
-        this.tileSourceSize =
-          inferNh3dTilesetTileSizeFromAtlasWidth(atlasWidth);
-        this.configureTilesetTextureSampling(nextTexture);
+        const atlasWidth = Math.max(0, Math.trunc(sourceImage.width || 0));
+        const tileSize = inferNh3dTilesetTileSizeFromAtlasWidth(atlasWidth);
+        const atlasHeight = Math.max(0, Math.trunc(sourceImage.height || 0));
+        const sourceTilesPerRow = Math.floor(atlasWidth / Math.max(1, tileSize));
+        const sourceRows = Math.floor(atlasHeight / Math.max(1, tileSize));
+        const sourceTileCount =
+          sourceTilesPerRow > 0 && sourceRows > 0
+            ? sourceTilesPerRow * sourceRows
+            : 0;
+        let textureSource: HTMLImageElement | HTMLCanvasElement = sourceImage;
+        let loadedLayoutVersion: Nh3dTilesetTileLayoutVersion =
+          tileset.tileLayoutVersion;
+        let sourceLayoutVersion: Nh3dTilesetTileLayoutVersion =
+          tileset.tileLayoutVersion;
+        if (
+          this.shouldCompileLegacyTilesetAtlasForNh37Runtime(
+            tileset.tileLayoutVersion,
+            sourceTileCount,
+          )
+        ) {
+          const fuseBaseTilesetPath =
+            resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(tileset.path);
+          const fuseBaseTilesetAssetUrl = fuseBaseTilesetPath
+            ? resolveNh3dTilesetAssetUrl(fuseBaseTilesetPath) ??
+              fuseBaseTilesetPath
+            : null;
+          let fuseBaseImage: HTMLImageElement | null = null;
+          if (fuseBaseTilesetAssetUrl) {
+            try {
+              fuseBaseImage = await this.loadTilesetImage(fuseBaseTilesetAssetUrl);
+            } catch (error) {
+              console.warn(
+                `Failed to load fuse base tileset atlas: ${fuseBaseTilesetAssetUrl}`,
+                error,
+              );
+            }
+          }
+          if (loadRequestId !== this.tilesetTextureLoadRequestId) {
+            return;
+          }
+          textureSource = this.compileLegacyTilesetAtlasToNh37(
+            sourceImage,
+            tileSize,
+            fuseBaseImage,
+          );
+          loadedLayoutVersion = "3.7";
+          sourceLayoutVersion =
+            tileset.tileLayoutVersion === "unknown"
+              ? "3.6.7"
+              : tileset.tileLayoutVersion;
+        }
+        if (loadRequestId !== this.tilesetTextureLoadRequestId) {
+          return;
+        }
+        const nextTexture = this.createTilesetTextureFromSource(textureSource);
+        if (this.tilesetTexture && this.tilesetTexture !== nextTexture) {
+          this.tilesetTexture.dispose();
+        }
+        this.tilesetTexture = nextTexture;
+        this.tileSourceSize = tileSize;
+        this.loadedTilesetSourceLayoutVersion = sourceLayoutVersion;
+        this.loadedTilesetTileLayoutVersion = loadedLayoutVersion;
         this.invalidateTilesetDependentCaches();
         if (this.clientOptions.tilesetMode === "tiles") {
           this.refreshTilesFromStateCache();
         }
         this.setTilesetCompilationLoadingVisible(false);
-      },
-      undefined,
-      () => {
+      } catch (error) {
         if (loadRequestId !== this.tilesetTextureLoadRequestId) {
           return;
         }
-        console.warn(`Failed to load tileset atlas: ${tileset.path}`);
+        console.warn(`Failed to load tileset atlas: ${tileset.path}`, error);
         this.setTilesetCompilationLoadingVisible(false);
-      },
-    );
-    this.configureTilesetTextureSampling(nextTexture);
-    if (this.tilesetTexture && this.tilesetTexture !== nextTexture) {
-      this.tilesetTexture.dispose();
-    }
-    this.tilesetTexture = nextTexture;
+      }
+    })();
   }
 
   private isValidMinimapCoordinate(x: number, y: number): boolean {
@@ -11932,7 +12095,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private resolveLoadedAtlasTileCount(): number {
-    const imageCandidate = this.tilesetTexture?.image as
+    const imageCandidate = this.resolveTilesetAtlasImageSource() as
       | { width?: unknown; height?: unknown }
       | undefined;
     if (!imageCandidate || typeof imageCandidate !== "object") {
@@ -11952,6 +12115,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return tilesPerRow > 0 && rows > 0 ? tilesPerRow * rows : 0;
   }
 
+  private resolveTilesetAtlasImageSource():
+    | HTMLImageElement
+    | HTMLCanvasElement
+    | null {
+    const imageCandidate = this.tilesetTexture?.image;
+    if (imageCandidate instanceof HTMLCanvasElement) {
+      return imageCandidate.width > 0 && imageCandidate.height > 0
+        ? imageCandidate
+        : null;
+    }
+    if (imageCandidate instanceof HTMLImageElement) {
+      return imageCandidate.complete &&
+        imageCandidate.width > 0 &&
+        imageCandidate.height > 0
+        ? imageCandidate
+        : null;
+    }
+    return null;
+  }
+
   private resolveOverrideTileIndexForRuntime(tileIndex: number): number {
     const normalizedTileIndex = Math.trunc(tileIndex);
     if (!Number.isFinite(normalizedTileIndex) || normalizedTileIndex < 0) {
@@ -11962,7 +12145,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         !shouldTranslateNh367TilesetForNh37Runtime(
           this.resolveRuntimeVersion(),
           this.resolveLoadedAtlasTileCount(),
-          this.loadedTilesetTileLayoutVersion,
+          this.loadedTilesetSourceLayoutVersion,
         )
       ) {
         return normalizedTileIndex;
@@ -12373,15 +12556,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       (applyChromaKey || forceBackgroundRemoval) &&
       this.clientOptions.tilesetBackgroundRemovalMode !== "none";
 
-    if (
-      !translatedDrawSucceeded &&
-      !vultureLookup &&
-      this.tilesetTexture &&
-      this.tilesetTexture.image &&
-      this.tilesetTexture.image.complete &&
-      this.tilesetTexture.image.width > 0
-    ) {
-      const img = this.tilesetTexture.image;
+    const atlasImage = !translatedDrawSucceeded
+      ? this.resolveTilesetAtlasImageSource()
+      : null;
+    if (!translatedDrawSucceeded && !vultureLookup && atlasImage) {
+      const img = atlasImage;
       const width = Math.trunc(img.width);
       const tilesPerRow = Math.floor(width / size);
       const tileRows = Math.floor(img.height / size);
@@ -12803,7 +12982,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private applyTilesetBillboardBackgroundRemoval(
     context: CanvasRenderingContext2D,
-    atlasImage: HTMLImageElement,
+    atlasImage: HTMLImageElement | HTMLCanvasElement,
     tileSize: number,
     tileCount: number,
     tilesPerRow: number,
@@ -12825,7 +13004,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private getTilesetBackgroundTilePixels(
-    atlasImage: HTMLImageElement,
+    atlasImage: HTMLImageElement | HTMLCanvasElement,
     tileSize: number,
     tileIndex: number,
     tileCount: number,
@@ -12876,7 +13055,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private applyTilesetBackgroundRemoval(
     context: CanvasRenderingContext2D,
-    atlasImage: HTMLImageElement,
+    atlasImage: HTMLImageElement | HTMLCanvasElement,
     tileSize: number,
     tileCount: number,
     tilesPerRow: number,
@@ -20551,12 +20730,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.userData.glyphChar = behavior.glyphChar;
     mesh.userData.sourceGlyph = glyph;
     mesh.userData.tileTextureSourceGlyph = renderBehavior.effective.glyph;
+    const shouldUseTransparentFloorUnderlayTreatmentOnTile =
+      (shouldUseElevatedBillboard &&
+        this.shouldUseTransparentTileFloorUnderlay(renderBehavior)) ||
+      (this.isFpsMode() &&
+        shouldSuppressPlayerTileVisualInFps &&
+        this.shouldRenderFlatFeatureUnderPlayer(renderBehavior));
     const shouldForceTileTextureBackgroundRemoval =
       useTiles &&
       !this.shouldUseVultureTiles() &&
-      renderBehavior.isWall &&
-      this.shouldUseTransparentWallGroundPlaneUnderlay(renderBehavior) &&
-      this.clientOptions.tilesetBackgroundRemovalMode !== "none";
+      this.clientOptions.tilesetBackgroundRemovalMode !== "none" &&
+      ((renderBehavior.isWall &&
+        this.shouldUseTransparentWallGroundPlaneUnderlay(renderBehavior)) ||
+        shouldUseTransparentFloorUnderlayTreatmentOnTile);
     mesh.userData.tileTextureForceBackgroundRemoval =
       shouldForceTileTextureBackgroundRemoval;
     mesh.userData.glyphTextColor = tileTextColor;
@@ -20583,11 +20769,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldCompositeFloorUnderFlatFeatureOnTile =
       useTiles &&
       this.clientOptions.tilesetBackgroundRemovalMode === "none" &&
-      ((shouldUseElevatedBillboard &&
-        this.shouldUseTransparentTileFloorUnderlay(renderBehavior)) ||
-        (this.isFpsMode() &&
-          shouldSuppressPlayerTileVisualInFps &&
-          this.shouldRenderFlatFeatureUnderPlayer(renderBehavior)));
+      shouldUseTransparentFloorUnderlayTreatmentOnTile;
     if (shouldCompositeFloorUnderFlatFeatureOnTile) {
       const floorUnderlayBehavior = this.shouldUseTransparentTileFloorUnderlay(
         renderBehavior,
