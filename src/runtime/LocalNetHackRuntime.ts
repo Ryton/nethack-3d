@@ -116,9 +116,11 @@ class LocalNetHackRuntime {
     this.travelSpeedDelayMs = 60; // Default to normal
     this.travelClickMoveBlockExtraMs = 5;
     this.clickMoveBlockedUntilMs = 0;
+    this.playerPositionMovementSerial = 0;
     this.lastAppliedDelayOutputTurn = null;
     this.lastAppliedDelayOutputPosition = null;
     this.lastAppliedDelayOutputAtMs = null;
+    this.lastAppliedDelayOutputMovementSerial = null;
     this.didLogMissingLevelIdentityGlobals = false;
     this.checkpointRecoverySupported = false;
     this.resumeCheckpointSave = null;
@@ -9183,7 +9185,12 @@ class LocalNetHackRuntime {
 
         // Update player position when NetHack requests clipping around a position
         const oldPlayerPos = { ...this.playerPosition };
+        const didMove =
+          oldPlayerPos.x !== clipX || oldPlayerPos.y !== clipY;
         this.playerPosition = { x: clipX, y: clipY };
+        if (didMove) {
+          this.playerPositionMovementSerial += 1;
+        }
 
         // Send updated player position to client
         if (this.eventHandler) {
@@ -9416,6 +9423,15 @@ class LocalNetHackRuntime {
             Number.isInteger(posY) &&
             posX === this.lastAppliedDelayOutputPosition.x &&
             posY === this.lastAppliedDelayOutputPosition.y;
+          const movementSerial = Number.isInteger(
+            this.playerPositionMovementSerial,
+          )
+            ? this.playerPositionMovementSerial
+            : null;
+          const sameMovementStep =
+            Number.isInteger(movementSerial) &&
+            Number.isInteger(this.lastAppliedDelayOutputMovementSerial) &&
+            movementSerial === this.lastAppliedDelayOutputMovementSerial;
           const recentDuplicateWindowMs = Math.max(
             25,
             Number(this.travelSpeedDelayMs) + 40,
@@ -9430,9 +9446,11 @@ class LocalNetHackRuntime {
             Number.isInteger(latestTurn) &&
             Number.isInteger(this.lastAppliedDelayOutputTurn) &&
             latestTurn === this.lastAppliedDelayOutputTurn + 1;
-          if ((sameTurn && samePosition) || oneTurnDriftSamePosition) {
+          const duplicateTravelDelayAtSameTile =
+            samePosition && (sameMovementStep || sameTurn);
+          if (duplicateTravelDelayAtSameTile || oneTurnDriftSamePosition) {
             console.log(
-              `Skipping duplicate 3.7 travel delay at (${posX}, ${posY}) turn ${latestTurn} (lastTurn=${this.lastAppliedDelayOutputTurn})`,
+              `Skipping duplicate 3.7 travel delay at (${posX}, ${posY}) turn ${latestTurn} (lastTurn=${this.lastAppliedDelayOutputTurn}, movementSerial=${movementSerial}, lastMovementSerial=${this.lastAppliedDelayOutputMovementSerial})`,
             );
             return 0;
           }
@@ -9444,6 +9462,7 @@ class LocalNetHackRuntime {
               ? { x: posX, y: posY }
               : null;
           this.lastAppliedDelayOutputAtMs = nowMs;
+          this.lastAppliedDelayOutputMovementSerial = movementSerial;
         }
         if (this.travelSpeedDelayMs <= 0) {
           return 0; // No delay for instant

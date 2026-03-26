@@ -273,7 +273,6 @@ export const nh3dTilesetCatalog: ReadonlyArray<Nh3dTilesetEntry> =
 
 const preferredDefaultTilesetPath = "assets/3.6/Nevanda 3.6.png";
 const preferredDefaultTilesetLabel = "Nevanda";
-const defaultNh37FuseTilesetLabel = "Vanilla NetHack Tiles (3.7)";
 export const defaultNh3dTilesetPath: string =
   builtinTilesets.find((entry) => entry.path === preferredDefaultTilesetPath)
     ?.path ??
@@ -381,18 +380,7 @@ export function resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(
   if (labelMatchedNh37Tileset) {
     return labelMatchedNh37Tileset.path;
   }
-  const defaultNh37FuseTileset = tilesetCatalog.find(
-    (entry) =>
-      entry.tileLayoutVersion === "3.7" &&
-      entry.label === defaultNh37FuseTilesetLabel,
-  );
-  if (defaultNh37FuseTileset) {
-    return defaultNh37FuseTileset.path;
-  }
-  const firstNh37Tileset = tilesetCatalog.find(
-    (entry) => entry.tileLayoutVersion === "3.7",
-  );
-  return firstNh37Tileset?.path ?? null;
+  return null;
 }
 
 function normalizeHexColorOrFallback(

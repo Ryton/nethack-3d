@@ -1010,6 +1010,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly maxRendererPixelRatio: number = 2;
   private readonly desktopTaaSampleLevel: number = 1;
   private tilesetTexture: THREE.Texture | null = null;
+  private loadedTilesetSourceAtlasImage: HTMLImageElement | null = null;
+  private tilesetBackgroundReferenceTileCanvas: HTMLCanvasElement | null = null;
+  private tilesetBackgroundReferenceTilePixels: Uint8ClampedArray | null =
+    null;
   private tileSourceSize = 32;
   private vultureWallProjectionQuadEW: VultureWallProjectionQuad = {
     topLeft: { x: 0.2165, y: 0.2268 },
@@ -4051,6 +4055,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearMenuTilePreviewCache();
       this.loadTilesetTexture(normalized);
     }
+    if (tilesetBackgroundTileChanged && !tilesetPathChanged) {
+      this.captureTilesetBackgroundReferenceTile(
+        this.loadedTilesetSourceAtlasImage ?? this.resolveTilesetAtlasImageSource(),
+        this.tileSourceSize,
+      );
+    }
     if (
       tilesetBackgroundTileChanged ||
       tilesetBackgroundRemovalModeChanged ||
@@ -4471,6 +4481,70 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
   }
 
+  private clearTilesetBackgroundReferenceTileCache(): void {
+    this.tilesetBackgroundReferenceTileCanvas = null;
+    this.tilesetBackgroundReferenceTilePixels = null;
+  }
+
+  private captureTilesetBackgroundReferenceTile(
+    atlasImage: HTMLImageElement | HTMLCanvasElement | null,
+    tileSize: number,
+  ): void {
+    this.clearTilesetBackgroundReferenceTileCache();
+    if (!atlasImage || tileSize <= 0) {
+      return;
+    }
+    const atlasWidth = Math.max(0, Math.trunc(atlasImage.width || 0));
+    const atlasHeight = Math.max(0, Math.trunc(atlasImage.height || 0));
+    const tilesPerRow = Math.floor(atlasWidth / tileSize);
+    const rows = Math.floor(atlasHeight / tileSize);
+    const tileCount = tilesPerRow > 0 && rows > 0 ? tilesPerRow * rows : 0;
+    const tileIndex = Math.max(
+      0,
+      Math.trunc(this.clientOptions.tilesetBackgroundTileId),
+    );
+    if (tileCount <= 0 || tileIndex >= tileCount) {
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = tileSize;
+    canvas.height = tileSize;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return;
+    }
+    context.imageSmoothingEnabled = false;
+    const sourceX = (tileIndex % tilesPerRow) * tileSize;
+    const sourceY = Math.floor(tileIndex / tilesPerRow) * tileSize;
+    context.clearRect(0, 0, tileSize, tileSize);
+    context.drawImage(
+      atlasImage,
+      sourceX,
+      sourceY,
+      tileSize,
+      tileSize,
+      0,
+      0,
+      tileSize,
+      tileSize,
+    );
+    this.tilesetBackgroundReferenceTilePixels =
+      context.getImageData(0, 0, tileSize, tileSize).data;
+    this.tilesetBackgroundReferenceTileCanvas = canvas;
+  }
+
+  private drawTilesetBackgroundReferenceTile(
+    context: CanvasRenderingContext2D,
+    tileSize: number,
+  ): boolean {
+    const sourceCanvas = this.tilesetBackgroundReferenceTileCanvas;
+    if (!sourceCanvas || sourceCanvas.width <= 0 || sourceCanvas.height <= 0) {
+      return false;
+    }
+    context.drawImage(sourceCanvas, 0, 0, tileSize, tileSize);
+    return true;
+  }
+
   private createTilesetTextureFromSource(
     source: HTMLImageElement | HTMLCanvasElement,
   ): THREE.Texture {
@@ -4507,31 +4581,57 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     context.imageSmoothingEnabled = false;
     context.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-    if (fuseBaseImage) {
-      context.drawImage(
-        fuseBaseImage,
-        0,
-        0,
-        fuseBaseImage.width,
-        fuseBaseImage.height,
-        0,
-        0,
-        outputCanvas.width,
-        outputCanvas.height,
-      );
-    }
 
     const sourceTilesPerRow = Math.floor(legacyAtlasImage.width / tileSize);
     const sourceRows = Math.floor(legacyAtlasImage.height / tileSize);
     const sourceTileCount =
-      sourceTilesPerRow > 0 && sourceRows > 0 ? sourceTilesPerRow * sourceRows : 0;
-    for (let nh37TileIndex = 0; nh37TileIndex < nh37ExpectedTileCount; nh37TileIndex += 1) {
+      sourceTilesPerRow > 0 && sourceRows > 0
+        ? sourceTilesPerRow * sourceRows
+        : 0;
+    const fuseBaseTilesPerRow = fuseBaseImage
+      ? Math.floor(fuseBaseImage.width / tileSize)
+      : 0;
+    const fuseBaseRows = fuseBaseImage
+      ? Math.floor(fuseBaseImage.height / tileSize)
+      : 0;
+    const fuseBaseTileCount =
+      fuseBaseTilesPerRow > 0 && fuseBaseRows > 0
+        ? fuseBaseTilesPerRow * fuseBaseRows
+        : 0;
+    for (
+      let nh37TileIndex = 0;
+      nh37TileIndex < nh37ExpectedTileCount;
+      nh37TileIndex += 1
+    ) {
       const rawMappedTileIndex =
         translateNh37TileIndexToNh367PreservingAliases(nh37TileIndex);
-      const shouldLeaveFuseBaseTile = rawMappedTileIndex < 0;
-      const sourceTileIndex = shouldLeaveFuseBaseTile
+      const shouldUseFuseBaseTile =
+        rawMappedTileIndex < 0 &&
+        fuseBaseImage !== null &&
+        nh37TileIndex < fuseBaseTileCount;
+      const sourceTileIndex = rawMappedTileIndex < 0
         ? Math.abs(rawMappedTileIndex)
         : rawMappedTileIndex;
+      const destX = (nh37TileIndex % nh37TilesPerRow) * tileSize;
+      const destY = Math.floor(nh37TileIndex / nh37TilesPerRow) * tileSize;
+      context.clearRect(destX, destY, tileSize, tileSize);
+      if (shouldUseFuseBaseTile && fuseBaseImage) {
+        const fuseSourceX = (nh37TileIndex % fuseBaseTilesPerRow) * tileSize;
+        const fuseSourceY =
+          Math.floor(nh37TileIndex / fuseBaseTilesPerRow) * tileSize;
+        context.drawImage(
+          fuseBaseImage,
+          fuseSourceX,
+          fuseSourceY,
+          tileSize,
+          tileSize,
+          destX,
+          destY,
+          tileSize,
+          tileSize,
+        );
+        continue;
+      }
       if (
         !Number.isFinite(sourceTileIndex) ||
         sourceTileIndex < 0 ||
@@ -4539,14 +4639,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         continue;
       }
-      if (shouldLeaveFuseBaseTile && fuseBaseImage) {
-        continue;
-      }
       const sourceX = (sourceTileIndex % sourceTilesPerRow) * tileSize;
       const sourceY = Math.floor(sourceTileIndex / sourceTilesPerRow) * tileSize;
-      const destX = (nh37TileIndex % nh37TilesPerRow) * tileSize;
-      const destY = Math.floor(nh37TileIndex / nh37TilesPerRow) * tileSize;
-      context.clearRect(destX, destY, tileSize, tileSize);
       context.drawImage(
         legacyAtlasImage,
         sourceX,
@@ -4568,6 +4662,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldShowCompileLoading = options.tilesetMode === "tiles";
     this.setTilesetCompilationLoadingVisible(shouldShowCompileLoading);
     const tileset = findNh3dTilesetByPath(options.tilesetPath);
+    this.loadedTilesetSourceAtlasImage = null;
+    this.clearTilesetBackgroundReferenceTileCache();
     this.loadedTilesetSourceLayoutVersion =
       tileset?.tileLayoutVersion ?? "unknown";
     this.loadedTilesetTileLayoutVersion =
@@ -4595,6 +4691,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.ensureVultureTilesetTranslator(tilesetAssetUrl || "");
       this.tileSourceSize =
         this.vultureTilesetTranslator?.nominalTileSize ?? 112;
+      this.loadedTilesetSourceAtlasImage = null;
+      this.clearTilesetBackgroundReferenceTileCache();
       this.loadedTilesetSourceLayoutVersion = tileset.tileLayoutVersion;
       this.loadedTilesetTileLayoutVersion = tileset.tileLayoutVersion;
       this.invalidateTilesetDependentCaches();
@@ -4625,6 +4723,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
           sourceTilesPerRow > 0 && sourceRows > 0
             ? sourceTilesPerRow * sourceRows
             : 0;
+        this.loadedTilesetSourceAtlasImage = sourceImage;
+        this.captureTilesetBackgroundReferenceTile(sourceImage, tileSize);
         let textureSource: HTMLImageElement | HTMLCanvasElement = sourceImage;
         let loadedLayoutVersion: Nh3dTilesetTileLayoutVersion =
           tileset.tileLayoutVersion;
@@ -4687,6 +4787,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (loadRequestId !== this.tilesetTextureLoadRequestId) {
           return;
         }
+        this.loadedTilesetSourceAtlasImage = null;
+        this.clearTilesetBackgroundReferenceTileCache();
         console.warn(`Failed to load tileset atlas: ${tileset.path}`, error);
         this.setTilesetCompilationLoadingVisible(false);
       }
@@ -8087,17 +8189,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clientOptions.tilesetMode === "tiles" &&
       !this.shouldUseVultureTiles() &&
       this.clientOptions.tilesetBackgroundRemovalMode === "tile";
-    return classifyTileBehavior({
+    const useBackgroundReferenceTile =
+      shouldUseTilesetBackgroundTileUnderlay &&
+      this.tilesetBackgroundReferenceTileCanvas !== null;
+    const behavior = classifyTileBehavior({
       glyph: fallbackGlyph,
       runtimeChar: ".",
       runtimeColor: null,
       runtimeTileIndex: shouldUseTilesetBackgroundTileUnderlay
-        ? this.resolveOverrideTileIndexForRuntime(
-            this.clientOptions.tilesetBackgroundTileId,
-          )
+        ? useBackgroundReferenceTile
+          ? null
+          : this.resolveTilesetBackgroundReferenceTileIndex()
         : null,
       priorTerrain: null,
     });
+    behavior.useBackgroundReferenceTile = useBackgroundReferenceTile;
+    return behavior;
   }
 
   private resolveNormalRoomFloorBehavior(): TileBehaviorResult {
@@ -10498,6 +10605,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     floorMaterialKind: TileMaterialKind | null,
     darkenFactor: number,
     opacity: number,
+    useBackgroundReferenceTile: boolean = false,
   ): void {
     const overlay = this.ensureTransparentWallGroundPlaneOverlay(mesh);
     const normalizedFloorGlyph = Number.isFinite(floorGlyph)
@@ -10507,7 +10615,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ? Math.trunc(floorTileIndex)
       : -1;
     const materialKindKey = floorMaterialKind ?? "none";
-    const textureKey = `wall-ground-plane:${normalizedFloorTileIndex}|sg:${normalizedFloorGlyph}|mk:${materialKindKey}|${darkenFactor.toFixed(3)}`;
+    const backgroundReferenceTileKey = useBackgroundReferenceTile
+      ? "bgref:1"
+      : "bgref:0";
+    const textureKey = `wall-ground-plane:${normalizedFloorTileIndex}|sg:${normalizedFloorGlyph}|mk:${materialKindKey}|${backgroundReferenceTileKey}|${darkenFactor.toFixed(3)}`;
     const needsTextureRefresh =
       overlay.textureKey !== textureKey ||
       !this.glyphTextureCache.has(textureKey);
@@ -10519,6 +10630,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.createTileTexture(normalizedFloorTileIndex, darkenFactor, false, {
           sourceGlyph: normalizedFloorGlyph,
           materialKind: floorMaterialKind,
+          useBackgroundReferenceTile,
         }),
       );
       overlay.material.map = texture;
@@ -12115,6 +12227,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return tilesPerRow > 0 && rows > 0 ? tilesPerRow * rows : 0;
   }
 
+  private resolveTilesetBackgroundReferenceTileIndex(): number {
+    const normalizedTileIndex = Math.max(
+      0,
+      Math.trunc(this.clientOptions.tilesetBackgroundTileId),
+    );
+    return this.resolveOverrideTileIndexForRuntime(normalizedTileIndex);
+  }
+
   private resolveTilesetAtlasImageSource():
     | HTMLImageElement
     | HTMLCanvasElement
@@ -12296,9 +12416,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       materialKind?: TileMaterialKind | null;
       tileX?: number | null;
       tileY?: number | null;
+      useBackgroundReferenceTile?: boolean | null;
       forceBackgroundRemoval?: boolean | null;
       floorUnderlayGlyph?: number | null;
       floorUnderlayTileIndex?: number | null;
+      floorUnderlayUseBackgroundReferenceTile?: boolean | null;
       floorUnderlayMaterialKind?: TileMaterialKind | null;
       vultureLookup?: VultureWallProjectionLookup | null;
       projectionFamilyOverride?: VultureWallProjectionFamily | null;
@@ -12335,6 +12457,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(sourceContext.tileY)
         ? Math.trunc(sourceContext.tileY)
         : null;
+    const useBackgroundReferenceTile =
+      sourceContext.useBackgroundReferenceTile === true;
     const forceBackgroundRemoval =
       sourceContext.forceBackgroundRemoval === true;
     const floorUnderlayGlyph =
@@ -12347,6 +12471,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(sourceContext.floorUnderlayTileIndex)
         ? Math.trunc(sourceContext.floorUnderlayTileIndex)
         : null;
+    const floorUnderlayUseBackgroundReferenceTile =
+      sourceContext.floorUnderlayUseBackgroundReferenceTile === true;
     const floorUnderlayMaterialKind =
       typeof sourceContext.floorUnderlayMaterialKind === "string"
         ? (sourceContext.floorUnderlayMaterialKind as TileMaterialKind)
@@ -12382,7 +12508,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(tileIndex) && tileIndex >= 0 ? Math.trunc(tileIndex) : -1;
     if (
       !applyChromaKey &&
-      (floorUnderlayGlyph !== null ||
+      (floorUnderlayUseBackgroundReferenceTile ||
+        floorUnderlayGlyph !== null ||
         (floorUnderlayTileIndex !== null && floorUnderlayTileIndex >= 0))
     ) {
       const floorUnderlayTexture = this.createTileTexture(
@@ -12394,6 +12521,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           materialKind: floorUnderlayMaterialKind,
           tileX,
           tileY,
+          useBackgroundReferenceTile: floorUnderlayUseBackgroundReferenceTile,
         },
       );
       const floorUnderlayImage = floorUnderlayTexture.image;
@@ -12419,6 +12547,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       });
     }
     let translatedDrawSucceeded = false;
+    if (!applyChromaKey && useBackgroundReferenceTile) {
+      translatedDrawSucceeded =
+        this.drawTilesetBackgroundReferenceTile(context, size);
+    }
     let usedPrebakedProjectionTexture = false;
     if (!applyChromaKey && resolvedLookup) {
       usedPrebakedProjectionTexture =
@@ -13060,17 +13192,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     tileCount: number,
     tilesPerRow: number,
   ): void {
-    const backgroundTileIndex = Math.max(
-      0,
-      Math.trunc(this.clientOptions.tilesetBackgroundTileId),
-    );
-    const backgroundPixels = this.getTilesetBackgroundTilePixels(
-      atlasImage,
-      tileSize,
-      backgroundTileIndex,
-      tileCount,
-      tilesPerRow,
-    );
+    const backgroundPixels =
+      this.tilesetBackgroundReferenceTilePixels ??
+      this.getTilesetBackgroundTilePixels(
+        atlasImage,
+        tileSize,
+        this.resolveTilesetBackgroundReferenceTileIndex(),
+        tileCount,
+        tilesPerRow,
+      );
     if (!backgroundPixels) {
       return;
     }
@@ -15124,6 +15254,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof mesh.userData?.floorUnderlayMaterialKind === "string"
         ? (mesh.userData.floorUnderlayMaterialKind as TileMaterialKind)
         : null;
+    const tileUseBackgroundReferenceTile =
+      mesh.userData?.tileUseBackgroundReferenceTile === true;
+    const floorUnderlayUseBackgroundReferenceTile =
+      mesh.userData?.floorUnderlayUseBackgroundReferenceTile === true;
     const tileTextureForceBackgroundRemoval =
       mesh.userData?.tileTextureForceBackgroundRemoval === true;
     const canUseTranslatedTileWithoutAtlas =
@@ -15149,7 +15283,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const useTiles =
       !useSolidColor &&
       this.clientOptions.tilesetMode === "tiles" &&
-      (tileIndex >= 0 || canUseTranslatedTileWithoutAtlas);
+      (tileUseBackgroundReferenceTile ||
+        tileIndex >= 0 ||
+        canUseTranslatedTileWithoutAtlas);
     const tileTextureSourceGlyphKey =
       tileTextureSourceGlyph === null ? "none" : String(tileTextureSourceGlyph);
     const tileTextureMaterialKindKey = tileTextureMaterialKind ?? "none";
@@ -15158,6 +15294,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const floorUnderlayTileIndexKey =
       floorUnderlayTileIndex === null ? "none" : String(floorUnderlayTileIndex);
     const floorUnderlayMaterialKindKey = floorUnderlayMaterialKind ?? "none";
+    const tileUseBackgroundReferenceTileKey = tileUseBackgroundReferenceTile
+      ? "bgref:1"
+      : "bgref:0";
+    const floorUnderlayUseBackgroundReferenceTileKey =
+      floorUnderlayUseBackgroundReferenceTile ? "ubgref:1" : "ubgref:0";
     const tileTextureForceBackgroundRemovalKey =
       tileTextureForceBackgroundRemoval ? "bgrem:1" : "bgrem:0";
     const solidWallMaterial =
@@ -15175,7 +15316,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     } else if (useTiles) {
       textureKey = resolvedVultureLookupKey
         ? `vtile:${resolvedVultureLookupKey}|mk:${tileTextureMaterialKindKey}|${clampedDarken.toFixed(3)}`
-        : `tile:${tileIndex}|sg:${tileTextureSourceGlyphKey}|mk:${tileTextureMaterialKindKey}|${tileTextureForceBackgroundRemovalKey}|ug:${floorUnderlayGlyphKey}|ui:${floorUnderlayTileIndexKey}|umk:${floorUnderlayMaterialKindKey}|${clampedDarken.toFixed(3)}`;
+        : `tile:${tileIndex}|sg:${tileTextureSourceGlyphKey}|mk:${tileTextureMaterialKindKey}|${tileUseBackgroundReferenceTileKey}|${tileTextureForceBackgroundRemovalKey}|ug:${floorUnderlayGlyphKey}|ui:${floorUnderlayTileIndexKey}|${floorUnderlayUseBackgroundReferenceTileKey}|umk:${floorUnderlayMaterialKindKey}|${clampedDarken.toFixed(3)}`;
     } else {
       textureKey = `${baseColorHex}|${glyphChar}|${textColor}|${clampedDarken.toFixed(3)}|${drawFloorGrid ? 1 : 0}`;
     }
@@ -15204,9 +15345,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
               materialKind: tileTextureMaterialKind,
               tileX: tileTextureX,
               tileY: tileTextureY,
+              useBackgroundReferenceTile: tileUseBackgroundReferenceTile,
               forceBackgroundRemoval: tileTextureForceBackgroundRemoval,
               floorUnderlayGlyph,
               floorUnderlayTileIndex,
+              floorUnderlayUseBackgroundReferenceTile,
               floorUnderlayMaterialKind,
               vultureLookup:
                 resolvedVultureLookup as VultureWallProjectionLookup | null,
@@ -17462,6 +17605,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         floorUnderlayBehavior.materialKind,
         floorUnderlayDarkenFactor,
         overlayOpacity,
+        floorUnderlayBehavior.useBackgroundReferenceTile === true,
       );
       this.setTransparentWallGroundPlaneOverlayOpaqueMode(mesh, true);
       this.alignTransparentWallGroundPlaneOverlayToTile(
@@ -20766,6 +20910,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         darkCorridorWallCompatibilityActive,
       );
     mesh.userData.tileIndex = tileTextureIndex;
+    mesh.userData.tileUseBackgroundReferenceTile =
+      renderBehavior.useBackgroundReferenceTile === true;
     const shouldCompositeFloorUnderFlatFeatureOnTile =
       useTiles &&
       this.clientOptions.tilesetBackgroundRemovalMode === "none" &&
@@ -20783,11 +20929,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         Number.isFinite(floorUnderlayBehavior.effective.tileIndex)
           ? Math.trunc(floorUnderlayBehavior.effective.tileIndex)
           : -1;
+      mesh.userData.floorUnderlayUseBackgroundReferenceTile =
+        floorUnderlayBehavior.useBackgroundReferenceTile === true;
       mesh.userData.floorUnderlayMaterialKind =
         floorUnderlayBehavior.materialKind;
     } else {
       delete mesh.userData.floorUnderlaySourceGlyph;
       delete mesh.userData.floorUnderlayTileIndex;
+      delete mesh.userData.floorUnderlayUseBackgroundReferenceTile;
       delete mesh.userData.floorUnderlayMaterialKind;
     }
     mesh.userData.fpsWallChamferMask = wallChamferMask;
@@ -20870,6 +21019,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         floorUnderlayBehavior.materialKind,
         floorUnderlayDarkenFactor,
         overlayOpacity,
+        floorUnderlayBehavior.useBackgroundReferenceTile === true,
       );
       if (shouldRenderClosedDoorChamferExposedFloor) {
         this.setTransparentWallGroundPlaneOverlayOpaqueMode(mesh, true);
