@@ -4580,7 +4580,10 @@ class LocalNetHackRuntime {
     if (!normalized) {
       return false;
     }
-    return normalized.includes("do you want your possessions identified");
+    return (
+      normalized.includes("do you want your possessions identified") ||
+      normalized.startsWith("do you want to see what you had when you ")
+    );
   }
 
   beginGameOverSequence(source = "unknown") {

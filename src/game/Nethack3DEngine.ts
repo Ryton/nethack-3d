@@ -7906,7 +7906,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!normalized) {
       return false;
     }
-    return normalized.includes("do you want your possessions identified");
+    return (
+      normalized.includes("do you want your possessions identified") ||
+      normalized.startsWith("do you want to see what you had when you ")
+    );
   }
 
   private isDamageFlashableBehavior(behavior: TileBehaviorResult): boolean {
