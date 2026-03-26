@@ -3,6 +3,7 @@ import {
   defaultNh3dTilesetPath,
   isNh3dTilesetPathAvailable,
   resolveDefaultNh3dTilesetBackgroundTileId,
+  resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
 } from "./tilesets";
 import {
@@ -197,6 +198,7 @@ export type Nh3dClientOptions = {
   soundEnabled: boolean;
   blockAmbientOcclusion: boolean;
   darkCorridorWalls367: boolean;
+  overrideNh37DarkCorridorWallTiles: boolean;
   darkCorridorWallTileOverrideEnabled: boolean;
   darkCorridorWallTileOverrideEnabledByTileset: DarkCorridorWallTileOverrideEnabledByTileset;
   darkCorridorWallTileOverrideTileId: number;
@@ -281,6 +283,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   soundEnabled: true,
   blockAmbientOcclusion: true,
   darkCorridorWalls367: true,
+  overrideNh37DarkCorridorWallTiles: true,
   darkCorridorWallTileOverrideEnabled: false,
   darkCorridorWallTileOverrideEnabledByTileset: {},
   darkCorridorWallTileOverrideTileId: 850,
@@ -458,6 +461,7 @@ function normalizeTilesetBackgroundTileIdByTileset(
 
 function normalizeTilesetBackgroundRemovalMode(
   rawValue: unknown,
+  fallbackMode: TilesetBackgroundRemovalMode = "tile",
 ): TilesetBackgroundRemovalMode {
   if (rawValue === "solid") {
     return "solid";
@@ -465,7 +469,9 @@ function normalizeTilesetBackgroundRemovalMode(
   if (rawValue === "none") {
     return "none";
   }
-  return "tile";
+  return fallbackMode === "solid" || fallbackMode === "none"
+    ? fallbackMode
+    : "tile";
 }
 
 function normalizeTilesetBackgroundRemovalModeByTileset(
@@ -480,7 +486,10 @@ function normalizeTilesetBackgroundRemovalModeByTileset(
     if (!tilesetPath || !isNh3dTilesetPathAvailable(tilesetPath)) {
       continue;
     }
-    normalized[tilesetPath] = normalizeTilesetBackgroundRemovalMode(rawMode);
+    normalized[tilesetPath] = normalizeTilesetBackgroundRemovalMode(
+      rawMode,
+      resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath),
+    );
   }
   return normalized;
 }
@@ -783,6 +792,7 @@ export function normalizeNh3dClientOptions(
       : resolveDefaultNh3dTilesetBackgroundTileId(tilesetPath);
   const tilesetBackgroundRemovalMode = normalizeTilesetBackgroundRemovalMode(
     selectedTilesetBackgroundRemovalMode,
+    resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath),
   );
   const defaultSolidChromaKeyForTileset =
     resolveDefaultNh3dTilesetSolidChromaKeyColorHex(tilesetPath);
@@ -907,6 +917,10 @@ export function normalizeNh3dClientOptions(
       typeof overrides?.darkCorridorWalls367 === "boolean"
         ? overrides.darkCorridorWalls367
         : defaultNh3dClientOptions.darkCorridorWalls367,
+    overrideNh37DarkCorridorWallTiles:
+      typeof overrides?.overrideNh37DarkCorridorWallTiles === "boolean"
+        ? overrides.overrideNh37DarkCorridorWallTiles
+        : defaultNh3dClientOptions.overrideNh37DarkCorridorWallTiles,
     darkCorridorWallTileOverrideEnabled,
     darkCorridorWallTileOverrideEnabledByTileset,
     darkCorridorWallTileOverrideTileId,
@@ -994,7 +1008,11 @@ export interface Nethack3DEngineController {
   ): void;
   runExtendedCommand(
     commandText: string,
-    options?: { autoDirectionFromFpsAim?: boolean; submitDelayMs?: number },
+    options?: {
+      autoDirectionFromFpsAim?: boolean;
+      submitDelayMs?: number;
+      forceHashSubmission?: boolean;
+    },
   ): void;
   repeatLastAction(): void;
   setClientOptions(options: Nh3dClientOptions): void;

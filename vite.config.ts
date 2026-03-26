@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { defineConfig, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { copyWasm } from "./scripts/wasm/copy-wasm.mjs";
 import {
-  TILESET_MANIFEST_SOURCE_DIR,
+  TILESET_MANIFEST_SOURCE_DIRS,
   generateTilesetManifest,
 } from "./scripts/tilesets/generate-tileset-manifest.mjs";
 
@@ -55,6 +55,19 @@ function buildFileContains(filePath: string, snippet: string): boolean {
   }
 }
 
+function buildRuntimeAssetTag(filePaths: string[]): string {
+  const parts: string[] = [];
+  for (const filePath of filePaths) {
+    try {
+      const stats = statSync(filePath);
+      parts.push(`${stats.size}-${Math.trunc(stats.mtimeMs)}`);
+    } catch {
+      parts.push("missing");
+    }
+  }
+  return parts.join(".");
+}
+
 function copyWasmPlugin() {
   return {
     name: "copy-nethack-wasm",
@@ -65,11 +78,13 @@ function copyWasmPlugin() {
 }
 
 function tilesetManifestPlugin() {
-  const watchedPath = TILESET_MANIFEST_SOURCE_DIR.replace(/\\/g, "/");
+  const watchedPaths = TILESET_MANIFEST_SOURCE_DIRS.map((sourceDir) =>
+    sourceDir.replace(/\\/g, "/"),
+  );
   const isTilesetAssetPath = (path: string): boolean => {
     const normalizedPath = path.replace(/\\/g, "/");
     return (
-      normalizedPath.startsWith(watchedPath) &&
+      watchedPaths.some((watchedPath) => normalizedPath.startsWith(watchedPath)) &&
       /\.(png|bmp|gif|jpe?g|webp)$/i.test(normalizedPath)
     );
   };
@@ -85,7 +100,7 @@ function tilesetManifestPlugin() {
     },
     configureServer(server: ViteDevServer) {
       regenerate();
-      server.watcher.add(TILESET_MANIFEST_SOURCE_DIR);
+      server.watcher.add(TILESET_MANIFEST_SOURCE_DIRS);
       const handleTilesetFileEvent = (path: string) => {
         if (!isTilesetAssetPath(path)) {
           return;
@@ -122,6 +137,16 @@ const wasm37UsesPublicRuntimeOverride = wasm37RuntimeBuildJsPath.endsWith(
 );
 const wasm367CompatTag = `wasm-367-${resolveInstalledPackageVersion("@neth4ck/wasm-367")}`;
 const wasm37CompatTag = `wasm-37-${resolveInstalledPackageVersion("@neth4ck/wasm-37")}`;
+const wasm367RuntimeBuildTag = buildRuntimeAssetTag([
+  wasm367RuntimeBuildJsPath,
+  path.join(process.cwd(), "public", "nethack-367.wasm"),
+]);
+const wasm37RuntimeBuildTag = buildRuntimeAssetTag([
+  wasm37RuntimeBuildJsPath,
+  path.join(process.cwd(), "public", "nethack-37.wasm"),
+]);
+const wasm367PointerAbiTag = "nh367-pointer-v1";
+const wasm37PointerAbiTag = "nh37-pointer-v1";
 const wasm367HasRecoverSavefile = buildFileContains(
   wasm367RuntimeBuildJsPath,
   'Module["_recover_savefile"]',
@@ -131,6 +156,14 @@ const wasm367HasRecoverSavefile = buildFileContains(
 // bridge that can prepare lock state before libnhmain reaches unixunix.c/getlock().
 const wasm367HasCheckpointResumeBridge = buildFileContains(
   wasm367RuntimeBuildJsPath,
+  'Module["_resume_checkpoint_save"]',
+);
+const wasm37HasRecoverSavefile = buildFileContains(
+  wasm37RuntimeBuildJsPath,
+  'Module["_recover_savefile"]',
+);
+const wasm37HasCheckpointResumeBridge = buildFileContains(
+  wasm37RuntimeBuildJsPath,
   'Module["_resume_checkpoint_save"]',
 );
 const resolvedBuildCommitSha = (() => {
@@ -186,6 +219,8 @@ const bundledClientUpdateState = (() => {
   }
 })();
 
+const devSessionTag = String(Date.now());
+
 export default defineConfig({
   plugins: [copyWasmPlugin(), tilesetManifestPlugin(), react()],
   optimizeDeps: {
@@ -204,8 +239,13 @@ export default defineConfig({
     "import.meta.env.VITE_NH3D_BUNDLED_UPDATE_COMMIT_SHA": JSON.stringify(
       bundledClientUpdateState.commitSha,
     ),
+    "import.meta.env.VITE_NH3D_DEV_SESSION_TAG": JSON.stringify(devSessionTag),
     "import.meta.env.VITE_NH3D_WASM_367_COMPAT_TAG":
       JSON.stringify(wasm367CompatTag),
+    "import.meta.env.VITE_NH3D_WASM_367_RUNTIME_BUILD_TAG":
+      JSON.stringify(wasm367RuntimeBuildTag),
+    "import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG":
+      JSON.stringify(wasm367PointerAbiTag),
     "import.meta.env.VITE_NH3D_WASM_367_USE_PUBLIC_RUNTIME_OVERRIDE":
       JSON.stringify(wasm367UsesPublicRuntimeOverride),
     "import.meta.env.VITE_NH3D_WASM_367_HAS_RECOVER_SAVEFILE": JSON.stringify(
@@ -215,8 +255,17 @@ export default defineConfig({
       JSON.stringify(wasm367HasCheckpointResumeBridge),
     "import.meta.env.VITE_NH3D_WASM_37_COMPAT_TAG":
       JSON.stringify(wasm37CompatTag),
-    // "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":
-    //   JSON.stringify(wasm37UsesPublicRuntimeOverride),
+    "import.meta.env.VITE_NH3D_WASM_37_RUNTIME_BUILD_TAG":
+      JSON.stringify(wasm37RuntimeBuildTag),
+    "import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG":
+      JSON.stringify(wasm37PointerAbiTag),
+    "import.meta.env.VITE_NH3D_WASM_37_HAS_RECOVER_SAVEFILE": JSON.stringify(
+      wasm37HasRecoverSavefile,
+    ),
+    "import.meta.env.VITE_NH3D_WASM_37_HAS_CHECKPOINT_RESUME_BRIDGE":
+      JSON.stringify(wasm37HasCheckpointResumeBridge),
+    "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":
+      JSON.stringify(wasm37UsesPublicRuntimeOverride),
   },
   base: isGitHubActions ? "/nethack-3d/" : isElectronBuild ? "./" : "/",
   server: {

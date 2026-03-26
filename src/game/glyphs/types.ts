@@ -119,4 +119,5 @@ export interface TileBehaviorResult {
   textColor: string;
   disposition: GlyphDisposition;
   effectKind: TileEffectKind | null;
+  useBackgroundReferenceTile?: boolean;
 }

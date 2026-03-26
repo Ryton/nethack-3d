@@ -56,7 +56,11 @@ import {
   type StartupInitOptionValues,
 } from "../runtime/startup-init-options";
 import { supportsRuntimeCheckpointRecovery } from "../runtime/runtime-capabilities";
-import { getRuntimeSaveDbNames } from "../runtime/save-storage";
+import {
+  getRuntimeSaveDbNames,
+  getStoredFileByteLength,
+  isRecoverableCheckpointLevelZeroByteLength,
+} from "../runtime/save-storage";
 import { GLYPH_CATALOG as GLYPH_CATALOG_367 } from "../game/glyphs/glyph-catalog.367.generated";
 import {
   findNh3dTilesetByPath,
@@ -65,16 +69,23 @@ import {
   nh3dTilesetAtlasTileColumns,
   getNh3dTilesetCatalog,
   getNh3dUserTilesetPath,
+  resolveNh3dCompatibleTilesetPathForRuntime,
   resolveDefaultNh3dTilesetBackgroundTileId,
+  resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
   resolveNh3dTilesetAssetUrl,
   setNh3dUserTilesets,
 } from "../game/tilesets";
 import {
+  shouldTranslateNh367TilesetForNh37Runtime,
+  translateNh37TileIndexToNh367,
+} from "../game/tileset-367-to-37-translation";
+import {
   deleteStoredUserTileset,
   listStoredUserTilesets,
   saveStoredUserTileset,
   type StoredUserTilesetRecord,
+  type StoredUserTilesetTileLayoutVersion,
 } from "../game/user-tileset-storage";
 import {
   loadPersistedNh3dClientOptionsWithMigration,
@@ -1545,7 +1556,28 @@ function getAtlasTilePixels(
   return context.getImageData(0, 0, tileSourceSize, tileSourceSize).data;
 }
 
-type StartupFlowStep = "choose" | "create" | "random" | "resume";
+function resolvePreviewAtlasTileIdForRuntime(
+  runtimeVersion: NethackRuntimeVersion,
+  tileId: number,
+  atlasTileCount: number,
+): number {
+  const normalizedTileId = Math.trunc(tileId);
+  if (!Number.isFinite(normalizedTileId) || normalizedTileId < 0) {
+    return normalizedTileId;
+  }
+  try {
+    if (
+      !shouldTranslateNh367TilesetForNh37Runtime(runtimeVersion, atlasTileCount)
+    ) {
+      return normalizedTileId;
+    }
+    return translateNh37TileIndexToNh367(normalizedTileId);
+  } catch {
+    return normalizedTileId;
+  }
+}
+
+type StartupFlowStep = "variant" | "choose" | "create" | "random" | "resume";
 const startupDefaultCharacterName = "Web_user";
 
 function createDefaultStartupCharacterPreferences(): StartupCharacterPreferences {
@@ -1719,6 +1751,7 @@ type ClientOptionToggleKey =
   | "soundEnabled"
   | "blockAmbientOcclusion"
   | "darkCorridorWalls367"
+  | "overrideNh37DarkCorridorWallTiles"
   | "darkCorridorWallTileOverrideEnabled"
   | "darkCorridorWallSolidColorOverrideEnabled";
 
@@ -1804,7 +1837,6 @@ const inventoryContextActions: InventoryContextAction[] = [
     label: "Call",
     kind: "extended",
     value: "call",
-    armInventorySelection: false,
   },
   { id: "adjust", label: "Adjust", kind: "extended", value: "adjust" },
   { id: "engrave", label: "Engrave", kind: "extended", value: "engrave" },
@@ -1827,20 +1859,67 @@ const inventoryCategoryActionBlocklist: Record<
     "zap",
     "engrave",
   ]),
-  weapons: new Set(["quaff", "wear", "take-off", "put-on", "remove", "zap"]),
-  armor: new Set(["quaff", "put-on", "remove", "zap"]),
-  rings: new Set(["quaff", "wear", "take-off", "zap"]),
-  amulets: new Set(["quaff", "wear", "take-off", "zap"]),
-  tools: new Set(["quaff", "wear", "take-off", "zap"]),
-  comestibles: new Set([
+  weapons: new Set([
     "quaff",
+    "eat",
+    "read",
     "wear",
     "take-off",
     "put-on",
     "remove",
     "zap",
   ]),
-  potions: new Set(["wear", "take-off", "put-on", "remove", "zap", "engrave"]),
+  armor: new Set([
+    "quaff",
+    "eat",
+    "read",
+    "engrave",
+    "put-on",
+    "remove",
+    "zap",
+    "wield",
+  ]),
+  rings: new Set(["quaff", "wear", "take-off", "zap", "read", "eat", "wield"]),
+  amulets: new Set([
+    "quaff",
+    "wear",
+    "take-off",
+    "zap",
+    "read",
+    "eat",
+    "wield",
+  ]),
+  tools: new Set([
+    "quaff",
+    "wear",
+    "take-off",
+    "zap",
+    "read",
+    "put-on",
+    "remove",
+    "eat",
+  ]),
+  comestibles: new Set([
+    "quaff",
+    "read",
+    "engrave",
+    "wield",
+    "wear",
+    "take-off",
+    "put-on",
+    "remove",
+    "zap",
+  ]),
+  potions: new Set([
+    "wear",
+    "take-off",
+    "put-on",
+    "remove",
+    "zap",
+    "engrave",
+    "read",
+    "eat",
+  ]),
   scrolls: new Set([
     "quaff",
     "wear",
@@ -1849,6 +1928,8 @@ const inventoryCategoryActionBlocklist: Record<
     "remove",
     "zap",
     "engrave",
+    "eat",
+    "wield",
   ]),
   spellbooks: new Set([
     "quaff",
@@ -1858,8 +1939,10 @@ const inventoryCategoryActionBlocklist: Record<
     "remove",
     "zap",
     "engrave",
+    "eat",
+    "wield",
   ]),
-  wands: new Set(["quaff", "wear", "take-off", "put-on", "remove"]),
+  wands: new Set(["quaff", "wear", "take-off", "put-on", "remove", "wield"]),
   coins: new Set([
     "quaff",
     "wear",
@@ -1868,6 +1951,9 @@ const inventoryCategoryActionBlocklist: Record<
     "remove",
     "zap",
     "engrave",
+    "read",
+    "dip",
+    "wield",
   ]),
   gems_stones: new Set([
     "quaff",
@@ -1876,6 +1962,9 @@ const inventoryCategoryActionBlocklist: Record<
     "put-on",
     "remove",
     "zap",
+    "eat",
+    "read",
+    "wield",
   ]),
   boulders_statues: new Set([
     "quaff",
@@ -1885,6 +1974,8 @@ const inventoryCategoryActionBlocklist: Record<
     "remove",
     "zap",
     "engrave",
+    "eat",
+    "wield",
   ]),
   iron_balls: new Set([
     "quaff",
@@ -1894,6 +1985,9 @@ const inventoryCategoryActionBlocklist: Record<
     "remove",
     "zap",
     "engrave",
+    "eat",
+    "read",
+    "wield",
   ]),
   chains: new Set([
     "quaff",
@@ -1903,6 +1997,8 @@ const inventoryCategoryActionBlocklist: Record<
     "remove",
     "zap",
     "engrave",
+    "read",
+    "wield",
   ]),
   venoms: new Set(["wear", "take-off", "put-on", "remove", "zap"]),
   // Mixed contents; keep this category permissive.
@@ -3310,15 +3406,22 @@ const clientOptionsConfig: ClientOption[] = [
     type: "boolean",
   },
   {
-    key: "darkCorridorWallTileOverrideEnabled",
-    label: "Override inferred dark wall tile",
+    key: "overrideNh37DarkCorridorWallTiles",
+    label: "Override NetHack 3.7 dark wall tiles",
     description:
-      "Use a custom atlas tile for inferred dark corridor walls, saved per tileset.",
+      "Apply dark wall override settings to NetHack 3.7 dark corridor wall tiles.",
+    type: "boolean",
+  },
+  {
+    key: "darkCorridorWallTileOverrideEnabled",
+    label: "Override dark wall tile",
+    description:
+      "Use a custom atlas tile for dark wall overrides, saved per tileset.",
     type: "boolean",
   },
   {
     key: "darkCorridorWallSolidColorOverrideEnabled",
-    label: "Use solid color for inferred dark walls",
+    label: "Use solid color for dark walls",
     description: "Use a picked RGB color instead of a tileset tile.",
     type: "boolean",
   },
@@ -3944,18 +4047,23 @@ function appendUserTilesetNameSuffix(value: string): string {
   return normalized ? `${normalized} (user)` : "User Tileset (user)";
 }
 
+const defaultUserTilesetTileLayoutVersion: StoredUserTilesetTileLayoutVersion =
+  "3.6.7";
+
 function toUserTilesetRegistrations(
   records: ReadonlyArray<StoredUserTilesetRecord>,
 ): ReadonlyArray<{
   id: string;
   label: string;
   tileSize: number;
+  tileLayoutVersion: StoredUserTilesetTileLayoutVersion;
   blob: Blob;
 }> {
   return records.map((record) => ({
     id: record.id,
     label: record.label,
     tileSize: record.tileSize,
+    tileLayoutVersion: record.tileLayoutVersion,
     blob: record.blob,
   }));
 }
@@ -4250,6 +4358,16 @@ async function fetchSavedGames(
         if (!filename) continue;
         const normalizedFilename = filename.toLowerCase();
 
+        const isCheckpointShard = isCheckpointShardFilename(filename);
+        const isCheckpointLevelZero = /\.0$/i.test(normalizedFilename);
+        const fileByteLength = getStoredFileByteLength(value);
+        const isRecoverableCheckpointLevelZero =
+          isCheckpointLevelZero &&
+          isRecoverableCheckpointLevelZeroByteLength(fileByteLength);
+        const isTemporaryLockCheckpointShard = /^[a-z]lock\.\d+$/i.test(
+          normalizedFilename,
+        );
+
         // Ignore structural/metadata files used by NetHack
         const knownNonSaves = [
           "record",
@@ -4260,10 +4378,21 @@ async function fetchSavedGames(
           ".keep",
         ];
         if (knownNonSaves.includes(normalizedFilename)) continue;
-        if (
-          normalizedFilename.includes("level") ||
-          normalizedFilename.includes("lock")
-        ) {
+        if (normalizedFilename.includes("level")) {
+          continue;
+        }
+        // These shards come from lock-letter mode (MAXPLAYERS>0). Our current
+        // browser resume bridge targets UID+name locknames, so these cannot be
+        // resumed by character selection and should not be listed as loadable.
+        if (isTemporaryLockCheckpointShard) {
+          continue;
+        }
+        // Drop non-shard lock artifacts.
+        const isLockArtifact =
+          normalizedFilename === "lock" ||
+          /^[a-z]lock$/i.test(normalizedFilename) ||
+          normalizedFilename.endsWith(".lock");
+        if (isLockArtifact && !isCheckpointShard) {
           continue;
         }
 
@@ -4273,7 +4402,6 @@ async function fetchSavedGames(
         if (name && value && value.timestamp) {
           const timestamp = new Date(value.timestamp);
           const logicalKey = `${category}:${name}`;
-          const isCheckpointShard = isCheckpointShardFilename(filename);
           const presentationMetadata =
             savePresentationMetadataByKey[logicalKey];
           const displayPlayMode =
@@ -4299,7 +4427,10 @@ async function fetchSavedGames(
               filename,
               timestamp,
             });
-            if (!isCheckpointShard || checkpointRecoverySupported) {
+            if (
+              !isCheckpointShard ||
+              (checkpointRecoverySupported && isRecoverableCheckpointLevelZero)
+            ) {
               existing.isResumable = true;
             }
             if (existing.timestamp < timestamp) {
@@ -4315,7 +4446,11 @@ async function fetchSavedGames(
             displayName,
             displayPlayMode,
             category,
-            isResumable: !isCheckpointShard || checkpointRecoverySupported,
+            // A lone "<lock>.0" file at 4 bytes is just NetHack's pid lock,
+            // not a recoverable checkpoint autosave.
+            isResumable:
+              !isCheckpointShard ||
+              (checkpointRecoverySupported && isRecoverableCheckpointLevelZero),
             timestamp,
             dateFormatted: timestamp.toLocaleString(),
             files: [
@@ -4464,7 +4599,7 @@ export default function App(): JSX.Element {
   const [characterCreationConfig, setCharacterCreationConfig] =
     useState<CharacterCreationConfig | null>(null);
   const [startupFlowStep, setStartupFlowStep] =
-    useState<StartupFlowStep>("choose");
+    useState<StartupFlowStep>("variant");
   const [runtimeVersion, setRuntimeVersion] =
     useState<NethackRuntimeVersion>("3.6.7");
   const [createRole, setCreateRole] = useState(
@@ -4703,8 +4838,29 @@ export default function App(): JSX.Element {
         normalizedInitOptions,
       );
     }
+    const runtimeVersionForLaunch = config.runtimeVersion ?? runtimeVersion;
+    const currentTilesetPath = String(clientOptions.tilesetPath || "").trim();
+    const compatibleTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
+      currentTilesetPath,
+      runtimeVersionForLaunch,
+    );
+    if (compatibleTilesetPath && compatibleTilesetPath !== currentTilesetPath) {
+      setClientOptions((previous) =>
+        normalizeNh3dClientOptions({
+          ...previous,
+          tilesetPath: compatibleTilesetPath,
+        }),
+      );
+      setClientOptionsDraft((previous) =>
+        normalizeNh3dClientOptions({
+          ...previous,
+          tilesetPath: compatibleTilesetPath,
+        }),
+      );
+    }
     setCharacterCreationConfig({
       ...config,
+      runtimeVersion: runtimeVersionForLaunch,
       name: effectiveCharacterName,
       initOptions: normalizedInitOptions,
     });
@@ -4824,6 +4980,10 @@ export default function App(): JSX.Element {
     "edit",
   );
   const [tilesetManagerName, setTilesetManagerName] = useState("");
+  const [tilesetManagerTileLayoutVersion, setTilesetManagerTileLayoutVersion] =
+    useState<StoredUserTilesetTileLayoutVersion>(
+      defaultUserTilesetTileLayoutVersion,
+    );
   const [tilesetManagerEditPath, setTilesetManagerEditPath] = useState("");
   const [tilesetManagerFile, setTilesetManagerFile] = useState<File | null>(
     null,
@@ -6026,7 +6186,7 @@ export default function App(): JSX.Element {
     ) {
       return mappedMode;
     }
-    return "tile";
+    return resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath);
   };
   const resolveDraftSolidChromaKeyByTilesetPath = (
     rawTilesetPath: string | null | undefined,
@@ -6255,6 +6415,21 @@ export default function App(): JSX.Element {
     );
     return tilePreviewDataUrlById.get(clampedTileId) ?? null;
   };
+  const getRuntimeTilePreviewDataUrl = (tileId: number): string | null => {
+    if (tileAtlasState.tileCount <= 0) {
+      return null;
+    }
+    const remappedTileId = resolvePreviewAtlasTileIdForRuntime(
+      runtimeVersion,
+      tileId,
+      tileAtlasState.tileCount,
+    );
+    const clampedTileId = Math.max(
+      0,
+      Math.min(tileAtlasState.tileCount - 1, Math.trunc(remappedTileId)),
+    );
+    return tilePreviewDataUrlById.get(clampedTileId) ?? null;
+  };
   const renderTilePreviewImageFromDataUrl = (
     tilePreviewDataUrl: string,
   ): JSX.Element | null => {
@@ -6288,7 +6463,11 @@ export default function App(): JSX.Element {
     if (tileId === null) {
       return null;
     }
-    return renderTilePreviewImage(tileId);
+    const tilePreviewDataUrl = getRuntimeTilePreviewDataUrl(tileId);
+    if (!tilePreviewDataUrl) {
+      return null;
+    }
+    return renderTilePreviewImageFromDataUrl(tilePreviewDataUrl);
   };
   const tilesetManagerTilePickerEntries = useMemo<TilePickerEntry[]>(() => {
     if (
@@ -7156,6 +7335,10 @@ export default function App(): JSX.Element {
     : "";
   const startupUpdateDialogOpen =
     startupMenuVisible && isStartupUpdateDialogVisible;
+  const startupVariantDialogVisible =
+    startupMenuVisible &&
+    startupFlowStep === "variant" &&
+    !startupUpdateDialogOpen;
   const startupChooseDialogVisible =
     startupMenuVisible &&
     startupFlowStep === "choose" &&
@@ -8584,7 +8767,7 @@ export default function App(): JSX.Element {
     setCharacterSheetInterceptionArmed(false);
     characterSheetAwaitingInfoRef.current = false;
     setCharacterCreationConfig(null);
-    setStartupFlowStep("choose");
+    setStartupFlowStep("variant");
   };
 
   const dismissNewGamePromptUntilInteraction = (): void => {
@@ -9327,6 +9510,7 @@ export default function App(): JSX.Element {
     setTilesetManagerMode("new");
     setTilesetManagerEditPath("");
     setTilesetManagerName("");
+    setTilesetManagerTileLayoutVersion(defaultUserTilesetTileLayoutVersion);
     setTilesetManagerAtlasState(createDefaultTileAtlasState());
     setTilesetManagerAtlasImage(null);
     resetTilesetManagerSelectedFile();
@@ -9352,6 +9536,13 @@ export default function App(): JSX.Element {
       userRecord
         ? stripUserTilesetNameSuffix(userRecord.label)
         : tilesetEntry.label,
+    );
+    setTilesetManagerTileLayoutVersion(
+      userRecord
+        ? userRecord.tileLayoutVersion
+        : tilesetEntry.tileLayoutVersion === "3.7"
+          ? "3.7"
+          : "3.6.7",
     );
     if (tilesetPath !== currentEditPath) {
       setTilesetManagerAtlasState(createDefaultTileAtlasState());
@@ -9385,6 +9576,7 @@ export default function App(): JSX.Element {
     setTilesetManagerMode("edit");
     setTilesetManagerEditPath("");
     setTilesetManagerName("");
+    setTilesetManagerTileLayoutVersion(defaultUserTilesetTileLayoutVersion);
     setTilesetManagerAtlasState(createDefaultTileAtlasState());
     setTilesetManagerAtlasImage(null);
     resetTilesetManagerSelectedFile();
@@ -9486,6 +9678,7 @@ export default function App(): JSX.Element {
     const file = tilesetManagerFile;
     const label = stripUserTilesetNameSuffix(tilesetManagerName);
     const userLabel = appendUserTilesetNameSuffix(label);
+    const tileLayoutVersion = tilesetManagerTileLayoutVersion;
     if (tilesetManagerInNewMode) {
       if (!file) {
         setTilesetManagerError("Choose a PNG/BMP/GIF/JPEG tileset file.");
@@ -9513,6 +9706,7 @@ export default function App(): JSX.Element {
         const savedRecord = await saveStoredUserTileset({
           label: userLabel,
           tileSize,
+          tileLayoutVersion,
           fileName: (file as File).name,
           file: file as File,
         });
@@ -9531,6 +9725,7 @@ export default function App(): JSX.Element {
           id: selectedTilesetManagerEditUserRecord.id,
           label: userLabel,
           tileSize: nextTileSize,
+          tileLayoutVersion,
           fileName: nextFileName,
           file: nextFile,
         });
@@ -9894,7 +10089,7 @@ export default function App(): JSX.Element {
           ? "solid"
           : mappedBackgroundRemovalMode === "none"
             ? "none"
-            : "tile";
+            : resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath);
       const nextSolidColorHex = normalizeSolidChromaKeyHex(
         typeof mappedSolidColorHex === "string"
           ? mappedSolidColorHex
@@ -10276,10 +10471,16 @@ export default function App(): JSX.Element {
   }, [clientOptionsDraft.darkCorridorWallTileOverrideEnabled]);
 
   useEffect(() => {
-    if (!clientOptionsDraft.darkCorridorWalls367) {
+    if (
+      !clientOptionsDraft.darkCorridorWalls367 &&
+      !clientOptionsDraft.overrideNh37DarkCorridorWallTiles
+    ) {
       setIsDarkWallTilePickerVisible(false);
     }
-  }, [clientOptionsDraft.darkCorridorWalls367]);
+  }, [
+    clientOptionsDraft.darkCorridorWalls367,
+    clientOptionsDraft.overrideNh37DarkCorridorWallTiles,
+  ]);
 
   useEffect(() => {
     if (isVultureTilesetSelected) {
@@ -12062,7 +12263,9 @@ export default function App(): JSX.Element {
           closeControllerRemapDialog();
         } else if (isClientOptionsVisible) {
           requestCloseClientOptionsDialog();
-        } else if (startupFlowStep !== "choose") {
+        } else if (startupFlowStep === "choose") {
+          setStartupFlowStep("variant");
+        } else if (startupFlowStep !== "variant") {
           setStartupFlowStep("choose");
         }
       }
@@ -12477,6 +12680,64 @@ export default function App(): JSX.Element {
       <AnimatedDialog
         className="nh3d-dialog nh3d-dialog-question nh3d-dialog-fixed-actions startup nh3d-character-setup-dialog"
         disableAnimations={startupInitialLoadingVisible}
+        open={startupVariantDialogVisible}
+        id="character-setup-dialog-variant"
+        onBlurCapture={handleStartupMainMenuBlurCapture}
+        onChangeCapture={handleStartupMainMenuChangeCapture}
+        onKeyDown={handleStartupMainMenuKeyDown}
+        onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
+      >
+        <div className="nh3d-question-text">Choose your NetHack Variant:</div>
+        <div className="nh3d-overflow-glow-frame">
+          <div
+            className="nh3d-choice-list nh3d-choice-list-startup-choose"
+            data-nh3d-overflow-glow
+            data-nh3d-overflow-glow-host="parent"
+          >
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                setRuntimeVersion("3.7");
+                setStartupFlowStep("choose");
+              }}
+              type="button"
+            >
+              NetHack 3.7
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                setRuntimeVersion("3.6.7");
+                setStartupFlowStep("choose");
+              }}
+              type="button"
+            >
+              NetHack 3.6.7
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={openClientOptionsDialog}
+              style={{ marginTop: "14px" }}
+              type="button"
+            >
+              NetHack 3D Options
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                void requestGameQuit();
+              }}
+              type="button"
+            >
+              Quit Game
+            </button>
+          </div>
+        </div>
+      </AnimatedDialog>
+
+      <AnimatedDialog
+        className="nh3d-dialog nh3d-dialog-question nh3d-dialog-fixed-actions startup nh3d-character-setup-dialog"
+        disableAnimations={startupInitialLoadingVisible}
         open={startupChooseDialogVisible}
         id="character-setup-dialog-choose"
         onBlurCapture={handleStartupMainMenuBlurCapture}
@@ -12491,23 +12752,6 @@ export default function App(): JSX.Element {
             data-nh3d-overflow-glow
             data-nh3d-overflow-glow-host="parent"
           >
-            <div className="nh3d-startup-config-grid centered">
-              <label className="nh3d-startup-config-field">
-                <span>NetHack Version</span>
-                <select
-                  className="nh3d-startup-config-select"
-                  onChange={(event) =>
-                    setRuntimeVersion(
-                      event.target.value as NethackRuntimeVersion,
-                    )
-                  }
-                  value={runtimeVersion}
-                >
-                  <option value="3.6.7">3.6.x (3.6.7)</option>
-                  {import.meta.env.DEV && <option value="3.7">3.7</option>}
-                </select>
-              </label>
-            </div>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => setStartupFlowStep("random")}
@@ -12531,19 +12775,10 @@ export default function App(): JSX.Element {
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
-              onClick={openClientOptionsDialog}
+              onClick={() => setStartupFlowStep("variant")}
               type="button"
             >
-              NetHack 3D Options
-            </button>
-            <button
-              className="nh3d-choice-button nh3d-character-setup-choice-button"
-              onClick={() => {
-                void requestGameQuit();
-              }}
-              type="button"
-            >
-              Quit Game
+              Back
             </button>
           </div>
         </div>
@@ -12624,6 +12859,31 @@ export default function App(): JSX.Element {
                             width: "auto",
                           }}
                           onClick={() => {
+                            const currentTilesetPath = String(
+                              clientOptions.tilesetPath || "",
+                            ).trim();
+                            const compatibleTilesetPath =
+                              resolveNh3dCompatibleTilesetPathForRuntime(
+                                currentTilesetPath,
+                                runtimeVersion,
+                              );
+                            if (
+                              compatibleTilesetPath &&
+                              compatibleTilesetPath !== currentTilesetPath
+                            ) {
+                              setClientOptions((previous) =>
+                                normalizeNh3dClientOptions({
+                                  ...previous,
+                                  tilesetPath: compatibleTilesetPath,
+                                }),
+                              );
+                              setClientOptionsDraft((previous) =>
+                                normalizeNh3dClientOptions({
+                                  ...previous,
+                                  tilesetPath: compatibleTilesetPath,
+                                }),
+                              );
+                            }
                             setCharacterCreationConfig({
                               mode: "resume",
                               playMode: clientOptions.fpsMode
@@ -13279,6 +13539,8 @@ export default function App(): JSX.Element {
                       option.key === "inventoryTileOnlyMotion";
                     const isDarkCorridorWallsOption =
                       option.key === "darkCorridorWalls367";
+                    const isNh37DarkWallOverrideOption =
+                      option.key === "overrideNh37DarkCorridorWallTiles";
                     const isDarkWallTileOverrideOption =
                       option.key === "darkCorridorWallTileOverrideEnabled";
                     const isDarkWallSolidColorOverrideOption =
@@ -13289,7 +13551,9 @@ export default function App(): JSX.Element {
                       isDarkWallSolidColorOverrideOption;
                     const darkCorridorOptionSuppressedByVulture =
                       isVultureTilesetSelected &&
-                      (isDarkCorridorWallsOption || isDarkWallOverrideOption);
+                      (isDarkCorridorWallsOption ||
+                        isNh37DarkWallOverrideOption ||
+                        isDarkWallOverrideOption);
                     const darkCorridorWallsForcedOnByVulture =
                       isVultureTilesetSelected && isDarkCorridorWallsOption;
                     const invertLookOptionDisabledByFpsMode =
@@ -13297,7 +13561,8 @@ export default function App(): JSX.Element {
                       !clientOptionsDraft.fpsMode;
                     const darkWallOverrideDisabledByDarkCorridorWalls =
                       isDarkWallOverrideOption &&
-                      !clientOptionsDraft.darkCorridorWalls367;
+                      !clientOptionsDraft.darkCorridorWalls367 &&
+                      !clientOptionsDraft.overrideNh37DarkCorridorWallTiles;
                     const enabled = darkCorridorWallsForcedOnByVulture
                       ? true
                       : Boolean(clientOptionsDraft[option.key]);
@@ -13313,7 +13578,7 @@ export default function App(): JSX.Element {
                         : darkCorridorOptionSuppressedByVulture
                           ? " Disabled while Vulture tiles are active."
                           : darkWallOverrideDisabledByDarkCorridorWalls
-                            ? " Enable NetHack 3.6.7 dark corridor walls first."
+                            ? " Enable NetHack 3.6.7 dark corridor walls or NetHack 3.7 dark wall overrides first."
                             : invertLookOptionDisabledByFpsMode
                               ? " Enable First-person mode in Display first."
                               : "";
@@ -13959,6 +14224,34 @@ export default function App(): JSX.Element {
                   <div className="nh3d-tileset-manager-upload-row">
                     <label
                       className="nh3d-option-label"
+                      htmlFor="nh3d-tileset-version"
+                    >
+                      Tile Layout Version
+                    </label>
+                    <select
+                      className="nh3d-startup-config-select"
+                      id="nh3d-tileset-version"
+                      onChange={(event) =>
+                        setTilesetManagerTileLayoutVersion(
+                          event.target.value === "3.7" ? "3.7" : "3.6.7",
+                        )
+                      }
+                      value={tilesetManagerTileLayoutVersion}
+                    >
+                      <option value="3.6.7">NetHack 3.6.7 layout</option>
+                      <option value="3.7">NetHack 3.7 layout</option>
+                    </select>
+                    <div className="nh3d-option-description">
+                      Choose the tile index layout used by this uploaded
+                      atlas.
+                    </div>
+                  </div>
+                ) : null}
+                {tilesetManagerInNewMode ||
+                selectedTilesetManagerEditUserRecord ? (
+                  <div className="nh3d-tileset-manager-upload-row">
+                    <label
+                      className="nh3d-option-label"
                       htmlFor="nh3d-tileset-upload-file"
                     >
                       {tilesetManagerInNewMode
@@ -14212,7 +14505,7 @@ export default function App(): JSX.Element {
                           </div>
                           <div className="nh3d-option-description">
                             {isUserTileset
-                              ? `${userRecord?.fileName || tilesetPath} | uploaded`
+                              ? `${userRecord?.fileName || tilesetPath} | uploaded | layout ${userRecord?.tileLayoutVersion || "3.6.7"}`
                               : `${tilesetPath} | built-in`}
                           </div>
                         </div>
@@ -15837,10 +16130,12 @@ export default function App(): JSX.Element {
                           // Use the special prefix to ensure the runtime intercepts it and reliably
                           // applies it to the next inventory prompt menu without race conditions.
                           controller?.sendInput(
-                            `__INVCTX_SELECT__:${inventoryContextMenuRenderState.accelerator}`,
+                            `__INVCTX_SELECT__:${inventoryContextMenuRenderState.accelerator}:${action.id}`,
                           );
                         }
-                        controller?.runExtendedCommand(action.value);
+                        controller?.runExtendedCommand(action.value, {
+                          forceHashSubmission: true,
+                        });
                       } else {
                         controller?.runInventoryItemAction(
                           action.id,

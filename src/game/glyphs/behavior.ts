@@ -1,6 +1,11 @@
 import type { TerrainSnapshot } from "../types";
 import { getMergedGlyphOverride } from "./overrides";
-import { getGlyphCatalogRanges, resolveGlyph } from "./registry";
+import {
+  getActiveGlyphCatalogVersion,
+  getGlyphCatalogEntry,
+  getGlyphCatalogRanges,
+  resolveGlyph,
+} from "./registry";
 import type {
   GlyphDisposition,
   ResolvedGlyph,
@@ -22,7 +27,63 @@ function getGlyphKindRange(
   return null;
 }
 
-function getCmapIndex(glyph: number): number | null {
+function normalizeRuntimeCmapIndex(value: number | null | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  const normalized = Math.trunc(value);
+  return normalized >= 0 ? normalized : null;
+}
+
+function normalizeRuntimeCmapChar(value: string | null | undefined): string | null {
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  const normalized = value.charAt(0);
+  const code = normalized.charCodeAt(0);
+  if (code === 0 || code === 0x7f) {
+    return null;
+  }
+  return normalized;
+}
+
+function getPreferredRuntimeCmapIndex(
+  glyph: number,
+  runtimeSymidx?: number | null,
+  priorTerrain?: TerrainSnapshot | null,
+): number | null {
+  const runtimeCmapIndex = normalizeRuntimeCmapIndex(runtimeSymidx);
+  if (runtimeCmapIndex !== null) {
+    return runtimeCmapIndex;
+  }
+  if (
+    priorTerrain &&
+    priorTerrain.glyph === glyph &&
+    typeof priorTerrain.symidx === "number"
+  ) {
+    return normalizeRuntimeCmapIndex(priorTerrain.symidx);
+  }
+  return null;
+}
+
+function getCmapIndex(glyph: number, runtimeSymidx?: number | null): number | null {
+  const entry = getGlyphCatalogEntry(glyph);
+  if (entry) {
+    if (entry.kind !== "cmap") {
+      return null;
+    }
+    const runtimeCmapIndex = normalizeRuntimeCmapIndex(runtimeSymidx);
+    if (runtimeCmapIndex !== null) {
+      return runtimeCmapIndex;
+    }
+    if (typeof entry.symidx === "number" && Number.isFinite(entry.symidx)) {
+      const semanticIndex = Math.trunc(entry.symidx);
+      if (semanticIndex >= 0) {
+        return semanticIndex;
+      }
+    }
+  }
+
   const range = getGlyphKindRange("cmap");
   if (!range) {
     return null;
@@ -30,60 +91,105 @@ function getCmapIndex(glyph: number): number | null {
   if (glyph < range.start || glyph >= range.endExclusive) {
     return null;
   }
+  const runtimeCmapIndex = normalizeRuntimeCmapIndex(runtimeSymidx);
+  if (runtimeCmapIndex !== null) {
+    return runtimeCmapIndex;
+  }
   return glyph - range.start;
 }
 
-export function getDefaultFloorGlyph(): number {
+let cmapRepresentativeGlyphCache:
+  | {
+      cacheKey: string;
+      byCmapIndex: Map<number, number>;
+    }
+  | null = null;
+
+function getCmapRepresentativeLookup(
+  range: { start: number; endExclusive: number },
+): Map<number, number> {
+  const cacheKey = `${range.start}:${range.endExclusive}`;
+  if (cmapRepresentativeGlyphCache?.cacheKey === cacheKey) {
+    return cmapRepresentativeGlyphCache.byCmapIndex;
+  }
+
+  const byCmapIndex = new Map<number, number>();
+  for (let glyph = range.start; glyph < range.endExclusive; glyph += 1) {
+    const entry = getGlyphCatalogEntry(glyph);
+    if (!entry || entry.kind !== "cmap") {
+      continue;
+    }
+    const cmapIndex =
+      typeof entry.symidx === "number" && Number.isFinite(entry.symidx)
+        ? Math.trunc(entry.symidx)
+        : glyph - range.start;
+    if (cmapIndex < 0 || byCmapIndex.has(cmapIndex)) {
+      continue;
+    }
+    byCmapIndex.set(cmapIndex, glyph);
+  }
+
+  cmapRepresentativeGlyphCache = { cacheKey, byCmapIndex };
+  return byCmapIndex;
+}
+
+function getRepresentativeCmapGlyph(cmapIndex: number): number | null {
   const range = getGlyphKindRange("cmap");
   if (!range) {
-    return 0;
+    return null;
   }
+
+  const representativeGlyph =
+    getCmapRepresentativeLookup(range).get(Math.trunc(cmapIndex)) ?? null;
+  if (representativeGlyph !== null) {
+    return representativeGlyph;
+  }
+
+  const fallbackGlyph = range.start + cmapIndex;
+  if (fallbackGlyph >= range.start && fallbackGlyph < range.endExclusive) {
+    return fallbackGlyph;
+  }
+  return null;
+}
+
+export function getDefaultFloorGlyph(): number {
   // drawing.c: S_room is index 19 ("floor of a room").
-  return range.start + 19;
+  return getRepresentativeCmapGlyph(19) ?? 0;
 }
 
 export function getDefaultDarkFloorGlyph(): number {
-  const range = getGlyphKindRange("cmap");
-  if (!range) {
-    return getDefaultFloorGlyph();
-  }
   // drawing.c: index 21 is dark corridor, which is a good unseen-dark fallback.
-  return range.start + 21;
+  return getRepresentativeCmapGlyph(21) ?? getDefaultFloorGlyph();
 }
 
 export function getDefaultDarkWallGlyph(): number {
-  const range = getGlyphKindRange("cmap");
-  if (!range) {
-    return getDefaultDarkFloorGlyph();
-  }
   // drawing.c: index 0 is stone/out-of-bounds and classifies as dark wall.
-  return range.start;
+  return getRepresentativeCmapGlyph(0) ?? getDefaultDarkFloorGlyph();
 }
 
 export function getOpenDoorGlyphFrom(glyph: number): number | null {
-  const range = getGlyphKindRange("cmap");
-  const cmapIndex = getCmapIndex(glyph);
-  if (!range || cmapIndex === null) {
+  const cmapIndex = getCmapIndex(glyph, null);
+  if (cmapIndex === null) {
     return null;
   }
   if (cmapIndex === 13 || cmapIndex === 14) {
     return glyph;
   }
   if (cmapIndex === 15) {
-    return range.start + 13;
+    return getRepresentativeCmapGlyph(13);
   }
   if (cmapIndex === 16) {
-    return range.start + 14;
+    return getRepresentativeCmapGlyph(14);
   }
   return null;
 }
 
 export function isDarkCorridorCmapGlyph(glyph: number): boolean {
-  return getCmapIndex(glyph) === 21;
+  return getCmapIndex(glyph, null) === 21;
 }
 
 export function isDoorwayCmapGlyph(glyph: number): boolean {
-  const cmapIndex = getCmapIndex(glyph);
+  const cmapIndex = getCmapIndex(glyph, null);
   return (
     cmapIndex === 12 || // doorway
     cmapIndex === 13 || // open vertical door
@@ -94,13 +200,8 @@ export function isDoorwayCmapGlyph(glyph: number): boolean {
 }
 
 export function isVerticalDoorCmapGlyph(glyph: number): boolean {
-  const cmapIndex = getCmapIndex(glyph);
+  const cmapIndex = getCmapIndex(glyph, null);
   return cmapIndex === 13 || cmapIndex === 15;
-}
-
-export function isSinkCmapGlyph(glyph: number): boolean {
-  // drawing.c: cmap index 30 is sink (S_sink).
-  return getCmapIndex(glyph) === 30;
 }
 
 type CmapSemantic =
@@ -117,41 +218,144 @@ type CmapSemantic =
   | "dark_floor"
   | "dark_wall";
 
+type CmapIndexProfile = {
+  wall: ReadonlySet<number>;
+  doorOpen: ReadonlySet<number>;
+  doorClosed: ReadonlySet<number>;
+  darkFloor: ReadonlySet<number>;
+  floor: ReadonlySet<number>;
+  stairsUp: ReadonlySet<number>;
+  stairsDown: ReadonlySet<number>;
+  sink: ReadonlySet<number>;
+  fountain: ReadonlySet<number>;
+  water: ReadonlySet<number>;
+  tombstone: ReadonlySet<number>;
+  trapRanges: ReadonlyArray<readonly [number, number]>;
+};
+
+const LEGACY_367_CMAP_PROFILE: CmapIndexProfile = {
+  wall: new Set<number>([17, 18, 37, 38]),
+  doorOpen: new Set<number>([13, 14]),
+  doorClosed: new Set<number>([15, 16]),
+  darkFloor: new Set<number>([20, 21]),
+  floor: new Set<number>([12, 19, 22, 35, 36]),
+  stairsUp: new Set<number>([23, 25]),
+  stairsDown: new Set<number>([24, 26]),
+  sink: new Set<number>([30]),
+  fountain: new Set<number>([31]),
+  water: new Set<number>([32, 34, 41]),
+  tombstone: new Set<number>([28]),
+  trapRanges: [[42, 64]],
+};
+
+const NH37_SPLIT_CMAP_PROFILE: CmapIndexProfile = {
+  wall: new Set<number>([17, 18, 44, 45]),
+  doorOpen: new Set<number>([13, 14]),
+  doorClosed: new Set<number>([15, 16]),
+  darkFloor: new Set<number>([20, 22]),
+  floor: new Set<number>([12, 19, 21, 23, 24, 42, 43]),
+  stairsUp: new Set<number>([25, 27, 29, 31]),
+  stairsDown: new Set<number>([26, 28, 30, 32]),
+  sink: new Set<number>([36]),
+  fountain: new Set<number>([37]),
+  water: new Set<number>([38, 40, 41, 48]),
+  tombstone: new Set<number>([34]),
+  trapRanges: [[49, 73]],
+};
+
+function getActiveCmapIndexProfile(): CmapIndexProfile {
+  return getActiveGlyphCatalogVersion() === "3.7"
+    ? NH37_SPLIT_CMAP_PROFILE
+    : LEGACY_367_CMAP_PROFILE;
+}
+
+export function isSinkCmapGlyph(glyph: number): boolean {
+  const cmapIndex = getCmapIndex(glyph, null);
+  return (
+    cmapIndex !== null && getActiveCmapIndexProfile().sink.has(cmapIndex)
+  );
+}
+
+function isIndexInAnyInclusiveRange(
+  index: number,
+  ranges: ReadonlyArray<readonly [number, number]>,
+): boolean {
+  for (const [min, max] of ranges) {
+    if (index >= min && index <= max) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function semanticForCmapIndex(cmapIndex: number): CmapSemantic {
-  // drawing.c indices in NetHack 3.6/3.7 use a stable layout for core terrain.
+  // Runtime symidx can differ between legacy 3.6.x and 3.7 split-cmap layouts.
+  const profile = getActiveCmapIndexProfile();
   if (cmapIndex === 0) return "dark_wall"; // stone/out-of-bounds
 
   // Core walls and wall-like obstacles.
   if (cmapIndex >= 1 && cmapIndex <= 11) return "wall";
-  if (cmapIndex === 15 || cmapIndex === 16) return "door_closed";
-  if (cmapIndex === 17 || cmapIndex === 18) return "wall"; // bars/tree
-  if (cmapIndex === 37 || cmapIndex === 38) return "wall"; // raised drawbridges
+  if (profile.wall.has(cmapIndex)) return "wall";
+  if (profile.doorClosed.has(cmapIndex)) return "door_closed";
 
   // Doors and floors.
-  if (cmapIndex === 12) return "floor"; // doorway
-  if (cmapIndex === 13 || cmapIndex === 14) return "door_open";
-
-  if (cmapIndex === 19) return "floor"; // room
-  if (cmapIndex === 20 || cmapIndex === 21) return "dark_floor"; // dark room/corridor
-  if (cmapIndex === 22) return "floor"; // lit corridor
+  if (profile.doorOpen.has(cmapIndex)) return "door_open";
+  if (profile.darkFloor.has(cmapIndex)) return "dark_floor";
+  if (profile.floor.has(cmapIndex)) return "floor";
 
   // Stairs/ladders.
-  if (cmapIndex === 23 || cmapIndex === 25) return "stairs_up";
-  if (cmapIndex === 24 || cmapIndex === 26) return "stairs_down";
+  if (profile.stairsUp.has(cmapIndex)) return "stairs_up";
+  if (profile.stairsDown.has(cmapIndex)) return "stairs_down";
 
   // Water-ish terrain.
-  if (cmapIndex === 31) return "fountain";
-  if (cmapIndex === 32 || cmapIndex === 34 || cmapIndex === 41) return "water";
+  if (profile.fountain.has(cmapIndex)) return "fountain";
+  if (profile.water.has(cmapIndex)) return "water";
 
   // Traps (including the vibrating square).
-  if (cmapIndex >= 42 && cmapIndex <= 64) return "trap";
+  if (isIndexInAnyInclusiveRange(cmapIndex, profile.trapRanges)) return "trap";
 
   // Everything else is treated as a passable floor feature.
   return "feature";
 }
 
-function semanticForCmapGlyph(glyph: number): CmapSemantic | null {
-  const cmapIndex = getCmapIndex(glyph);
+function semanticForRuntimeCmapChar(
+  runtimeCmapIndex: number | null,
+  runtimeCmapChar: string | null,
+): CmapSemantic | null {
+  const profile = getActiveCmapIndexProfile();
+  if (runtimeCmapChar === "<") {
+    return "stairs_up";
+  }
+  if (runtimeCmapChar === ">") {
+    return "stairs_down";
+  }
+  if (runtimeCmapChar === "_") {
+    return "feature";
+  }
+  if (
+    runtimeCmapChar === "|" &&
+    runtimeCmapIndex !== null &&
+    profile.tombstone.has(runtimeCmapIndex)
+  ) {
+    return "feature";
+  }
+  if (runtimeCmapChar === "{") {
+    if (runtimeCmapIndex !== null && profile.sink.has(runtimeCmapIndex)) {
+      return "feature";
+    }
+    return "fountain";
+  }
+  if (runtimeCmapChar === "}") {
+    return "water";
+  }
+  return null;
+}
+
+function semanticForCmapGlyph(
+  glyph: number,
+  runtimeSymidx?: number | null,
+): CmapSemantic | null {
+  const cmapIndex = getCmapIndex(glyph, runtimeSymidx);
   if (cmapIndex === null) {
     return null;
   }
@@ -327,7 +531,11 @@ function baseMaterialForDisposition(
   }
 }
 
-function classifyByKind(effective: ResolvedGlyph): {
+function classifyByKind(
+  effective: ResolvedGlyph,
+  runtimeCmapIndex: number | null,
+  runtimeCmapChar: string | null,
+): {
   materialKind: TileMaterialKind;
   geometryKind: TileGeometryKind;
   isWall: boolean;
@@ -335,7 +543,14 @@ function classifyByKind(effective: ResolvedGlyph): {
 } {
   switch (effective.kind) {
     case "cmap": {
-      const semantic = semanticForCmapGlyph(effective.glyph) || "feature";
+      const semanticFromRuntimeChar = semanticForRuntimeCmapChar(
+        runtimeCmapIndex,
+        runtimeCmapChar,
+      );
+      const semantic =
+        semanticFromRuntimeChar ??
+        semanticForCmapGlyph(effective.glyph, runtimeCmapIndex) ??
+        "feature";
       return applyCmapSemantic(semantic);
     }
     case "obj":
@@ -407,6 +622,7 @@ export function classifyTileBehavior(input: {
   runtimeChar?: string | null;
   runtimeColor?: number | null;
   runtimeTileIndex?: number | null;
+  runtimeSymidx?: number | null;
   priorTerrain?: TerrainSnapshot | null;
 }): TileBehaviorResult {
   const runtimeChar =
@@ -420,12 +636,30 @@ export function classifyTileBehavior(input: {
     input.runtimeColor,
     input.runtimeTileIndex,
   );
+  const runtimeCmapIndexForInputGlyph = getPreferredRuntimeCmapIndex(
+    input.glyph,
+    input.runtimeSymidx,
+    input.priorTerrain,
+  );
+  const resolvedRuntimeCmapIndex =
+    resolved.kind === "cmap"
+      ? getPreferredRuntimeCmapIndex(
+          resolved.glyph,
+          input.runtimeSymidx,
+          input.priorTerrain,
+        )
+      : null;
   const resolvedCmapSemantic =
-    resolved.kind === "cmap" ? semanticForCmapGlyph(resolved.glyph) : null;
+    resolved.kind === "cmap"
+      ? semanticForCmapGlyph(resolved.glyph, resolvedRuntimeCmapIndex)
+      : null;
   const isDeterministicDarkCmap =
     resolvedCmapSemantic === "dark_floor" ||
     resolvedCmapSemantic === "dark_wall";
-  const darkOverlayIndex = getCmapIndex(input.glyph);
+  const darkOverlayIndex = getCmapIndex(
+    input.glyph,
+    runtimeCmapIndexForInputGlyph,
+  );
   const isDarkOverlay =
     darkOverlayIndex === 0 ||
     darkOverlayIndex === 20 ||
@@ -450,7 +684,29 @@ export function classifyTileBehavior(input: {
   }
 
   const disposition = inferDisposition(effective);
-  const byKind = classifyByKind(effective);
+  const effectiveRuntimeCmapIndex =
+    effective.kind === "cmap"
+      ? getPreferredRuntimeCmapIndex(
+          effective.glyph,
+          input.runtimeSymidx,
+          input.priorTerrain,
+        )
+      : null;
+  const effectiveRuntimeCmapChar =
+    effective.kind === "cmap"
+      ? normalizeRuntimeCmapChar(runtimeChar) ??
+        (input.priorTerrain &&
+        input.priorTerrain.glyph === effective.glyph &&
+        typeof input.priorTerrain.char === "string"
+          ? normalizeRuntimeCmapChar(input.priorTerrain.char)
+          : null) ??
+        normalizeRuntimeCmapChar(effective.char)
+      : null;
+  const byKind = classifyByKind(
+    effective,
+    effectiveRuntimeCmapIndex,
+    effectiveRuntimeCmapChar,
+  );
   let materialKind = byKind.materialKind;
   let geometryKind = byKind.geometryKind;
   let isWall = byKind.isWall;

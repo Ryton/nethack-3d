@@ -2,6 +2,7 @@ export type StoredUserTilesetRecord = {
   id: string;
   label: string;
   tileSize: number;
+  tileLayoutVersion: StoredUserTilesetTileLayoutVersion;
   fileName: string;
   mimeType: string;
   blob: Blob;
@@ -9,10 +10,13 @@ export type StoredUserTilesetRecord = {
   updatedAt: number;
 };
 
+export type StoredUserTilesetTileLayoutVersion = "3.6.7" | "3.7";
+
 type SaveUserTilesetInput = {
   id?: string;
   label: string;
   tileSize: number;
+  tileLayoutVersion?: StoredUserTilesetTileLayoutVersion;
   fileName?: string;
   file: File | Blob;
 };
@@ -20,6 +24,12 @@ type SaveUserTilesetInput = {
 const dbName = "nh3d-user-tilesets";
 const dbVersion = 1;
 const storeName = "tilesets";
+
+function normalizeStoredTileLayoutVersion(
+  rawValue: unknown,
+): StoredUserTilesetTileLayoutVersion {
+  return rawValue === "3.7" ? "3.7" : "3.6.7";
+}
 
 function ensureIndexedDbAvailable(): void {
   if (typeof indexedDB === "undefined") {
@@ -73,6 +83,9 @@ function normalizeStoredRecord(raw: unknown): StoredUserTilesetRecord | null {
     1,
     Math.trunc(Number.isFinite(value.tileSize) ? Number(value.tileSize) : 32),
   );
+  const tileLayoutVersion = normalizeStoredTileLayoutVersion(
+    value.tileLayoutVersion,
+  );
   const blob = value.blob instanceof Blob ? value.blob : null;
   if (!blob) {
     return null;
@@ -81,6 +94,7 @@ function normalizeStoredRecord(raw: unknown): StoredUserTilesetRecord | null {
     id,
     label,
     tileSize,
+    tileLayoutVersion,
     fileName: String(value.fileName || `${label}.png`).trim() || `${label}.png`,
     mimeType: String(value.mimeType || blob.type || "application/octet-stream"),
     blob,
@@ -123,6 +137,9 @@ export async function saveStoredUserTileset(
     1,
     Math.trunc(Number.isFinite(input.tileSize) ? input.tileSize : 32),
   );
+  const requestedTileLayoutVersion = normalizeStoredTileLayoutVersion(
+    input.tileLayoutVersion,
+  );
   const blob = input.file instanceof Blob ? input.file : null;
   if (!blob) {
     throw new Error("Tileset file is required.");
@@ -138,10 +155,15 @@ export async function saveStoredUserTileset(
     const existingRecord = normalizedId
       ? normalizeStoredRecord(await idbRequestToPromise(store.get(normalizedId)))
       : null;
+    const tileLayoutVersion =
+      input.tileLayoutVersion !== undefined
+        ? requestedTileLayoutVersion
+        : existingRecord?.tileLayoutVersion ?? "3.6.7";
     const record: StoredUserTilesetRecord = {
       id,
       label,
       tileSize,
+      tileLayoutVersion,
       fileName: String(
         input.fileName ||
           (input.file instanceof File

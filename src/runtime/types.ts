@@ -49,7 +49,8 @@ export type RuntimeCommand =
       radius: number;
     }
   | { type: "request_runtime_globals_snapshot" }
-  | { type: "set_logging"; enabled: boolean };
+  | { type: "set_logging"; enabled: boolean }
+  | { type: "shutdown" };
 
 export type RuntimeWorkerEnvelope =
   | { type: "runtime_event"; event: RuntimeEvent }

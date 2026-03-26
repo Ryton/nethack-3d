@@ -2,10 +2,20 @@ import {
   GENERATED_TILESET_MANIFEST,
   type GeneratedTilesetManifestEntry,
 } from "./tilesets.generated";
+import type { NethackRuntimeVersion } from "../runtime/types";
 
 export type Nh3dTilesetSource = "builtin" | "user" | "vulture";
+export type Nh3dTilesetTileLayoutVersion = "3.6.7" | "3.7" | "unknown";
+export type Nh3dTilesetBackgroundRemovalMode = "none" | "tile" | "solid";
 
-export type Nh3dTilesetEntry = GeneratedTilesetManifestEntry & {
+type Nh3dBaseTilesetEntry = Omit<
+  GeneratedTilesetManifestEntry,
+  "tileLayoutVersion"
+> & {
+  readonly tileLayoutVersion: Nh3dTilesetTileLayoutVersion;
+};
+
+export type Nh3dTilesetEntry = Nh3dBaseTilesetEntry & {
   readonly source: Nh3dTilesetSource;
   readonly assetUrl: string;
 };
@@ -14,13 +24,16 @@ export type Nh3dUserTilesetRegistration = {
   readonly id: string;
   readonly label: string;
   readonly tileSize: number;
+  readonly tileLayoutVersion?: Nh3dTilesetTileLayoutVersion;
   readonly blob: Blob;
 };
 
 const fallbackTileSize = 32;
 const fallbackBackgroundTileId = 0;
+const fallbackBackgroundRemovalMode: Nh3dTilesetBackgroundRemovalMode = "tile";
 const fallbackSolidChromaKeyColorHex = "#466d6c";
 export const nh3dTilesetAtlasTileColumns = 40;
+const builtinNh37TilesetPathPrefix = "assets/3.7/";
 const userTilesetPathPrefix = "user:";
 const vultureTilesetPathPrefix = "vulture:";
 const vultureTilesetLabel = "Vulture (isometric)";
@@ -37,9 +50,39 @@ const tilesetSolidChromaKeyPresetByLabel: Readonly<Record<string, string>> = {
   "Absurdly Evil": "#466d6c",
   DawnHack: "#466d6c",
   Nevanda: "#466d6c",
+  "Nevanda (3.7)": "#466d6c",
+  "Vanilla NetHack Tiles (3.7)": "#466d6c",
   "Vanilla NetHack Tiles": "#476C6C",
   "NetHack Modern": "#000000",
 };
+
+// Centralized per-tileset defaults. Add entries here to override fallback
+// behavior for any specific built-in tileset path.
+const tilesetBackgroundRemovalModePresetByPath: Readonly<
+  Record<string, Nh3dTilesetBackgroundRemovalMode>
+> = {
+  "assets/3.7/Nevanda (3.7).png": "solid",
+  "assets/3.7/Vanilla NetHack Tiles (3.7).png": "solid",
+  "assets/3.6/Nevanda.png": "solid",
+  "assets/3.6/NetHack Modern.bmp": "solid",
+  "assets/3.6/DawnHack.bmp": "tile",
+  "assets/3.6/RZTiles.bmp": "tile",
+  "assets/3.6/Absurdly Evil.bmp": "tile",
+  "assets/3.6/Vanilla NetHack Tiles.png": "solid",
+};
+
+function normalizeTilesetPresetLookupLabel(label: string): string {
+  return String(label || "")
+    .trim()
+    .replace(/\s+\(3\.7\)\s*$/i, "");
+}
+
+function isBuiltinNh37Tileset(tileset: Nh3dTilesetEntry): boolean {
+  return (
+    tileset.source === "builtin" &&
+    String(tileset.path || "").startsWith(builtinNh37TilesetPathPrefix)
+  );
+}
 
 export function inferNh3dTilesetTileSizeFromAtlasWidth(width: number): number {
   const safeWidth = Math.max(0, Math.trunc(width));
@@ -79,6 +122,7 @@ function createDynamicVultureTilesetEntry(path: string): Nh3dTilesetEntry {
     tileSize: vultureNominalTileSize,
     source: "vulture",
     assetUrl: dataRoot,
+    tileLayoutVersion: "3.6.7",
   };
 }
 
@@ -88,6 +132,8 @@ for (const rawEntry of GENERATED_TILESET_MANIFEST) {
   const path = String(rawEntry?.path || "").trim();
   const label = String(rawEntry?.label || "").trim();
   const tileSize = fallbackTileSize;
+  const tileLayoutVersion =
+    rawEntry?.tileLayoutVersion === "3.7" ? "3.7" : "3.6.7";
   if (!path || seenPaths.has(path)) {
     continue;
   }
@@ -98,6 +144,7 @@ for (const rawEntry of GENERATED_TILESET_MANIFEST) {
     tileSize,
     source: "builtin",
     assetUrl: path,
+    tileLayoutVersion,
   });
 }
 const builtinVultureTilesetPath = getNh3dVultureTilesetPath(
@@ -111,6 +158,7 @@ if (!seenPaths.has(builtinVultureTilesetPath)) {
     tileSize: vultureNominalTileSize,
     source: "vulture",
     assetUrl: vultureDefaultDataRoot,
+    tileLayoutVersion: "3.6.7",
   });
 }
 
@@ -184,6 +232,12 @@ export function setNh3dUserTilesets(
       ),
     );
     const label = ensureUserSuffix(registration?.label || path);
+    const tileLayoutVersion =
+      registration?.tileLayoutVersion === "3.7"
+        ? "3.7"
+        : registration?.tileLayoutVersion === "3.6.7"
+          ? "3.6.7"
+          : "unknown";
     let assetUrl = "";
     if (
       registration?.blob instanceof Blob &&
@@ -198,6 +252,7 @@ export function setNh3dUserTilesets(
       tileSize,
       source: "user",
       assetUrl,
+      tileLayoutVersion,
     });
   }
 
@@ -268,6 +323,66 @@ export function resolveNh3dTilesetAssetUrl(
   return String(tileset.assetUrl || "").trim() || null;
 }
 
+export function resolveNh3dTilesetTileLayoutVersion(
+  path: string | null | undefined,
+): Nh3dTilesetTileLayoutVersion {
+  return findNh3dTilesetByPath(path)?.tileLayoutVersion ?? "unknown";
+}
+
+export function resolveNh3dCompatibleTilesetPathForRuntime(
+  path: string | null | undefined,
+  runtimeVersion: NethackRuntimeVersion,
+): string {
+  const selectedTileset = findNh3dTilesetByPath(path);
+  if (!selectedTileset) {
+    return defaultNh3dTilesetPath;
+  }
+  const selectedLookupLabel = normalizeTilesetPresetLookupLabel(
+    selectedTileset.label,
+  ).toLowerCase();
+  if (
+    runtimeVersion === "3.6.7" &&
+    selectedTileset.tileLayoutVersion === "3.7"
+  ) {
+    const labelMatchedNh367Tileset = tilesetCatalog.find(
+      (entry) =>
+        entry.tileLayoutVersion === "3.6.7" &&
+        normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+          selectedLookupLabel,
+    );
+    if (labelMatchedNh367Tileset) {
+      return labelMatchedNh367Tileset.path;
+    }
+    const firstNh367Tileset = tilesetCatalog.find(
+      (entry) => entry.tileLayoutVersion === "3.6.7",
+    );
+    return firstNh367Tileset?.path ?? defaultNh3dTilesetPath;
+  }
+  return selectedTileset.path;
+}
+
+export function resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(
+  path: string | null | undefined,
+): string | null {
+  const selectedTileset = findNh3dTilesetByPath(path);
+  if (!selectedTileset || selectedTileset.tileLayoutVersion !== "3.6.7") {
+    return null;
+  }
+  const selectedLookupLabel = normalizeTilesetPresetLookupLabel(
+    selectedTileset.label,
+  ).toLowerCase();
+  const labelMatchedNh37Tileset = tilesetCatalog.find(
+    (entry) =>
+      entry.tileLayoutVersion === "3.7" &&
+      normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+        selectedLookupLabel,
+  );
+  if (labelMatchedNh37Tileset) {
+    return labelMatchedNh37Tileset.path;
+  }
+  return null;
+}
+
 function normalizeHexColorOrFallback(
   rawValue: unknown,
   fallback: string,
@@ -287,9 +402,11 @@ export function resolveDefaultNh3dTilesetSolidChromaKeyColorHex(
   if (!tileset) {
     return fallbackSolidChromaKeyColorHex;
   }
+  const presetLookupLabel = normalizeTilesetPresetLookupLabel(tileset.label);
   const presetByLabel =
     tileset.source === "builtin"
-      ? tilesetSolidChromaKeyPresetByLabel[tileset.label]
+      ? tilesetSolidChromaKeyPresetByLabel[presetLookupLabel] ??
+        tilesetSolidChromaKeyPresetByLabel[tileset.label]
       : undefined;
   if (typeof presetByLabel === "string" && presetByLabel.trim()) {
     return normalizeHexColorOrFallback(
@@ -307,12 +424,31 @@ export function resolveDefaultNh3dTilesetBackgroundTileId(
   if (!tileset) {
     return fallbackBackgroundTileId;
   }
+  const presetLookupLabel = normalizeTilesetPresetLookupLabel(tileset.label);
   const presetByLabel =
     tileset.source === "builtin"
-      ? tilesetBackgroundTilePresetByLabel[tileset.label]
+      ? tilesetBackgroundTilePresetByLabel[presetLookupLabel] ??
+        tilesetBackgroundTilePresetByLabel[tileset.label]
       : undefined;
   if (typeof presetByLabel === "number" && Number.isFinite(presetByLabel)) {
     return Math.max(0, Math.trunc(presetByLabel));
   }
   return fallbackBackgroundTileId;
+}
+
+export function resolveDefaultNh3dTilesetBackgroundRemovalMode(
+  path: string | null | undefined,
+): Nh3dTilesetBackgroundRemovalMode {
+  const tileset = findNh3dTilesetByPath(path);
+  if (!tileset || tileset.source !== "builtin") {
+    return fallbackBackgroundRemovalMode;
+  }
+  const preset = tilesetBackgroundRemovalModePresetByPath[tileset.path];
+  if (preset === "none" || preset === "solid" || preset === "tile") {
+    return preset;
+  }
+  if (isBuiltinNh37Tileset(tileset)) {
+    return "solid";
+  }
+  return fallbackBackgroundRemovalMode;
 }

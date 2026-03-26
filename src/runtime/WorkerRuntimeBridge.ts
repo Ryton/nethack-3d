@@ -22,7 +22,16 @@ export default class WorkerRuntimeBridge implements RuntimeBridge {
   ) {
     this.onEvent = onEvent;
     this.startupOptions = startupOptions;
-    this.worker = new Worker(new URL("./runtime-worker.ts", import.meta.url), {
+    const workerUrl = new URL("./runtime-worker.ts", import.meta.url);
+    const rawDevSessionTag = import.meta.env.VITE_NH3D_DEV_SESSION_TAG;
+    const devSessionTag =
+      import.meta.env.DEV && typeof rawDevSessionTag === "string"
+        ? rawDevSessionTag.trim()
+        : "";
+    if (devSessionTag) {
+      workerUrl.searchParams.set("nh3d_session", devSessionTag);
+    }
+    this.worker = new Worker(workerUrl, {
       type: "module",
     });
     this.worker.onmessage = (message: MessageEvent<RuntimeWorkerEnvelope>) => {
@@ -145,6 +154,11 @@ export default class WorkerRuntimeBridge implements RuntimeBridge {
     if (this.disposed) {
       return;
     }
+    try {
+      this.worker.postMessage({ type: "shutdown" } as RuntimeCommand);
+    } catch {
+      // Best-effort shutdown; worker might already be unavailable.
+    }
     this.disposed = true;
     if (this.startReject) {
       this.startReject(new Error("Runtime bridge disposed"));
@@ -155,7 +169,13 @@ export default class WorkerRuntimeBridge implements RuntimeBridge {
     this.worker.onmessage = null;
     this.worker.onerror = null;
     this.worker.onmessageerror = null;
-    this.worker.terminate();
+    globalThis.setTimeout(() => {
+      try {
+        this.worker.terminate();
+      } catch {
+        // Ignore termination races during disposal.
+      }
+    }, 150);
   }
 
   private postCommand(command: RuntimeCommand): void {
