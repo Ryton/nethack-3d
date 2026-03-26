@@ -4,7 +4,6 @@ export type StartupInitOptionBooleanDefinition = {
   description: string;
   control: "boolean";
   defaultValue: boolean;
-  serializeWhenDefault?: boolean;
 };
 
 export type StartupInitOptionSelectDefinition = {
@@ -13,7 +12,6 @@ export type StartupInitOptionSelectDefinition = {
   description: string;
   control: "select";
   defaultValue: string;
-  serializeWhenDefault?: boolean;
   options: ReadonlyArray<{
     value: string;
     label: string;
@@ -26,7 +24,6 @@ export type StartupInitOptionTextDefinition = {
   description: string;
   control: "text";
   defaultValue: string;
-  serializeWhenDefault?: boolean;
   maxLength: number;
   placeholder?: string;
 };
@@ -37,7 +34,6 @@ export type StartupInitOptionNumberDefinition = {
   description: string;
   control: "number";
   defaultValue: number;
-  serializeWhenDefault?: boolean;
   min: number;
   max: number;
   step: number;
@@ -82,7 +78,6 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
         'Object class symbols to autopickup (example: $"=/!?+). Leave blank for game default.',
       control: "text",
       defaultValue: "$",
-      serializeWhenDefault: true,
       maxLength: 20,
       placeholder: '$"=/!?+',
     },
@@ -509,12 +504,6 @@ export function serializeStartupInitOptionTokens(
       definition,
       values[definition.key],
     );
-    if (
-      normalizedValue === definition.defaultValue &&
-      !definition.serializeWhenDefault
-    ) {
-      continue;
-    }
     if (definition.control === "boolean") {
       tokens.push(normalizedValue ? definition.key : `!${definition.key}`);
       continue;

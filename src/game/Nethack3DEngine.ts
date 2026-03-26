@@ -23609,6 +23609,54 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private getDirectionPromptOverlayButtonFromTileDelta(
+    dx: number,
+    dy: number,
+  ): DirectionPromptOverlayButtonId | null {
+    if (dx === -1 && dy === -1) {
+      return "northwest";
+    }
+    if (dx === 0 && dy === -1) {
+      return "north";
+    }
+    if (dx === 1 && dy === -1) {
+      return "northeast";
+    }
+    if (dx === -1 && dy === 0) {
+      return "west";
+    }
+    if (dx === 0 && dy === 0) {
+      return "self";
+    }
+    if (dx === 1 && dy === 0) {
+      return "east";
+    }
+    if (dx === -1 && dy === 1) {
+      return "southwest";
+    }
+    if (dx === 0 && dy === 1) {
+      return "south";
+    }
+    if (dx === 1 && dy === 1) {
+      return "southeast";
+    }
+    return null;
+  }
+
+  private getDirectionPromptOverlayTileAssociatedButtonFromClientCoordinates(
+    clientX: number,
+    clientY: number,
+  ): DirectionPromptOverlayButtonId | null {
+    const target = this.getTilePositionFromClientCoordinates(clientX, clientY);
+    if (!target) {
+      return null;
+    }
+    return this.getDirectionPromptOverlayButtonFromTileDelta(
+      target.x - this.playerPos.x,
+      target.y - this.playerPos.y,
+    );
+  }
+
   private updateDirectionPromptOverlayState(): void {
     this.directionPromptOverlay?.setInteractionState({
       hoveredButtonId: this.directionPromptHoveredButtonId,
@@ -31199,11 +31247,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
-    return this.directionPromptOverlay.hitTest(
+    const directButtonId = this.directionPromptOverlay.hitTest(
       this.directionPromptOverlayNdc.x,
       this.directionPromptOverlayNdc.y,
       this.camera,
       this.pointerRaycaster,
+    );
+    if (directButtonId) {
+      return directButtonId;
+    }
+
+    return this.getDirectionPromptOverlayTileAssociatedButtonFromClientCoordinates(
+      clientX,
+      clientY,
     );
   }
 
