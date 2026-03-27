@@ -17717,19 +17717,30 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private getFpsWallChamferFloorMaterial(
+    tileX: number,
+    tileY: number,
     materialKind: TileMaterialKind,
   ): THREE.MeshBasicMaterial {
-    const { tileIndex, sourceGlyph } =
-      this.getFpsWallChamferFloorTileSource(materialKind);
+    const {
+      tileIndex,
+      sourceGlyph,
+      materialKind: resolvedMaterialKind,
+      useBackgroundReferenceTile,
+    } = this.getFpsWallChamferFloorTileSource(tileX, tileY, materialKind);
     const canUseTranslatedTileWithoutAtlas =
       this.shouldUseVultureTiles() && sourceGlyph !== null;
     const useTiles =
       this.clientOptions.tilesetMode === "tiles" &&
-      (tileIndex >= 0 || canUseTranslatedTileWithoutAtlas);
+      (useBackgroundReferenceTile ||
+        tileIndex >= 0 ||
+        canUseTranslatedTileWithoutAtlas);
     const sourceGlyphKey = sourceGlyph === null ? "none" : String(sourceGlyph);
+    const useBackgroundReferenceTileKey = useBackgroundReferenceTile
+      ? "ubgref:1"
+      : "ubgref:0";
     const cacheKey = useTiles
-      ? `tile:${tileIndex}|sg:${sourceGlyphKey}|mk:${materialKind}`
-      : `ascii:${materialKind}`;
+      ? `tile:${tileIndex}|sg:${sourceGlyphKey}|mk:${resolvedMaterialKind}|${useBackgroundReferenceTileKey}`
+      : `ascii:${resolvedMaterialKind}`;
     const cached = this.fpsWallChamferFloorMaterialCache.get(cacheKey);
     if (cached) {
       return cached.material;
@@ -17742,11 +17753,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
           false,
           {
             sourceGlyph,
-            materialKind,
+            materialKind: resolvedMaterialKind,
+            useBackgroundReferenceTile,
           },
         )
       : this.createGlyphTexture(
-          this.getMaterialByKind(materialKind).color.getHexString(),
+          this.getMaterialByKind(resolvedMaterialKind).color.getHexString(),
           " ",
           "#F4F4F4",
           1,
@@ -17768,9 +17780,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return material;
   }
 
-  private getFpsWallChamferFloorTileSource(materialKind: TileMaterialKind): {
+  private getDefaultFpsWallChamferFloorTileSource(
+    materialKind: TileMaterialKind,
+  ): {
     tileIndex: number;
     sourceGlyph: number | null;
+    materialKind: TileMaterialKind;
+    useBackgroundReferenceTile: boolean;
   } {
     const floorGlyph = getDefaultFloorGlyph();
     let fallbackGlyph = floorGlyph;
@@ -17793,7 +17809,45 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return {
       tileIndex: behavior.effective.tileIndex,
       sourceGlyph: behavior.effective.glyph,
+      materialKind: behavior.materialKind,
+      useBackgroundReferenceTile: behavior.useBackgroundReferenceTile === true,
     };
+  }
+
+  private getFpsWallChamferFloorTileSource(
+    tileX: number,
+    tileY: number,
+    materialKind: TileMaterialKind,
+  ): {
+    tileIndex: number;
+    sourceGlyph: number | null;
+    materialKind: TileMaterialKind;
+    useBackgroundReferenceTile: boolean;
+  } {
+    const adjacentFloorBehavior = this.resolveFloorBehaviorFromNeighborTiles(
+      tileX,
+      tileY,
+    );
+    if (adjacentFloorBehavior) {
+      return {
+        tileIndex:
+          typeof adjacentFloorBehavior.effective.tileIndex === "number" &&
+          Number.isFinite(adjacentFloorBehavior.effective.tileIndex)
+            ? Math.trunc(adjacentFloorBehavior.effective.tileIndex)
+            : -1,
+        sourceGlyph:
+          typeof adjacentFloorBehavior.effective.glyph === "number" &&
+          Number.isFinite(adjacentFloorBehavior.effective.glyph)
+            ? Math.trunc(adjacentFloorBehavior.effective.glyph)
+            : null,
+        materialKind: adjacentFloorBehavior.materialKind,
+        // resolveFloorBehaviorFromNeighborTiles already skips doorway/open-door/
+        // closed-door neighbors, so only true floor-like tiles can win here.
+        useBackgroundReferenceTile:
+          adjacentFloorBehavior.useBackgroundReferenceTile === true,
+      };
+    }
+    return this.getDefaultFpsWallChamferFloorTileSource(materialKind);
   }
 
   private clearFpsWallChamferMaterialCaches(): void {
@@ -18220,7 +18274,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     let mesh = this.fpsWallChamferFloorMeshes.get(key);
-    const material = this.getFpsWallChamferFloorMaterial(materialKind);
+    const material = this.getFpsWallChamferFloorMaterial(
+      tileX,
+      tileY,
+      materialKind,
+    );
     if (!mesh) {
       mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(
