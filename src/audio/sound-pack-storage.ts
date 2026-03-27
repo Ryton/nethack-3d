@@ -439,6 +439,23 @@ export function resolveNh3dDefaultSoundPath(key: Nh3dSoundEffectKey): string {
   return `soundpacks/default/${resolveDefaultFileName(key)}`;
 }
 
+// The web build currently ships the default sound pack as a ZIP imported into
+// IndexedDB, not as raw public /soundpacks/default/*.ogg files.
+const bundledBuiltinSoundPathByKey: Partial<
+  Record<Nh3dSoundEffectKey, string>
+> = {};
+
+export function resolveNh3dBundledBuiltinSoundPath(
+  key: Nh3dSoundEffectKey,
+): string | null {
+  const configuredPath = bundledBuiltinSoundPathByKey[key];
+  if (typeof configuredPath !== "string") {
+    return null;
+  }
+  const normalizedPath = normalizeWhitespace(configuredPath);
+  return normalizedPath || null;
+}
+
 function normalizeMessageLogText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -538,6 +555,32 @@ function clampUnit(value: unknown, fallback = 1): number {
   return Math.max(0, Math.min(1, Number(parsed.toFixed(4))));
 }
 
+function createBundledBuiltinSoundEntryBase(
+  key: Nh3dSoundEffectKey,
+  options: {
+    enabled?: boolean;
+    volume?: number;
+    attribution?: unknown;
+  } = {},
+): Nh3dSoundEffectEntryBase {
+  const bundledPath = resolveNh3dBundledBuiltinSoundPath(key);
+  const bundledAvailable =
+    typeof bundledPath === "string" && bundledPath.length > 0;
+  return {
+    key,
+    enabled: bundledAvailable ? options.enabled !== false : false,
+    volume: clampUnit(options.volume, 1),
+    fileName: bundledAvailable ? resolveDefaultFileName(key) : "",
+    mimeType: "audio/ogg",
+    path: bundledPath ?? "",
+    source: "builtin",
+    attribution: normalizeAttribution(
+      options.attribution,
+      bundledAvailable ? "" : "No bundled sound assigned.",
+    ),
+  };
+}
+
 function toArrayBufferBackedUint8Array(
   bytes: Uint8Array<ArrayBufferLike>,
 ): Uint8Array<ArrayBuffer> {
@@ -555,16 +598,12 @@ function resolveSoundDefinitionLabel(key: Nh3dSoundEffectKey): string {
 function createDefaultSoundAssignment(
   key: Nh3dSoundEffectKey,
 ): Nh3dSoundEffectAssignment {
-  const defaultFileName = resolveDefaultFileName(key);
   return {
-    key,
-    enabled: true,
-    volume: 1,
-    fileName: defaultFileName,
-    mimeType: "audio/ogg",
-    path: resolveNh3dDefaultSoundPath(key),
-    source: "builtin",
-    attribution: `Sound not added yet`,
+    ...createBundledBuiltinSoundEntryBase(key, {
+      enabled: true,
+      volume: 1,
+      attribution: "No bundled sound assigned.",
+    }),
     variations: [],
   };
 }
@@ -766,14 +805,11 @@ function normalizeSoundEffectEntry(
   }
 
   return {
-    key: soundKey,
-    enabled,
-    volume,
-    fileName: resolveDefaultFileName(soundKey),
-    mimeType: "audio/ogg",
-    path: resolveNh3dDefaultSoundPath(soundKey),
-    source: "builtin",
-    attribution,
+    ...createBundledBuiltinSoundEntryBase(soundKey, {
+      enabled,
+      volume,
+      attribution,
+    }),
   };
 }
 
@@ -1507,17 +1543,14 @@ async function cloneDefaultSoundMapForNewPack(
       if (defaultEntry.source !== "user") {
         nextEntries.push({
           id: defaultEntry.id,
-          key: soundKey,
-          enabled: defaultEntry.enabled,
-          volume: defaultEntry.volume,
-          fileName: resolveDefaultFileName(soundKey),
-          mimeType: "audio/ogg",
-          path: resolveNh3dDefaultSoundPath(soundKey),
-          source: "builtin",
-          attribution: normalizeAttribution(
-            defaultEntry.attribution,
-            fallbackDefault.attribution,
-          ),
+          ...createBundledBuiltinSoundEntryBase(soundKey, {
+            enabled: defaultEntry.enabled,
+            volume: defaultEntry.volume,
+            attribution: normalizeAttribution(
+              defaultEntry.attribution,
+              fallbackDefault.attribution,
+            ),
+          }),
         });
         continue;
       }
@@ -2289,7 +2322,7 @@ function parseImportManifest(rawManifest: unknown): {
           normalizeWhitespace(String(rawEntry.path || "")) ||
           (source === "user"
             ? resolveNh3dUserSoundPath(packName, targetKey, `${targetKey}.bin`)
-            : resolveNh3dDefaultSoundPath(targetKey)),
+            : (resolveNh3dBundledBuiltinSoundPath(targetKey) ?? "")),
         source,
         attribution: normalizeAttribution(rawEntry.attribution),
         archivePath:
@@ -2337,7 +2370,7 @@ function parseImportManifest(rawManifest: unknown): {
                   `${targetKey}.bin`,
                   variationId,
                 )
-              : resolveNh3dDefaultSoundPath(targetKey)),
+              : (resolveNh3dBundledBuiltinSoundPath(targetKey) ?? "")),
           source: variationSource,
           attribution: normalizeAttribution(rawVariation.attribution),
           archivePath:
@@ -2540,17 +2573,14 @@ export async function importNh3dSoundPackFromZip(
 
         nextEntries.push({
           id: variationId,
-          key: soundKey,
-          enabled: Boolean(importedEntry.enabled),
-          volume: clampUnit(importedEntry.volume, defaultSound.volume),
-          fileName: resolveDefaultFileName(soundKey),
-          mimeType: "audio/ogg",
-          path: resolveNh3dDefaultSoundPath(soundKey),
-          source: "builtin",
-          attribution: normalizeAttribution(
-            importedEntry.attribution,
-            defaultSound.attribution,
-          ),
+          ...createBundledBuiltinSoundEntryBase(soundKey, {
+            enabled: Boolean(importedEntry.enabled),
+            volume: clampUnit(importedEntry.volume, defaultSound.volume),
+            attribution: normalizeAttribution(
+              importedEntry.attribution,
+              defaultSound.attribution,
+            ),
+          }),
         });
       }
 
