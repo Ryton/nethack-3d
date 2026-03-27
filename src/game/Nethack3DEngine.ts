@@ -1190,6 +1190,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private cameraFollowTarget = new THREE.Vector3();
   private cameraFollowCurrent = new THREE.Vector3();
   private lastFrameTimeMs: number | null = null;
+  private fpsDebugDisplayVisible: boolean = false;
+  private fpsDebugDisplayElement: HTMLDivElement | null = null;
+  private fpsDebugDisplaySmoothedFps: number | null = null;
+  private fpsDebugDisplaySmoothedFrameTimeMs: number | null = null;
+  private fpsDebugDisplaySmoothedRenderTimeMs: number | null = null;
+  private fpsDebugDisplayLastRenderedSignature: string | null = null;
+  private readonly fpsDebugDisplaySmoothingFactor: number = 0.16;
   private lastKnownPlayerHp: number | null = null;
   private lastKnownPlayerExperience: number | null = null;
   private lastKnownPlayerLevel: number | null = null;
@@ -24064,6 +24071,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.minimapContainer = null;
     this.minimapCanvasContext = null;
     this.minimapViewportContext = null;
+    this.removeFpsDebugDisplay();
 
     this.metaCommandModal?.remove();
     this.metaCommandModal = null;
@@ -25103,6 +25111,141 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return event.key.toLowerCase();
     }
     return null;
+  }
+
+  private handleFpsDebugShortcutKeyDown(event: KeyboardEvent): boolean {
+    if (event.metaKey) {
+      return false;
+    }
+    if (!event.ctrlKey || !event.altKey || !event.shiftKey) {
+      return false;
+    }
+    const isFKey =
+      event.code === "KeyF" ||
+      (typeof event.key === "string" && event.key.toLowerCase() === "f");
+    if (!isFKey) {
+      return false;
+    }
+
+    event.preventDefault();
+    if (event.repeat) {
+      return true;
+    }
+    this.setFpsDebugDisplayVisible(!this.fpsDebugDisplayVisible);
+    return true;
+  }
+
+  private ensureFpsDebugDisplayElement(): HTMLDivElement {
+    if (this.fpsDebugDisplayElement) {
+      return this.fpsDebugDisplayElement;
+    }
+
+    const element = document.createElement("div");
+    element.className = "nh3d-fps-debug-display";
+    element.setAttribute("aria-hidden", "true");
+    element.style.position = "fixed";
+    element.style.right = "12px";
+    element.style.bottom = "12px";
+    element.style.padding = "4px 8px";
+    element.style.borderRadius = "6px";
+    element.style.border = "1px solid rgba(196, 255, 208, 0.45)";
+    element.style.background = "rgba(2, 10, 8, 0.82)";
+    element.style.color = "#ecfff0";
+    element.style.fontFamily =
+      "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    element.style.fontSize = "12px";
+    element.style.fontWeight = "600";
+    element.style.lineHeight = "1.2";
+    element.style.letterSpacing = "0.03em";
+    element.style.pointerEvents = "none";
+    element.style.userSelect = "none";
+    element.style.zIndex = "4200";
+    element.style.display = "none";
+    element.textContent = "FPS: -- | FT: -- ms | RT: -- ms";
+    document.body.appendChild(element);
+    this.fpsDebugDisplayElement = element;
+    return element;
+  }
+
+  private setFpsDebugDisplayVisible(visible: boolean): void {
+    this.fpsDebugDisplayVisible = visible;
+    const element = visible
+      ? this.ensureFpsDebugDisplayElement()
+      : this.fpsDebugDisplayElement;
+    if (!element) {
+      return;
+    }
+
+    element.style.display = visible ? "block" : "none";
+    if (!visible) {
+      return;
+    }
+    this.fpsDebugDisplaySmoothedFps = null;
+    this.fpsDebugDisplaySmoothedFrameTimeMs = null;
+    this.fpsDebugDisplaySmoothedRenderTimeMs = null;
+    this.fpsDebugDisplayLastRenderedSignature = null;
+    element.textContent = "FPS: -- | FT: -- ms | RT: -- ms";
+  }
+
+  private updateFpsDebugDisplay(
+    rawDeltaMs: number,
+    renderDurationMs: number,
+  ): void {
+    if (!this.fpsDebugDisplayVisible || !Number.isFinite(rawDeltaMs)) {
+      return;
+    }
+    if (rawDeltaMs <= 0 || !Number.isFinite(renderDurationMs)) {
+      return;
+    }
+    const element = this.fpsDebugDisplayElement;
+    if (!element) {
+      return;
+    }
+
+    const instantaneousFps = 1000 / rawDeltaMs;
+    const previousSmoothed = this.fpsDebugDisplaySmoothedFps;
+    const smoothedFps =
+      previousSmoothed === null
+        ? instantaneousFps
+        : previousSmoothed +
+          (instantaneousFps - previousSmoothed) *
+            this.fpsDebugDisplaySmoothingFactor;
+    this.fpsDebugDisplaySmoothedFps = smoothedFps;
+
+    const previousFrameTime = this.fpsDebugDisplaySmoothedFrameTimeMs;
+    const smoothedFrameTimeMs =
+      previousFrameTime === null
+        ? rawDeltaMs
+        : previousFrameTime +
+          (rawDeltaMs - previousFrameTime) *
+            this.fpsDebugDisplaySmoothingFactor;
+    this.fpsDebugDisplaySmoothedFrameTimeMs = smoothedFrameTimeMs;
+
+    const previousRenderTime = this.fpsDebugDisplaySmoothedRenderTimeMs;
+    const smoothedRenderTimeMs =
+      previousRenderTime === null
+        ? renderDurationMs
+        : previousRenderTime +
+          (renderDurationMs - previousRenderTime) *
+            this.fpsDebugDisplaySmoothingFactor;
+    this.fpsDebugDisplaySmoothedRenderTimeMs = smoothedRenderTimeMs;
+
+    const signature = `FPS: ${Math.max(0, Math.round(smoothedFps))} | FT: ${smoothedFrameTimeMs.toFixed(2)} ms | RT: ${smoothedRenderTimeMs.toFixed(2)} ms`;
+    if (signature === this.fpsDebugDisplayLastRenderedSignature) {
+      return;
+    }
+    this.fpsDebugDisplayLastRenderedSignature = signature;
+    element.textContent = signature;
+  }
+
+  private removeFpsDebugDisplay(): void {
+    this.fpsDebugDisplayElement?.remove();
+    this.fpsDebugDisplayElement = null;
+    this.fpsDebugDisplayVisible = false;
+    this.fpsDebugDisplaySmoothedFps = null;
+    this.fpsDebugDisplaySmoothedFrameTimeMs = null;
+    this.fpsDebugDisplaySmoothedRenderTimeMs = null;
+    this.fpsDebugDisplayLastRenderedSignature = null;
   }
 
   private handleCtrlShortcutKeyDown(event: KeyboardEvent): boolean {
@@ -26456,6 +26599,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.resumeFmodFromUserGesture();
+    if (this.handleFpsDebugShortcutKeyDown(event)) {
+      return;
+    }
 
     if (this.isClientOptionsDialogOpen()) {
       return;
@@ -32915,12 +33061,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateTileRevealFades(timeMs);
     this.updateVultureDoorPlaneRenderOrdering();
     this.updateIronBarsWallPlaneVisibility();
+    const shouldCollectFpsDebugStats = this.fpsDebugDisplayVisible;
+    const renderStartedAtMs = shouldCollectFpsDebugStats
+      ? performance.now()
+      : 0;
     if (this.composer) {
       this.updateTaaState();
       this.composer.render(deltaSeconds);
+      if (shouldCollectFpsDebugStats) {
+        this.updateFpsDebugDisplay(
+          rawDeltaMs,
+          performance.now() - renderStartedAtMs,
+        );
+      }
       return;
     }
     this.renderer.render(this.scene, this.camera);
+    if (shouldCollectFpsDebugStats) {
+      this.updateFpsDebugDisplay(rawDeltaMs, performance.now() - renderStartedAtMs);
+    }
   }
 }
 

@@ -102,4 +102,5 @@ export function registerDebugHelpers(game: Nethack3DEngine): void {
   console.log("  '#' - Start extended command mode (#command + Enter)");
   console.log("  ESC - Close dialogs or cancel actions");
   console.log("  Ctrl+M - Toggle latest information panel");
+  console.log("  Ctrl+Shift+Alt+F - Toggle FPS/frame/render time overlay");
 }
