@@ -26829,16 +26829,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
         event.code,
       );
       if (fpsMoveInput) {
-        event.preventDefault();
-        if (event.shiftKey) {
-          if (event.repeat) {
+        const lowerFpsKey = event.key.toLowerCase();
+        const shiftedWasdMovementKey =
+          event.shiftKey &&
+          (lowerFpsKey === "w" ||
+            lowerFpsKey === "a" ||
+            lowerFpsKey === "s" ||
+            lowerFpsKey === "d");
+        if (shiftedWasdMovementKey && lowerFpsKey !== "w") {
+          // Let shifted WASD fall through to vanilla NetHack commands like A/S/D.
+        } else {
+          event.preventDefault();
+          if (event.shiftKey) {
+            if (event.repeat) {
+              return;
+            }
+            this.sendForcedDirectionalInput(fpsMoveInput);
             return;
           }
-          this.sendForcedDirectionalInput(fpsMoveInput);
+          this.sendInput(fpsMoveInput);
           return;
         }
-        this.sendInput(fpsMoveInput);
-        return;
       }
 
       if (event.key === "f" || event.key === "F") {
