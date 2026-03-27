@@ -2204,6 +2204,13 @@ class LocalNetHackRuntime {
       return;
     }
 
+    if (this.awaitingQuestionInput && this.activeYnPrompt) {
+      this.armPendingPostActionPlayerTileRefreshForAnsweredYnQuestion(
+        this.lastQuestionText,
+        normalizedInput,
+      );
+    }
+
     this.enqueueInputKeys([normalizedInput], source);
   }
 
@@ -2498,15 +2505,39 @@ class LocalNetHackRuntime {
     return null;
   }
 
+  getPostActionPlayerTileRefreshReasonForAnsweredYnQuestion(question, input) {
+    const normalizedQuestion = this.normalizeQuestionText(question);
+    const normalizedInput = String(input ?? "").trim().toLowerCase();
+    if (!normalizedQuestion || normalizedInput !== "y") {
+      return null;
+    }
+    if (normalizedQuestion.includes("eat it")) {
+      return "eat-confirm-question";
+    }
+    return null;
+  }
+
+  armPendingPostActionPlayerTileRefreshByReason(refreshReason, sourceLabel) {
+    const normalizedReason =
+      typeof refreshReason === "string" ? refreshReason.trim() : "";
+    if (!normalizedReason) {
+      return;
+    }
+    this.pendingPostActionPlayerTileRefreshReason = normalizedReason;
+    console.log(
+      `Armed post-action top-item check (${normalizedReason}) ${sourceLabel}`,
+    );
+  }
+
   armPendingPostActionPlayerTileRefresh(menuItem) {
     const refreshReason =
       this.getPostActionPlayerTileRefreshReasonForMenuItem(menuItem);
     if (!refreshReason) {
       return;
     }
-    this.pendingPostActionPlayerTileRefreshReason = refreshReason;
-    console.log(
-      `Armed post-action player tile refresh (${refreshReason}) for auto-selected menu item "${menuItem.text}"`,
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      refreshReason,
+      `for auto-selected menu item "${menuItem.text}"`,
     );
   }
 
@@ -2516,9 +2547,50 @@ class LocalNetHackRuntime {
     if (!refreshReason) {
       return;
     }
-    this.pendingPostActionPlayerTileRefreshReason = refreshReason;
-    console.log(
-      `Armed post-action player tile refresh (${refreshReason}) for question "${question}"`,
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      refreshReason,
+      `for question "${question}"`,
+    );
+  }
+
+  armPendingPostActionPlayerTileRefreshForMenuInteraction(
+    question,
+    menuItem,
+    sourceLabel,
+  ) {
+    const questionReason =
+      this.getPostActionPlayerTileRefreshReasonForQuestion(question);
+    if (questionReason) {
+      this.armPendingPostActionPlayerTileRefreshByReason(
+        questionReason,
+        `${sourceLabel} via question "${question}"`,
+      );
+      return;
+    }
+
+    const menuItemReason =
+      this.getPostActionPlayerTileRefreshReasonForMenuItem(menuItem);
+    if (!menuItemReason) {
+      return;
+    }
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      menuItemReason,
+      `${sourceLabel} via menu item "${menuItem?.text ?? ""}"`,
+    );
+  }
+
+  armPendingPostActionPlayerTileRefreshForAnsweredYnQuestion(question, input) {
+    const refreshReason =
+      this.getPostActionPlayerTileRefreshReasonForAnsweredYnQuestion(
+        question,
+        input,
+      );
+    if (!refreshReason) {
+      return;
+    }
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      refreshReason,
+      `for answered Y/N question "${question}" with input "${input}"`,
     );
   }
 
@@ -2538,10 +2610,151 @@ class LocalNetHackRuntime {
       return;
     }
     const refreshReason = "autopickup-raw-print";
-    this.pendingPostActionPlayerTileRefreshReason = refreshReason;
-    console.log(
-      `Armed post-action player tile refresh (${refreshReason}) for raw_print "${text}"`,
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      refreshReason,
+      `for raw_print "${text}"`,
     );
+  }
+
+  emitUnderPlayerItemGlyphIfAvailableAt(
+    x,
+    y,
+    helpers = null,
+    mapHelper = null,
+    canQueryWasmHelpers = true,
+    trigger = "unknown",
+  ) {
+    if (
+      !this.eventHandler ||
+      !canQueryWasmHelpers ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y)
+    ) {
+      return false;
+    }
+
+    const tileX = Math.trunc(Number(x));
+    const tileY = Math.trunc(Number(y));
+    const isPlayerTile =
+      this.playerPosition &&
+      tileX === this.playerPosition.x &&
+      tileY === this.playerPosition.y;
+    if (!isPlayerTile) {
+      return false;
+    }
+
+    const resolvedHelpers =
+      helpers ||
+      (globalThis.nethackGlobal && globalThis.nethackGlobal.helpers
+        ? globalThis.nethackGlobal.helpers
+        : null);
+    const topItemGlyphUnderPlayer =
+      resolvedHelpers &&
+      typeof resolvedHelpers.topItemGlyphUnderPlayer === "function"
+        ? resolvedHelpers.topItemGlyphUnderPlayer
+        : null;
+    if (!topItemGlyphUnderPlayer) {
+      return false;
+    }
+
+    const topItemTileIndexUnderPlayer =
+      resolvedHelpers &&
+      typeof resolvedHelpers.topItemTileIndexUnderPlayer === "function"
+        ? resolvedHelpers.topItemTileIndexUnderPlayer
+        : null;
+    const resolvedMapHelper =
+      mapHelper ||
+      (resolvedHelpers
+        ? this.runtimeVersion === "3.7"
+          ? typeof resolvedHelpers.mapGlyphInfoHelper === "function"
+            ? resolvedHelpers.mapGlyphInfoHelper
+            : null
+          : typeof resolvedHelpers.mapglyphHelper === "function"
+            ? resolvedHelpers.mapglyphHelper
+            : null
+        : null);
+
+    try {
+      const topGlyphRaw = topItemGlyphUnderPlayer();
+      const topGlyph = Number(topGlyphRaw);
+      if (!Number.isFinite(topGlyph) || topGlyph < 0) {
+        console.log(
+          `🧹 Under-player top item glyph cleared at (${tileX}, ${tileY}) [trigger=${trigger}]`,
+        );
+        this.emit({
+          type: "under_player_item_glyph_cleared",
+          x: tileX,
+          y: tileY,
+        });
+        return true;
+      }
+
+      const normalizedGlyph = Math.trunc(topGlyph);
+      let decodedChar = null;
+      let decodedColor = null;
+      let decodedTileIndex = null;
+      let decodedSymidx = null;
+
+      if (topItemTileIndexUnderPlayer) {
+        try {
+          const tileIndexRaw = topItemTileIndexUnderPlayer();
+          const tileIndex = Number(tileIndexRaw);
+          if (Number.isFinite(tileIndex) && tileIndex >= 0) {
+            decodedTileIndex = Math.trunc(tileIndex);
+          }
+        } catch (error) {
+          console.log("[WARN] topItemTileIndexUnderPlayer failed:", error);
+        }
+      }
+
+      if (resolvedMapHelper) {
+        try {
+          const glyphInfo = resolvedMapHelper(normalizedGlyph, tileX, tileY, 0);
+          if (glyphInfo) {
+            if (glyphInfo.ch !== undefined) {
+              decodedChar =
+                typeof glyphInfo.ch === "number"
+                  ? String.fromCharCode(glyphInfo.ch)
+                  : String(glyphInfo.ch);
+            }
+            if (
+              typeof glyphInfo.color === "number" &&
+              Number.isFinite(glyphInfo.color)
+            ) {
+              decodedColor = Math.trunc(glyphInfo.color);
+            }
+            if (decodedTileIndex === null) {
+              const resolvedTileIndex =
+                this.extractGlyphInfoTileIndex(glyphInfo);
+              if (resolvedTileIndex !== null) {
+                decodedTileIndex = resolvedTileIndex;
+              }
+            }
+            decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
+          }
+        } catch (error) {
+          console.log("[WARN] Error decoding under-player item glyph:", error);
+        }
+      }
+
+      console.log(
+        `🎒 Under-player top item glyph at (${tileX}, ${tileY}) => ${normalizedGlyph} (tileIndex=${decodedTileIndex ?? "n/a"}) [trigger=${trigger}]`,
+      );
+      this.emit({
+        type: "under_player_item_glyph",
+        x: tileX,
+        y: tileY,
+        glyph: normalizedGlyph,
+        char: decodedChar,
+        color: decodedColor,
+        tileIndex: decodedTileIndex,
+        symidx: decodedSymidx,
+      });
+      return true;
+    } catch (error) {
+      console.log("[WARN] topItemGlyphUnderPlayer failed:", error);
+      return false;
+    }
   }
 
   maybeRefreshPendingPostActionPlayerTile(trigger = "unknown") {
@@ -2562,18 +2775,23 @@ class LocalNetHackRuntime {
     }
 
     if (!this.canQueryWasmHelpers()) {
-      this.deferTileRefreshRequest(tileX, tileY);
       console.log(
-        `Deferring post-action player tile refresh (${pendingReason}) until helpers are queryable [trigger=${trigger}]`,
+        `Deferring post-action top-item check (${pendingReason}) until helpers are queryable [trigger=${trigger}]`,
       );
       return false;
     }
 
     console.log(
-      `Refreshing player tile after pending action (${pendingReason}) [trigger=${trigger}] at (${tileX}, ${tileY})`,
+      `Checking under-player top item after pending action (${pendingReason}) [trigger=${trigger}] at (${tileX}, ${tileY})`,
     );
-    this.handleTileUpdateRequest(tileX, tileY);
-    return true;
+    return this.emitUnderPlayerItemGlyphIfAvailableAt(
+      tileX,
+      tileY,
+      null,
+      null,
+      true,
+      `post-action:${pendingReason}:${trigger}`,
+    );
   }
 
   isLikelyNameInputForDebug(input) {
@@ -3572,6 +3790,41 @@ class LocalNetHackRuntime {
     return !this.isUndiscoveredOrNothingGlyph(glyph, glyphFlags);
   }
 
+  isMonsterLikeGlyph(glyph) {
+    if (typeof glyph !== "number" || !Number.isFinite(glyph) || glyph < 0) {
+      return false;
+    }
+
+    const normalizedGlyph = Math.trunc(glyph);
+    const monGlyphOff = this.getGlyphConstantValue("GLYPH_MON_OFF");
+    const bodyGlyphOff = this.getGlyphConstantValue(
+      "GLYPH_BODY_OFF",
+      "GLYPH_OBJ_OFF",
+      "GLYPH_CMAP_OFF",
+    );
+    if (monGlyphOff === null || bodyGlyphOff === null) {
+      return false;
+    }
+
+    return (
+      normalizedGlyph >= monGlyphOff && normalizedGlyph < bodyGlyphOff
+    );
+  }
+
+  isMonsterLikeRuntimeMapTile(tileData) {
+    if (!tileData || typeof tileData !== "object") {
+      return false;
+    }
+    const glyph =
+      typeof tileData.glyph === "number" && Number.isFinite(tileData.glyph)
+        ? Math.trunc(tileData.glyph)
+        : null;
+    if (glyph === null) {
+      return false;
+    }
+    return this.isMonsterLikeGlyph(glyph);
+  }
+
   decodeFloorUnderlayAtPosition(
     x,
     y,
@@ -3853,92 +4106,15 @@ class LocalNetHackRuntime {
     };
 
     const emitUnderPlayerItemGlyphIfAvailable = () => {
-      if (!isPlayerTile || !topItemGlyphUnderPlayer || !this.eventHandler) {
-        return;
-      }
-      try {
-        const topGlyphRaw = topItemGlyphUnderPlayer();
-        const topGlyph = Number(topGlyphRaw);
-        if (!Number.isFinite(topGlyph) || topGlyph < 0) {
-          console.log(
-            `🧹 Under-player top item glyph cleared at (${x}, ${y})`,
-          );
-          this.emit({
-            type: "under_player_item_glyph_cleared",
-            x,
-            y,
-          });
-          return;
-        }
-
-        const normalizedGlyph = Math.trunc(topGlyph);
-        let decodedChar = null;
-        let decodedColor = null;
-        let decodedTileIndex = null;
-        let decodedSymidx = null;
-
-        if (topItemTileIndexUnderPlayer) {
-          try {
-            const tileIndexRaw = topItemTileIndexUnderPlayer();
-            const tileIndex = Number(tileIndexRaw);
-            if (Number.isFinite(tileIndex) && tileIndex >= 0) {
-              decodedTileIndex = Math.trunc(tileIndex);
-            }
-          } catch (error) {
-            console.log("[WARN] topItemTileIndexUnderPlayer failed:", error);
-          }
-        }
-
-        if (mapHelper) {
-          try {
-            const mgflags = 0;
-            const glyphInfo = mapHelper(normalizedGlyph, x, y, mgflags);
-            if (glyphInfo) {
-              if (glyphInfo.ch !== undefined) {
-                decodedChar =
-                  typeof glyphInfo.ch === "number"
-                    ? String.fromCharCode(glyphInfo.ch)
-                    : String(glyphInfo.ch);
-              }
-              if (
-                typeof glyphInfo.color === "number" &&
-                Number.isFinite(glyphInfo.color)
-              ) {
-                decodedColor = Math.trunc(glyphInfo.color);
-              }
-              if (decodedTileIndex === null) {
-                const resolvedTileIndex =
-                  this.extractGlyphInfoTileIndex(glyphInfo);
-                if (resolvedTileIndex !== null) {
-                  decodedTileIndex = resolvedTileIndex;
-                }
-              }
-              decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
-            }
-          } catch (error) {
-            console.log(
-              "[WARN] Error decoding under-player item glyph:",
-              error,
-            );
-          }
-        }
-
-        console.log(
-          `🎒 Under-player top item glyph at (${x}, ${y}) => ${normalizedGlyph} (tileIndex=${decodedTileIndex ?? "n/a"})`,
-        );
-        this.emit({
-          type: "under_player_item_glyph",
-          x,
-          y,
-          glyph: normalizedGlyph,
-          char: decodedChar,
-          color: decodedColor,
-          tileIndex: decodedTileIndex,
-          symidx: decodedSymidx,
-        });
-      } catch (error) {
-        console.log("[WARN] topItemGlyphUnderPlayer failed:", error);
-      }
+      this.emitUnderPlayerItemGlyphIfAvailableAt(
+        x,
+        y,
+        helpers,
+        mapHelper,
+        canQueryWasmHelpers &&
+          Boolean(isPlayerTile && topItemGlyphUnderPlayer && this.eventHandler),
+        "tile-update",
+      );
     };
 
     if (glyphAtHelper) {
@@ -6085,7 +6261,12 @@ class LocalNetHackRuntime {
     );
   }
 
-  tryAutoSelectMenuItem(menuItem, reason = "context action", selectionCount) {
+  tryAutoSelectMenuItem(
+    menuItem,
+    reason = "context action",
+    selectionCount,
+    menuQuestion = this.currentMenuQuestionText,
+  ) {
     const selectionEntry = this.createSelectionEntryFromMenuItem(
       menuItem,
       selectionCount,
@@ -6102,7 +6283,11 @@ class LocalNetHackRuntime {
     console.log(
       `Auto-selected menu item via ${reason}: ${selectionEntry.menuChar} (${selectionEntry.text})`,
     );
-    this.armPendingPostActionPlayerTileRefresh(menuItem);
+    this.armPendingPostActionPlayerTileRefreshForMenuInteraction(
+      menuQuestion,
+      menuItem,
+      `for auto-selected menu item via ${reason}`,
+    );
     return true;
   }
 
@@ -9662,6 +9847,9 @@ class LocalNetHackRuntime {
         const oldPlayerPos = { ...this.playerPosition };
         const didMove =
           oldPlayerPos.x !== clipX || oldPlayerPos.y !== clipY;
+        const destinationTileData = this.gameMap.get(`${clipX},${clipY}`);
+        const movedOntoMonsterLikeOccupant =
+          didMove && this.isMonsterLikeRuntimeMapTile(destinationTileData);
         this.playerPosition = { x: clipX, y: clipY };
         if (didMove) {
           this.playerPositionMovementSerial += 1;
@@ -9674,6 +9862,12 @@ class LocalNetHackRuntime {
             x: clipX,
             y: clipY,
           });
+        }
+        if (movedOntoMonsterLikeOccupant) {
+          this.armPendingPostActionPlayerTileRefreshByReason(
+            "monster-like-vacated-tile",
+            `after moving onto monster-like occupied tile at (${clipX}, ${clipY}) in case loot was underneath`,
+          );
         }
         return 0;
 
