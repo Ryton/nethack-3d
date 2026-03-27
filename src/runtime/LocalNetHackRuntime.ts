@@ -3474,6 +3474,104 @@ class LocalNetHackRuntime {
     return null;
   }
 
+  extractGlyphInfoGlyphFlags(glyphInfo) {
+    if (!glyphInfo || typeof glyphInfo !== "object") {
+      return null;
+    }
+    const glyphFlagsCandidate =
+      typeof glyphInfo.glyphflags === "number"
+        ? glyphInfo.glyphflags
+        : glyphInfo.glyphFlags;
+    if (
+      typeof glyphFlagsCandidate === "number" &&
+      Number.isFinite(glyphFlagsCandidate)
+    ) {
+      return Math.trunc(glyphFlagsCandidate);
+    }
+    return null;
+  }
+
+  getGlyphConstants() {
+    return globalThis.nethackGlobal &&
+      globalThis.nethackGlobal.constants &&
+      globalThis.nethackGlobal.constants.GLYPH &&
+      typeof globalThis.nethackGlobal.constants.GLYPH === "object"
+      ? globalThis.nethackGlobal.constants.GLYPH
+      : null;
+  }
+
+  getGlyphConstantValue(...keys) {
+    const glyphConstants = this.getGlyphConstants();
+    if (!glyphConstants || !Array.isArray(keys) || keys.length === 0) {
+      return null;
+    }
+    for (const key of keys) {
+      if (!key || !Object.prototype.hasOwnProperty.call(glyphConstants, key)) {
+        continue;
+      }
+      const value = this.normalizeNonNegativeInteger(glyphConstants[key]);
+      if (value !== null) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  isUndiscoveredOrNothingGlyph(glyph, glyphFlags = null) {
+    if (typeof glyph !== "number" || !Number.isFinite(glyph) || glyph < 0) {
+      return false;
+    }
+
+    const normalizedGlyph = Math.trunc(glyph);
+    const unexploredGlyph = this.getGlyphConstantValue(
+      "GLYPH_UNEXPLORED",
+      "GLYPH_UNEXPLORED_OFF",
+    );
+    if (unexploredGlyph !== null && normalizedGlyph === unexploredGlyph) {
+      return true;
+    }
+
+    const nothingGlyph = this.getGlyphConstantValue(
+      "GLYPH_NOTHING",
+      "GLYPH_NOTHING_OFF",
+    );
+    if (nothingGlyph !== null && normalizedGlyph === nothingGlyph) {
+      return true;
+    }
+
+    const normalizedGlyphFlags = this.normalizeNonNegativeInteger(glyphFlags);
+    if (normalizedGlyphFlags !== null) {
+      // NetHack 3.7 mapglyph flags: MG_UNEXPLORED=0x0800, MG_NOTHING=0x0400.
+      if ((normalizedGlyphFlags & 0x0800) !== 0) {
+        return true;
+      }
+      if ((normalizedGlyphFlags & 0x0400) !== 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  isRenderableRuntimeMapTile(tileData) {
+    if (!tileData || typeof tileData !== "object") {
+      return false;
+    }
+    const glyph =
+      typeof tileData.glyph === "number" && Number.isFinite(tileData.glyph)
+        ? Math.trunc(tileData.glyph)
+        : null;
+    if (glyph === null || glyph < 0) {
+      return false;
+    }
+    const glyphFlags =
+      typeof tileData.glyphFlags === "number" &&
+      Number.isFinite(tileData.glyphFlags)
+        ? Math.trunc(tileData.glyphFlags)
+        : null;
+    return !this.isUndiscoveredOrNothingGlyph(glyph, glyphFlags);
+  }
+
   decodeFloorUnderlayAtPosition(
     x,
     y,
@@ -3615,6 +3713,7 @@ class LocalNetHackRuntime {
       if (!Number.isFinite(glyph)) {
         return false;
       }
+      const normalizedGlyph = Math.trunc(Number(glyph));
       let decodedChar = tileData ? tileData.char : "";
       let decodedColor = tileData ? tileData.color : null;
       let decodedTileIndex = tileData ? tileData.tileIndex : null;
@@ -3622,7 +3721,33 @@ class LocalNetHackRuntime {
         tileData && Number.isFinite(Number(tileData.symidx))
           ? Math.trunc(Number(tileData.symidx))
           : null;
+      let decodedGlyphFlags = null;
       let floorUnderlay = null;
+      if (this.isUndiscoveredOrNothingGlyph(normalizedGlyph)) {
+        const hadRenderableTile = this.isRenderableRuntimeMapTile(tileData);
+        this.gameMap.delete(key);
+        if (hadRenderableTile && this.eventHandler) {
+          this.queueMapGlyphUpdate({
+            type: "map_glyph",
+            x,
+            y,
+            glyph: normalizedGlyph,
+            char: decodedChar,
+            color: decodedColor,
+            tileIndex: decodedTileIndex,
+            symidx: decodedSymidx,
+            floorUnderlayGlyph: null,
+            floorUnderlayChar: null,
+            floorUnderlayColor: null,
+            floorUnderlayTileIndex: null,
+            floorUnderlaySymidx: null,
+            window: 2,
+            isRefresh: true,
+            isRuntimeUndiscoveredClear: true,
+          });
+        }
+        return true;
+      }
 
       if (mapHelper) {
         try {
@@ -3643,6 +3768,7 @@ class LocalNetHackRuntime {
             }
             decodedTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
             decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
+            decodedGlyphFlags = this.extractGlyphInfoGlyphFlags(glyphInfo);
           }
         } catch (error) {
           console.log("⚠️ Error decoding glyph for refresh:", error);
@@ -3657,10 +3783,41 @@ class LocalNetHackRuntime {
         canQueryWasmHelpers,
       );
 
+      const isUndiscoveredOrNothingGlyph = this.isUndiscoveredOrNothingGlyph(
+        normalizedGlyph,
+        decodedGlyphFlags,
+      );
+      if (isUndiscoveredOrNothingGlyph) {
+        const hadRenderableTile = this.isRenderableRuntimeMapTile(tileData);
+        this.gameMap.delete(key);
+        if (hadRenderableTile && this.eventHandler) {
+          this.queueMapGlyphUpdate({
+            type: "map_glyph",
+            x,
+            y,
+            glyph: normalizedGlyph,
+            char: decodedChar,
+            color: decodedColor,
+            tileIndex: decodedTileIndex,
+            symidx: decodedSymidx,
+            floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+            floorUnderlayChar: floorUnderlay?.char ?? null,
+            floorUnderlayColor: floorUnderlay?.color ?? null,
+            floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+            floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+            window: 2,
+            isRefresh: true,
+            isRuntimeUndiscoveredClear: true,
+          });
+        }
+        return true;
+      }
+
       this.gameMap.set(key, {
         x,
         y,
-        glyph,
+        glyph: normalizedGlyph,
+        glyphFlags: decodedGlyphFlags,
         char: decodedChar,
         color: decodedColor,
         tileIndex: decodedTileIndex,
@@ -3678,7 +3835,7 @@ class LocalNetHackRuntime {
           type: "map_glyph",
           x,
           y,
-          glyph,
+          glyph: normalizedGlyph,
           char: decodedChar,
           color: decodedColor,
           tileIndex: decodedTileIndex,
@@ -3884,6 +4041,7 @@ class LocalNetHackRuntime {
           try {
             const glyph = glyphAtHelper(x, y);
             if (Number.isFinite(glyph)) {
+              const normalizedGlyph = Math.trunc(Number(glyph));
               let decodedChar = tileData ? tileData.char : "";
               let decodedColor = tileData ? tileData.color : null;
               let decodedTileIndex = tileData ? tileData.tileIndex : null;
@@ -3891,7 +4049,36 @@ class LocalNetHackRuntime {
                 tileData && Number.isFinite(Number(tileData.symidx))
                   ? Math.trunc(Number(tileData.symidx))
                   : null;
+              let decodedGlyphFlags = null;
               let floorUnderlay = null;
+              if (this.isUndiscoveredOrNothingGlyph(normalizedGlyph)) {
+                const hadRenderableTile =
+                  this.isRenderableRuntimeMapTile(tileData);
+                this.gameMap.delete(key);
+                if (hadRenderableTile && this.eventHandler) {
+                  this.queueMapGlyphUpdate({
+                    type: "map_glyph",
+                    x,
+                    y,
+                    glyph: normalizedGlyph,
+                    char: decodedChar,
+                    color: decodedColor,
+                    tileIndex: decodedTileIndex,
+                    symidx: decodedSymidx,
+                    floorUnderlayGlyph: null,
+                    floorUnderlayChar: null,
+                    floorUnderlayColor: null,
+                    floorUnderlayTileIndex: null,
+                    floorUnderlaySymidx: null,
+                    window: 2,
+                    isRefresh: true,
+                    isAreaRefresh: true,
+                    isRuntimeUndiscoveredClear: true,
+                  });
+                }
+                tilesRefreshed++;
+                continue;
+              }
 
               if (mapHelper) {
                 try {
@@ -3912,6 +4099,7 @@ class LocalNetHackRuntime {
                     }
                     decodedTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
                     decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
+                    decodedGlyphFlags = this.extractGlyphInfoGlyphFlags(glyphInfo);
                   }
                 } catch (error) {
                   console.log(
@@ -3929,10 +4117,45 @@ class LocalNetHackRuntime {
                 canQueryWasmHelpers,
               );
 
+              const isUndiscoveredOrNothingGlyph =
+                this.isUndiscoveredOrNothingGlyph(
+                  normalizedGlyph,
+                  decodedGlyphFlags,
+                );
+              if (isUndiscoveredOrNothingGlyph) {
+                const hadRenderableTile =
+                  this.isRenderableRuntimeMapTile(tileData);
+                this.gameMap.delete(key);
+                if (hadRenderableTile && this.eventHandler) {
+                  this.queueMapGlyphUpdate({
+                    type: "map_glyph",
+                    x,
+                    y,
+                    glyph: normalizedGlyph,
+                    char: decodedChar,
+                    color: decodedColor,
+                    tileIndex: decodedTileIndex,
+                    symidx: decodedSymidx,
+                    floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+                    floorUnderlayChar: floorUnderlay?.char ?? null,
+                    floorUnderlayColor: floorUnderlay?.color ?? null,
+                    floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+                    floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+                    window: 2,
+                    isRefresh: true,
+                    isAreaRefresh: true,
+                    isRuntimeUndiscoveredClear: true,
+                  });
+                }
+                tilesRefreshed++;
+                continue;
+              }
+
               this.gameMap.set(key, {
                 x,
                 y,
-                glyph,
+                glyph: normalizedGlyph,
+                glyphFlags: decodedGlyphFlags,
                 char: decodedChar,
                 color: decodedColor,
                 tileIndex: decodedTileIndex,
@@ -3950,7 +4173,7 @@ class LocalNetHackRuntime {
                   type: "map_glyph",
                   x,
                   y,
-                  glyph,
+                  glyph: normalizedGlyph,
                   char: decodedChar,
                   color: decodedColor,
                   tileIndex: decodedTileIndex,
@@ -4239,13 +4462,7 @@ class LocalNetHackRuntime {
   }
 
   getNoGlyphValue() {
-    const glyphConstants =
-      globalThis.nethackGlobal &&
-      globalThis.nethackGlobal.constants &&
-      globalThis.nethackGlobal.constants.GLYPH &&
-      typeof globalThis.nethackGlobal.constants.GLYPH === "object"
-        ? globalThis.nethackGlobal.constants.GLYPH
-        : null;
+    const glyphConstants = this.getGlyphConstants();
     if (!glyphConstants) {
       return null;
     }
@@ -8039,7 +8256,14 @@ class LocalNetHackRuntime {
     }
     this.uiCallbackCount += 1;
     this.clearStartupNoCallbackTimer();
-    console.log(`UI Callback: ${name}`, args);
+    let shouldLogUiCallback = true;
+    if (name === "shim_print_glyph") {
+      // Avoid duplicate callback-level spam for map glyph traffic.
+      shouldLogUiCallback = false;
+    }
+    if (shouldLogUiCallback) {
+      console.log(`UI Callback: ${name}`, args);
+    }
     this.recordRecentUICallback(name, args);
     if (!this.validateCallbackPointerContract(name, args)) {
       return this.getSafeCallbackDefaultReturn(name);
@@ -8760,6 +8984,7 @@ class LocalNetHackRuntime {
         let decodedColor: number | null = null;
         let decodedTileIndex: number | null = null;
         let decodedSymidx: number | null = null;
+        let shouldLogPrintGlyph = true;
 
         const printGlyphMode =
           this.getRuntimePointerContract()?.callbackModes?.shim_print_glyph || {};
@@ -8790,7 +9015,8 @@ class LocalNetHackRuntime {
             if (decodedGlyphInfo.tileIndex !== null) {
               decodedTileIndex = decodedGlyphInfo.tileIndex;
             }
-            console.log(
+            shouldLogPrintGlyph = !this.isUndiscoveredOrNothingGlyph(printGlyph);
+            if (shouldLogPrintGlyph) console.log(
               `🎨 GLYPH [Win ${printWin}] at (${x},${y}): ptr=0x${decodedGlyphInfo.pointer.toString(
                 16,
               )} glyph=${printGlyph} extra=0x${Number(extra || 0).toString(16)}`,
@@ -8801,19 +9027,47 @@ class LocalNetHackRuntime {
             );
           }
         } else {
-          console.log(
+          shouldLogPrintGlyph = !this.isUndiscoveredOrNothingGlyph(printGlyph);
+          if (shouldLogPrintGlyph) console.log(
             `🎨 GLYPH [Win ${printWin}] at (${x},${y}): ${printGlyph}`,
           );
         }
 
         if (printWin === 3) {
           const key = `${x},${y}`;
+          const previousTileData = this.gameMap.get(key);
+          if (this.isUndiscoveredOrNothingGlyph(printGlyph)) {
+            const hadRenderableTile =
+              this.isRenderableRuntimeMapTile(previousTileData);
+            this.gameMap.delete(key);
+            if (hadRenderableTile && this.eventHandler) {
+              this.queueMapGlyphUpdate({
+                type: "map_glyph",
+                x,
+                y,
+                glyph: printGlyph,
+                char: decodedChar,
+                color: decodedColor,
+                tileIndex: decodedTileIndex,
+                symidx: decodedSymidx,
+                floorUnderlayGlyph: null,
+                floorUnderlayChar: null,
+                floorUnderlayColor: null,
+                floorUnderlayTileIndex: null,
+                floorUnderlaySymidx: null,
+                window: printWin,
+                isRuntimeUndiscoveredClear: true,
+              });
+            }
+            return 0;
+          }
 
           const helpers = (globalThis as any).nethackGlobal?.helpers;
           const mapHelper =
             this.runtimeVersion === "3.7"
               ? helpers?.mapGlyphInfoHelper
               : helpers?.mapglyphHelper;
+          let decodedGlyphFlags = null;
           let floorUnderlay = null;
 
           if (mapHelper) {
@@ -8844,6 +9098,7 @@ class LocalNetHackRuntime {
                 }
                 decodedTileIndex = this.extractGlyphInfoTileIndex(glyphInfo);
                 decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
+                decodedGlyphFlags = this.extractGlyphInfoGlyphFlags(glyphInfo);
               }
             } catch (error) {
               console.log(
@@ -8861,10 +9116,39 @@ class LocalNetHackRuntime {
             true,
           );
 
+          const isUndiscoveredOrNothingGlyph =
+            this.isUndiscoveredOrNothingGlyph(printGlyph, decodedGlyphFlags);
+          if (isUndiscoveredOrNothingGlyph) {
+            const hadRenderableTile =
+              this.isRenderableRuntimeMapTile(previousTileData);
+            this.gameMap.delete(key);
+            if (hadRenderableTile && this.eventHandler) {
+              this.queueMapGlyphUpdate({
+                type: "map_glyph",
+                x,
+                y,
+                glyph: printGlyph,
+                char: decodedChar,
+                color: decodedColor,
+                tileIndex: decodedTileIndex,
+                symidx: decodedSymidx,
+                floorUnderlayGlyph: floorUnderlay?.glyph ?? null,
+                floorUnderlayChar: floorUnderlay?.char ?? null,
+                floorUnderlayColor: floorUnderlay?.color ?? null,
+                floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
+                floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+                window: printWin,
+                isRuntimeUndiscoveredClear: true,
+              });
+            }
+            return 0;
+          }
+
           this.gameMap.set(key, {
             x,
             y,
             glyph: printGlyph, // decoded glyph for 3.7
+            glyphFlags: decodedGlyphFlags,
             char: decodedChar,
             color: decodedColor,
             tileIndex: decodedTileIndex,
