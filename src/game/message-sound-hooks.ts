@@ -3,7 +3,7 @@ import {
   loadNh3dSoundPackStateFromIndexedDb,
   loadStoredNh3dSoundBlob,
   resolveNh3dMessageLogSoundEffectKeys,
-  resolveNh3dDefaultSoundPath,
+  resolveNh3dBundledBuiltinSoundPath,
   type Nh3dSoundEffectKey,
   type Nh3dSoundEffectVariation,
   type Nh3dSoundPackRecord,
@@ -194,7 +194,7 @@ export class MessageSoundHooks {
       source: "builtin" | "user";
     } | null,
   ): Promise<string | null> {
-    const defaultPath = resolveNh3dDefaultSoundPath(soundKey);
+    const defaultPath = resolveNh3dBundledBuiltinSoundPath(soundKey);
     if (!entry) {
       return defaultPath;
     }
@@ -235,11 +235,11 @@ export class MessageSoundHooks {
         {
           id: nh3dBaseSoundVariationId,
           key: soundKey,
-          enabled: true,
+          enabled: Boolean(resolveNh3dBundledBuiltinSoundPath(soundKey)),
           volume: 1,
-          fileName: `${soundKey}.ogg`,
+          fileName: "",
           mimeType: "audio/ogg",
-          path: resolveNh3dDefaultSoundPath(soundKey),
+          path: resolveNh3dBundledBuiltinSoundPath(soundKey) ?? "",
           source: "builtin",
           attribution: "",
         },

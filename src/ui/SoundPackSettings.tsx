@@ -19,8 +19,8 @@ import {
   nh3dBaseSoundVariationId,
   nh3dDefaultSoundPackId,
   nh3dSoundEffectDefinitions,
+  resolveNh3dBundledBuiltinSoundPath,
   normalizeNh3dSoundPackName,
-  resolveNh3dDefaultSoundPath,
   resolveNh3dUserSoundPath,
   saveNh3dSoundPackToIndexedDb,
   setActiveNh3dSoundPackId,
@@ -575,7 +575,7 @@ export default function SoundPackSettings({
         revokeAfterPlay = true;
       } else if (pendingUpload === null) {
         previewUrl =
-          fallbackSound?.path || resolveNh3dDefaultSoundPath(soundKey);
+          fallbackSound?.path || resolveNh3dBundledBuiltinSoundPath(soundKey) || "";
       } else if (variation.source === "user") {
         const storedBlob = await loadStoredNh3dSoundBlob(variation.path);
         if (storedBlob) {
@@ -874,7 +874,7 @@ export default function SoundPackSettings({
                       pendingUpload instanceof Blob
                         ? `${pendingFileName} (pending save)`
                         : pendingUpload === null
-                          ? `${fallbackSound?.fileName || resolveNh3dDefaultSoundPath(soundKey)} (default)`
+                          ? `${fallbackSound?.fileName || resolveNh3dBundledBuiltinSoundPath(soundKey) || "No bundled sound"} (default)`
                           : variation.source === "user"
                             ? `${variation.fileName} (custom)`
                             : variation.fileName;
@@ -1077,14 +1077,22 @@ export default function SoundPackSettings({
                                   variationId,
                                   (current) => ({
                                     ...current,
-                                    fileName:
-                                      fallbackSound?.fileName ||
-                                      resolveNh3dDefaultSoundPath(soundKey),
+                                    enabled:
+                                      fallbackSound?.enabled ??
+                                      Boolean(
+                                        resolveNh3dBundledBuiltinSoundPath(
+                                          soundKey,
+                                        ),
+                                      ),
+                                    fileName: fallbackSound?.fileName || "",
                                     mimeType:
                                       fallbackSound?.mimeType || "audio/ogg",
                                     path:
                                       fallbackSound?.path ||
-                                      resolveNh3dDefaultSoundPath(soundKey),
+                                      resolveNh3dBundledBuiltinSoundPath(
+                                        soundKey,
+                                      ) ||
+                                      "",
                                     source: "builtin",
                                   }),
                                 );
