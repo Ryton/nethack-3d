@@ -1286,18 +1286,45 @@ canvas {
   left: var(--nh3d-modal-safe-left-inset);
   bottom: var(--nh3d-modal-safe-bottom-inset);
   z-index: 1998;
+  padding: 0;
+  border: 0;
+  background: transparent;
   font-family: "Courier New", monospace;
   font-size: nh3d-scale-font(12px);
   line-height: 1.2;
   letter-spacing: 0.08em;
+  text-align: left;
   color: rgba(214, 239, 255, 0.88);
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.72);
-  pointer-events: none;
   user-select: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 1px solid rgba(126, 208, 255, 0.9);
+    outline-offset: 4px;
+  }
 
   @media (pointer: coarse) {
     font-size: nh3d-scale-font(10px);
   }
+}
+
+.nh3d-startup-build-label-toast {
+  position: fixed;
+  left: var(--nh3d-modal-safe-left-inset);
+  bottom: calc(var(--nh3d-modal-safe-bottom-inset) + 24px);
+  z-index: 1998;
+  padding: 6px 10px;
+  border: 1px solid rgba(102, 204, 255, 0.45);
+  border-radius: 6px;
+  background: rgba(4, 12, 24, 0.9);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+  font-family: "Courier New", monospace;
+  font-size: nh3d-scale-font(11px);
+  line-height: 1.2;
+  color: rgba(214, 239, 255, 0.96);
+  pointer-events: none;
+  user-select: none;
 }
 
 @keyframes nh3d-startup-fade-in {

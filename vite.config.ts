@@ -38,6 +38,34 @@ function resolveProjectPackageVersion(): string {
   }
 }
 
+function resolveBuildCommitSha(): string {
+  const explicitEnvSha =
+    typeof process.env.VITE_NH3D_BUILD_COMMIT_SHA === "string"
+      ? process.env.VITE_NH3D_BUILD_COMMIT_SHA.trim()
+      : "";
+  if (explicitEnvSha) {
+    return explicitEnvSha;
+  }
+
+  const githubActionsSha =
+    typeof process.env.GITHUB_SHA === "string"
+      ? process.env.GITHUB_SHA.trim()
+      : "";
+  if (githubActionsSha) {
+    return githubActionsSha;
+  }
+
+  const result = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    shell: false,
+  });
+  if (result.error || result.status !== 0) {
+    return "";
+  }
+  return result.stdout.trim();
+}
+
 function resolveRuntimeBuildJsPath(
   packageName: string,
   relativeBuildPath: string,
@@ -179,17 +207,7 @@ const wasm37HasCheckpointResumeBridge = buildFileContains(
   wasm37RuntimeBuildJsPath,
   'Module["_resume_checkpoint_save"]',
 );
-const resolvedBuildCommitSha = (() => {
-  const result = spawnSync("git", ["rev-parse", "HEAD"], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    shell: false,
-  });
-  if (result.error || result.status !== 0) {
-    return "";
-  }
-  return result.stdout.trim();
-})();
+const resolvedBuildCommitSha = resolveBuildCommitSha();
 const crossOriginIsolationHeaders = {
   "Cross-Origin-Opener-Policy": "same-origin",
   "Cross-Origin-Embedder-Policy": "require-corp",

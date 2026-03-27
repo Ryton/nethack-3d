@@ -64,6 +64,7 @@ jobs:
       - name: Build
         env:
           VITE_DEPLOY_TARGET: github-pages
+          VITE_NH3D_BUILD_COMMIT_SHA: ${{ github.sha }}
         run: npm run build
 
       - name: Disable Jekyll

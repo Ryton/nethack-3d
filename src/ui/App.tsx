@@ -118,6 +118,7 @@ import { useConfirmationDialog } from "./modals/useConfirmationDialog";
 import StartupInitOptionsAccordion from "./componenets/StartupInitOptionsAccordion";
 import ConfirmationModal from "./modals/ConfirmationModal";
 import AnimatedDialog from "./modals/AnimatedDialog";
+import { setLoggingEnabled } from "../logging";
 import {
   normalizeStartupCreateCharacterSelection,
   pickRandomStartupGenderForRole,
@@ -167,6 +168,8 @@ const nh3dBuildCommitSha =
 const nh3dBuildLabel = nh3dBuildCommitSha
   ? `v${nh3dAppVersion} (${nh3dBuildCommitSha.slice(0, 7)})`
   : `v${nh3dAppVersion}`;
+
+const nh3dBuildLabelDebugEnableClickCount = 10;
 
 const playerConditionStatusDefinitions: ReadonlyArray<{
   mask: number;
@@ -5029,6 +5032,10 @@ export default function App(): JSX.Element {
     controllerActionWheelChosenIndex,
     setControllerActionWheelChosenIndex,
   ] = useState(0);
+  const [startupBuildLabelClickCount, setStartupBuildLabelClickCount] =
+    useState(0);
+  const [startupBuildLabelToastVisible, setStartupBuildLabelToastVisible] =
+    useState(false);
   const controllerActionWheelDialogRef = useRef<HTMLDivElement | null>(null);
   const [isMobileLogVisible, setIsMobileLogVisible] = useState(false);
   const [isWizardCommandsVisible, setIsWizardCommandsVisible] = useState(false);
@@ -5065,6 +5072,7 @@ export default function App(): JSX.Element {
     null,
   );
   const startupControllerCursorPulseTimerRef = useRef<number | null>(null);
+  const startupBuildLabelToastTimerRef = useRef<number | null>(null);
   const startupControllerCursorVisibleRef = useRef(false);
   const startupControllerCursorXRef = useRef<number>(Number.NaN);
   const startupControllerCursorYRef = useRef<number>(Number.NaN);
@@ -5170,6 +5178,32 @@ export default function App(): JSX.Element {
       clientOptions.liveMessageFadeOutTimeMs,
     ],
   );
+  useEffect(() => {
+    return () => {
+      if (startupBuildLabelToastTimerRef.current !== null) {
+        window.clearTimeout(startupBuildLabelToastTimerRef.current);
+        startupBuildLabelToastTimerRef.current = null;
+      }
+    };
+  }, []);
+  const handleStartupBuildLabelClick = useCallback((): void => {
+    setStartupBuildLabelClickCount((previous) => {
+      const next = previous + 1;
+      if (next < nh3dBuildLabelDebugEnableClickCount) {
+        return next;
+      }
+      setLoggingEnabled(true);
+      setStartupBuildLabelToastVisible(true);
+      if (startupBuildLabelToastTimerRef.current !== null) {
+        window.clearTimeout(startupBuildLabelToastTimerRef.current);
+      }
+      startupBuildLabelToastTimerRef.current = window.setTimeout(() => {
+        setStartupBuildLabelToastVisible(false);
+        startupBuildLabelToastTimerRef.current = null;
+      }, 2200);
+      return 0;
+    });
+  }, []);
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
@@ -7350,6 +7384,17 @@ export default function App(): JSX.Element {
     : "";
   const startupUpdateDialogOpen =
     startupMenuVisible && isStartupUpdateDialogVisible;
+  useEffect(() => {
+    if (startupMenuVisible) {
+      return;
+    }
+    setStartupBuildLabelClickCount(0);
+    setStartupBuildLabelToastVisible(false);
+    if (startupBuildLabelToastTimerRef.current !== null) {
+      window.clearTimeout(startupBuildLabelToastTimerRef.current);
+      startupBuildLabelToastTimerRef.current = null;
+    }
+  }, [startupMenuVisible]);
   const startupVariantDialogVisible =
     startupMenuVisible &&
     startupFlowStep === "variant" &&
@@ -12428,12 +12473,24 @@ export default function App(): JSX.Element {
       <div className="nh3d-canvas-root" ref={canvasRootRef} />
       {renderPauseMenu()}
       {startupMenuVisible ? (
-        <div
-          aria-label={`Build ${nh3dBuildLabel}`}
-          className="nh3d-startup-build-label"
-        >
-          {nh3dBuildLabel}
-        </div>
+        <>
+          <button
+            aria-label={`Build ${nh3dBuildLabel}. Hidden debug logging toggle progress ${startupBuildLabelClickCount} of ${nh3dBuildLabelDebugEnableClickCount}.`}
+            className="nh3d-startup-build-label"
+            onClick={handleStartupBuildLabelClick}
+            type="button"
+          >
+            {nh3dBuildLabel}
+          </button>
+          {startupBuildLabelToastVisible ? (
+            <div
+              aria-live="polite"
+              className="nh3d-startup-build-label-toast"
+            >
+              Debug log enabled
+            </div>
+          ) : null}
+        </>
       ) : null}
       {asciiLogoVisible && (
         <div className="logo-container">
