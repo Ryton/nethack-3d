@@ -8194,9 +8194,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private resolveRaisedSpecialTileFloorBehavior(): TileBehaviorResult {
-    const fallbackGlyph = this.isFpsMode()
-      ? getDefaultDarkFloorGlyph()
-      : getDefaultFloorGlyph();
+    const fallbackGlyph = getDefaultFloorGlyph();
     const shouldUseTilesetBackgroundTileUnderlay =
       this.clientOptions.tilesetMode === "tiles" &&
       !this.shouldUseVultureTiles() &&
