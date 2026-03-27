@@ -20950,10 +20950,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldForceTileTextureBackgroundRemoval =
       useTiles &&
       !this.shouldUseVultureTiles() &&
-      this.clientOptions.tilesetBackgroundRemovalMode !== "none" &&
-      ((renderBehavior.isWall &&
-        this.shouldUseTransparentWallGroundPlaneUnderlay(renderBehavior)) ||
-        shouldUseTransparentFloorUnderlayTreatmentOnTile);
+      renderBehavior.isWall &&
+      this.shouldUseTransparentWallGroundPlaneUnderlay(renderBehavior) &&
+      this.clientOptions.tilesetBackgroundRemovalMode !== "none";
     mesh.userData.tileTextureForceBackgroundRemoval =
       shouldForceTileTextureBackgroundRemoval;
     mesh.userData.glyphTextColor = tileTextColor;
