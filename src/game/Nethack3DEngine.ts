@@ -589,6 +589,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
   private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> =
     new Map();
+  private fpsAuthoritativeUnderPlayerFallbackSuppressedKeys: Set<string> =
+    new Set();
   private inferredDarkCorridorWallTiles: Map<string, { x: number; y: number }> =
     new Map();
   private inferredDarkCorridorTileFlags: Set<string> = new Set();
@@ -8148,9 +8150,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
-    const snapshot =
-      this.flatFeatureUnderPlayerCache.get(key) ??
-      this.lastKnownTerrain.get(key);
+    const snapshot = this.getFpsPlayerTileUnderlaySnapshotFromCache(key);
     if (!snapshot) {
       return null;
     }
@@ -8179,6 +8179,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return behavior;
     }
     return null;
+  }
+
+  private getFpsPlayerTileUnderlaySnapshotFromCache(
+    key: string,
+    runtimeFloorUnderlaySnapshot: TerrainSnapshot | null = null,
+  ): TerrainSnapshot | null {
+    const cachedTerrain = this.lastKnownTerrain.get(key) ?? null;
+    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
+      return runtimeFloorUnderlaySnapshot ?? cachedTerrain;
+    }
+    return (
+      this.flatFeatureUnderPlayerCache.get(key) ??
+      runtimeFloorUnderlaySnapshot ??
+      cachedTerrain
+    );
   }
 
   private resolveFloorBehaviorUnderFpsPlayerTileBillboard(
@@ -8434,6 +8449,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!isPlayerTile) {
       return;
     }
+    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
+      return;
+    }
     const previousBehavior = this.classifyTilePayload(previousTile);
     const previousTerrain = this.snapshotPersistentTerrainFromTile(
       previousTile,
@@ -8463,6 +8481,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private seedFlatFeatureUnderPlayerCacheFromPreviousState(
     key: string,
   ): void {
+    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
+      return;
+    }
     const previousSnapshot = this.getTileSnapshotFromStateCache(key);
     if (!previousSnapshot) {
       return;
@@ -9809,11 +9830,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.shouldRenderFlatFeatureUnderPlayer(behavior) ||
       this.shouldUseRaisedSpecialTileBillboardInTiles(behavior);
     if (!shouldCacheAsUnderPlayerFeature) {
+      this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.add(key);
       this.flatFeatureUnderPlayerCache.delete(key);
       this.refreshTileVisualFromStateCache(tileX, tileY);
       return;
     }
 
+    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.delete(key);
     this.flatFeatureUnderPlayerCache.set(key, {
       glyph: normalizedGlyph,
       char: resolvedRuntimeChar ?? undefined,
@@ -9837,6 +9860,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tileY = Math.trunc(y);
     const key = `${tileX},${tileY}`;
     console.log(`Clearing under-player item glyph at (${tileX}, ${tileY})`);
+    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.add(key);
     this.flatFeatureUnderPlayerCache.delete(key);
     this.refreshTileVisualFromStateCache(tileX, tileY);
   }
@@ -18548,6 +18572,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.tileStateCache.clear();
     this.lastKnownTerrain.clear();
     this.flatFeatureUnderPlayerCache.clear();
+    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.clear();
     this.inferredDarkCorridorWallTiles.clear();
     this.inferredDarkCorridorTileFlags.clear();
     this.pendingBoulderPushDarkCorridorInference = null;
@@ -20688,9 +20713,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const defaultPlayerSuppressedGlyph = this.isFpsMode()
         ? getDefaultDarkFloorGlyph()
         : getDefaultFloorGlyph();
-      const cachedFlatFeature =
-        this.flatFeatureUnderPlayerCache.get(key) ??
-        this.lastKnownTerrain.get(key);
+      const cachedFlatFeature = this.getFpsPlayerTileUnderlaySnapshotFromCache(
+        key,
+        runtimeFloorUnderlaySnapshot,
+      );
       if (cachedFlatFeature) {
         const usingAssumedUnderlayFromCache =
           !this.shouldRenderFlatFeatureUnderPlayer(behavior) &&
