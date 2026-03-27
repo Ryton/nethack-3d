@@ -3825,39 +3825,6 @@ class LocalNetHackRuntime {
     return this.isMonsterLikeGlyph(glyph);
   }
 
-  isLootLikeGlyph(glyph) {
-    if (typeof glyph !== "number" || !Number.isFinite(glyph) || glyph < 0) {
-      return false;
-    }
-
-    const normalizedGlyph = Math.trunc(glyph);
-    const objGlyphOff = this.getGlyphConstantValue("GLYPH_OBJ_OFF");
-    const cmapGlyphOff = this.getGlyphConstantValue(
-      "GLYPH_CMAP_OFF",
-      "GLYPH_EXPLODE_OFF",
-      "GLYPH_WARNING_OFF",
-    );
-    if (objGlyphOff === null || cmapGlyphOff === null) {
-      return false;
-    }
-
-    return normalizedGlyph >= objGlyphOff && normalizedGlyph < cmapGlyphOff;
-  }
-
-  isLootLikeRuntimeMapTile(tileData) {
-    if (!tileData || typeof tileData !== "object") {
-      return false;
-    }
-    const glyph =
-      typeof tileData.glyph === "number" && Number.isFinite(tileData.glyph)
-        ? Math.trunc(tileData.glyph)
-        : null;
-    if (glyph === null) {
-      return false;
-    }
-    return this.isLootLikeGlyph(glyph);
-  }
-
   decodeFloorUnderlayAtPosition(
     x,
     y,
@@ -9883,8 +9850,6 @@ class LocalNetHackRuntime {
         const destinationTileData = this.gameMap.get(`${clipX},${clipY}`);
         const movedOntoMonsterLikeOccupant =
           didMove && this.isMonsterLikeRuntimeMapTile(destinationTileData);
-        const movedOntoLootLikeTile =
-          didMove && this.isLootLikeRuntimeMapTile(destinationTileData);
         this.playerPosition = { x: clipX, y: clipY };
         if (didMove) {
           this.playerPositionMovementSerial += 1;
@@ -9897,16 +9862,6 @@ class LocalNetHackRuntime {
             x: clipX,
             y: clipY,
           });
-        }
-        if (movedOntoLootLikeTile) {
-          this.emitUnderPlayerItemGlyphIfAvailableAt(
-            clipX,
-            clipY,
-            null,
-            null,
-            true,
-            "cliparound-move-onto-loot",
-          );
         }
         if (movedOntoMonsterLikeOccupant) {
           this.armPendingPostActionPlayerTileRefreshByReason(
