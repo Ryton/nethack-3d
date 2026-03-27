@@ -46,6 +46,7 @@ const CATALOG_TARGETS = [
  *   glyph: number;
  *   kind: GlyphKind;
  *   ch: number;
+ *   asciiChar: string | null;
  *   color: number;
  *   tileIndex: number;
  *
@@ -104,6 +105,34 @@ function glyphKindFromOffsetKey(key) {
 
 function normalizeNumber(value, fallback = 0) {
   return Number.isFinite(value) ? Number(value) : fallback;
+}
+
+function normalizeCodePoint(value) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  const normalized = Math.trunc(Number(value));
+  if (normalized < 0 || normalized > 0x10ffff) {
+    return null;
+  }
+  return normalized;
+}
+
+function codePointToDebugChar(value) {
+  const normalized = normalizeCodePoint(value);
+  if (normalized === null || normalized === 0) {
+    return null;
+  }
+  return String.fromCodePoint(normalized);
+}
+
+function resolveGlyphAsciiChar(info, version) {
+  if (version === "3.7") {
+    return (
+      codePointToDebugChar(info?.ttychar) ?? codePointToDebugChar(info?.ch)
+    );
+  }
+  return codePointToDebugChar(info?.ch) ?? codePointToDebugChar(info?.ttychar);
 }
 
 function createRuntimeCallback() {
@@ -289,6 +318,7 @@ function buildGlyphEntries(
       glyph,
       kind: kind,
       ch: normalizeNumber(info?.ch, 0),
+      asciiChar: resolveGlyphAsciiChar(info, version),
       color: normalizeNumber(info?.color, 0),
       tileIndex: tileIndex,
     };
@@ -323,6 +353,7 @@ function renderEntry(entry) {
     `glyph: ${entry.glyph}`,
     `kind: "${entry.kind}"`,
     `ch: ${entry.ch}`,
+    `asciiChar: ${entry.asciiChar === null ? "null" : JSON.stringify(entry.asciiChar)}`,
     `color: ${entry.color}`,
     `tileIndex: ${entry.tileIndex}`,
   ];

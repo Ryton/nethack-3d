@@ -20290,6 +20290,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
       }
     }
+    sprite.userData.tileIndex =
+      typeof tileIndex === "number" && Number.isFinite(tileIndex)
+        ? Math.trunc(tileIndex)
+        : -1;
+    sprite.userData.sourceGlyph = normalizedSourceGlyph;
+    sprite.userData.materialKind = normalizedMaterialKind;
+    sprite.userData.entityType = entityType;
+    sprite.userData.isWall = isWall;
     const mainSpriteMaterial = sprite.material;
     const flattenedBackdropSprite =
       mainSpriteMaterial instanceof THREE.SpriteMaterial
@@ -24690,12 +24698,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof mesh?.userData?.tileIndex === "number"
         ? mesh.userData.tileIndex
         : null;
+    const billboardSprite = this.monsterBillboards.get(key) ?? null;
+    const billboardTileId =
+      typeof billboardSprite?.userData?.tileIndex === "number"
+        ? Math.trunc(billboardSprite.userData.tileIndex)
+        : null;
+    const explicitUnderBillboardFloorTileId =
+      typeof mesh?.userData?.floorUnderlayTileIndex === "number"
+        ? Math.trunc(mesh.userData.floorUnderlayTileIndex)
+        : null;
+    const underlayFeatureBillboardKey = this.getPlayerUnderlayBillboardKey(key);
+    const underlayFeatureSprite =
+      this.monsterBillboards.get(underlayFeatureBillboardKey) ?? null;
+    const underlayFeatureBillboardTileId =
+      typeof underlayFeatureSprite?.userData?.tileIndex === "number"
+        ? Math.trunc(underlayFeatureSprite.userData.tileIndex)
+        : null;
+    const hasBillboardOnTile =
+      billboardSprite !== null || underlayFeatureSprite !== null;
+    const underBillboardFloorTileId =
+      explicitUnderBillboardFloorTileId ??
+      (hasBillboardOnTile && typeof tileId === "number"
+        ? Math.trunc(tileId)
+        : null);
     const glyph = parsed?.glyph ?? null;
     const glyphChar = parsed?.char ?? null;
     const symidx =
       typeof parsed?.symidx === "number" ? Math.trunc(parsed.symidx) : null;
     console.log(
-      `[clicklook:${source}] tile=${key} glyph=${glyph ?? "unknown"} char=${glyphChar ?? "unknown"} symidx=${symidx ?? "unknown"} tileId=${tileId ?? "unknown"}`,
+      `[clicklook:${source}] tile=${key} glyph=${glyph ?? "unknown"} char=${glyphChar ?? "unknown"} symidx=${symidx ?? "unknown"} tileId=${tileId ?? "unknown"} billboardTileId=${billboardTileId ?? "unknown"} underBillboardFloorTileId=${underBillboardFloorTileId ?? "unknown"} underlayBillboardTileId=${underlayFeatureBillboardTileId ?? "unknown"}`,
     );
   }
 
