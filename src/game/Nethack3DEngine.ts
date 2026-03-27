@@ -29,6 +29,7 @@ import {
   getOpenDoorGlyphFrom,
   isDarkCorridorCmapGlyph,
   isDoorwayCmapGlyph,
+  isIronBarsCmapGlyph,
   isSinkCmapGlyph,
   isVerticalDoorCmapGlyph,
 } from "./glyphs/behavior";
@@ -8067,9 +8068,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private isIronBarsLikeBehavior(behavior: TileBehaviorResult): boolean {
-    return (
-      behavior.effective.glyph === 2376 || behavior.effective.tileIndex === 867
-    );
+    return isIronBarsCmapGlyph(behavior.effective.glyph);
   }
 
   private isTileAdjacentToIronBars(tileX: number, tileY: number): boolean {
