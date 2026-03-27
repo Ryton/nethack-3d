@@ -126,6 +126,7 @@ export class FmodRuntime {
   private initializePromise: Promise<void> | null = null;
   private loadScriptPromise: Promise<void> | null = null;
   private updateTimerId: number | null = null;
+  private updateLoopMode: "raf" | "timeout" | null = null;
   private resumeRecoveryTimerId: number | null = null;
   private userGestureAudioResumed: boolean = false;
   private updateErrorLogged: boolean = false;
@@ -146,6 +147,7 @@ export class FmodRuntime {
     if (typeof document === "undefined") {
       return;
     }
+    this.restartUpdateLoopForCurrentVisibility();
     if (document.visibilityState !== "visible") {
       return;
     }
@@ -474,17 +476,61 @@ export class FmodRuntime {
     }
     this.stopUpdateLoop();
     const intervalMs = Math.max(5, Math.round(this.options.updateIntervalMs));
-    this.updateTimerId = window.setInterval(() => {
-      this.update();
-    }, intervalMs);
+    this.scheduleNextUpdateLoopTick(intervalMs);
   }
 
   private stopUpdateLoop(): void {
     if (this.updateTimerId === null || typeof window === "undefined") {
       return;
     }
-    window.clearInterval(this.updateTimerId);
+    if (this.updateLoopMode === "raf") {
+      window.cancelAnimationFrame(this.updateTimerId);
+    } else {
+      window.clearTimeout(this.updateTimerId);
+    }
     this.updateTimerId = null;
+    this.updateLoopMode = null;
+  }
+
+  private restartUpdateLoopForCurrentVisibility(): void {
+    if (!this.enabled || !this.isInitialized()) {
+      return;
+    }
+    this.startUpdateLoop();
+  }
+
+  private scheduleNextUpdateLoopTick(intervalMs: number): void {
+    if (typeof window === "undefined" || !this.enabled) {
+      return;
+    }
+    const useAnimationFrame =
+      typeof document !== "undefined" &&
+      document.visibilityState === "visible" &&
+      typeof window.requestAnimationFrame === "function";
+    if (useAnimationFrame) {
+      this.updateLoopMode = "raf";
+      this.updateTimerId = window.requestAnimationFrame(() => {
+        this.updateTimerId = null;
+        this.updateLoopMode = null;
+        if (!this.enabled || !this.module || !this.studioSystem) {
+          return;
+        }
+        this.update();
+        this.scheduleNextUpdateLoopTick(intervalMs);
+      });
+      return;
+    }
+
+    this.updateLoopMode = "timeout";
+    this.updateTimerId = window.setTimeout(() => {
+      this.updateTimerId = null;
+      this.updateLoopMode = null;
+      if (!this.enabled || !this.module || !this.studioSystem) {
+        return;
+      }
+      this.update();
+      this.scheduleNextUpdateLoopTick(intervalMs);
+    }, intervalMs);
   }
 
   private suspendMixer(): boolean {

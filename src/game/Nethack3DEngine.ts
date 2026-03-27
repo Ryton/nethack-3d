@@ -583,6 +583,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private tileRevealDurationMs: number = 225;
   private pendingTileFlushQueue: any[] = [];
   private pendingTileFlushQueueIndex: number = 0;
+  private tileRefreshRetryPlansByKey: Map<string, { timerIds: number[] }> =
+    new Map();
   private readonly tileFlushFrameBudgetMs: number = 5;
   private readonly tileFlushMaxPerFrame: number = 72;
   private tileStateCache: Map<string, string> = new Map();
@@ -649,6 +651,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private pendingVultureWallMaterialRefreshKeys: Set<string> = new Set();
   private vultureWallMaterialRefreshScheduled: boolean = false;
   private readonly vultureWallMaterialRefreshMaxPerFrame: number = 48;
+  private readonly vultureDoorPlaneOverlayMeshes: Set<THREE.Mesh> = new Set();
+  private readonly ironBarsWallPlaneOverlayMeshes: Set<THREE.Mesh> =
+    new Set();
   private playerPos = { x: 0, y: 0 };
   private gameMessages: string[] = [];
   private hasSeenPlayerPosition: boolean = false;
@@ -9657,17 +9662,53 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.latestRuntimeGlobalsSnapshot;
   }
 
+  private clearTileRefreshRetryPlan(key: string): void {
+    const plan = this.tileRefreshRetryPlansByKey.get(key);
+    if (!plan) {
+      return;
+    }
+    if (typeof window !== "undefined") {
+      for (const timerId of plan.timerIds) {
+        window.clearTimeout(timerId);
+      }
+    }
+    this.tileRefreshRetryPlansByKey.delete(key);
+  }
+
+  private clearAllTileRefreshRetryPlans(): void {
+    for (const key of Array.from(this.tileRefreshRetryPlansByKey.keys())) {
+      this.clearTileRefreshRetryPlan(key);
+    }
+  }
+
   private requestTileUpdateWithRetry(x: number, y: number): void {
     this.requestTileUpdate(x, y);
     if (typeof window === "undefined") {
       return;
     }
-    window.setTimeout(() => {
-      this.requestTileUpdate(x, y);
-    }, this.tileRefreshRetryDelayMs);
-    window.setTimeout(() => {
-      this.requestTileUpdate(x, y);
-    }, this.tileRefreshRetryDelayMs * 2);
+
+    const key = `${Math.trunc(x)},${Math.trunc(y)}`;
+    this.clearTileRefreshRetryPlan(key);
+
+    const plan = { timerIds: [] as number[] };
+    this.tileRefreshRetryPlansByKey.set(key, plan);
+    const scheduleRetry = (delayMs: number): void => {
+      const timerId = window.setTimeout(() => {
+        const activePlan = this.tileRefreshRetryPlansByKey.get(key);
+        if (activePlan !== plan) {
+          return;
+        }
+        activePlan.timerIds = activePlan.timerIds.filter((id) => id !== timerId);
+        this.requestTileUpdate(x, y);
+        if (activePlan.timerIds.length <= 0) {
+          this.tileRefreshRetryPlansByKey.delete(key);
+        }
+      }, delayMs);
+      plan.timerIds.push(timerId);
+    };
+
+    scheduleRetry(this.tileRefreshRetryDelayMs);
+    scheduleRetry(this.tileRefreshRetryDelayMs * 2);
   }
 
   private requestPlayerTileRefresh(reason: string): void {
@@ -10828,6 +10869,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.remove(overlay.backMesh);
     overlay.material.dispose();
     delete mesh.userData.ironBarsWallPlaneOverlay;
+    this.ironBarsWallPlaneOverlayMeshes.delete(mesh);
   }
 
   private ensureIronBarsWallPlaneOverlay(
@@ -10865,6 +10907,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       textureKey: "",
     };
     mesh.userData.ironBarsWallPlaneOverlay = overlay;
+    this.ironBarsWallPlaneOverlayMeshes.add(mesh);
     return overlay;
   }
 
@@ -11091,6 +11134,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     overlay.backMaterial.dispose();
     overlay.floorMaterial.dispose();
     delete mesh.userData.vultureDoorPlaneOverlay;
+    this.vultureDoorPlaneOverlayMeshes.delete(mesh);
   }
 
   private ensureVultureDoorPlaneOverlay(
@@ -11159,6 +11203,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       doorOrientation: "sn",
     };
     mesh.userData.vultureDoorPlaneOverlay = overlay;
+    this.vultureDoorPlaneOverlayMeshes.add(mesh);
     return overlay;
   }
 
@@ -18581,12 +18626,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.darkCorridorBlindSearchInferenceUntilMs = 0;
     this.newlyDiscoveredDarkCorridorTilesForCurrentInput.clear();
     this.activeEffectTileKeys.clear();
+    this.clearAllTileRefreshRetryPlans();
     this.pendingTileUpdates.clear();
     this.pendingTileFlushQueue = [];
     this.pendingTileFlushQueueIndex = 0;
     this.tileFlushScheduled = false;
     this.pendingVultureWallMaterialRefreshKeys.clear();
     this.vultureWallMaterialRefreshScheduled = false;
+    this.vultureDoorPlaneOverlayMeshes.clear();
+    this.ironBarsWallPlaneOverlayMeshes.clear();
     this.resetMinimap();
     this.markLightingDirty();
 
@@ -33057,7 +33105,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private updateVultureDoorPlaneRenderOrdering(): void {
-    if (!this.shouldUseVultureTiles()) {
+    if (
+      !this.shouldUseVultureTiles() ||
+      this.vultureDoorPlaneOverlayMeshes.size <= 0
+    ) {
       return;
     }
     const cameraX = this.camera.position.x;
@@ -33070,7 +33121,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const doorAheadFrontOrder = this.vultureBillboardRenderOrder + 0.1;
     const doorAheadBackOrder = this.vultureBackWallPlaneRenderOrder;
 
-    for (const mesh of this.tileMap.values()) {
+    for (const mesh of this.vultureDoorPlaneOverlayMeshes) {
       const overlay = mesh.userData?.vultureDoorPlaneOverlay as
         | VultureDoorPlaneOverlay
         | undefined;
@@ -33135,10 +33186,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private updateIronBarsWallPlaneVisibility(): void {
-    for (const mesh of this.tileMap.values()) {
-      if (!mesh.userData?.ironBarsWallPlaneOverlay) {
-        continue;
-      }
+    if (this.ironBarsWallPlaneOverlayMeshes.size <= 0) {
+      return;
+    }
+    for (const mesh of this.ironBarsWallPlaneOverlayMeshes) {
       this.applyWallBackSideVisibilityForCurrentPlayMode(mesh);
     }
   }

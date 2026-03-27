@@ -11,6 +11,10 @@ let runtime: LocalNetHackRuntime | null = null;
 let started = false;
 let terminationReported = false;
 let asyncifyWakeUpTrapInstalled = false;
+const mapGlyphBatchMaxSize = 384;
+let pendingMapGlyphTilesByKey: Map<string, RuntimeEvent> = new Map();
+let pendingMapGlyphTileOrder: string[] = [];
+let mapGlyphFlushScheduled = false;
 
 function isLikelyNameInputForDebug(input: string): boolean {
   const trimmed = String(input || "").trim();
@@ -23,7 +27,125 @@ function isLikelyNameInputForDebug(input: string): boolean {
   return /^[A-Za-z][A-Za-z0-9 _'-]*$/.test(trimmed);
 }
 
+function postEnvelopeDirect(envelope: RuntimeWorkerEnvelope): void {
+  (self as unknown as Worker).postMessage(envelope);
+}
+
+function schedulePendingMapGlyphFlush(): void {
+  if (mapGlyphFlushScheduled) {
+    return;
+  }
+  mapGlyphFlushScheduled = true;
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(() => {
+      flushPendingMapGlyphEvents();
+    });
+    return;
+  }
+  Promise.resolve().then(() => {
+    flushPendingMapGlyphEvents();
+  });
+}
+
+function enqueuePendingMapGlyphTile(
+  tile: RuntimeEvent,
+  scheduleFlush: boolean = true,
+): void {
+  const candidate = tile as RuntimeEvent & { x?: unknown; y?: unknown };
+  const x = Number(candidate.x);
+  const y = Number(candidate.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    flushPendingMapGlyphEvents();
+    postEnvelopeDirect({
+      type: "runtime_event",
+      event: tile,
+    });
+    return;
+  }
+
+  const key = `${Math.trunc(x)},${Math.trunc(y)}`;
+  if (!pendingMapGlyphTilesByKey.has(key)) {
+    pendingMapGlyphTileOrder.push(key);
+  }
+  pendingMapGlyphTilesByKey.set(key, tile);
+
+  if (scheduleFlush) {
+    schedulePendingMapGlyphFlush();
+  }
+}
+
+function flushPendingMapGlyphEvents(): void {
+  mapGlyphFlushScheduled = false;
+  if (pendingMapGlyphTileOrder.length <= 0) {
+    return;
+  }
+
+  const orderedTiles: RuntimeEvent[] = [];
+  for (const key of pendingMapGlyphTileOrder) {
+    const tile = pendingMapGlyphTilesByKey.get(key);
+    if (tile) {
+      orderedTiles.push(tile);
+    }
+  }
+
+  pendingMapGlyphTilesByKey.clear();
+  pendingMapGlyphTileOrder = [];
+
+  if (orderedTiles.length <= 0) {
+    return;
+  }
+  if (orderedTiles.length === 1) {
+    postEnvelopeDirect({
+      type: "runtime_event",
+      event: orderedTiles[0],
+    });
+    return;
+  }
+
+  for (let start = 0; start < orderedTiles.length; start += mapGlyphBatchMaxSize) {
+    postEnvelopeDirect({
+      type: "runtime_event",
+      event: {
+        type: "map_glyph_batch",
+        tiles: orderedTiles.slice(start, start + mapGlyphBatchMaxSize),
+      },
+    });
+  }
+}
+
+function tryBufferMapGlyphEnvelope(envelope: RuntimeWorkerEnvelope): boolean {
+  if (envelope.type !== "runtime_event") {
+    return false;
+  }
+
+  const event = envelope.event as RuntimeEvent & {
+    type?: unknown;
+    tiles?: unknown;
+  };
+  if (event.type === "map_glyph") {
+    enqueuePendingMapGlyphTile(envelope.event);
+    return true;
+  }
+  if (event.type !== "map_glyph_batch" || !Array.isArray(event.tiles)) {
+    return false;
+  }
+
+  for (const tile of event.tiles) {
+    if (!tile || typeof tile !== "object") {
+      continue;
+    }
+    enqueuePendingMapGlyphTile(tile as RuntimeEvent, false);
+  }
+  schedulePendingMapGlyphFlush();
+  return true;
+}
+
 function postEnvelope(envelope: RuntimeWorkerEnvelope): void {
+  if (tryBufferMapGlyphEnvelope(envelope)) {
+    return;
+  }
+  flushPendingMapGlyphEvents();
+
   // Intercept termination events to guarantee IndexedDB has finished saving
   // before the main UI thread is allowed to reload or close the game.
   if (
@@ -31,7 +153,7 @@ function postEnvelope(envelope: RuntimeWorkerEnvelope): void {
     (envelope.event as RuntimeEvent).type === "runtime_terminated"
   ) {
     const finalize = () => {
-      (self as unknown as Worker).postMessage(envelope);
+      postEnvelopeDirect(envelope);
     };
 
     if (
@@ -53,7 +175,7 @@ function postEnvelope(envelope: RuntimeWorkerEnvelope): void {
     }
   }
 
-  (self as unknown as Worker).postMessage(envelope);
+  postEnvelopeDirect(envelope);
 }
 
 function getErrorStatus(errorLike: unknown): number | null {
