@@ -26,6 +26,18 @@ function resolveInstalledPackageVersion(packageName: string): string {
   }
 }
 
+function resolveProjectPackageVersion(): string {
+  try {
+    const packageJsonPath = path.join(process.cwd(), "package.json");
+    const payload = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+    return typeof payload.version === "string" && payload.version.trim()
+      ? payload.version.trim()
+      : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
 function resolveRuntimeBuildJsPath(
   packageName: string,
   relativeBuildPath: string,
@@ -137,6 +149,7 @@ const wasm37UsesPublicRuntimeOverride = wasm37RuntimeBuildJsPath.endsWith(
 );
 const wasm367CompatTag = `wasm-367-${resolveInstalledPackageVersion("@neth4ck/wasm-367")}`;
 const wasm37CompatTag = `wasm-37-${resolveInstalledPackageVersion("@neth4ck/wasm-37")}`;
+const projectVersion = resolveProjectPackageVersion();
 const wasm367RuntimeBuildTag = buildRuntimeAssetTag([
   wasm367RuntimeBuildJsPath,
   path.join(process.cwd(), "public", "nethack-367.wasm"),
@@ -230,6 +243,7 @@ export default defineConfig({
     exclude: ["@neth4ck/wasm-367", "@neth4ck/wasm-37"],
   },
   define: {
+    "import.meta.env.VITE_NH3D_APP_VERSION": JSON.stringify(projectVersion),
     "import.meta.env.VITE_NH3D_BUILD_COMMIT_SHA": JSON.stringify(
       resolvedBuildCommitSha,
     ),

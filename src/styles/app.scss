@@ -1281,6 +1281,25 @@ canvas {
   }
 }
 
+.nh3d-startup-build-label {
+  position: fixed;
+  left: var(--nh3d-modal-safe-left-inset);
+  bottom: var(--nh3d-modal-safe-bottom-inset);
+  z-index: 1998;
+  font-family: "Courier New", monospace;
+  font-size: nh3d-scale-font(12px);
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  color: rgba(214, 239, 255, 0.88);
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.72);
+  pointer-events: none;
+  user-select: none;
+
+  @media (pointer: coarse) {
+    font-size: nh3d-scale-font(10px);
+  }
+}
+
 @keyframes nh3d-startup-fade-in {
   from {
     opacity: 0;
