@@ -19,6 +19,7 @@ export interface GlyphCatalogEntry {
   glyph: number;
   kind: GlyphKind;
   ch: number;
+  asciiChar: string | null;
   color: number;
   /**
    * For NetHack 3.6.7, the `special` flags (e.g. `SP_MON`, `SP_OBJ`, etc).

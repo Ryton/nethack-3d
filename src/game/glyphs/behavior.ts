@@ -276,6 +276,10 @@ export function isSinkCmapGlyph(glyph: number): boolean {
   );
 }
 
+export function isIronBarsCmapGlyph(glyph: number): boolean {
+  return getCmapIndex(glyph, null) === 17;
+}
+
 function isIndexInAnyInclusiveRange(
   index: number,
   ranges: ReadonlyArray<readonly [number, number]>,

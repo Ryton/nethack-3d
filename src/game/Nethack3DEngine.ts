@@ -29,6 +29,7 @@ import {
   getOpenDoorGlyphFrom,
   isDarkCorridorCmapGlyph,
   isDoorwayCmapGlyph,
+  isIronBarsCmapGlyph,
   isSinkCmapGlyph,
   isVerticalDoorCmapGlyph,
 } from "./glyphs/behavior";
@@ -588,6 +589,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
   private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> =
     new Map();
+  private fpsAuthoritativeUnderPlayerFallbackSuppressedKeys: Set<string> =
+    new Set();
   private inferredDarkCorridorWallTiles: Map<string, { x: number; y: number }> =
     new Map();
   private inferredDarkCorridorTileFlags: Set<string> = new Set();
@@ -8047,7 +8050,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (
       behavior.materialKind === "stairs_up" ||
-      behavior.materialKind === "stairs_down" ||
       behavior.materialKind === "fountain"
     ) {
       return true;
@@ -8068,9 +8070,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private isIronBarsLikeBehavior(behavior: TileBehaviorResult): boolean {
-    return (
-      behavior.effective.glyph === 2376 || behavior.effective.tileIndex === 867
-    );
+    return isIronBarsCmapGlyph(behavior.effective.glyph);
   }
 
   private isTileAdjacentToIronBars(tileX: number, tileY: number): boolean {
@@ -8150,9 +8150,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
-    const snapshot =
-      this.flatFeatureUnderPlayerCache.get(key) ??
-      this.lastKnownTerrain.get(key);
+    const snapshot = this.getFpsPlayerTileUnderlaySnapshotFromCache(key);
     if (!snapshot) {
       return null;
     }
@@ -8183,6 +8181,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
+  private getFpsPlayerTileUnderlaySnapshotFromCache(
+    key: string,
+    runtimeFloorUnderlaySnapshot: TerrainSnapshot | null = null,
+  ): TerrainSnapshot | null {
+    const cachedTerrain = this.lastKnownTerrain.get(key) ?? null;
+    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
+      return runtimeFloorUnderlaySnapshot ?? cachedTerrain;
+    }
+    return (
+      this.flatFeatureUnderPlayerCache.get(key) ??
+      runtimeFloorUnderlaySnapshot ??
+      cachedTerrain
+    );
+  }
+
   private resolveFloorBehaviorUnderFpsPlayerTileBillboard(
     key: string,
     billboardBehavior: TileBehaviorResult,
@@ -8194,9 +8207,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private resolveRaisedSpecialTileFloorBehavior(): TileBehaviorResult {
-    const fallbackGlyph = this.isFpsMode()
-      ? getDefaultDarkFloorGlyph()
-      : getDefaultFloorGlyph();
+    const fallbackGlyph = getDefaultFloorGlyph();
     const shouldUseTilesetBackgroundTileUnderlay =
       this.clientOptions.tilesetMode === "tiles" &&
       !this.shouldUseVultureTiles() &&
@@ -8438,6 +8449,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!isPlayerTile) {
       return;
     }
+    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
+      return;
+    }
     const previousBehavior = this.classifyTilePayload(previousTile);
     const previousTerrain = this.snapshotPersistentTerrainFromTile(
       previousTile,
@@ -8467,6 +8481,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private seedFlatFeatureUnderPlayerCacheFromPreviousState(
     key: string,
   ): void {
+    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
+      return;
+    }
     const previousSnapshot = this.getTileSnapshotFromStateCache(key);
     if (!previousSnapshot) {
       return;
@@ -9813,11 +9830,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.shouldRenderFlatFeatureUnderPlayer(behavior) ||
       this.shouldUseRaisedSpecialTileBillboardInTiles(behavior);
     if (!shouldCacheAsUnderPlayerFeature) {
+      this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.add(key);
       this.flatFeatureUnderPlayerCache.delete(key);
       this.refreshTileVisualFromStateCache(tileX, tileY);
       return;
     }
 
+    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.delete(key);
     this.flatFeatureUnderPlayerCache.set(key, {
       glyph: normalizedGlyph,
       char: resolvedRuntimeChar ?? undefined,
@@ -9841,6 +9860,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tileY = Math.trunc(y);
     const key = `${tileX},${tileY}`;
     console.log(`Clearing under-player item glyph at (${tileX}, ${tileY})`);
+    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.add(key);
     this.flatFeatureUnderPlayerCache.delete(key);
     this.refreshTileVisualFromStateCache(tileX, tileY);
   }
@@ -17717,19 +17737,30 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private getFpsWallChamferFloorMaterial(
+    tileX: number,
+    tileY: number,
     materialKind: TileMaterialKind,
   ): THREE.MeshBasicMaterial {
-    const { tileIndex, sourceGlyph } =
-      this.getFpsWallChamferFloorTileSource(materialKind);
+    const {
+      tileIndex,
+      sourceGlyph,
+      materialKind: resolvedMaterialKind,
+      useBackgroundReferenceTile,
+    } = this.getFpsWallChamferFloorTileSource(tileX, tileY, materialKind);
     const canUseTranslatedTileWithoutAtlas =
       this.shouldUseVultureTiles() && sourceGlyph !== null;
     const useTiles =
       this.clientOptions.tilesetMode === "tiles" &&
-      (tileIndex >= 0 || canUseTranslatedTileWithoutAtlas);
+      (useBackgroundReferenceTile ||
+        tileIndex >= 0 ||
+        canUseTranslatedTileWithoutAtlas);
     const sourceGlyphKey = sourceGlyph === null ? "none" : String(sourceGlyph);
+    const useBackgroundReferenceTileKey = useBackgroundReferenceTile
+      ? "ubgref:1"
+      : "ubgref:0";
     const cacheKey = useTiles
-      ? `tile:${tileIndex}|sg:${sourceGlyphKey}|mk:${materialKind}`
-      : `ascii:${materialKind}`;
+      ? `tile:${tileIndex}|sg:${sourceGlyphKey}|mk:${resolvedMaterialKind}|${useBackgroundReferenceTileKey}`
+      : `ascii:${resolvedMaterialKind}`;
     const cached = this.fpsWallChamferFloorMaterialCache.get(cacheKey);
     if (cached) {
       return cached.material;
@@ -17742,11 +17773,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
           false,
           {
             sourceGlyph,
-            materialKind,
+            materialKind: resolvedMaterialKind,
+            useBackgroundReferenceTile,
           },
         )
       : this.createGlyphTexture(
-          this.getMaterialByKind(materialKind).color.getHexString(),
+          this.getMaterialByKind(resolvedMaterialKind).color.getHexString(),
           " ",
           "#F4F4F4",
           1,
@@ -17768,9 +17800,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return material;
   }
 
-  private getFpsWallChamferFloorTileSource(materialKind: TileMaterialKind): {
+  private getDefaultFpsWallChamferFloorTileSource(
+    materialKind: TileMaterialKind,
+  ): {
     tileIndex: number;
     sourceGlyph: number | null;
+    materialKind: TileMaterialKind;
+    useBackgroundReferenceTile: boolean;
   } {
     const floorGlyph = getDefaultFloorGlyph();
     let fallbackGlyph = floorGlyph;
@@ -17793,7 +17829,45 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return {
       tileIndex: behavior.effective.tileIndex,
       sourceGlyph: behavior.effective.glyph,
+      materialKind: behavior.materialKind,
+      useBackgroundReferenceTile: behavior.useBackgroundReferenceTile === true,
     };
+  }
+
+  private getFpsWallChamferFloorTileSource(
+    tileX: number,
+    tileY: number,
+    materialKind: TileMaterialKind,
+  ): {
+    tileIndex: number;
+    sourceGlyph: number | null;
+    materialKind: TileMaterialKind;
+    useBackgroundReferenceTile: boolean;
+  } {
+    const adjacentFloorBehavior = this.resolveFloorBehaviorFromNeighborTiles(
+      tileX,
+      tileY,
+    );
+    if (adjacentFloorBehavior) {
+      return {
+        tileIndex:
+          typeof adjacentFloorBehavior.effective.tileIndex === "number" &&
+          Number.isFinite(adjacentFloorBehavior.effective.tileIndex)
+            ? Math.trunc(adjacentFloorBehavior.effective.tileIndex)
+            : -1,
+        sourceGlyph:
+          typeof adjacentFloorBehavior.effective.glyph === "number" &&
+          Number.isFinite(adjacentFloorBehavior.effective.glyph)
+            ? Math.trunc(adjacentFloorBehavior.effective.glyph)
+            : null,
+        materialKind: adjacentFloorBehavior.materialKind,
+        // resolveFloorBehaviorFromNeighborTiles already skips doorway/open-door/
+        // closed-door neighbors, so only true floor-like tiles can win here.
+        useBackgroundReferenceTile:
+          adjacentFloorBehavior.useBackgroundReferenceTile === true,
+      };
+    }
+    return this.getDefaultFpsWallChamferFloorTileSource(materialKind);
   }
 
   private clearFpsWallChamferMaterialCaches(): void {
@@ -18220,7 +18294,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     let mesh = this.fpsWallChamferFloorMeshes.get(key);
-    const material = this.getFpsWallChamferFloorMaterial(materialKind);
+    const material = this.getFpsWallChamferFloorMaterial(
+      tileX,
+      tileY,
+      materialKind,
+    );
     if (!mesh) {
       mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(
@@ -18494,6 +18572,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.tileStateCache.clear();
     this.lastKnownTerrain.clear();
     this.flatFeatureUnderPlayerCache.clear();
+    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.clear();
     this.inferredDarkCorridorWallTiles.clear();
     this.inferredDarkCorridorTileFlags.clear();
     this.pendingBoulderPushDarkCorridorInference = null;
@@ -20232,6 +20311,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
       }
     }
+    sprite.userData.tileIndex =
+      typeof tileIndex === "number" && Number.isFinite(tileIndex)
+        ? Math.trunc(tileIndex)
+        : -1;
+    sprite.userData.sourceGlyph = normalizedSourceGlyph;
+    sprite.userData.materialKind = normalizedMaterialKind;
+    sprite.userData.entityType = entityType;
+    sprite.userData.isWall = isWall;
     const mainSpriteMaterial = sprite.material;
     const flattenedBackdropSprite =
       mainSpriteMaterial instanceof THREE.SpriteMaterial
@@ -20473,7 +20560,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
         (isSink ||
           isFountain ||
           isStairsUp ||
-          isStairsDown ||
           isAltarOrTombstone ||
           isStatue));
     const shouldUseElevatedBillboard =
@@ -20627,9 +20713,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const defaultPlayerSuppressedGlyph = this.isFpsMode()
         ? getDefaultDarkFloorGlyph()
         : getDefaultFloorGlyph();
-      const cachedFlatFeature =
-        this.flatFeatureUnderPlayerCache.get(key) ??
-        this.lastKnownTerrain.get(key);
+      const cachedFlatFeature = this.getFpsPlayerTileUnderlaySnapshotFromCache(
+        key,
+        runtimeFloorUnderlaySnapshot,
+      );
       if (cachedFlatFeature) {
         const usingAssumedUnderlayFromCache =
           !this.shouldRenderFlatFeatureUnderPlayer(behavior) &&
@@ -20950,10 +21037,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldForceTileTextureBackgroundRemoval =
       useTiles &&
       !this.shouldUseVultureTiles() &&
-      this.clientOptions.tilesetBackgroundRemovalMode !== "none" &&
-      ((renderBehavior.isWall &&
-        this.shouldUseTransparentWallGroundPlaneUnderlay(renderBehavior)) ||
-        shouldUseTransparentFloorUnderlayTreatmentOnTile);
+      renderBehavior.isWall &&
+      this.shouldUseTransparentWallGroundPlaneUnderlay(renderBehavior) &&
+      this.clientOptions.tilesetBackgroundRemovalMode !== "none";
     mesh.userData.tileTextureForceBackgroundRemoval =
       shouldForceTileTextureBackgroundRemoval;
     mesh.userData.glyphTextColor = tileTextColor;
@@ -24633,12 +24719,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof mesh?.userData?.tileIndex === "number"
         ? mesh.userData.tileIndex
         : null;
+    const billboardSprite = this.monsterBillboards.get(key) ?? null;
+    const billboardTileId =
+      typeof billboardSprite?.userData?.tileIndex === "number"
+        ? Math.trunc(billboardSprite.userData.tileIndex)
+        : null;
+    const explicitUnderBillboardFloorTileId =
+      typeof mesh?.userData?.floorUnderlayTileIndex === "number"
+        ? Math.trunc(mesh.userData.floorUnderlayTileIndex)
+        : null;
+    const underlayFeatureBillboardKey = this.getPlayerUnderlayBillboardKey(key);
+    const underlayFeatureSprite =
+      this.monsterBillboards.get(underlayFeatureBillboardKey) ?? null;
+    const underlayFeatureBillboardTileId =
+      typeof underlayFeatureSprite?.userData?.tileIndex === "number"
+        ? Math.trunc(underlayFeatureSprite.userData.tileIndex)
+        : null;
+    const hasBillboardOnTile =
+      billboardSprite !== null || underlayFeatureSprite !== null;
+    const underBillboardFloorTileId =
+      explicitUnderBillboardFloorTileId ??
+      (hasBillboardOnTile && typeof tileId === "number"
+        ? Math.trunc(tileId)
+        : null);
     const glyph = parsed?.glyph ?? null;
     const glyphChar = parsed?.char ?? null;
     const symidx =
       typeof parsed?.symidx === "number" ? Math.trunc(parsed.symidx) : null;
     console.log(
-      `[clicklook:${source}] tile=${key} glyph=${glyph ?? "unknown"} char=${glyphChar ?? "unknown"} symidx=${symidx ?? "unknown"} tileId=${tileId ?? "unknown"}`,
+      `[clicklook:${source}] tile=${key} glyph=${glyph ?? "unknown"} char=${glyphChar ?? "unknown"} symidx=${symidx ?? "unknown"} tileId=${tileId ?? "unknown"} billboardTileId=${billboardTileId ?? "unknown"} underBillboardFloorTileId=${underBillboardFloorTileId ?? "unknown"} underlayBillboardTileId=${underlayFeatureBillboardTileId ?? "unknown"}`,
     );
   }
 
@@ -26830,16 +26939,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
         event.code,
       );
       if (fpsMoveInput) {
-        event.preventDefault();
-        if (event.shiftKey) {
-          if (event.repeat) {
+        const lowerFpsKey = event.key.toLowerCase();
+        const shiftedWasdMovementKey =
+          event.shiftKey &&
+          (lowerFpsKey === "w" ||
+            lowerFpsKey === "a" ||
+            lowerFpsKey === "s" ||
+            lowerFpsKey === "d");
+        if (shiftedWasdMovementKey && lowerFpsKey !== "w") {
+          // Let shifted WASD fall through to vanilla NetHack commands like A/S/D.
+        } else {
+          event.preventDefault();
+          if (event.shiftKey) {
+            if (event.repeat) {
+              return;
+            }
+            this.sendForcedDirectionalInput(fpsMoveInput);
             return;
           }
-          this.sendForcedDirectionalInput(fpsMoveInput);
+          this.sendInput(fpsMoveInput);
           return;
         }
-        this.sendInput(fpsMoveInput);
-        return;
       }
 
       if (event.key === "f" || event.key === "F") {
