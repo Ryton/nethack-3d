@@ -805,6 +805,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private useNativeExtendedCommandMenu: boolean = false;
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   private readonly pointerRaycaster = new THREE.Raycaster();
+  private readonly pointerRaycastFrustum = new THREE.Frustum();
+  private readonly pointerRaycastProjectionMatrix = new THREE.Matrix4();
+  private readonly pointerRaycastCandidates: THREE.Object3D[] = [];
   private readonly pointerNdc = new THREE.Vector2();
   private readonly pointerIntersection = new THREE.Vector3();
   private readonly directionPromptOverlayNdc = new THREE.Vector2();
@@ -27965,6 +27968,48 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return alpha >= alphaThreshold;
   }
 
+  private collectVisiblePointerRaycastTargets(): THREE.Object3D[] {
+    const candidates = this.pointerRaycastCandidates;
+    candidates.length = 0;
+
+    this.camera.updateMatrixWorld();
+    this.pointerRaycastProjectionMatrix.multiplyMatrices(
+      this.camera.projectionMatrix,
+      this.camera.matrixWorldInverse,
+    );
+    this.pointerRaycastFrustum.setFromProjectionMatrix(
+      this.pointerRaycastProjectionMatrix,
+    );
+
+    for (const sprite of this.monsterBillboards.values()) {
+      if (!sprite.visible) {
+        continue;
+      }
+      if (
+        sprite.frustumCulled !== false &&
+        !this.pointerRaycastFrustum.intersectsSprite(sprite)
+      ) {
+        continue;
+      }
+      candidates.push(sprite);
+    }
+
+    for (const mesh of this.tileMap.values()) {
+      if (!mesh.visible) {
+        continue;
+      }
+      if (
+        mesh.frustumCulled !== false &&
+        !this.pointerRaycastFrustum.intersectsObject(mesh)
+      ) {
+        continue;
+      }
+      candidates.push(mesh);
+    }
+
+    return candidates;
+  }
+
   private getTileTargetFromPointerNdc(
     ndcX: number,
     ndcY: number,
@@ -27975,18 +28020,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     y: number;
     mesh: THREE.Mesh;
   } | null {
-    const tiles = Array.from(this.tileMap.values());
-    const billboards = Array.from(this.monsterBillboards.values());
-    if (tiles.length === 0 && billboards.length === 0) {
+    const candidates = this.collectVisiblePointerRaycastTargets();
+    if (candidates.length === 0) {
       return null;
     }
 
     this.pointerNdc.set(ndcX, ndcY);
     this.pointerRaycaster.setFromCamera(this.pointerNdc, this.camera);
-    const intersections = this.pointerRaycaster.intersectObjects(
-      [...billboards, ...tiles],
-      false,
-    );
+    const intersections = this.pointerRaycaster.intersectObjects(candidates, false);
     if (intersections.length === 0) {
       return null;
     }
