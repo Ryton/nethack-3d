@@ -8047,7 +8047,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (
       behavior.materialKind === "stairs_up" ||
-      behavior.materialKind === "stairs_down" ||
       behavior.materialKind === "fountain"
     ) {
       return true;
@@ -20537,7 +20536,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
         (isSink ||
           isFountain ||
           isStairsUp ||
-          isStairsDown ||
           isAltarOrTombstone ||
           isStatue));
     const shouldUseElevatedBillboard =
