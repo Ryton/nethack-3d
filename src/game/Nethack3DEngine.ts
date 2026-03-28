@@ -13,6 +13,7 @@ import { WorkerRuntimeBridge } from "../runtime";
 import type { RuntimeBridge, RuntimeEvent } from "../runtime";
 import { FmodRuntime } from "../audio";
 import type { FmodRuntimeOptions, FmodThreadingDiagnostics } from "../audio";
+import { recordDebugSessionLogEvent } from "../debug-session-log";
 import {
   isLoggingEnabled,
   logWithOriginal,
@@ -1859,6 +1860,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     // --- Event Listeners ---
     const eventListenerSignal = { signal: this.domEventAbortController.signal };
+    this.renderer.domElement.addEventListener(
+      "webglcontextlost",
+      this.handleWebGlContextLost,
+      eventListenerSignal,
+    );
+    this.renderer.domElement.addEventListener(
+      "webglcontextrestored",
+      this.handleWebGlContextRestored,
+      eventListenerSignal,
+    );
     window.addEventListener(
       "resize",
       this.onWindowResize.bind(this),
@@ -10518,6 +10529,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
     logWithOriginal(`[NetHack 3D] Logging ${next ? "enabled" : "disabled"}`);
     return next;
   }
+
+  private readonly handleWebGlContextLost = (): void => {
+    const renderInfo = this.renderer?.info;
+    recordDebugSessionLogEvent("webglcontextlost", {
+      runtimeVersion: this.characterCreationConfig.runtimeVersion ?? "3.6.7",
+      antialiasing: this.clientOptions.antialiasing,
+      tilesetPath: this.clientOptions.tilesetPath,
+      renderMemory: renderInfo
+        ? {
+            geometries: renderInfo.memory.geometries,
+            textures: renderInfo.memory.textures,
+          }
+        : null,
+      renderCalls: renderInfo?.render.calls ?? null,
+    });
+  };
+
+  private readonly handleWebGlContextRestored = (): void => {
+    recordDebugSessionLogEvent("webglcontextrestored", {
+      runtimeVersion: this.characterCreationConfig.runtimeVersion ?? "3.6.7",
+      antialiasing: this.clientOptions.antialiasing,
+    });
+  };
 
   private acquireGlyphTexture(
     textureKey: string,

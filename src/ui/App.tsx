@@ -120,6 +120,14 @@ import ConfirmationModal from "./modals/ConfirmationModal";
 import AnimatedDialog from "./modals/AnimatedDialog";
 import { setLoggingEnabled } from "../logging";
 import {
+  clearDebugSessionLogs,
+  enableDebugSessionLogCapture,
+  formatDebugSessionLogSession,
+  readDebugSessionLogs,
+  recordDebugSessionLogEvent,
+  type DebugSessionLogSession,
+} from "../debug-session-log";
+import {
   normalizeStartupCreateCharacterSelection,
   pickRandomStartupGenderForRole,
   pickRandomStartupRole,
@@ -170,6 +178,27 @@ const nh3dBuildLabel = nh3dBuildCommitSha
   : `v${nh3dAppVersion}`;
 
 const nh3dBuildLabelDebugEnableClickCount = 10;
+
+function formatDebugSessionLogTimestamp(value: string): string {
+  if (!value) {
+    return "Unknown time";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleString();
+}
+
+function describeDebugSessionLogSession(session: DebugSessionLogSession): string {
+  const closeReason =
+    session.closeReason === "abrupt-stop"
+      ? "possible crash"
+      : session.closeReason === "active"
+        ? "active"
+        : session.closeReason.replace(/-/g, " ");
+  return `${formatDebugSessionLogTimestamp(session.startedAt)} · ${closeReason}`;
+}
 
 const playerConditionStatusDefinitions: ReadonlyArray<{
   mask: number;
@@ -5036,6 +5065,14 @@ export default function App(): JSX.Element {
     useState(0);
   const [startupBuildLabelToastVisible, setStartupBuildLabelToastVisible] =
     useState(false);
+  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(false);
+  const [isDebugSessionLogsVisible, setIsDebugSessionLogsVisible] =
+    useState(false);
+  const [debugSessionLogs, setDebugSessionLogs] = useState<
+    DebugSessionLogSession[]
+  >([]);
+  const [selectedDebugSessionLogId, setSelectedDebugSessionLogId] =
+    useState("");
   const controllerActionWheelDialogRef = useRef<HTMLDivElement | null>(null);
   const [isMobileLogVisible, setIsMobileLogVisible] = useState(false);
   const [isWizardCommandsVisible, setIsWizardCommandsVisible] = useState(false);
@@ -5186,6 +5223,20 @@ export default function App(): JSX.Element {
       }
     };
   }, []);
+  const refreshDebugSessionLogs = useCallback((): void => {
+    const nextLogs = readDebugSessionLogs();
+    setDebugSessionLogs(nextLogs);
+    setSelectedDebugSessionLogId((previous) => {
+      if (previous && nextLogs.some((session) => session.id === previous)) {
+        return previous;
+      }
+      return nextLogs[0]?.id || "";
+    });
+  }, []);
+  const openDebugSessionLogsDialog = useCallback((): void => {
+    refreshDebugSessionLogs();
+    setIsDebugSessionLogsVisible(true);
+  }, [refreshDebugSessionLogs]);
   const handleStartupBuildLabelClick = useCallback((): void => {
     setStartupBuildLabelClickCount((previous) => {
       const next = previous + 1;
@@ -5193,6 +5244,12 @@ export default function App(): JSX.Element {
         return next;
       }
       setLoggingEnabled(true);
+      enableDebugSessionLogCapture({ buildLabel: nh3dBuildLabel });
+      recordDebugSessionLogEvent("debug-log-toggle", [
+        "Debug log enabled from startup build label easter egg.",
+      ]);
+      setDebugSessionLogsEnabled(true);
+      refreshDebugSessionLogs();
       setStartupBuildLabelToastVisible(true);
       if (startupBuildLabelToastTimerRef.current !== null) {
         window.clearTimeout(startupBuildLabelToastTimerRef.current);
@@ -5203,7 +5260,21 @@ export default function App(): JSX.Element {
       }, 2200);
       return 0;
     });
-  }, []);
+  }, [refreshDebugSessionLogs]);
+  const selectedDebugSessionLog = useMemo(
+    () =>
+      debugSessionLogs.find((session) => session.id === selectedDebugSessionLogId) ||
+      debugSessionLogs[0] ||
+      null,
+    [debugSessionLogs, selectedDebugSessionLogId],
+  );
+  const selectedDebugSessionLogText = useMemo(
+    () =>
+      selectedDebugSessionLog
+        ? formatDebugSessionLogSession(selectedDebugSessionLog)
+        : "No saved debug logs yet.",
+    [selectedDebugSessionLog],
+  );
   useEffect(() => {
     if (typeof document === "undefined") {
       return;
@@ -12490,8 +12561,103 @@ export default function App(): JSX.Element {
               Debug log enabled
             </div>
           ) : null}
+          {debugSessionLogsEnabled ? (
+            <button
+              className="nh3d-startup-build-label-link"
+              onClick={openDebugSessionLogsDialog}
+              type="button"
+            >
+              View debug logs
+            </button>
+          ) : null}
         </>
       ) : null}
+      <AnimatedDialog
+        className="nh3d-dialog nh3d-dialog-text nh3d-dialog-fixed-actions nh3d-dialog-has-mobile-close nh3d-debug-log-dialog"
+        open={isDebugSessionLogsVisible}
+        id="nh3d-debug-log-dialog"
+      >
+        {isDebugSessionLogsVisible ? (
+          <>
+            {renderMobileDialogCloseButton(
+              () => setIsDebugSessionLogsVisible(false),
+              "Close debug logs",
+            )}
+            <div className="nh3d-options-title">Saved Debug Logs</div>
+            <div className="nh3d-dialog-hint">
+              Logs are only captured after the hidden debug log toggle is enabled.
+            </div>
+            {debugSessionLogs.length > 0 ? (
+              <>
+                <div className="nh3d-debug-log-session-list">
+                  {debugSessionLogs.map((session) => (
+                    <button
+                      className={`nh3d-debug-log-session-button${
+                        selectedDebugSessionLog?.id === session.id
+                          ? " is-active"
+                          : ""
+                      }`}
+                      key={session.id}
+                      onClick={() => setSelectedDebugSessionLogId(session.id)}
+                      type="button"
+                    >
+                      {describeDebugSessionLogSession(session)}
+                    </button>
+                  ))}
+                </div>
+                {selectedDebugSessionLog ? (
+                  <div className="nh3d-debug-log-session-summary">
+                    Showing {selectedDebugSessionLog.entries.length} entries from{" "}
+                    {formatDebugSessionLogTimestamp(
+                      selectedDebugSessionLog.startedAt,
+                    )}
+                    .
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="nh3d-question-text">
+                No saved debug logs yet.
+              </div>
+            )}
+            <div className="nh3d-debug-log-viewer" data-nh3d-overflow-glow>
+              <pre className="nh3d-debug-log-viewer-text">
+                {selectedDebugSessionLogText}
+              </pre>
+            </div>
+            <div className="nh3d-menu-actions">
+              <button
+                className="nh3d-menu-action-button"
+                onClick={refreshDebugSessionLogs}
+                type="button"
+              >
+                Refresh
+              </button>
+              <button
+                className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                onClick={() => {
+                  clearDebugSessionLogs();
+                  enableDebugSessionLogCapture({ buildLabel: nh3dBuildLabel });
+                  recordDebugSessionLogEvent("debug-log-clear", [
+                    "Stored debug logs cleared by user.",
+                  ]);
+                  refreshDebugSessionLogs();
+                }}
+                type="button"
+              >
+                Clear Logs
+              </button>
+              <button
+                className="nh3d-menu-action-button"
+                onClick={() => setIsDebugSessionLogsVisible(false)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+          </>
+        ) : null}
+      </AnimatedDialog>
       {asciiLogoVisible && (
         <div className="logo-container">
           <pre className="nethack-ascii-logo">

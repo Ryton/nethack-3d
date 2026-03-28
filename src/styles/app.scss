@@ -1327,6 +1327,29 @@ canvas {
   user-select: none;
 }
 
+.nh3d-startup-build-label-link {
+  position: fixed;
+  left: var(--nh3d-modal-safe-left-inset);
+  bottom: calc(var(--nh3d-modal-safe-bottom-inset) + 44px);
+  z-index: 1998;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: "Courier New", monospace;
+  font-size: nh3d-scale-font(11px);
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  color: rgba(126, 208, 255, 0.96);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.72);
+
+  &:focus-visible {
+    outline: 1px solid rgba(126, 208, 255, 0.9);
+    outline-offset: 4px;
+  }
+}
+
 @keyframes nh3d-startup-fade-in {
   from {
     opacity: 0;
@@ -1859,6 +1882,71 @@ canvas {
         )
     );
   }
+}
+
+.nh3d-debug-log-dialog {
+  width: min(92vw, 860px);
+  max-width: 860px;
+  text-align: left;
+  z-index: 2003;
+
+  .nh3d-options-title,
+  .nh3d-dialog-hint,
+  .nh3d-question-text {
+    text-align: left;
+  }
+}
+
+.nh3d-debug-log-session-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.nh3d-debug-log-session-button {
+  padding: 7px 10px;
+  border: 1px solid rgba(126, 208, 255, 0.32);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.72);
+  color: rgba(214, 239, 255, 0.94);
+  font-size: nh3d-scale-font(12px);
+  text-align: left;
+
+  &.is-active {
+    border-color: rgba(126, 208, 255, 0.84);
+    background: rgba(13, 33, 56, 0.92);
+  }
+}
+
+.nh3d-debug-log-session-summary {
+  margin-bottom: 10px;
+  color: rgba(214, 239, 255, 0.82);
+  font-size: nh3d-scale-font(12px);
+}
+
+.nh3d-debug-log-viewer {
+  min-height: 240px;
+  max-height: min(48vh, 520px);
+  overflow: auto;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(126, 208, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(12, 23, 38, 0.96), rgba(5, 10, 20, 0.96)),
+    rgba(7, 17, 31, 0.78);
+}
+
+.nh3d-debug-log-viewer-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "Courier New", monospace;
+  font-size: nh3d-scale-font(12px);
+  line-height: 1.45;
+  color: rgba(227, 242, 255, 0.96);
+  user-select: text;
 }
 
 .nh3d-character-setup-dialog {

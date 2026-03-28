@@ -1,6 +1,11 @@
 type NH3DGlobalScope = typeof globalThis & {
   __NH3D_LOGGING_ENABLED__?: boolean;
   __NH3D_ORIGINAL_CONSOLE_LOG__?: typeof console.log;
+  __NH3D_DEBUG_SESSION_LOG_HOOK__?: (
+    level: "log" | "info" | "warn" | "error" | "event",
+    args: unknown[],
+    source?: string,
+  ) => void;
 };
 
 const globalScope = globalThis as NH3DGlobalScope;
@@ -38,6 +43,11 @@ export function toggleLoggingEnabled(): boolean {
 }
 
 export function logWithOriginal(...args: unknown[]): void {
+  globalScope.__NH3D_DEBUG_SESSION_LOG_HOOK__?.(
+    "log",
+    args,
+    "logWithOriginal",
+  );
   const originalLog =
     globalScope.__NH3D_ORIGINAL_CONSOLE_LOG__ || console.log.bind(console);
   originalLog(...args);
