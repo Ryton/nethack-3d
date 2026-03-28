@@ -227,24 +227,61 @@ function describeDebugSessionLogSession(session: DebugSessionLogSession): string
   return `${formatDebugSessionLogTimestamp(session.startedAt)} - ${closeReason}`;
 }
 
-const playerConditionStatusDefinitions: ReadonlyArray<{
+const playerConditionStatusDefinitions367: ReadonlyArray<{
   mask: number;
   label: string;
   severity: StatusSeverity;
 }> = [
-  { mask: 0x00000001, label: "Stone", severity: "danger" },
-  { mask: 0x00000002, label: "Slime", severity: "danger" },
-  { mask: 0x00000004, label: "Strngl", severity: "danger" },
-  { mask: 0x00000008, label: "FoodPois", severity: "danger" },
-  { mask: 0x00000010, label: "TermIll", severity: "danger" },
+  { mask: 0x00000001, label: "Turning to Stone", severity: "danger" },
+  { mask: 0x00000002, label: "Slimed", severity: "danger" },
+  { mask: 0x00000004, label: "Strangled", severity: "danger" },
+  { mask: 0x00000008, label: "Food Poisoning", severity: "danger" },
+  { mask: 0x00000010, label: "Terminally Ill", severity: "danger" },
   { mask: 0x00000020, label: "Blind", severity: "warning" },
   { mask: 0x00000040, label: "Deaf", severity: "warning" },
-  { mask: 0x00000080, label: "Stun", severity: "warning" },
-  { mask: 0x00000100, label: "Conf", severity: "warning" },
-  { mask: 0x00000200, label: "Hallu", severity: "warning" },
-  { mask: 0x00000400, label: "Lev", severity: "good" },
-  { mask: 0x00000800, label: "Fly", severity: "good" },
-  { mask: 0x00001000, label: "Ride", severity: "good" },
+  { mask: 0x00000080, label: "Stunned", severity: "warning" },
+  { mask: 0x00000100, label: "Confused", severity: "warning" },
+  { mask: 0x00000200, label: "Hallucinating", severity: "warning" },
+  { mask: 0x00000400, label: "Levitating", severity: "good" },
+  { mask: 0x00000800, label: "Flying", severity: "good" },
+  { mask: 0x00001000, label: "Riding", severity: "good" },
+];
+
+const playerConditionStatusDefinitions37: ReadonlyArray<{
+  mask: number;
+  label: string;
+  severity: StatusSeverity;
+}> = [
+  { mask: 0x00000001, label: "Barehanded", severity: "warning" },
+  { mask: 0x00000002, label: "Blind", severity: "warning" },
+  { mask: 0x00000004, label: "Busy", severity: "warning" },
+  { mask: 0x00000008, label: "Confused", severity: "warning" },
+  { mask: 0x00000010, label: "Deaf", severity: "warning" },
+  { mask: 0x00000020, label: "Iron", severity: "warning" },
+  { mask: 0x00000040, label: "Flying", severity: "good" },
+  { mask: 0x00000080, label: "Food Poisoning", severity: "danger" },
+  { mask: 0x00000100, label: "Glowing Hands", severity: "warning" },
+  { mask: 0x00000200, label: "Grabbed", severity: "danger" },
+  { mask: 0x00000400, label: "Hallucinating", severity: "warning" },
+  { mask: 0x00000800, label: "Held", severity: "warning" },
+  { mask: 0x00001000, label: "Icy", severity: "warning" },
+  { mask: 0x00002000, label: "In Lava", severity: "danger" },
+  { mask: 0x00004000, label: "Levitating", severity: "good" },
+  { mask: 0x00008000, label: "Paralyzed", severity: "danger" },
+  { mask: 0x00010000, label: "Riding", severity: "good" },
+  { mask: 0x00020000, label: "Sleeping", severity: "warning" },
+  { mask: 0x00040000, label: "Slimed", severity: "danger" },
+  { mask: 0x00080000, label: "Slippery", severity: "warning" },
+  { mask: 0x00100000, label: "Turning to Stone", severity: "danger" },
+  { mask: 0x00200000, label: "Strangled", severity: "danger" },
+  { mask: 0x00400000, label: "Stunned", severity: "warning" },
+  { mask: 0x00800000, label: "Submerged", severity: "warning" },
+  { mask: 0x01000000, label: "Terminally Ill", severity: "danger" },
+  { mask: 0x02000000, label: "Tethered", severity: "warning" },
+  { mask: 0x04000000, label: "Trapped", severity: "warning" },
+  { mask: 0x08000000, label: "Unconscious", severity: "danger" },
+  { mask: 0x10000000, label: "Wounded Legs", severity: "warning" },
+  { mask: 0x20000000, label: "Holding", severity: "warning" },
 ];
 
 function resolveHungerStatusBadge(
@@ -296,7 +333,10 @@ function resolveEncumbranceStatusBadge(
   return { label, severity: "warning" };
 }
 
-function resolveConditionStatusBadges(rawMask: unknown): PlayerStatusBadge[] {
+function resolveConditionStatusBadges(
+  rawMask: unknown,
+  runtimeVersion: NethackRuntimeVersion,
+): PlayerStatusBadge[] {
   const conditionMask =
     typeof rawMask === "number" && Number.isFinite(rawMask)
       ? Math.trunc(rawMask) >>> 0
@@ -304,7 +344,11 @@ function resolveConditionStatusBadges(rawMask: unknown): PlayerStatusBadge[] {
   if (conditionMask === 0) {
     return [];
   }
-  return playerConditionStatusDefinitions
+  const definitions =
+    runtimeVersion === "3.7"
+      ? playerConditionStatusDefinitions37
+      : playerConditionStatusDefinitions367;
+  return definitions
     .filter((entry) => (conditionMask & entry.mask) !== 0)
     .map((entry) => ({
       label: entry.label,
@@ -314,6 +358,7 @@ function resolveConditionStatusBadges(rawMask: unknown): PlayerStatusBadge[] {
 
 function buildPlayerStatusBadges(
   stats: PlayerStatsSnapshot,
+  runtimeVersion: NethackRuntimeVersion,
 ): PlayerStatusBadge[] {
   const badges: PlayerStatusBadge[] = [];
   const seen = new Set<string>();
@@ -331,7 +376,12 @@ function buildPlayerStatusBadges(
 
   pushUnique(resolveHungerStatusBadge(stats.hunger));
   pushUnique(resolveEncumbranceStatusBadge(stats.encumbrance));
-  for (const badge of resolveConditionStatusBadges(stats.conditionMask)) {
+  for (
+    const badge of resolveConditionStatusBadges(
+      stats.conditionMask,
+      runtimeVersion,
+    )
+  ) {
     pushUnique(badge);
   }
   return badges;
@@ -1801,6 +1851,7 @@ type ClientOptionsTab = {
 
 type ClientOptionToggleKey =
   | "fpsMode"
+  | "lightingEnabled"
   | "fpsFlattenEntityBillboards"
   | "showItemsUnderPlayerInOverheadTilesMode"
   | "controllerEnabled"
@@ -3218,6 +3269,13 @@ const clientOptionsConfig: ClientOption[] = [
       { value: "taa", label: "TAA" },
       { value: "fxaa", label: "FXAA" },
     ],
+  },
+  {
+    key: "lightingEnabled",
+    label: "Lighting",
+    description:
+      "Enable dynamic scene lighting and dungeon darkening. Turn off for flatter always-lit rendering.",
+    type: "boolean",
   },
   {
     key: "blockAmbientOcclusion",
@@ -4676,6 +4734,8 @@ export default function App(): JSX.Element {
     useState<StartupFlowStep>("variant");
   const [runtimeVersion, setRuntimeVersion] =
     useState<NethackRuntimeVersion>("3.6.7");
+  const activeRuntimeVersion =
+    characterCreationConfig?.runtimeVersion ?? runtimeVersion;
   const [createRole, setCreateRole] = useState(
     startupDefaultCharacterPreferences.createRole,
   );
@@ -8298,8 +8358,8 @@ export default function App(): JSX.Element {
     [coreStatBoldUntilTurn, currentStatsTurn, highlightedCoreStatStyle],
   );
   const playerStatusBadges = useMemo(
-    () => buildPlayerStatusBadges(playerStats),
-    [playerStats],
+    () => buildPlayerStatusBadges(playerStats, activeRuntimeVersion),
+    [activeRuntimeVersion, playerStats],
   );
   const locationLabel = String(playerStats.locationLabel || "").trim();
   const fallbackLocationLabel = Number.isFinite(playerStats.dlevel)
