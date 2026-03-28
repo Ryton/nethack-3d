@@ -5168,6 +5168,81 @@ class LocalNetHackRuntime {
     return { kind: "info_menu", lines };
   }
 
+  isInventorySnapshotEntry(menuItem) {
+    if (!menuItem || typeof menuItem !== "object" || menuItem.isCategory) {
+      return false;
+    }
+    if (menuItem.isSelectable === true) {
+      return true;
+    }
+    if (this.isPrintableAccelerator(menuItem.originalAccelerator)) {
+      return true;
+    }
+    if (
+      typeof menuItem.identifier === "number" &&
+      Number.isFinite(menuItem.identifier) &&
+      menuItem.identifier !== 0
+    ) {
+      return true;
+    }
+    if (menuItem.isTileApplicable === true) {
+      return true;
+    }
+    if (
+      typeof menuItem.tileIndex === "number" &&
+      Number.isFinite(menuItem.tileIndex)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  inferQuestionlessInventoryCategories(menuItems) {
+    const items = Array.isArray(menuItems) ? menuItems : [];
+    if (items.length === 0 || items.some((item) => item && item.isCategory)) {
+      return items;
+    }
+
+    let didInferCategory = false;
+    const inferredItems = items.map((item, index) => {
+      if (!item || typeof item !== "object") {
+        return item;
+      }
+      const rawText =
+        typeof item.text === "string" ? item.text.replace(/\u0000/g, "") : "";
+      if (!rawText.trim()) {
+        return item;
+      }
+      if (rawText.trimStart() !== rawText) {
+        return item;
+      }
+      if (this.isInventorySnapshotEntry(item)) {
+        return item;
+      }
+      const nextVisibleItem = items
+        .slice(index + 1)
+        .find(
+          (candidate) =>
+            candidate &&
+            typeof candidate.text === "string" &&
+            candidate.text.replace(/\u0000/g, "").trim().length > 0,
+        );
+      if (!this.isInventorySnapshotEntry(nextVisibleItem)) {
+        return item;
+      }
+      didInferCategory = true;
+      return {
+        ...item,
+        isCategory: true,
+        isSelectable: false,
+        isTileApplicable: false,
+        tileIndex: undefined,
+      };
+    });
+
+    return didInferCategory ? inferredItems : items;
+  }
+
   normalizeQuestionText(question) {
     if (typeof question !== "string") {
       return "";
@@ -8676,6 +8751,11 @@ class LocalNetHackRuntime {
             this.currentMenuItems,
           );
           this.lastEndedInventoryMenuKind = classification.kind;
+          if (classification.kind === "inventory") {
+            this.currentMenuItems = this.inferQuestionlessInventoryCategories(
+              this.currentMenuItems,
+            );
+          }
           const actualItems = this.currentMenuItems.filter(
             (item) => !item.isCategory,
           );
