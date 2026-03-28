@@ -3,28 +3,10 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { defineConfig, type ViteDevServer } from "vite";
 import react from "@vitejs/plugin-react";
-import { copyWasm } from "./scripts/wasm/copy-wasm.mjs";
 import {
   TILESET_MANIFEST_SOURCE_DIRS,
   generateTilesetManifest,
 } from "./scripts/tilesets/generate-tileset-manifest.mjs";
-
-function resolveInstalledPackageVersion(packageName: string): string {
-  try {
-    const packageJsonPath = path.join(
-      process.cwd(),
-      "node_modules",
-      packageName,
-      "package.json",
-    );
-    const payload = JSON.parse(readFileSync(packageJsonPath, "utf8"));
-    return typeof payload.version === "string" && payload.version.trim()
-      ? payload.version.trim()
-      : "unknown";
-  } catch {
-    return "unknown";
-  }
-}
 
 function resolveProjectPackageVersion(): string {
   try {
@@ -66,27 +48,6 @@ function resolveBuildCommitSha(): string {
   return result.stdout.trim();
 }
 
-function resolveRuntimeBuildJsPath(
-  packageName: string,
-  relativeBuildPath: string,
-  publicOverrideFilename: string,
-): string {
-  const publicOverridePath = path.join(
-    process.cwd(),
-    "public",
-    publicOverrideFilename,
-  );
-  if (existsSync(publicOverridePath)) {
-    return publicOverridePath;
-  }
-  return path.join(
-    process.cwd(),
-    "node_modules",
-    packageName,
-    relativeBuildPath,
-  );
-}
-
 function buildFileContains(filePath: string, snippet: string): boolean {
   try {
     return readFileSync(filePath, "utf8").includes(snippet);
@@ -108,13 +69,8 @@ function buildRuntimeAssetTag(filePaths: string[]): string {
   return parts.join(".");
 }
 
-function copyWasmPlugin() {
-  return {
-    name: "copy-nethack-wasm",
-    buildStart() {
-      copyWasm();
-    },
-  };
+function resolvePublicAssetPath(filename: string): string {
+  return path.join(process.cwd(), "public", filename);
 }
 
 function tilesetManifestPlugin() {
@@ -159,35 +115,28 @@ const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
 const isElectronBuild = process.env.BUILD_TARGET === "electron";
 const enableCrossOriginIsolation =
   process.env.NH3D_ENABLE_CROSS_ORIGIN_ISOLATION === "true";
-const wasm367RuntimeBuildJsPath = resolveRuntimeBuildJsPath(
-  "@neth4ck/wasm-367",
-  path.join("build", "nethack.js"),
-  "nethack-367.js",
-);
-const wasm37RuntimeBuildJsPath = resolveRuntimeBuildJsPath(
-  "@neth4ck/wasm-37",
-  path.join("build", "nethack.js"),
-  "nethack-37.js",
-);
-const wasm367UsesPublicRuntimeOverride = wasm367RuntimeBuildJsPath.endsWith(
-  `${path.sep}public${path.sep}nethack-367.js`,
-);
-const wasm37UsesPublicRuntimeOverride = wasm37RuntimeBuildJsPath.endsWith(
-  `${path.sep}public${path.sep}nethack-37.js`,
-);
-const wasm367CompatTag = `wasm-367-${resolveInstalledPackageVersion("@neth4ck/wasm-367")}`;
-const wasm37CompatTag = `wasm-37-${resolveInstalledPackageVersion("@neth4ck/wasm-37")}`;
+const wasm367RuntimeBuildJsPath = resolvePublicAssetPath("nethack-367.js");
+const wasm37RuntimeBuildJsPath = resolvePublicAssetPath("nethack-37.js");
+const slashemRuntimeBuildJsPath = resolvePublicAssetPath("slashem.js");
+const wasm367CompatTag = "wasm-367-forked";
+const wasm37CompatTag = "wasm-37-forked";
+const slashemCompatTag = "slashem-343-forked";
 const projectVersion = resolveProjectPackageVersion();
 const wasm367RuntimeBuildTag = buildRuntimeAssetTag([
   wasm367RuntimeBuildJsPath,
-  path.join(process.cwd(), "public", "nethack-367.wasm"),
+  resolvePublicAssetPath("nethack-367.wasm"),
 ]);
 const wasm37RuntimeBuildTag = buildRuntimeAssetTag([
   wasm37RuntimeBuildJsPath,
-  path.join(process.cwd(), "public", "nethack-37.wasm"),
+  resolvePublicAssetPath("nethack-37.wasm"),
+]);
+const slashemRuntimeBuildTag = buildRuntimeAssetTag([
+  slashemRuntimeBuildJsPath,
+  resolvePublicAssetPath("slashem.wasm"),
 ]);
 const wasm367PointerAbiTag = "nh367-pointer-v1";
 const wasm37PointerAbiTag = "nh37-pointer-v1";
+const slashemPointerAbiTag = "slashem-pointer-v1";
 const wasm367HasRecoverSavefile = buildFileContains(
   wasm367RuntimeBuildJsPath,
   'Module["_recover_savefile"]',
@@ -205,6 +154,14 @@ const wasm37HasRecoverSavefile = buildFileContains(
 );
 const wasm37HasCheckpointResumeBridge = buildFileContains(
   wasm37RuntimeBuildJsPath,
+  'Module["_resume_checkpoint_save"]',
+);
+const slashemHasRecoverSavefile = buildFileContains(
+  slashemRuntimeBuildJsPath,
+  'Module["_recover_savefile"]',
+);
+const slashemHasCheckpointResumeBridge = buildFileContains(
+  slashemRuntimeBuildJsPath,
   'Module["_resume_checkpoint_save"]',
 );
 const resolvedBuildCommitSha = resolveBuildCommitSha();
@@ -253,13 +210,7 @@ const bundledClientUpdateState = (() => {
 const devSessionTag = String(Date.now());
 
 export default defineConfig({
-  plugins: [copyWasmPlugin(), tilesetManifestPlugin(), react()],
-  optimizeDeps: {
-    // These wasm packages are intentionally replaceable with in-progress local
-    // fork builds. Avoid Vite's prebundle cache so dev always loads the current
-    // package JS instead of a stale optimized snapshot.
-    exclude: ["@neth4ck/wasm-367", "@neth4ck/wasm-37"],
-  },
+  plugins: [tilesetManifestPlugin(), react()],
   define: {
     "import.meta.env.VITE_NH3D_APP_VERSION": JSON.stringify(projectVersion),
     "import.meta.env.VITE_NH3D_BUILD_COMMIT_SHA": JSON.stringify(
@@ -278,8 +229,6 @@ export default defineConfig({
       JSON.stringify(wasm367RuntimeBuildTag),
     "import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG":
       JSON.stringify(wasm367PointerAbiTag),
-    "import.meta.env.VITE_NH3D_WASM_367_USE_PUBLIC_RUNTIME_OVERRIDE":
-      JSON.stringify(wasm367UsesPublicRuntimeOverride),
     "import.meta.env.VITE_NH3D_WASM_367_HAS_RECOVER_SAVEFILE": JSON.stringify(
       wasm367HasRecoverSavefile,
     ),
@@ -296,8 +245,16 @@ export default defineConfig({
     ),
     "import.meta.env.VITE_NH3D_WASM_37_HAS_CHECKPOINT_RESUME_BRIDGE":
       JSON.stringify(wasm37HasCheckpointResumeBridge),
-    "import.meta.env.VITE_NH3D_WASM_37_USE_PUBLIC_RUNTIME_OVERRIDE":
-      JSON.stringify(wasm37UsesPublicRuntimeOverride),
+    "import.meta.env.VITE_NH3D_WASM_SLASHEM_COMPAT_TAG":
+      JSON.stringify(slashemCompatTag),
+    "import.meta.env.VITE_NH3D_WASM_SLASHEM_RUNTIME_BUILD_TAG":
+      JSON.stringify(slashemRuntimeBuildTag),
+    "import.meta.env.VITE_NH3D_WASM_SLASHEM_POINTER_ABI_TAG":
+      JSON.stringify(slashemPointerAbiTag),
+    "import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_RECOVER_SAVEFILE":
+      JSON.stringify(slashemHasRecoverSavefile),
+    "import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_CHECKPOINT_RESUME_BRIDGE":
+      JSON.stringify(slashemHasCheckpointResumeBridge),
   },
   base: isGitHubActions ? "/nethack-3d/" : isElectronBuild ? "./" : "/",
   server: {

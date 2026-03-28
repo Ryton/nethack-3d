@@ -13000,6 +13000,16 @@ export default function App(): JSX.Element {
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
+                setRuntimeVersion("slashem");
+                setStartupFlowStep("choose");
+              }}
+              type="button"
+            >
+              SLASH'EM
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={openClientOptionsDialog}
               style={{ marginTop: "14px" }}
               type="button"

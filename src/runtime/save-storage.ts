@@ -65,11 +65,18 @@ export function isRecoverableCheckpointLevelZeroByteLength(
 export function getRuntimeSaveCompatTag(
   runtimeVersion: NethackRuntimeVersion,
 ): string {
-  const fallback = runtimeVersion === "3.7" ? "wasm-37" : "wasm-367";
+  const fallback =
+    runtimeVersion === "3.7"
+      ? "wasm-37"
+      : runtimeVersion === "slashem"
+        ? "slashem-343"
+        : "wasm-367";
   const rawCompatTag =
     runtimeVersion === "3.7"
       ? import.meta.env.VITE_NH3D_WASM_37_COMPAT_TAG
-      : import.meta.env.VITE_NH3D_WASM_367_COMPAT_TAG;
+      : runtimeVersion === "slashem"
+        ? import.meta.env.VITE_NH3D_WASM_SLASHEM_COMPAT_TAG
+        : import.meta.env.VITE_NH3D_WASM_367_COMPAT_TAG;
   return normalizeCompatTag(rawCompatTag, fallback);
 }
 

@@ -1511,7 +1511,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    if (runtimeVersion !== "3.6.7") {
+    if (runtimeVersion === "3.7") {
       return false;
     }
 
@@ -3510,7 +3510,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private isDarkCorridorWallInferenceEnabled(): boolean {
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    if (runtimeVersion !== "3.6.7") {
+    if (runtimeVersion === "3.7") {
       return false;
     }
     // Vulture mode relies on NetHack 3.6.7 dark corridor wall inference, so
@@ -17899,7 +17899,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       // NetHack 3.6.7 dark corridor walls should chamfer using the dark hallway
       // floor texture, not the generic dark room texture.
       fallbackGlyph =
-        runtimeVersion === "3.6.7"
+        runtimeVersion !== "3.7"
           ? getDefaultDarkFloorGlyph()
           : floorGlyph + 1;
     }

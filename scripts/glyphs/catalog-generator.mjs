@@ -1,25 +1,21 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { copyWasm } from "../wasm/copy-wasm.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { getAllTiles } from "./tile-parser.mjs";
-import { warn } from "node:console";
 
 export const GLYPH_CATALOG_VERSIONS = /** @type {const} */ (["3.6.7", "3.7"]);
 
 const CATALOG_TARGETS = [
   {
     version: "3.6.7",
-    packageName: "@neth4ck/wasm-367",
-    packageJsPath: "node_modules/@neth4ck/wasm-367/build/nethack.js",
+    publicJsPath: "public/nethack-367.js",
     publicWasmPath: "public/nethack-367.wasm",
     generatedCatalogPath: "src/game/glyphs/glyph-catalog.367.generated.ts",
   },
   {
     version: "3.7",
-    packageName: "@neth4ck/wasm-37",
-    packageJsPath: "node_modules/@neth4ck/wasm-37/build/nethack.js",
+    publicJsPath: "public/nethack-37.js",
     publicWasmPath: "public/nethack-37.wasm",
     generatedCatalogPath: "src/game/glyphs/glyph-catalog.37.generated.ts",
   },
@@ -163,16 +159,16 @@ function createRuntimeCallback() {
 
 /**
  * @param {string} projectRoot
- * @param {{ version: "3.6.7" | "3.7"; packageName: string; publicWasmPath: string }} target
+ * @param {{ version: "3.6.7" | "3.7"; publicJsPath: string; publicWasmPath: string }} target
  */
 async function bootCatalogRuntime(projectRoot, target) {
-  copyWasm();
+  const jsPath = path.join(projectRoot, target.publicJsPath);
   const wasmPath = path.join(projectRoot, target.publicWasmPath);
   const wasmBinary = await fs.readFile(wasmPath);
 
-  const { default: factory } = await import(target.packageName);
+  const { default: factory } = await import(pathToFileURL(jsPath).href);
   if (typeof factory !== "function") {
-    throw new Error(`NetHack factory not found in ${target.packageName}`);
+    throw new Error(`NetHack factory not found in ${target.publicJsPath}`);
   }
 
   delete globalThis.nethackGlobal;
@@ -436,8 +432,8 @@ export function getGeneratedCatalogPath(projectRoot) {
 /**
  * @param {string} projectRoot
  */
-function resolvePackageJsPath(projectRoot, target) {
-  return path.join(projectRoot, target.packageJsPath);
+function resolvePublicJsPath(projectRoot, target) {
+  return path.join(projectRoot, target.publicJsPath);
 }
 
 function normalizeCatalogVersion(version) {
@@ -470,7 +466,7 @@ export async function generateGlyphCatalogSource(
   version = "3.6.7",
 ) {
   const target = resolveCatalogTarget(version);
-  const jsPath = resolvePackageJsPath(projectRoot, target);
+  const jsPath = resolvePublicJsPath(projectRoot, target);
   const wasmPath = path.join(projectRoot, target.publicWasmPath);
 
   const [jsBuffer, runtimeInfo] = await Promise.all([
@@ -515,7 +511,7 @@ export async function generateGlyphCatalogSource(
   );
 
   return renderGlyphCatalogModule({
-    sourceJsPath: `${target.packageName}/build/nethack.js`,
+    sourceJsPath: toPosixPath(target.publicJsPath),
     sourceWasmPath: toPosixPath(target.publicWasmPath),
     sourceJsSha256: hashBuffer(jsBuffer),
     sourceWasmSha256: hashBuffer(wasmBinary),

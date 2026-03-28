@@ -341,7 +341,7 @@ export function resolveNh3dCompatibleTilesetPathForRuntime(
     selectedTileset.label,
   ).toLowerCase();
   if (
-    runtimeVersion === "3.6.7" &&
+    runtimeVersion !== "3.7" &&
     selectedTileset.tileLayoutVersion === "3.7"
   ) {
     const labelMatchedNh367Tileset = tilesetCatalog.find(

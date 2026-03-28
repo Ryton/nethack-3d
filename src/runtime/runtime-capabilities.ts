@@ -23,6 +23,11 @@ export function hasRuntimeCheckpointRecoveryPrimitiveExport(
       import.meta.env.VITE_NH3D_WASM_37_HAS_RECOVER_SAVEFILE,
     );
   }
+  if (runtimeVersion === "slashem") {
+    return readDefinedBoolean(
+      import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_RECOVER_SAVEFILE,
+    );
+  }
   if (runtimeVersion === "3.6.7") {
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_367_HAS_RECOVER_SAVEFILE,
@@ -40,6 +45,11 @@ export function supportsRuntimeCheckpointRecovery(
     }
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_37_HAS_CHECKPOINT_RESUME_BRIDGE,
+    );
+  }
+  if (runtimeVersion === "slashem") {
+    return readDefinedBoolean(
+      import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_CHECKPOINT_RESUME_BRIDGE,
     );
   }
   if (runtimeVersion === "3.6.7") {
