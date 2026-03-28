@@ -100,7 +100,6 @@ class LocalNetHackRuntime {
     this.deferredTileRefreshKeys = new Set();
     this.deferredAreaRefreshRequests = new Map();
     this.deferredTileRefreshFlushScheduled = false;
-    this.deferredTileRefreshPostCallbackCheckScheduled = false;
     this.textInputMaxLength = 256;
     this.mouseInputTokenKey = "__MOUSE_INPUT__";
     this.mouseClickPrimaryMod = 1; // CLICK_1 (left click)
@@ -3587,51 +3586,11 @@ class LocalNetHackRuntime {
     return this.consumeInputResult(requested, requestKind, requestContext);
   }
 
-  getActiveShimCallbackName() {
-    const root =
-      globalThis.nethackGlobal && typeof globalThis.nethackGlobal === "object"
-        ? globalThis.nethackGlobal
-        : null;
-    const activeName =
-      root && typeof root.shimFunctionRunning === "string"
-        ? root.shimFunctionRunning.trim()
-        : "";
-    return activeName || "";
-  }
-
-  isShimCallbackActive() {
-    return this.getActiveShimCallbackName().length > 0;
-  }
-
-  scheduleDeferredTileRefreshPostCallbackCheck() {
-    if (this.deferredTileRefreshPostCallbackCheckScheduled) {
-      return;
-    }
-    if (
-      this.deferredTileRefreshKeys.size === 0 &&
-      this.deferredAreaRefreshRequests.size === 0
-    ) {
-      return;
-    }
-
-    this.deferredTileRefreshPostCallbackCheckScheduled = true;
-    const schedule =
-      typeof setTimeout === "function"
-        ? setTimeout
-        : (callback) => callback();
-
-    schedule(() => {
-      this.deferredTileRefreshPostCallbackCheckScheduled = false;
-      this.maybeFlushDeferredTileRefreshes();
-    }, 0);
-  }
-
   canQueryWasmHelpers() {
     return (
       !this.activeInputRequest &&
       !this.pendingTextRequest &&
-      !this.pendingMenuSelection &&
-      !this.isShimCallbackActive()
+      !this.pendingMenuSelection
     );
   }
 
@@ -7724,14 +7683,7 @@ class LocalNetHackRuntime {
       console.log("Starting local NetHack session...");
 
       globalThis.nethackCallback = async (name, ...args) => {
-        const result = this.handleUICallback(name, args);
-        if (result && typeof result.then === "function") {
-          return result.finally(() => {
-            this.scheduleDeferredTileRefreshPostCallbackCheck();
-          });
-        }
-        this.scheduleDeferredTileRefreshPostCallbackCheck();
-        return result;
+        return this.handleUICallback(name, args);
       };
 
       this.runtimeVersion = this.normalizeRuntimeVersion(
