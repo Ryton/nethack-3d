@@ -1831,7 +1831,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateRendererResolution();
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.domElement.style.backgroundColor = "";
-    this.renderer.shadowMap.enabled = true;
+    // No current light path casts shadows, so keep shadow-map allocation off.
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.directionPromptOverlay = new DirectionPromptOverlay(this.scene);
 
@@ -24293,6 +24294,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.disposeAntialiasingPipeline();
     this.renderer.domElement.remove();
+    this.renderer.forceContextLoss();
     this.renderer.dispose();
     this.floorGeometry.dispose();
     this.wallGeometry.dispose();

@@ -244,9 +244,9 @@ const isMobile = window.matchMedia("(pointer: coarse)");
 
 export const defaultNh3dClientOptions: Nh3dClientOptions = {
   fpsMode: false,
-  fpsFov: isMobilePortrait ? 95 : 62,
-  fpsLookSensitivityX: isMobile ? 1.5 : 1,
-  fpsLookSensitivityY: isMobile ? 1.5 : 1,
+  fpsFov: isMobilePortrait.matches ? 95 : 62,
+  fpsLookSensitivityX: isMobile.matches ? 1.5 : 1,
+  fpsLookSensitivityY: isMobile.matches ? 1.5 : 1,
   fpsFlattenEntityBillboards: true,
   showItemsUnderPlayerInOverheadTilesMode: true,
   controllerEnabled: false,
