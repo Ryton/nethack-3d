@@ -197,7 +197,7 @@ function describeDebugSessionLogSession(session: DebugSessionLogSession): string
       : session.closeReason === "active"
         ? "active"
         : session.closeReason.replace(/-/g, " ");
-  return `${formatDebugSessionLogTimestamp(session.startedAt)} · ${closeReason}`;
+  return `${formatDebugSessionLogTimestamp(session.startedAt)} - ${closeReason}`;
 }
 
 const playerConditionStatusDefinitions: ReadonlyArray<{
