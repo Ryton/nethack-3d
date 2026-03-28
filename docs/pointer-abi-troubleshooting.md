@@ -30,6 +30,8 @@ Hard-coded ABI profile (current design):
   - `3.6.7`: `shim_add_menu: [8]`, `shim_print_glyph: [4, 5]`.
   - `3.7`: `shim_add_menu: [9]` (`vipi00iisi`), `shim_print_glyph: [5]` (`vi11pp`).
 - Callback mode defaults:
+  - `3.6.7`: `shim_nh_poskey.coordArgType=i32`.
+  - `3.7`: `shim_nh_poskey.coordArgType=i16` (`coordxy` widened from 8-bit-era assumptions to `int16_t` in 3.7).
   - `3.6.7`: `shim_add_menu.identifierMode=pointer_slot`.
   - `3.7`: `shim_add_menu.identifierMode=value`, `menuTextArgIndex=7`, `itemFlagsArgIndex=8`.
 - `menu_item` ABI defaults:

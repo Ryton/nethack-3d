@@ -323,6 +323,7 @@ class LocalNetHackRuntime {
       callbackModes: {
         shim_nh_poskey: {
           pointerArgsAreDirect: true,
+          coordArgType: is37 ? "i16" : "i32",
         },
         shim_getlin: {
           pointerArgsAreDirect: true,
@@ -444,6 +445,17 @@ class LocalNetHackRuntime {
           menuItemFlagsOffset + 4 > menuStride))
     ) {
       throw new Error("Invalid menu_item layout in pointer contract.");
+    }
+
+    const poskeyMode = contract.callbackModes?.shim_nh_poskey || null;
+    if (
+      poskeyMode &&
+      poskeyMode.coordArgType !== undefined &&
+      poskeyMode.coordArgType !== "i8" &&
+      poskeyMode.coordArgType !== "i16" &&
+      poskeyMode.coordArgType !== "i32"
+    ) {
+      throw new Error("Invalid nh_poskey coord type in pointer contract.");
     }
 
     const glyphInfo = contract.glyphInfo;
@@ -2334,19 +2346,25 @@ class LocalNetHackRuntime {
     return resolvedPtr;
   }
 
-  getPoskeyCoordStoreType(xTargetPtr, yTargetPtr) {
-    if (!Number.isInteger(xTargetPtr) || !Number.isInteger(yTargetPtr)) {
-      return "i32";
+  getPoskeyCoordStoreType() {
+    const callbackMode =
+      this.getRuntimePointerContract()?.callbackModes?.shim_nh_poskey || null;
+    const contractType =
+      callbackMode &&
+      (callbackMode.coordArgType === "i8" ||
+        callbackMode.coordArgType === "i16" ||
+        callbackMode.coordArgType === "i32")
+        ? callbackMode.coordArgType
+        : null;
+    if (contractType) {
+      return contractType;
     }
 
-    const delta = Math.abs(yTargetPtr - xTargetPtr);
-    if (delta === 1) {
-      return "i8";
-    }
-    if (delta === 2) {
-      return "i16";
-    }
-    return "i32";
+    // NetHack 3.6.7 exposes nh_poskey(int*, int*, int*), while 3.7 uses
+    // nh_poskey(coordxy*, coordxy*, int*) with coordxy=int16_t. Never infer
+    // the write width from pointer spacing because stack layout varies by
+    // build/platform and can turn a safe write into stack corruption.
+    return this.runtimeVersion === "3.7" ? "i16" : "i32";
   }
 
   writePoskeyTargetValue(targetPtr, value, label, storeType = "i32") {
@@ -2401,7 +2419,7 @@ class LocalNetHackRuntime {
       return false;
     }
 
-    const coordStoreType = this.getPoskeyCoordStoreType(xTargetPtr, yTargetPtr);
+    const coordStoreType = this.getPoskeyCoordStoreType();
     this.writePoskeyTargetValue(xTargetPtr, mouseX, "x", coordStoreType);
     this.writePoskeyTargetValue(yTargetPtr, mouseY, "y", coordStoreType);
     this.writePoskeyTargetValue(modTargetPtr, mouseMod, "mod", "i32");
@@ -7406,6 +7424,11 @@ class LocalNetHackRuntime {
         normalizedMenuListPtrPtr,
         "*",
       );
+      // NetHack's select_menu contract makes the caller responsible for
+      // freeing any previously returned menu_item array. Do not free a
+      // non-zero priorOutPtr here: many call sites free the old buffer but do
+      // not null the local afterward, so reclaiming it in the JS bridge would
+      // turn a leak into a use-after-free/double-free.
       const outPtr = this.nethackModule._malloc(
         selectionCount * bytesPerMenuItem,
       );
