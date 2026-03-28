@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getAllTiles } from "./tile-parser.mjs";
 
-export const GLYPH_CATALOG_VERSIONS = /** @type {const} */ (["3.6.7", "3.7"]);
+export const GLYPH_CATALOG_VERSIONS = /** @type {const} */ ([
+  "3.6.7",
+  "3.7",
+  "slashem",
+]);
 
 const CATALOG_TARGETS = [
   {
@@ -18,6 +22,12 @@ const CATALOG_TARGETS = [
     publicJsPath: "public/nethack-37.js",
     publicWasmPath: "public/nethack-37.wasm",
     generatedCatalogPath: "src/game/glyphs/glyph-catalog.37.generated.ts",
+  },
+  {
+    version: "slashem",
+    publicJsPath: "public/slashem.js",
+    publicWasmPath: "public/slashem.wasm",
+    generatedCatalogPath: "src/game/glyphs/glyph-catalog.slashem.generated.ts",
   },
 ];
 
@@ -159,7 +169,7 @@ function createRuntimeCallback() {
 
 /**
  * @param {string} projectRoot
- * @param {{ version: "3.6.7" | "3.7"; publicJsPath: string; publicWasmPath: string }} target
+ * @param {{ version: "3.6.7" | "3.7" | "slashem"; publicJsPath: string; publicWasmPath: string }} target
  */
 async function bootCatalogRuntime(projectRoot, target) {
   const jsPath = path.join(projectRoot, target.publicJsPath);
@@ -283,7 +293,7 @@ function glyphKindForGlyph(ranges, glyph) {
  *   mapglyphHelper?: (glyph: number, x: number, y: number, mgflags: number) => any,
  *   mapGlyphInfoHelper?: (glyph: number, x: number, y: number, mgflags: number) => any
  * }} helpers
- * @param {"3.6.7" | "3.7"} version
+ * @param {"3.6.7" | "3.7" | "slashem"} version
  * @param {GlyphRange[]} ranges
  * @param {number} maxGlyph
  */
@@ -439,6 +449,9 @@ function resolvePublicJsPath(projectRoot, target) {
 function normalizeCatalogVersion(version) {
   if (version === "3.7") {
     return "3.7";
+  }
+  if (version === "slashem") {
+    return "slashem";
   }
   return "3.6.7";
 }

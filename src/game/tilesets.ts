@@ -5,7 +5,11 @@ import {
 import type { NethackRuntimeVersion } from "../runtime/types";
 
 export type Nh3dTilesetSource = "builtin" | "user" | "vulture";
-export type Nh3dTilesetTileLayoutVersion = "3.6.7" | "3.7" | "unknown";
+export type Nh3dTilesetTileLayoutVersion =
+  | "3.4.3"
+  | "3.6.7"
+  | "3.7"
+  | "unknown";
 export type Nh3dTilesetBackgroundRemovalMode = "none" | "tile" | "solid";
 
 type Nh3dBaseTilesetEntry = Omit<
@@ -33,6 +37,7 @@ const fallbackBackgroundTileId = 0;
 const fallbackBackgroundRemovalMode: Nh3dTilesetBackgroundRemovalMode = "tile";
 const fallbackSolidChromaKeyColorHex = "#466d6c";
 export const nh3dTilesetAtlasTileColumns = 40;
+const builtinNh343TilesetPathPrefix = "assets/3.4.3/";
 const builtinNh37TilesetPathPrefix = "assets/3.7/";
 const userTilesetPathPrefix = "user:";
 const vultureTilesetPathPrefix = "vulture:";
@@ -43,6 +48,7 @@ const tilesetBackgroundTilePresetByLabel: Readonly<Record<string, number>> = {
   "Absurdly Evil": 869,
   DawnHack: 869,
   Nevanda: 1476,
+  "Vanilla NetHack TIles": 1476,
   "Vanilla NetHack Tiles": 1476,
   "NetHack Modern": 850,
 };
@@ -51,6 +57,7 @@ const tilesetSolidChromaKeyPresetByLabel: Readonly<Record<string, string>> = {
   DawnHack: "#466d6c",
   Nevanda: "#466d6c",
   "Nevanda (3.7)": "#466d6c",
+  "Vanilla NetHack TIles": "#476C6C",
   "Vanilla NetHack Tiles (3.7)": "#466d6c",
   "Vanilla NetHack Tiles": "#476C6C",
   "NetHack Modern": "#000000",
@@ -63,6 +70,9 @@ const tilesetBackgroundRemovalModePresetByPath: Readonly<
 > = {
   "assets/3.7/Nevanda (3.7).png": "solid",
   "assets/3.7/Vanilla NetHack Tiles (3.7).png": "solid",
+  "assets/3.4.3/Nevanda (3.4.3).png": "solid",
+  "assets/3.4.3/DawnHack (3.4.3).png": "tile",
+  "assets/3.4.3/Vanilla NetHack TIles (3.4.3).png": "solid",
   "assets/3.6/Nevanda.png": "solid",
   "assets/3.6/NetHack Modern.bmp": "solid",
   "assets/3.6/DawnHack.bmp": "tile",
@@ -74,7 +84,75 @@ const tilesetBackgroundRemovalModePresetByPath: Readonly<
 function normalizeTilesetPresetLookupLabel(label: string): string {
   return String(label || "")
     .trim()
-    .replace(/\s+\(3\.7\)\s*$/i, "");
+    .replace(/\s+\((?:\d+\.)*\d+\)\s*$/i, "");
+}
+
+function normalizeGeneratedTileLayoutVersion(
+  tileLayoutVersion: GeneratedTilesetManifestEntry["tileLayoutVersion"],
+): Nh3dTilesetTileLayoutVersion {
+  if (tileLayoutVersion === "3.7") {
+    return "3.7";
+  }
+  if (tileLayoutVersion === "3.4.3") {
+    return "3.4.3";
+  }
+  return "3.6.7";
+}
+
+function normalizeUserTilesetTileLayoutVersion(
+  tileLayoutVersion: Nh3dTilesetTileLayoutVersion | undefined,
+): Nh3dTilesetTileLayoutVersion {
+  if (tileLayoutVersion === "3.7") {
+    return "3.7";
+  }
+  if (tileLayoutVersion === "3.6.7") {
+    return "3.6.7";
+  }
+  if (tileLayoutVersion === "3.4.3") {
+    return "3.4.3";
+  }
+  return "unknown";
+}
+
+export function isNh3dTilesetLayoutCompatibleWithRuntime(
+  tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
+  runtimeVersion: NethackRuntimeVersion,
+): boolean {
+  if (tileLayoutVersion === "unknown") {
+    return true;
+  }
+  if (tileLayoutVersion === "3.4.3") {
+    return runtimeVersion === "slashem";
+  }
+  if (tileLayoutVersion === "3.6.7") {
+    return runtimeVersion === "3.6.7" || runtimeVersion === "3.7";
+  }
+  return runtimeVersion === "3.7";
+}
+
+function isNh3dTilesetCompatibleWithRuntime(
+  tileset: Nh3dTilesetEntry,
+  runtimeVersion: NethackRuntimeVersion,
+): boolean {
+  return isNh3dTilesetLayoutCompatibleWithRuntime(
+    tileset.tileLayoutVersion,
+    runtimeVersion,
+  );
+}
+
+function findLabelMatchedCompatibleTileset(
+  label: string,
+  runtimeVersion: NethackRuntimeVersion,
+): Nh3dTilesetEntry | null {
+  const normalizedLookupLabel = normalizeTilesetPresetLookupLabel(label).toLowerCase();
+  return (
+    tilesetCatalog.find(
+      (entry) =>
+        isNh3dTilesetCompatibleWithRuntime(entry, runtimeVersion) &&
+        normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
+          normalizedLookupLabel,
+    ) ?? null
+  );
 }
 
 function isBuiltinNh37Tileset(tileset: Nh3dTilesetEntry): boolean {
@@ -132,8 +210,9 @@ for (const rawEntry of GENERATED_TILESET_MANIFEST) {
   const path = String(rawEntry?.path || "").trim();
   const label = String(rawEntry?.label || "").trim();
   const tileSize = fallbackTileSize;
-  const tileLayoutVersion =
-    rawEntry?.tileLayoutVersion === "3.7" ? "3.7" : "3.6.7";
+  const tileLayoutVersion = normalizeGeneratedTileLayoutVersion(
+    rawEntry?.tileLayoutVersion,
+  );
   if (!path || seenPaths.has(path)) {
     continue;
   }
@@ -232,12 +311,9 @@ export function setNh3dUserTilesets(
       ),
     );
     const label = ensureUserSuffix(registration?.label || path);
-    const tileLayoutVersion =
-      registration?.tileLayoutVersion === "3.7"
-        ? "3.7"
-        : registration?.tileLayoutVersion === "3.6.7"
-          ? "3.6.7"
-          : "unknown";
+    const tileLayoutVersion = normalizeUserTilesetTileLayoutVersion(
+      registration?.tileLayoutVersion,
+    );
     let assetUrl = "";
     if (
       registration?.blob instanceof Blob &&
@@ -266,6 +342,14 @@ export function clearNh3dUserTilesets(): void {
 
 export function getNh3dTilesetCatalog(): ReadonlyArray<Nh3dTilesetEntry> {
   return tilesetCatalog;
+}
+
+export function getNh3dCompatibleTilesetCatalog(
+  runtimeVersion: NethackRuntimeVersion,
+): ReadonlyArray<Nh3dTilesetEntry> {
+  return tilesetCatalog.filter((entry) =>
+    isNh3dTilesetCompatibleWithRuntime(entry, runtimeVersion),
+  );
 }
 
 export const nh3dTilesetCatalog: ReadonlyArray<Nh3dTilesetEntry> =
@@ -335,30 +419,25 @@ export function resolveNh3dCompatibleTilesetPathForRuntime(
 ): string {
   const selectedTileset = findNh3dTilesetByPath(path);
   if (!selectedTileset) {
-    return defaultNh3dTilesetPath;
+    return (
+      getNh3dCompatibleTilesetCatalog(runtimeVersion)[0]?.path ??
+      defaultNh3dTilesetPath
+    );
   }
-  const selectedLookupLabel = normalizeTilesetPresetLookupLabel(
+  if (isNh3dTilesetCompatibleWithRuntime(selectedTileset, runtimeVersion)) {
+    return selectedTileset.path;
+  }
+  const labelMatchedTileset = findLabelMatchedCompatibleTileset(
     selectedTileset.label,
-  ).toLowerCase();
-  if (
-    runtimeVersion !== "3.7" &&
-    selectedTileset.tileLayoutVersion === "3.7"
-  ) {
-    const labelMatchedNh367Tileset = tilesetCatalog.find(
-      (entry) =>
-        entry.tileLayoutVersion === "3.6.7" &&
-        normalizeTilesetPresetLookupLabel(entry.label).toLowerCase() ===
-          selectedLookupLabel,
-    );
-    if (labelMatchedNh367Tileset) {
-      return labelMatchedNh367Tileset.path;
-    }
-    const firstNh367Tileset = tilesetCatalog.find(
-      (entry) => entry.tileLayoutVersion === "3.6.7",
-    );
-    return firstNh367Tileset?.path ?? defaultNh3dTilesetPath;
+    runtimeVersion,
+  );
+  if (labelMatchedTileset) {
+    return labelMatchedTileset.path;
   }
-  return selectedTileset.path;
+  return (
+    getNh3dCompatibleTilesetCatalog(runtimeVersion)[0]?.path ??
+    defaultNh3dTilesetPath
+  );
 }
 
 export function resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(
@@ -446,6 +525,12 @@ export function resolveDefaultNh3dTilesetBackgroundRemovalMode(
   const preset = tilesetBackgroundRemovalModePresetByPath[tileset.path];
   if (preset === "none" || preset === "solid" || preset === "tile") {
     return preset;
+  }
+  if (
+    tileset.source === "builtin" &&
+    String(tileset.path || "").startsWith(builtinNh343TilesetPathPrefix)
+  ) {
+    return "solid";
   }
   if (isBuiltinNh37Tileset(tileset)) {
     return "solid";

@@ -10,7 +10,7 @@ export type StoredUserTilesetRecord = {
   updatedAt: number;
 };
 
-export type StoredUserTilesetTileLayoutVersion = "3.6.7" | "3.7";
+export type StoredUserTilesetTileLayoutVersion = "3.4.3" | "3.6.7" | "3.7";
 
 type SaveUserTilesetInput = {
   id?: string;
@@ -28,7 +28,13 @@ const storeName = "tilesets";
 function normalizeStoredTileLayoutVersion(
   rawValue: unknown,
 ): StoredUserTilesetTileLayoutVersion {
-  return rawValue === "3.7" ? "3.7" : "3.6.7";
+  if (rawValue === "3.7") {
+    return "3.7";
+  }
+  if (rawValue === "3.4.3") {
+    return "3.4.3";
+  }
+  return "3.6.7";
 }
 
 function ensureIndexedDbAvailable(): void {

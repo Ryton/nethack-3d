@@ -6,7 +6,28 @@ import {
   resolveProjectRoot,
 } from "./catalog-generator.mjs";
 
-function validateGeneratedSource(source) {
+function resolveExpectedGlyphKinds(version) {
+  const expectedKinds = [
+    "mon",
+    "pet",
+    "invis",
+    "detect",
+    "body",
+    "ridden",
+    "obj",
+    "cmap",
+    "explode",
+    "zap",
+    "swallow",
+    "warning",
+  ];
+  if (version !== "slashem") {
+    expectedKinds.push("statue");
+  }
+  return expectedKinds;
+}
+
+function validateGeneratedSource(source, version) {
   const maxGlyphMatch = source.match(/maxGlyph:\s*(\d+),/);
   if (!maxGlyphMatch) {
     throw new Error("Unable to find maxGlyph in generated catalog");
@@ -21,21 +42,7 @@ function validateGeneratedSource(source) {
   }
 
   const seenKinds = new Set(entries.map((match) => match[2]));
-  const expectedKinds = new Set([
-    "mon",
-    "pet",
-    "invis",
-    "detect",
-    "body",
-    "ridden",
-    "obj",
-    "cmap",
-    "explode",
-    "zap",
-    "swallow",
-    "warning",
-    "statue",
-  ]);
+  const expectedKinds = new Set(resolveExpectedGlyphKinds(version));
   for (const kind of expectedKinds) {
     if (!seenKinds.has(kind)) {
       throw new Error(`Missing expected glyph kind '${kind}' in catalog`);
@@ -88,7 +95,7 @@ async function main() {
       process.exit(1);
     }
 
-    validateGeneratedSource(currentSource);
+    validateGeneratedSource(currentSource, target.version);
   }
 
   console.log("Glyph catalogs are up to date.");

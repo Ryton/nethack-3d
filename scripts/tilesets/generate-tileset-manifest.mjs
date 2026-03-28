@@ -7,6 +7,11 @@ const PROJECT_ROOT = resolve(__dirname, "../..");
 
 const TILESET_MANIFEST_SOURCES = [
   {
+    sourceDir: resolve(PROJECT_ROOT, "public/assets/3.4.3"),
+    assetPrefix: "assets/3.4.3",
+    tileLayoutVersion: "3.4.3",
+  },
+  {
     sourceDir: resolve(PROJECT_ROOT, "public/assets/3.6"),
     assetPrefix: "assets/3.6",
     tileLayoutVersion: "3.6.7",
@@ -87,7 +92,7 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
-  readonly tileLayoutVersion: "3.6.7" | "3.7";
+  readonly tileLayoutVersion: "3.4.3" | "3.6.7" | "3.7";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =

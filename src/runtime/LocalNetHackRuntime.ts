@@ -4,6 +4,7 @@ import { getBundledDisplayFile } from "./displayFileCatalog";
 import type { NethackRuntimeVersion } from "./types";
 import {
   appendRequiredStartupInitOptionTokens,
+  getAutomaticRuntimeInitOptionTokens,
   sanitizeStartupInitOptionTokens,
 } from "./startup-init-options";
 import {
@@ -261,6 +262,7 @@ class LocalNetHackRuntime {
 
   buildDefaultRuntimePointerContract(runtimeVersion = this.runtimeVersion) {
     const is37 = runtimeVersion === "3.7";
+    const isSlashEm = runtimeVersion === "slashem";
     const addMenuArgCounts = is37 ? [9] : [8];
     const printGlyphArgCounts = is37 ? [5] : [4, 5];
     return {
@@ -372,12 +374,12 @@ class LocalNetHackRuntime {
       extcmd: {
         exportedPointerName: "extcmdlist",
         exportedPointerMode: "direct_or_slot",
-        stride: 24,
-        textPtrOffset: 4,
-        flagsOffset: 16,
+        stride: isSlashEm ? 16 : 24,
+        textPtrOffset: isSlashEm ? 0 : 4,
+        flagsOffset: isSlashEm ? 12 : 16,
         maxEntries: 512,
-        minEntries: 10,
-        requiredNames: ["#", "pray"],
+        minEntries: isSlashEm ? 20 : 10,
+        requiredNames: isSlashEm ? ["2weapon", "pray"] : ["#", "pray"],
       },
       menuItem: {
         // NetHack 3.7's `anything` union includes int64/uint64 members, so
@@ -1491,6 +1493,7 @@ class LocalNetHackRuntime {
   buildStartupInitRuntimeOptions() {
     const tokens = appendRequiredStartupInitOptionTokens(
       this.startupOptions?.initOptions,
+      this.runtimeVersion,
     );
     if (
       this.runtimeVersion !== "3.6.7" &&
@@ -1502,7 +1505,10 @@ class LocalNetHackRuntime {
   }
 
   resolveStartupExtmenuEnabled(rawTokens) {
-    const tokens = sanitizeStartupInitOptionTokens(rawTokens);
+    const tokens = sanitizeStartupInitOptionTokens(
+      rawTokens,
+      this.runtimeVersion,
+    );
     return tokens.includes("extmenu");
   }
 
@@ -4822,6 +4828,13 @@ class LocalNetHackRuntime {
       return 0;
     }
 
+    if (!mustExist && fileName.toLowerCase() === "news") {
+      console.log(
+        'DISPLAY FILE optional startup "news" file is not bundled; continuing without it.',
+      );
+      return 0;
+    }
+
     const fallbackMessage = fileName
       ? `No bundled help text available for "${fileName}".`
       : "No help file name was provided.";
@@ -5496,9 +5509,315 @@ class LocalNetHackRuntime {
     return "Checkpoint autosave resume is unavailable for this wasm build.";
   }
 
+  patchSlashEmLockLinkFallback(mod) {
+    if (this.runtimeVersion !== "slashem") {
+      return;
+    }
+    if (!mod?.FS) {
+      console.warn(
+        "[Slash'EM startup FS] Skipping lock fallback install because FS is unavailable.",
+      );
+      return;
+    }
+    if (typeof mod.FS.link !== "function") {
+      console.warn(
+        "[Slash'EM startup FS] Skipping lock fallback install because FS.link is unavailable.",
+        {
+          availableFsKeys: Object.keys(mod.FS).slice(0, 40),
+        },
+      );
+      return;
+    }
+    if (mod.FS.__nh3dSlashEmLockLinkFallbackPatched) {
+      console.log(
+        "[Slash'EM startup FS] Lock fallback already installed on this module instance.",
+      );
+      return;
+    }
+
+    const logPrefix = "[Slash'EM startup FS]";
+    const originalLink = mod.FS.link.bind(mod.FS);
+    const safeCwd = () => {
+      try {
+        return typeof mod.FS.cwd === "function" ? mod.FS.cwd() : null;
+      } catch (error) {
+        return `cwd-error:${String(error ?? "")}`;
+      }
+    };
+    const normalizePath = (rawPath) =>
+      String(rawPath ?? "")
+        .replace(/\\/g, "/")
+        .trim();
+    const readBaseName = (rawPath) => {
+      const normalizedPath = normalizePath(rawPath);
+      if (!normalizedPath) {
+        return "";
+      }
+      const lastSlashIndex = normalizedPath.lastIndexOf("/");
+      return lastSlashIndex >= 0
+        ? normalizedPath.slice(lastSlashIndex + 1)
+        : normalizedPath;
+    };
+    const summarizeError = (error) => ({
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : String(error ?? ""),
+      errno: Number.isFinite(Number(error?.errno)) ? Number(error.errno) : null,
+      code:
+        typeof error?.code === "string" || typeof error?.code === "number"
+          ? error.code
+          : null,
+    });
+    const listDirEntries = (rawPath) => {
+      if (!mod?.FS || typeof mod.FS.readdir !== "function") {
+        return null;
+      }
+      try {
+        return mod.FS
+          .readdir(rawPath)
+          .filter((entry) => entry !== "." && entry !== "..")
+          .slice(0, 20);
+      } catch (error) {
+        return [`readdir-error:${String(error ?? "")}`];
+      }
+    };
+    const describePathState = (rawPath) => {
+      const normalizedPath = normalizePath(rawPath);
+      if (!normalizedPath || typeof mod.FS.analyzePath !== "function") {
+        return {
+          path: normalizedPath || String(rawPath ?? ""),
+          exists: null,
+        };
+      }
+      try {
+        const analyzed = mod.FS.analyzePath(normalizedPath);
+        const objectMode = analyzed?.object?.mode;
+        return {
+          path: normalizedPath,
+          exists: Boolean(analyzed?.exists),
+          objectMode: Number.isFinite(Number(objectMode))
+            ? Number(objectMode)
+            : null,
+          isDir:
+            analyzed?.exists &&
+            typeof mod.FS.isDir === "function" &&
+            Number.isFinite(Number(objectMode))
+              ? Boolean(mod.FS.isDir(objectMode))
+              : null,
+          isFile:
+            analyzed?.exists &&
+            typeof mod.FS.isFile === "function" &&
+            Number.isFinite(Number(objectMode))
+              ? Boolean(mod.FS.isFile(objectMode))
+              : null,
+        };
+      } catch (error) {
+        return {
+          path: normalizedPath,
+          exists: null,
+          analyzeError:
+            error instanceof Error && error.message
+              ? error.message
+              : String(error ?? ""),
+        };
+      }
+    };
+    const isStartupDiagnosticPath = (rawPath) => {
+      const baseName = readBaseName(rawPath).toLowerCase();
+      return (
+        baseName === "perm" ||
+        baseName === "record" ||
+        baseName.endsWith("_lock")
+      );
+    };
+    const isLockLinkPath = (rawPath) => {
+      const normalizedPath = normalizePath(rawPath).toLowerCase();
+      if (!normalizedPath) {
+        return false;
+      }
+      const lastSlashIndex = normalizedPath.lastIndexOf("/");
+      const baseName =
+        lastSlashIndex >= 0
+          ? normalizedPath.slice(lastSlashIndex + 1)
+          : normalizedPath;
+      return baseName.endsWith("_lock");
+    };
+    const isTooManyLinksError = (error) => {
+      const normalizedErrno = Number(error?.errno);
+      const normalizedMessage = String(error?.message ?? error ?? "")
+        .trim()
+        .toLowerCase();
+      return (
+        normalizedErrno === 31 ||
+        normalizedErrno === 34 ||
+        normalizedMessage.includes("too many links") ||
+        normalizedMessage.includes("emlink")
+      );
+    };
+    const tryCreateLockLinkFallback = (sourcePath, targetPath) => {
+      if (
+        typeof mod.FS.analyzePath !== "function" ||
+        typeof mod.FS.readFile !== "function" ||
+        typeof mod.FS.writeFile !== "function"
+      ) {
+        console.warn(`${logPrefix} Lock fallback prerequisites are unavailable.`, {
+          hasAnalyzePath: typeof mod.FS.analyzePath === "function",
+          hasReadFile: typeof mod.FS.readFile === "function",
+          hasWriteFile: typeof mod.FS.writeFile === "function",
+        });
+        return false;
+      }
+      const sourceInfo = mod.FS.analyzePath(sourcePath);
+      const targetInfo = mod.FS.analyzePath(targetPath);
+      if (!sourceInfo?.exists || targetInfo?.exists) {
+        console.warn(`${logPrefix} Lock fallback cannot proceed because source/target state is incompatible.`, {
+          sourcePath: describePathState(sourcePath),
+          targetPath: describePathState(targetPath),
+        });
+        return false;
+      }
+      if (typeof mod.FS.symlink === "function") {
+        try {
+          mod.FS.symlink(sourcePath, targetPath);
+          return "symlink";
+        } catch (error) {
+          console.warn(
+            `${logPrefix} Lock-file symlink fallback failed for ${sourcePath} -> ${targetPath}:`,
+            summarizeError(error),
+          );
+        }
+      }
+      const sourceBytes = mod.FS.readFile(sourcePath);
+      mod.FS.writeFile(targetPath, sourceBytes, { canOwn: true });
+      return "copy";
+    };
+    const wrapPathTraceMethod = (methodName, pathIndexes) => {
+      const originalMethod = mod.FS[methodName];
+      if (
+        typeof originalMethod !== "function" ||
+        mod.FS[`__nh3dSlashEmStartupTrace_${methodName}`]
+      ) {
+        return;
+      }
+      mod.FS[methodName] = function (...args) {
+        const tracedPaths = pathIndexes
+          .map((index) => args[index])
+          .filter((value) => isStartupDiagnosticPath(value));
+        if (tracedPaths.length > 0) {
+          console.log(`${logPrefix} ${methodName}() attempt`, {
+            cwd: safeCwd(),
+            args: pathIndexes.reduce((result, index) => {
+              result[`arg${index}`] = normalizePath(args[index]);
+              return result;
+            }, {}),
+            pathStates: tracedPaths.map((path) => describePathState(path)),
+          });
+        }
+        try {
+          const result = originalMethod.apply(this, args);
+          if (tracedPaths.length > 0) {
+            console.log(`${logPrefix} ${methodName}() success`, {
+              cwd: safeCwd(),
+              pathStates: tracedPaths.map((path) => describePathState(path)),
+            });
+          }
+          return result;
+        } catch (error) {
+          if (tracedPaths.length > 0) {
+            console.warn(`${logPrefix} ${methodName}() failed`, {
+              cwd: safeCwd(),
+              error: summarizeError(error),
+              pathStates: tracedPaths.map((path) => describePathState(path)),
+            });
+          }
+          throw error;
+        }
+      };
+      mod.FS[`__nh3dSlashEmStartupTrace_${methodName}`] = true;
+    };
+
+    console.log(`${logPrefix} Installing lock fallback diagnostics.`, {
+      cwd: safeCwd(),
+      hasSymlink: typeof mod.FS.symlink === "function",
+      hasOpen: typeof mod.FS.open === "function",
+      hasUnlink: typeof mod.FS.unlink === "function",
+      rootEntries: listDirEntries("/"),
+      saveEntries: listDirEntries("/save"),
+      permState: describePathState("perm"),
+      permLockState: describePathState("perm_lock"),
+    });
+    wrapPathTraceMethod("open", [0]);
+    wrapPathTraceMethod("unlink", [0]);
+
+    mod.FS.link = (oldpath, newpath) => {
+      const shouldTraceLink =
+        isStartupDiagnosticPath(oldpath) || isStartupDiagnosticPath(newpath);
+      if (shouldTraceLink) {
+        console.log(`${logPrefix} link() attempt`, {
+          cwd: safeCwd(),
+          sourcePath: describePathState(oldpath),
+          targetPath: describePathState(newpath),
+        });
+      }
+      try {
+        const result = originalLink(oldpath, newpath);
+        if (shouldTraceLink) {
+          console.log(`${logPrefix} link() success`, {
+            cwd: safeCwd(),
+            sourcePath: describePathState(oldpath),
+            targetPath: describePathState(newpath),
+          });
+        }
+        return result;
+      } catch (error) {
+        if (shouldTraceLink) {
+          console.warn(`${logPrefix} link() failed`, {
+            cwd: safeCwd(),
+            error: summarizeError(error),
+            sourcePath: describePathState(oldpath),
+            targetPath: describePathState(newpath),
+          });
+        }
+        if (!isLockLinkPath(newpath) || !isTooManyLinksError(error)) {
+          throw error;
+        }
+        const fallbackMode = tryCreateLockLinkFallback(oldpath, newpath);
+        if (!fallbackMode) {
+          console.warn(`${logPrefix} link() fallback could not create replacement lock artifact.`, {
+            cwd: safeCwd(),
+            sourcePath: describePathState(oldpath),
+            targetPath: describePathState(newpath),
+          });
+          throw error;
+        }
+        console.warn(
+          `${logPrefix} Applied ${fallbackMode} fallback for lock-file link: ${oldpath} -> ${newpath}`,
+        );
+        console.log(`${logPrefix} link() fallback success`, {
+          cwd: safeCwd(),
+          fallbackMode,
+          sourcePath: describePathState(oldpath),
+          targetPath: describePathState(newpath),
+        });
+      }
+    };
+    mod.FS.__nh3dSlashEmLockLinkFallbackPatched = true;
+  }
+
   updateCheckpointRecoverySupport() {
     this.checkpointRecoverySupported = false;
     this.resumeCheckpointSave = null;
+
+    const buildHintSupportsBridge = supportsRuntimeCheckpointRecovery(
+      this.runtimeVersion,
+    );
+    if (!buildHintSupportsBridge) {
+      console.log(
+        `Checkpoint recovery support unavailable for runtime ${this.runtimeVersion}`,
+      );
+      return;
+    }
 
     if (
       !this.nethackInstance ||
@@ -5576,9 +5895,6 @@ class LocalNetHackRuntime {
 
       this.checkpointRecoverySupported =
         typeof this.resumeCheckpointSave === "function";
-      const buildHintSupportsBridge = supportsRuntimeCheckpointRecovery(
-        this.runtimeVersion,
-      );
       console.log(
         `Checkpoint recovery support ${
           this.checkpointRecoverySupported ? "enabled" : "unavailable"
@@ -7533,6 +7849,61 @@ class LocalNetHackRuntime {
         this.startupOptions?.runtimeVersion,
       );
       const wasmAssetPath = this.getRuntimeWasmAssetPath(runtimeVersion);
+      const startupHookLabel = `[WASM startup:${runtimeVersion}]`;
+      let startupModule = null;
+      let lastObservedRunDependencyCount = Number.NaN;
+      const listDirectoryEntries = (mod, dirPath) => {
+        if (!mod?.FS || typeof mod.FS.readdir !== "function") {
+          return null;
+        }
+        try {
+          return mod.FS
+            .readdir(dirPath)
+            .filter((entry) => entry !== "." && entry !== "..")
+            .slice(0, 20);
+        } catch (error) {
+          return [`readdir-error:${String(error ?? "")}`];
+        }
+      };
+      const summarizeModuleState = (mod) => {
+        const activeModule = mod || startupModule;
+        if (!activeModule) {
+          return {
+            hasModule: false,
+          };
+        }
+        let cwd = null;
+        if (activeModule.FS && typeof activeModule.FS.cwd === "function") {
+          try {
+            cwd = activeModule.FS.cwd();
+          } catch (error) {
+            cwd = `cwd-error:${String(error ?? "")}`;
+          }
+        }
+        return {
+          hasModule: true,
+          hasFS: Boolean(activeModule.FS),
+          hasIDBFS: Boolean(
+            activeModule.IDBFS || activeModule.FS?.filesystems?.IDBFS,
+          ),
+          cwd,
+          runDependencies: Number.isFinite(Number(activeModule.runDependencies))
+            ? Number(activeModule.runDependencies)
+            : null,
+          calledRun:
+            typeof activeModule.calledRun === "boolean"
+              ? activeModule.calledRun
+              : null,
+        };
+      };
+      const logStartupHook = (hookName, mod, extraDetails = null) => {
+        console.log(`${startupHookLabel} ${hookName}`, {
+          ...summarizeModuleState(mod),
+          ...(extraDetails && typeof extraDetails === "object"
+            ? extraDetails
+            : {}),
+        });
+      };
 
       if (!globalThis.nethackGlobal) {
         globalThis.nethackGlobal = {
@@ -7623,23 +7994,7 @@ class LocalNetHackRuntime {
       }
       this.seedRuntimeStatusFieldConstants();
 
-      const runtimeOptions = [
-        // Input/menu behavior expected by the browser port.
-        "number_pad:1",
-        "mouse_support",
-        "runmode:walk",
-        // Status tracking fields consumed by the HUD.
-        "time",
-        "showexp",
-        "showscore",
-        // Enable status highlight metadata in status callbacks.
-        "statushilites",
-        "force_invmenu",
-        "boulder:0",
-      ];
-      if (runtimeVersion !== "3.7") {
-        runtimeOptions.push("clicklook");
-      }
+      const runtimeOptions = getAutomaticRuntimeInitOptionTokens(runtimeVersion);
       const characterRuntimeOptions =
         this.buildCharacterCreationRuntimeOptions();
       if (characterRuntimeOptions.length > 0) {
@@ -7671,11 +8026,24 @@ class LocalNetHackRuntime {
 
       this.nethackInstance = await createModule({
         noInitialRun: true,
+        preInit: [
+          (mod) => {
+            startupModule = mod || startupModule;
+            logStartupHook("preInit", mod, {
+              rootEntries: listDirectoryEntries(mod, "/"),
+              saveEntries: listDirectoryEntries(mod, "/save"),
+            });
+          },
+        ],
         locateFile: (assetPath) => {
-          if (assetPath.endsWith(".wasm")) {
-            return resolvedWasmAssetUrl;
-          }
-          return this.resolveWasmAssetUrl(assetPath, runtimeVersion);
+          const resolvedAssetPath = assetPath.endsWith(".wasm")
+            ? resolvedWasmAssetUrl
+            : this.resolveWasmAssetUrl(assetPath, runtimeVersion);
+          logStartupHook("locateFile", startupModule, {
+            assetPath,
+            resolvedAssetPath,
+          });
+          return resolvedAssetPath;
         },
         stdin: () => this.consumeStdinByte(),
         print: (...args) => {
@@ -7690,6 +8058,10 @@ class LocalNetHackRuntime {
             toThrow && typeof toThrow === "object" && toThrow.message
               ? String(toThrow.message)
               : `Program terminated with exit(${exitCode})`;
+          logStartupHook("quit", startupModule, {
+            exitCode,
+            exitReason,
+          });
 
           this.emitRuntimeTerminated(exitReason, exitCode);
 
@@ -7699,6 +8071,9 @@ class LocalNetHackRuntime {
         },
         onExit: (status) => {
           const exitCode = Number.isFinite(status) ? Number(status) : 0;
+          logStartupHook("onExit", startupModule, {
+            exitCode,
+          });
 
           this.emitRuntimeTerminated(
             `Program terminated with exit(${exitCode})`,
@@ -7710,13 +8085,39 @@ class LocalNetHackRuntime {
             typeof reason === "string" && reason.trim()
               ? reason.trim()
               : String(reason ?? "Runtime aborted");
+          logStartupHook("onAbort", startupModule, {
+            reason: errorText,
+          });
           this.emit({
             type: "runtime_error",
             error: errorText,
           });
         },
+        monitorRunDependencies: (remainingDependencies) => {
+          const normalizedRemaining = Number(remainingDependencies);
+          if (normalizedRemaining === lastObservedRunDependencyCount) {
+            return;
+          }
+          lastObservedRunDependencyCount = normalizedRemaining;
+          logStartupHook("runDependencies", startupModule, {
+            remainingDependencies: Number.isFinite(normalizedRemaining)
+              ? normalizedRemaining
+              : remainingDependencies,
+          });
+        },
+        onRuntimeInitialized: () => {
+          logStartupHook("onRuntimeInitialized", startupModule, {
+            rootEntries: listDirectoryEntries(startupModule, "/"),
+            saveEntries: listDirectoryEntries(startupModule, "/save"),
+          });
+        },
         preRun: [
           (mod) => {
+            startupModule = mod || startupModule;
+            logStartupHook("preRun:start", mod, {
+              rootEntries: listDirectoryEntries(mod, "/"),
+              saveEntries: listDirectoryEntries(mod, "/save"),
+            });
             mod.ENV = mod.ENV || {};
             const existingOptions =
               typeof mod.ENV.NETHACKOPTIONS === "string"
@@ -7739,6 +8140,10 @@ class LocalNetHackRuntime {
               mod.ENV.NETHACKDIR = fallbackHackDir;
             }
             const resolvedHackDir = mod.ENV.NETHACKDIR || mod.ENV.HACKDIR;
+            logStartupHook("preRun:env-configured", mod, {
+              resolvedHackDir,
+              configuredNethackOptions: mod.ENV.NETHACKOPTIONS,
+            });
             if (mod.FS && typeof mod.FS.analyzePath === "function") {
               const exists = mod.FS.analyzePath(resolvedHackDir).exists;
               if (!exists) {
@@ -7747,6 +8152,16 @@ class LocalNetHackRuntime {
                 );
               }
             }
+
+            // Slash'EM 3.4.3 still uses Unix hard-link lock files.
+            // Browser-backed FS implementations can reject link() with EMLINK,
+            // so install a narrow fallback before startup touches perm_lock.
+            this.patchSlashEmLockLinkFallback(mod);
+            logStartupHook("preRun:slash-em-lock-hook", mod, {
+              lockFallbackInstalled: Boolean(
+                mod.FS?.__nh3dSlashEmLockLinkFallbackPatched,
+              ),
+            });
 
             // Setup IndexedDB file system for persisting saves
             const IDBFS =
@@ -7965,15 +8380,35 @@ class LocalNetHackRuntime {
 
               try {
                 mod.FS.mount(IDBFS, { dbName: saveDbName }, saveDir);
+                logStartupHook("preRun:idbfs-mounted", mod, {
+                  saveDir,
+                  saveDbName,
+                  rootEntries: listDirectoryEntries(mod, "/"),
+                  saveEntries: listDirectoryEntries(mod, saveDir),
+                });
                 mod.addRunDependency("idbfs_sync");
                 mod.FS.syncfs(true, (err) => {
                   if (err) {
                     console.warn("IDBFS load syncfs error:", err);
+                    logStartupHook("preRun:idbfs-sync-error", mod, {
+                      saveDir,
+                      saveDbName,
+                      error:
+                        err instanceof Error && err.message
+                          ? err.message
+                          : String(err ?? ""),
+                    });
                     mod.removeRunDependency("idbfs_sync");
                     return;
                   }
 
                   console.log(`IDBFS mounted and synced at ${saveDir}`);
+                  logStartupHook("preRun:idbfs-synced", mod, {
+                    saveDir,
+                    saveDbName,
+                    rootEntries: listDirectoryEntries(mod, "/"),
+                    saveEntries: listDirectoryEntries(mod, saveDir),
+                  });
                   try {
                     const sysconfPath = "/sysconf";
                     if (
@@ -8034,12 +8469,42 @@ class LocalNetHackRuntime {
                 });
               } catch (e) {
                 console.warn(`Failed to mount IDBFS at ${saveDir}`, e);
+                logStartupHook("preRun:idbfs-mount-error", mod, {
+                  saveDir,
+                  saveDbName,
+                  error:
+                    e instanceof Error && e.message
+                      ? e.message
+                      : String(e ?? ""),
+                });
               }
             }
+            logStartupHook("preRun:complete", mod, {
+              rootEntries: listDirectoryEntries(mod, "/"),
+              saveEntries: listDirectoryEntries(mod, "/save"),
+            });
+          },
+        ],
+        postRun: [
+          (mod) => {
+            startupModule = mod || startupModule;
+            logStartupHook("postRun", mod, {
+              rootEntries: listDirectoryEntries(mod, "/"),
+              saveEntries: listDirectoryEntries(mod, "/save"),
+            });
           },
         ],
       });
 
+      startupModule = this.nethackInstance;
+      logStartupHook("module-ready", this.nethackInstance, {
+        rootEntries: listDirectoryEntries(this.nethackInstance, "/"),
+        saveEntries: listDirectoryEntries(this.nethackInstance, "/save"),
+        hasMain: typeof this.nethackInstance?._main === "function",
+        hasSetCallback:
+          typeof this.nethackInstance?._shim_graphics_set_callback ===
+          "function",
+      });
       this.nethackModule = this.nethackInstance;
       this.runtimePointerContract = null;
       this.runtimePointerContractValidated = false;
@@ -8078,6 +8543,12 @@ class LocalNetHackRuntime {
       const argvPtr = this.nethackInstance._malloc(8);
       this.nethackInstance.setValue(argvPtr, argv0Ptr, "*");
       this.nethackInstance.setValue(argvPtr + 4, 0, "*");
+      logStartupHook("before-main", this.nethackInstance, {
+        argc: 1,
+        argv0: programName,
+        rootEntries: listDirectoryEntries(this.nethackInstance, "/"),
+        saveEntries: listDirectoryEntries(this.nethackInstance, "/save"),
+      });
       const mainReturn = this.nethackInstance._main(1, argvPtr);
       const helperNamesAfterMain =
         globalThis.nethackGlobal && globalThis.nethackGlobal.helpers

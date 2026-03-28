@@ -7,11 +7,29 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
-  readonly tileLayoutVersion: "3.6.7" | "3.7";
+  readonly tileLayoutVersion: "3.4.3" | "3.6.7" | "3.7";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =
   [
+  {
+    "label": "DawnHack (3.4.3)",
+    "path": "assets/3.4.3/DawnHack (3.4.3).png",
+    "tileSize": 32,
+    "tileLayoutVersion": "3.4.3"
+  },
+  {
+    "label": "Nevanda (3.4.3)",
+    "path": "assets/3.4.3/Nevanda (3.4.3).png",
+    "tileSize": 32,
+    "tileLayoutVersion": "3.4.3"
+  },
+  {
+    "label": "Vanilla NetHack TIles (3.4.3)",
+    "path": "assets/3.4.3/Vanilla NetHack TIles (3.4.3).png",
+    "tileSize": 32,
+    "tileLayoutVersion": "3.4.3"
+  },
   {
     "label": "Absurdly Evil",
     "path": "assets/3.6/Absurdly Evil.png",

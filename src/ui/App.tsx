@@ -64,10 +64,10 @@ import {
 import { GLYPH_CATALOG as GLYPH_CATALOG_367 } from "../game/glyphs/glyph-catalog.367.generated";
 import {
   findNh3dTilesetByPath,
+  getNh3dCompatibleTilesetCatalog,
   inferNh3dTilesetTileSizeFromAtlasWidth,
   isNh3dTilesetPathAvailable,
   nh3dTilesetAtlasTileColumns,
-  getNh3dTilesetCatalog,
   getNh3dUserTilesetPath,
   resolveNh3dCompatibleTilesetPathForRuntime,
   resolveDefaultNh3dTilesetBackgroundTileId,
@@ -4059,7 +4059,10 @@ function resolveEffectiveStartupCharacterName(
   config: CharacterCreationConfig,
 ): string {
   const normalizedName = normalizeStartupCharacterName(config.name || "");
-  const startupTokens = sanitizeStartupInitOptionTokens(config.initOptions);
+  const startupTokens = sanitizeStartupInitOptionTokens(
+    config.initOptions,
+    config.runtimeVersion,
+  );
   // NetHack 3.6.7 wizard/debug playmode canonicalizes player name to
   // "wizard" during startup, so align save-name logic with runtime behavior.
   if (startupTokens.includes("playmode:debug")) {
@@ -4278,9 +4281,10 @@ function writeSavePresentationMetadataByKey(
 }
 
 function resolveStartupPlayModeForSavePresentation(
+  runtimeVersion: NethackRuntimeVersion | undefined,
   initOptions: string[] | undefined,
 ): "normal" | "explore" | "debug" | null {
-  const tokens = sanitizeStartupInitOptionTokens(initOptions);
+  const tokens = sanitizeStartupInitOptionTokens(initOptions, runtimeVersion);
   if (tokens.includes("playmode:debug")) {
     return "debug";
   }
@@ -4296,6 +4300,7 @@ function resolveStartupPlayModeForSavePresentation(
 function persistSavePresentationMetadataForCharacter(
   runtimeName: string,
   characterName: string,
+  runtimeVersion: NethackRuntimeVersion | undefined,
   initOptions: string[] | undefined,
 ): void {
   const normalizedRuntimeName = normalizeStartupCharacterName(runtimeName);
@@ -4305,7 +4310,10 @@ function persistSavePresentationMetadataForCharacter(
   }
 
   const metadataByKey = readSavePresentationMetadataByKey();
-  const playMode = resolveStartupPlayModeForSavePresentation(initOptions);
+  const playMode = resolveStartupPlayModeForSavePresentation(
+    runtimeVersion,
+    initOptions,
+  );
   const updatedAt = new Date().toISOString();
   const categories: Array<"manual" | "autosave"> = ["manual", "autosave"];
   for (const category of categories) {
@@ -4875,19 +4883,22 @@ export default function App(): JSX.Element {
   };
 
   const handleStartNewGame = async (config: CharacterCreationConfig) => {
+    const runtimeVersionForLaunch = config.runtimeVersion ?? runtimeVersion;
     const normalizedInitOptions = appendRequiredStartupInitOptionTokens(
       config.initOptions,
+      runtimeVersionForLaunch,
     );
     const requestedCharacterName = normalizeStartupCharacterName(
       config.name || "",
     );
     const effectiveCharacterName = resolveEffectiveStartupCharacterName({
       ...config,
+      runtimeVersion: runtimeVersionForLaunch,
       initOptions: normalizedInitOptions,
     });
     if (config.mode === "random" || config.mode === "create") {
       try {
-        const saves = await fetchSavedGames(runtimeVersion);
+        const saves = await fetchSavedGames(runtimeVersionForLaunch);
         const configName = effectiveCharacterName;
         const matchingSaves = saves.filter((s) => s.name === configName);
         if (matchingSaves.length > 0) {
@@ -4909,10 +4920,10 @@ export default function App(): JSX.Element {
       persistSavePresentationMetadataForCharacter(
         effectiveCharacterName,
         requestedCharacterName,
+        runtimeVersionForLaunch,
         normalizedInitOptions,
       );
     }
-    const runtimeVersionForLaunch = config.runtimeVersion ?? runtimeVersion;
     const currentTilesetPath = String(clientOptions.tilesetPath || "").trim();
     const compatibleTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
       currentTilesetPath,
@@ -4953,8 +4964,8 @@ export default function App(): JSX.Element {
     setStartupInitOptionValues(createDefaultStartupInitOptionValues());
   }, []);
   const startupInitOptionTokens = useMemo(
-    () => serializeStartupInitOptionTokens(startupInitOptionValues),
-    [startupInitOptionValues],
+    () => serializeStartupInitOptionTokens(startupInitOptionValues, runtimeVersion),
+    [runtimeVersion, startupInitOptionValues],
   );
   const startupCharacterPreferences = useMemo<StartupCharacterPreferences>(
     () => ({
@@ -5460,7 +5471,10 @@ export default function App(): JSX.Element {
   const clientOptionsLikelyOpenSelectInitialValueByElementRef = useRef<
     Map<HTMLSelectElement, string>
   >(new Map());
-  const tilesetCatalog = useMemo(() => getNh3dTilesetCatalog(), [userTilesets]);
+  const tilesetCatalog = useMemo(
+    () => getNh3dCompatibleTilesetCatalog(runtimeVersion),
+    [runtimeVersion, userTilesets],
+  );
   const showBuiltInTilesetsInTilesetManagerList = useMemo(
     () => isRunningOnLocalhost(),
     [],
@@ -5492,6 +5506,48 @@ export default function App(): JSX.Element {
         : [{ value: "", label: "No tilesets found" }],
     [hasAnyTilesets, tilesetCatalog],
   );
+  useEffect(() => {
+    const currentClientTilesetPath = String(clientOptions.tilesetPath || "").trim();
+    const compatibleClientTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
+      currentClientTilesetPath,
+      runtimeVersion,
+    );
+    if (
+      compatibleClientTilesetPath &&
+      compatibleClientTilesetPath !== currentClientTilesetPath
+    ) {
+      setClientOptions((previous) =>
+        normalizeNh3dClientOptions({
+          ...previous,
+          tilesetPath: compatibleClientTilesetPath,
+        }),
+      );
+    }
+
+    const currentDraftTilesetPath = String(
+      clientOptionsDraft.tilesetPath || "",
+    ).trim();
+    const compatibleDraftTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
+      currentDraftTilesetPath,
+      runtimeVersion,
+    );
+    if (
+      compatibleDraftTilesetPath &&
+      compatibleDraftTilesetPath !== currentDraftTilesetPath
+    ) {
+      setClientOptionsDraft((previous) =>
+        normalizeNh3dClientOptions({
+          ...previous,
+          tilesetPath: compatibleDraftTilesetPath,
+        }),
+      );
+    }
+  }, [
+    clientOptions.tilesetPath,
+    clientOptionsDraft.tilesetPath,
+    runtimeVersion,
+    userTilesets,
+  ]);
   const selectedClientOptionsTab = useMemo<ClientOptionsTab>(
     () =>
       clientOptionsTabs.find((tab) => tab.id === activeClientOptionsTab) ??
@@ -8537,6 +8593,7 @@ export default function App(): JSX.Element {
     }
     const initOptionTokens = sanitizeStartupInitOptionTokens(
       characterCreationConfig.initOptions,
+      characterCreationConfig.runtimeVersion ?? runtimeVersion,
     );
     for (const token of initOptionTokens) {
       const normalizedToken = String(token || "")
@@ -8549,7 +8606,7 @@ export default function App(): JSX.Element {
       return playmodeValue === "debug";
     }
     return false;
-  }, [characterCreationConfig]);
+  }, [characterCreationConfig, runtimeVersion]);
   const wizardExtendedCommandNames = useMemo(() => {
     const availableWizardCommands = mobileExtendedCommandNames.filter(
       isWizardExtendedCommandName,
@@ -9679,7 +9736,11 @@ export default function App(): JSX.Element {
     setTilesetManagerMode("new");
     setTilesetManagerEditPath("");
     setTilesetManagerName("");
-    setTilesetManagerTileLayoutVersion(defaultUserTilesetTileLayoutVersion);
+    setTilesetManagerTileLayoutVersion(
+      runtimeVersion === "slashem"
+        ? "3.4.3"
+        : defaultUserTilesetTileLayoutVersion,
+    );
     setTilesetManagerAtlasState(createDefaultTileAtlasState());
     setTilesetManagerAtlasImage(null);
     resetTilesetManagerSelectedFile();
@@ -9709,6 +9770,8 @@ export default function App(): JSX.Element {
     setTilesetManagerTileLayoutVersion(
       userRecord
         ? userRecord.tileLayoutVersion
+        : tilesetEntry.tileLayoutVersion === "3.4.3"
+          ? "3.4.3"
         : tilesetEntry.tileLayoutVersion === "3.7"
           ? "3.7"
           : "3.6.7",
@@ -9794,7 +9857,7 @@ export default function App(): JSX.Element {
         const activeTilesetPath = String(
           clientOptionsDraft.tilesetPath || "",
         ).trim();
-        const fallbackTilesetPath = getNh3dTilesetCatalog()[0]?.path ?? "";
+        const fallbackTilesetPath = tilesetCatalog[0]?.path ?? "";
         const nextEditPath =
           (activeTilesetPath &&
           activeTilesetPath !== deletedPath &&
@@ -13282,6 +13345,7 @@ export default function App(): JSX.Element {
           onExpandedChange={setStartupInitOptionsExpanded}
           onOptionValueChange={updateStartupInitOptionValue}
           onResetDefaults={resetStartupInitOptionValues}
+          runtimeVersion={runtimeVersion}
           values={startupInitOptionValues}
         />
         <div className="nh3d-menu-actions">
@@ -13408,6 +13472,7 @@ export default function App(): JSX.Element {
           onExpandedChange={setStartupInitOptionsExpanded}
           onOptionValueChange={updateStartupInitOptionValue}
           onResetDefaults={resetStartupInitOptionValues}
+          runtimeVersion={runtimeVersion}
           values={startupInitOptionValues}
         />
         <div className="nh3d-menu-actions">
@@ -14527,11 +14592,16 @@ export default function App(): JSX.Element {
                       id="nh3d-tileset-version"
                       onChange={(event) =>
                         setTilesetManagerTileLayoutVersion(
-                          event.target.value === "3.7" ? "3.7" : "3.6.7",
+                          event.target.value === "3.7"
+                            ? "3.7"
+                            : event.target.value === "3.4.3"
+                              ? "3.4.3"
+                              : "3.6.7",
                         )
                       }
                       value={tilesetManagerTileLayoutVersion}
                     >
+                      <option value="3.4.3">Slash&apos;EM / NetHack 3.4.3 layout</option>
                       <option value="3.6.7">NetHack 3.6.7 layout</option>
                       <option value="3.7">NetHack 3.7 layout</option>
                     </select>

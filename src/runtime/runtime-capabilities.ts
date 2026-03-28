@@ -4,6 +4,7 @@ import type { NethackRuntimeVersion } from "./types";
 // checkpoint-only autosaves out of the loadable-save UI and disables the
 // runtime paths that depend on browser-side checkpoint recovery support.
 const ENABLE_RUNTIME_37_CHECKPOINT_RECOVERY = false;
+const ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY = false;
 
 function readDefinedBoolean(value: unknown): boolean {
   if (typeof value === "boolean") {
@@ -24,6 +25,9 @@ export function hasRuntimeCheckpointRecoveryPrimitiveExport(
     );
   }
   if (runtimeVersion === "slashem") {
+    if (!ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY) {
+      return false;
+    }
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_RECOVER_SAVEFILE,
     );
@@ -48,6 +52,9 @@ export function supportsRuntimeCheckpointRecovery(
     );
   }
   if (runtimeVersion === "slashem") {
+    if (!ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY) {
+      return false;
+    }
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_CHECKPOINT_RESUME_BRIDGE,
     );

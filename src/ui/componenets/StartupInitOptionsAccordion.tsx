@@ -1,13 +1,15 @@
 import { useId, type ChangeEvent } from "react";
+import type { NethackRuntimeVersion } from "../../runtime/types";
 import {
   StartupInitOptionValues,
   StartupInitOptionValue,
   StartupInitOptionDefinition,
-  startupInitOptionDefinitions,
+  getStartupInitOptionDefinitions,
 } from "../../runtime/startup-init-options";
 
 type StartupInitOptionsAccordionProps = {
   expanded: boolean;
+  runtimeVersion: NethackRuntimeVersion;
   values: StartupInitOptionValues;
   onExpandedChange: (expanded: boolean) => void;
   onOptionValueChange: (key: string, value: StartupInitOptionValue) => void;
@@ -207,6 +209,7 @@ function renderNumberOption(
 
 export default function StartupInitOptionsAccordion({
   expanded,
+  runtimeVersion,
   values,
   onExpandedChange,
   onOptionValueChange,
@@ -215,6 +218,7 @@ export default function StartupInitOptionsAccordion({
   const accordionIdPrefix = useId().replace(/:/g, "");
   const summaryId = `${accordionIdPrefix}-summary`;
   const panelId = `${accordionIdPrefix}-panel`;
+  const optionDefinitions = getStartupInitOptionDefinitions(runtimeVersion);
 
   return (
     <details
@@ -237,7 +241,8 @@ export default function StartupInitOptionsAccordion({
       >
         <div className="nh3d-option-description nh3d-startup-init-options-description">
           Additional NetHack `OPTIONS` entries applied at startup. Window-port
-          and platform-specific options are intentionally omitted.
+          and platform-specific options are intentionally omitted, and this
+          list only shows options supported by the selected variant.
         </div>
         <div className="nh3d-overflow-glow-frame">
           <div
@@ -245,7 +250,7 @@ export default function StartupInitOptionsAccordion({
             data-nh3d-overflow-glow
             data-nh3d-overflow-glow-host="parent"
           >
-            {startupInitOptionDefinitions.map((option) => {
+            {optionDefinitions.map((option) => {
               if (option.control === "boolean") {
                 return renderBooleanOption(
                   option,

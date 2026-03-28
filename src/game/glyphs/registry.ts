@@ -58,6 +58,15 @@ export async function setActiveGlyphCatalog(
     return;
   }
 
+  if (version === "slashem") {
+    const mod =
+      (await import("./glyph-catalog.slashem.generated")) as GlyphCatalogModule;
+    GLYPH_CATALOG_BY_VERSION.slashem = mod;
+    activeGlyphCatalog = mod;
+    activeGlyphCatalogVersion = version;
+    return;
+  }
+
   activeGlyphCatalogVersion = version;
   activeGlyphCatalog = GLYPH_CATALOG_BY_VERSION["3.6.7"];
 }
