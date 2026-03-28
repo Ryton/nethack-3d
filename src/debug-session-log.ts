@@ -422,6 +422,9 @@ export function enableDebugSessionLogCapture(
 }
 
 export function readDebugSessionLogs(): DebugSessionLogSession[] {
+  if (!activeSessionId) {
+    markDanglingSessionsAsAbruptStop();
+  }
   return readPersistedState().sessions;
 }
 

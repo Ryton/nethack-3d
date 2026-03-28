@@ -178,6 +178,33 @@ const nh3dBuildLabel = nh3dBuildCommitSha
   : `v${nh3dAppVersion}`;
 
 const nh3dBuildLabelDebugEnableClickCount = 10;
+const debugSessionLogsUnlockedStorageKey = "nh3d-debug-log-unlocked-v1";
+
+function readDebugSessionLogsUnlockedState(): boolean {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return false;
+  }
+  try {
+    return window.localStorage.getItem(debugSessionLogsUnlockedStorageKey) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistDebugSessionLogsUnlockedState(enabled: boolean): void {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return;
+  }
+  try {
+    if (enabled) {
+      window.localStorage.setItem(debugSessionLogsUnlockedStorageKey, "1");
+    } else {
+      window.localStorage.removeItem(debugSessionLogsUnlockedStorageKey);
+    }
+  } catch {
+    // Best effort only.
+  }
+}
 
 function formatDebugSessionLogTimestamp(value: string): string {
   if (!value) {
@@ -5065,7 +5092,9 @@ export default function App(): JSX.Element {
     useState(0);
   const [startupBuildLabelToastVisible, setStartupBuildLabelToastVisible] =
     useState(false);
-  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(false);
+  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(() =>
+    readDebugSessionLogsUnlockedState(),
+  );
   const [isDebugSessionLogsVisible, setIsDebugSessionLogsVisible] =
     useState(false);
   const [debugSessionLogs, setDebugSessionLogs] = useState<
@@ -5237,6 +5266,14 @@ export default function App(): JSX.Element {
     refreshDebugSessionLogs();
     setIsDebugSessionLogsVisible(true);
   }, [refreshDebugSessionLogs]);
+  useEffect(() => {
+    if (!debugSessionLogsEnabled) {
+      return;
+    }
+    setLoggingEnabled(true);
+    enableDebugSessionLogCapture({ buildLabel: nh3dBuildLabel });
+    refreshDebugSessionLogs();
+  }, [debugSessionLogsEnabled, refreshDebugSessionLogs]);
   const handleStartupBuildLabelClick = useCallback((): void => {
     setStartupBuildLabelClickCount((previous) => {
       const next = previous + 1;
@@ -5248,6 +5285,7 @@ export default function App(): JSX.Element {
       recordDebugSessionLogEvent("debug-log-toggle", [
         "Debug log enabled from startup build label easter egg.",
       ]);
+      persistDebugSessionLogsUnlockedState(true);
       setDebugSessionLogsEnabled(true);
       refreshDebugSessionLogs();
       setStartupBuildLabelToastVisible(true);
