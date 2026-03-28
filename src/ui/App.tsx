@@ -178,33 +178,6 @@ const nh3dBuildLabel = nh3dBuildCommitSha
   : `v${nh3dAppVersion}`;
 
 const nh3dBuildLabelDebugEnableClickCount = 10;
-const debugSessionLogsUnlockedStorageKey = "nh3d-debug-log-unlocked-v1";
-
-function readDebugSessionLogsUnlockedState(): boolean {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return false;
-  }
-  try {
-    return window.localStorage.getItem(debugSessionLogsUnlockedStorageKey) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function persistDebugSessionLogsUnlockedState(enabled: boolean): void {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
-  try {
-    if (enabled) {
-      window.localStorage.setItem(debugSessionLogsUnlockedStorageKey, "1");
-    } else {
-      window.localStorage.removeItem(debugSessionLogsUnlockedStorageKey);
-    }
-  } catch {
-    // Best effort only.
-  }
-}
 
 function formatDebugSessionLogTimestamp(value: string): string {
   if (!value) {
@@ -5107,6 +5080,8 @@ export default function App(): JSX.Element {
     isControllerSupportPromptVisible,
     setIsControllerSupportPromptVisible,
   ] = useState(false);
+  const [isDebugSessionLogsLinkVisible, setIsDebugSessionLogsLinkVisible] =
+    useState(false);
   const [userTilesets, setUserTilesets] = useState<StoredUserTilesetRecord[]>(
     [],
   );
@@ -5152,9 +5127,7 @@ export default function App(): JSX.Element {
     useState(0);
   const [startupBuildLabelToastVisible, setStartupBuildLabelToastVisible] =
     useState(false);
-  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(() =>
-    readDebugSessionLogsUnlockedState(),
-  );
+  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(false);
   const [isDebugSessionLogsVisible, setIsDebugSessionLogsVisible] =
     useState(false);
   const [debugSessionLogs, setDebugSessionLogs] = useState<
@@ -5345,8 +5318,8 @@ export default function App(): JSX.Element {
       recordDebugSessionLogEvent("debug-log-toggle", [
         "Debug log enabled from startup build label easter egg.",
       ]);
-      persistDebugSessionLogsUnlockedState(true);
       setDebugSessionLogsEnabled(true);
+      setIsDebugSessionLogsLinkVisible(true);
       refreshDebugSessionLogs();
       setStartupBuildLabelToastVisible(true);
       if (startupBuildLabelToastTimerRef.current !== null) {
@@ -12659,9 +12632,11 @@ export default function App(): JSX.Element {
               Debug log enabled
             </div>
           ) : null}
-          {debugSessionLogsEnabled ? (
+          {isDebugSessionLogsLinkVisible ? (
             <button
-              className="nh3d-startup-build-label-link"
+              className={`nh3d-startup-build-label-link${
+                startupBuildLabelToastVisible ? " is-offset" : ""
+              }`}
               onClick={openDebugSessionLogsDialog}
               type="button"
             >

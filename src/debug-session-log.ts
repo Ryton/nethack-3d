@@ -1,4 +1,12 @@
-type DebugSessionLogLevel = "log" | "info" | "warn" | "error" | "event";
+type DebugSessionLogLevel =
+  | "log"
+  | "info"
+  | "warn"
+  | "error"
+  | "debug"
+  | "trace"
+  | "assert"
+  | "event";
 
 type DebugSessionLogCloseReason =
   | "active"
@@ -58,6 +66,9 @@ let consoleLogOriginal: typeof console.log | null = null;
 let consoleInfoOriginal: typeof console.info | null = null;
 let consoleWarnOriginal: typeof console.warn | null = null;
 let consoleErrorOriginal: typeof console.error | null = null;
+let consoleDebugOriginal: typeof console.debug | null = null;
+let consoleTraceOriginal: typeof console.trace | null = null;
+let consoleAssertOriginal: typeof console.assert | null = null;
 
 function canUseBrowserStorage(): boolean {
   return (
@@ -339,6 +350,9 @@ function installConsoleMirrors(): void {
   consoleInfoOriginal = console.info.bind(console);
   consoleWarnOriginal = console.warn.bind(console);
   consoleErrorOriginal = console.error.bind(console);
+  consoleDebugOriginal = console.debug.bind(console);
+  consoleTraceOriginal = console.trace.bind(console);
+  consoleAssertOriginal = console.assert.bind(console);
 
   console.log = (...args: unknown[]): void => {
     appendEntry("log", "console.log", args);
@@ -355,6 +369,20 @@ function installConsoleMirrors(): void {
   console.error = (...args: unknown[]): void => {
     appendEntry("error", "console.error", args);
     consoleErrorOriginal?.(...args);
+  };
+  console.debug = (...args: unknown[]): void => {
+    appendEntry("debug", "console.debug", args);
+    consoleDebugOriginal?.(...args);
+  };
+  console.trace = (...args: unknown[]): void => {
+    appendEntry("trace", "console.trace", args);
+    consoleTraceOriginal?.(...args);
+  };
+  console.assert = (condition?: boolean, ...args: unknown[]): void => {
+    if (!condition) {
+      appendEntry("assert", "console.assert", args);
+    }
+    consoleAssertOriginal?.(condition, ...args);
   };
 
   globalScope.__NH3D_DEBUG_SESSION_LOG_HOOK__ = (

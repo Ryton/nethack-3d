@@ -1330,23 +1330,47 @@ canvas {
 .nh3d-startup-build-label-link {
   position: fixed;
   left: var(--nh3d-modal-safe-left-inset);
-  bottom: calc(var(--nh3d-modal-safe-bottom-inset) + 44px);
+  bottom: calc(var(--nh3d-modal-safe-bottom-inset) + 24px);
   z-index: 1998;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 6px 10px;
+  border: 1px solid rgba(126, 208, 255, 0.78);
+  border-radius: 6px;
+  background: rgba(7, 18, 36, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(126, 208, 255, 0.14),
+    0 8px 18px rgba(0, 0, 0, 0.32);
   font-family: "Courier New", monospace;
   font-size: nh3d-scale-font(11px);
   line-height: 1.2;
-  letter-spacing: 0.05em;
-  color: rgba(126, 208, 255, 0.96);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  text-shadow: 0 0 10px rgba(0, 0, 0, 0.72);
+  color: rgba(230, 245, 255, 0.99);
+  text-shadow: none;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+
+  &:hover {
+    border-color: rgba(166, 224, 255, 0.92);
+    background: rgba(11, 28, 54, 0.98);
+    box-shadow:
+      0 0 0 1px rgba(166, 224, 255, 0.2),
+      0 10px 22px rgba(0, 0, 0, 0.36);
+  }
+
+  &:active {
+    transform: translateY(1px);
+    background: rgba(6, 15, 30, 0.98);
+  }
 
   &:focus-visible {
     outline: 1px solid rgba(126, 208, 255, 0.9);
     outline-offset: 4px;
+  }
+
+  &.is-offset {
+    bottom: calc(var(--nh3d-modal-safe-bottom-inset) + 58px);
   }
 }
 

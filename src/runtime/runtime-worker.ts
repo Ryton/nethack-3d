@@ -15,6 +15,7 @@ const mapGlyphBatchMaxSize = 384;
 let pendingMapGlyphTilesByKey: Map<string, RuntimeEvent> = new Map();
 let pendingMapGlyphTileOrder: string[] = [];
 let mapGlyphFlushScheduled = false;
+let workerConsoleMirrorsInstalled = false;
 
 function isLikelyNameInputForDebug(input: string): boolean {
   const trimmed = String(input || "").trim();
@@ -29,6 +30,69 @@ function isLikelyNameInputForDebug(input: string): boolean {
 
 function postEnvelopeDirect(envelope: RuntimeWorkerEnvelope): void {
   (self as unknown as Worker).postMessage(envelope);
+}
+
+function installWorkerConsoleMirrors(): void {
+  if (workerConsoleMirrorsInstalled || typeof console === "undefined") {
+    return;
+  }
+  workerConsoleMirrorsInstalled = true;
+
+  const originalLog = console.log.bind(console);
+  const originalInfo = console.info.bind(console);
+  const originalWarn = console.warn.bind(console);
+  const originalError = console.error.bind(console);
+  const originalDebug = console.debug.bind(console);
+  const originalTrace = console.trace.bind(console);
+  const originalAssert = console.assert.bind(console);
+
+  const mirror = (
+    level: RuntimeWorkerEnvelope extends { level: infer T } ? T : never,
+    source: string,
+    args: unknown[],
+  ): void => {
+    try {
+      postEnvelopeDirect({
+        type: "runtime_console",
+        level,
+        source,
+        args,
+      });
+    } catch {
+      // Best effort only; keep the worker logging path intact.
+    }
+  };
+
+  console.log = (...args: unknown[]): void => {
+    mirror("log", "runtime.worker.console.log", args);
+    originalLog(...args);
+  };
+  console.info = (...args: unknown[]): void => {
+    mirror("info", "runtime.worker.console.info", args);
+    originalInfo(...args);
+  };
+  console.warn = (...args: unknown[]): void => {
+    mirror("warn", "runtime.worker.console.warn", args);
+    originalWarn(...args);
+  };
+  console.error = (...args: unknown[]): void => {
+    mirror("error", "runtime.worker.console.error", args);
+    originalError(...args);
+  };
+  console.debug = (...args: unknown[]): void => {
+    mirror("debug", "runtime.worker.console.debug", args);
+    originalDebug(...args);
+  };
+  console.trace = (...args: unknown[]): void => {
+    mirror("trace", "runtime.worker.console.trace", args);
+    originalTrace(...args);
+  };
+  console.assert = (condition?: boolean, ...args: unknown[]): void => {
+    if (!condition) {
+      mirror("assert", "runtime.worker.console.assert", args);
+    }
+    originalAssert(condition, ...args);
+  };
 }
 
 function schedulePendingMapGlyphFlush(): void {
@@ -337,6 +401,7 @@ self.addEventListener("unhandledrejection", (event: any) => {
 
 self.onmessage = async (message: MessageEvent<RuntimeCommand>) => {
   try {
+    installWorkerConsoleMirrors();
     const command = message.data;
 
     switch (command.type) {
