@@ -24,6 +24,11 @@ const localeChecks = [
     exportName: "esOverrides",
   },
   {
+    locale: "ja",
+    file: path.join(repoRoot, "src", "i18n", "locales", "ja.ts"),
+    exportName: "ja",
+  },
+  {
     locale: "pt-br",
     file: path.join(repoRoot, "src", "i18n", "locales", "pt-br.ts"),
     exportName: "ptBrOverrides",

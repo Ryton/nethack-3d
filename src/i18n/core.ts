@@ -1,16 +1,18 @@
 import { en, type TranslationDictionary } from "./locales/en";
 import { deOverrides } from "./locales/de";
 import { esOverrides } from "./locales/es";
+import { ja } from "./locales/ja";
 import { ptBrOverrides } from "./locales/pt-br";
 import { zhCnOverrides } from "./locales/zh-cn";
 import { mergeTranslations } from "./locale-helpers";
 
-export type SupportedLocale = "de" | "en" | "es" | "pt-br" | "zh-cn";
+export type SupportedLocale = "de" | "en" | "es" | "ja" | "pt-br" | "zh-cn";
 
 const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
   de: mergeTranslations(en, deOverrides),
   en,
   es: mergeTranslations(en, esOverrides),
+  ja,
   "pt-br": mergeTranslations(en, ptBrOverrides),
   "zh-cn": mergeTranslations(en, zhCnOverrides),
 };
@@ -20,9 +22,10 @@ const localeStorageKey = "nh3d-locale";
 const localeLabels: Record<SupportedLocale, string> = {
   de: "Deutsch",
   en: "English",
-  es: "Español",
-  "pt-br": "Português (Brasil)",
-  "zh-cn": "简体中文",
+  es: "Espa\u00f1ol",
+  ja: "\u65e5\u672c\u8a9e",
+  "pt-br": "Portugu\u00eas (Brasil)",
+  "zh-cn": "\u7b80\u4f53\u4e2d\u6587",
 };
 
 const supportedLocales = Object.keys(dictionaries) as SupportedLocale[];
@@ -44,6 +47,8 @@ const localeAliases: Record<string, SupportedLocale> = {
   "es-mx": "es",
   "es-419": "es",
   "es-us": "es",
+  ja: "ja",
+  "ja-jp": "ja",
   pt: "pt-br",
   "pt-br": "pt-br",
   "pt-pt": "pt-br",
