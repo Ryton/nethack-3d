@@ -24,6 +24,7 @@ export const zhCnOverrides = {
     off: "关闭",
     normal: "正常",
     fps: "帧率",
+    edit: "ç¼–è¾‘",
   },
   controller: {
     groups: {

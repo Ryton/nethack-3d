@@ -15121,7 +15121,7 @@ export default function App(): JSX.Element {
                             }
                             type="button"
                           >
-                            Edit
+                            {commonStrings.edit}
                           </button>
                           {isUserTileset ? (
                             <button

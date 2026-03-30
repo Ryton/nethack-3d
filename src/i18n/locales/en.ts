@@ -11,6 +11,7 @@ export const en = {
     yes: "Yes",
     no: "No",
     delete: "Delete",
+    edit: "Edit",
     done: "Done",
     resetToDefaults: "Reset to Defaults",
     later: "Later",

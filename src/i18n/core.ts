@@ -1,11 +1,13 @@
 import { en, type TranslationDictionary } from "./locales/en";
+import { esOverrides } from "./locales/es";
 import { zhCnOverrides } from "./locales/zh-cn";
 import { mergeTranslations } from "./locale-helpers";
 
-export type SupportedLocale = "en" | "zh-cn";
+export type SupportedLocale = "en" | "es" | "zh-cn";
 
 const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
   en,
+  es: mergeTranslations(en, esOverrides),
   "zh-cn": mergeTranslations(en, zhCnOverrides),
 };
 
@@ -13,6 +15,7 @@ const localeStorageKey = "nh3d-locale";
 
 const localeLabels: Record<SupportedLocale, string> = {
   en: "English",
+  es: "Español",
   "zh-cn": "简体中文",
 };
 
@@ -26,6 +29,11 @@ function normalizeLocaleTag(value: string): string {
 }
 
 const localeAliases: Record<string, SupportedLocale> = {
+  es: "es",
+  "es-es": "es",
+  "es-mx": "es",
+  "es-419": "es",
+  "es-us": "es",
   zh: "zh-cn",
   "zh-cn": "zh-cn",
   "zh-hans": "zh-cn",
