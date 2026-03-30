@@ -1,12 +1,14 @@
 import { en, type TranslationDictionary } from "./locales/en";
+import { deOverrides } from "./locales/de";
 import { esOverrides } from "./locales/es";
 import { ptBrOverrides } from "./locales/pt-br";
 import { zhCnOverrides } from "./locales/zh-cn";
 import { mergeTranslations } from "./locale-helpers";
 
-export type SupportedLocale = "en" | "es" | "pt-br" | "zh-cn";
+export type SupportedLocale = "de" | "en" | "es" | "pt-br" | "zh-cn";
 
 const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
+  de: mergeTranslations(en, deOverrides),
   en,
   es: mergeTranslations(en, esOverrides),
   "pt-br": mergeTranslations(en, ptBrOverrides),
@@ -16,6 +18,7 @@ const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
 const localeStorageKey = "nh3d-locale";
 
 const localeLabels: Record<SupportedLocale, string> = {
+  de: "Deutsch",
   en: "English",
   es: "Español",
   "pt-br": "Português (Brasil)",
@@ -32,6 +35,10 @@ function normalizeLocaleTag(value: string): string {
 }
 
 const localeAliases: Record<string, SupportedLocale> = {
+  de: "de",
+  "de-de": "de",
+  "de-at": "de",
+  "de-ch": "de",
   es: "es",
   "es-es": "es",
   "es-mx": "es",

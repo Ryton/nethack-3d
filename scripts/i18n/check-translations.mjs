@@ -14,6 +14,11 @@ const maxItemsPerCategory = showAll ? Number.POSITIVE_INFINITY : 80;
 
 const localeChecks = [
   {
+    locale: "de",
+    file: path.join(repoRoot, "src", "i18n", "locales", "de.ts"),
+    exportName: "de",
+  },
+  {
     locale: "es",
     file: path.join(repoRoot, "src", "i18n", "locales", "es.ts"),
     exportName: "esOverrides",
