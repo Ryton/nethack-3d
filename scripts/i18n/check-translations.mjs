@@ -19,6 +19,11 @@ const localeChecks = [
     exportName: "esOverrides",
   },
   {
+    locale: "pt-br",
+    file: path.join(repoRoot, "src", "i18n", "locales", "pt-br.ts"),
+    exportName: "ptBrOverrides",
+  },
+  {
     locale: "zh-cn",
     file: path.join(repoRoot, "src", "i18n", "locales", "zh-cn.ts"),
     exportName: "zhCnOverrides",
@@ -49,7 +54,9 @@ function resolveModulePath(request, fromDirectory) {
     }
   }
 
-  throw new Error(`Unable to resolve module '${request}' from '${fromDirectory}'.`);
+  throw new Error(
+    `Unable to resolve module '${request}' from '${fromDirectory}'.`,
+  );
 }
 
 function loadTsModule(modulePath) {
@@ -74,7 +81,10 @@ function loadTsModule(modulePath) {
 
   const localRequire = (request) => {
     if (request.startsWith(".") || request.startsWith("/")) {
-      const dependencyPath = resolveModulePath(request, path.dirname(resolvedPath));
+      const dependencyPath = resolveModulePath(
+        request,
+        path.dirname(resolvedPath),
+      );
       return loadTsModule(dependencyPath);
     }
     return require(request);
@@ -95,7 +105,9 @@ function loadTsModule(modulePath) {
     clearInterval,
   });
 
-  const script = new vm.Script(transpiled.outputText, { filename: resolvedPath });
+  const script = new vm.Script(transpiled.outputText, {
+    filename: resolvedPath,
+  });
   script.runInContext(context);
   return module.exports;
 }
@@ -118,6 +130,37 @@ function collectLeafPaths(value, prefix) {
     );
   }
   return [prefix.join(".")];
+}
+
+function collectIdenticalStringPaths(baseValue, localeValue, prefix, result) {
+  if (localeValue === undefined) {
+    return;
+  }
+
+  if (isPlainObject(baseValue)) {
+    if (!isPlainObject(localeValue)) {
+      return;
+    }
+
+    for (const [key, childBaseValue] of Object.entries(baseValue)) {
+      collectIdenticalStringPaths(
+        childBaseValue,
+        localeValue[key],
+        [...prefix, key],
+        result,
+      );
+    }
+    return;
+  }
+
+  if (
+    typeof baseValue === "string" &&
+    typeof localeValue === "string" &&
+    prefix.join(".") !== "meta.locale" &&
+    baseValue === localeValue
+  ) {
+    result.push(prefix.join("."));
+  }
 }
 
 function compareTrees(baseValue, localeValue, prefix, result) {
@@ -174,22 +217,24 @@ function compareTrees(baseValue, localeValue, prefix, result) {
   }
 }
 
-function printCategory(title, items, formatter = (item) => item) {
+function printCategory(title, items, formatter = (item) => item, log = "error") {
   if (items.length === 0) {
     return;
   }
 
-  console.error(`  ${title}: ${items.length}`);
+  console[log](`  ${title}: ${items.length}`);
   const visibleItems = items.slice(0, maxItemsPerCategory);
   for (const item of visibleItems) {
-    console.error(`    - ${formatter(item)}`);
+    console[log](`    - ${formatter(item)}`);
   }
   if (visibleItems.length < items.length) {
-    console.error(`    ... ${items.length - visibleItems.length} more`);
+    console[log](`    ... ${items.length - visibleItems.length} more`);
   }
 }
 
-const { en } = loadTsModule(path.join(repoRoot, "src", "i18n", "locales", "en.ts"));
+const { en } = loadTsModule(
+  path.join(repoRoot, "src", "i18n", "locales", "en.ts"),
+);
 let hasFailures = false;
 
 for (const localeCheck of localeChecks) {
@@ -210,9 +255,11 @@ for (const localeCheck of localeChecks) {
     extra: [],
     mismatchedTypes: [],
     mismatchedArity: [],
+    identicalStrings: [],
   };
 
   compareTrees(en, localeValue, [], result);
+  collectIdenticalStringPaths(en, localeValue, [], result.identicalStrings);
 
   const issueCount =
     result.missing.length +
@@ -221,7 +268,19 @@ for (const localeCheck of localeChecks) {
     result.mismatchedArity.length;
 
   if (issueCount === 0) {
-    console.log(`Locale '${localeCheck.locale}' is complete.`);
+    if (result.identicalStrings.length === 0) {
+      console.log(`Locale '${localeCheck.locale}' is complete.`);
+    } else {
+      console.warn(
+        `Locale '${localeCheck.locale}' is complete with ${result.identicalStrings.length} identical-string warning${result.identicalStrings.length === 1 ? "" : "s"}.`,
+      );
+      printCategory(
+        "Identical to English",
+        result.identicalStrings,
+        (item) => item,
+        "warn",
+      );
+    }
     continue;
   }
 
@@ -239,6 +298,7 @@ for (const localeCheck of localeChecks) {
     result.mismatchedArity,
     (item) => `${item.path} (expected ${item.expected}, got ${item.actual})`,
   );
+  printCategory("Identical to English", result.identicalStrings);
 }
 
 if (hasFailures) {
