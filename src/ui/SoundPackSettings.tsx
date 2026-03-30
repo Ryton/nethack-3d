@@ -34,6 +34,11 @@ import {
   type ConfirmationDialogRequest,
 } from "./modals/useConfirmationDialog";
 import ConfirmationModal from "./modals/ConfirmationModal";
+import { getTranslationStrings } from "../i18n/core";
+
+const translationStrings = getTranslationStrings();
+const commonStrings = translationStrings.common;
+const soundPackStrings = translationStrings.app.soundPack;
 
 type SoundPackSettingsProps = {
   visible: boolean;
@@ -219,7 +224,7 @@ export default function SoundPackSettings({
         applyLoadedState(state.packs, activePackIdToUse);
       } catch (error) {
         setErrorText(
-          getErrorMessage(error, "Failed to load sound packs from IndexedDB."),
+          getErrorMessage(error, soundPackStrings.failedToLoadIndexedDb),
         );
       } finally {
         setIsLoading(false);
@@ -363,10 +368,10 @@ export default function SoundPackSettings({
         return true;
       }
       return requestInGameConfirmation({
-        title: "Discard Sound Pack Changes?",
-        message: "Discard unsaved sound pack changes and continue?",
-        confirmLabel: "Discard",
-        cancelLabel: "Keep Editing",
+        title: soundPackStrings.discardChangesTitle,
+        message: soundPackStrings.discardChangesMessage,
+        confirmLabel: soundPackStrings.discard,
+        cancelLabel: soundPackStrings.keepEditing,
         confirmClassName: "nh3d-menu-action-cancel",
       });
     }, [isDraftDirty, requestInGameConfirmation]);
@@ -390,7 +395,7 @@ export default function SoundPackSettings({
       }
     } catch (error) {
       setErrorText(
-        getErrorMessage(error, "Failed to select the requested sound pack."),
+        getErrorMessage(error, soundPackStrings.failedToSelectRequested),
       );
       await reloadSoundPacks();
     }
@@ -399,7 +404,7 @@ export default function SoundPackSettings({
   const handleCreatePack = async (): Promise<void> => {
     const normalizedName = normalizeNh3dSoundPackName(newPackName);
     if (!normalizedName) {
-      setErrorText("Provide a sound pack name.");
+      setErrorText(soundPackStrings.provideName);
       return;
     }
     if (!(await discardPendingChangesIfNeeded())) {
@@ -411,9 +416,9 @@ export default function SoundPackSettings({
     try {
       const createdPack = await createNh3dSoundPack(normalizedName);
       await reloadSoundPacks(createdPack.id);
-      setStatusText(`Created sound pack '${createdPack.name}'.`);
+      setStatusText(soundPackStrings.created(createdPack.name));
     } catch (error) {
-      setErrorText(getErrorMessage(error, "Failed to create sound pack."));
+      setErrorText(getErrorMessage(error, soundPackStrings.failedToCreate));
     } finally {
       setIsBusy(false);
     }
@@ -432,10 +437,10 @@ export default function SoundPackSettings({
         pendingUploads,
       );
       await reloadSoundPacks(savedPack.id);
-      setStatusText(`Saved sound pack '${savedPack.name}'.`);
+      setStatusText(soundPackStrings.saved(savedPack.name));
       return true;
     } catch (error) {
-      setErrorText(getErrorMessage(error, "Failed to save sound pack."));
+      setErrorText(getErrorMessage(error, soundPackStrings.failedToSave));
       return false;
     } finally {
       setIsBusy(false);
@@ -478,9 +483,9 @@ export default function SoundPackSettings({
       anchor.rel = "noopener";
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-      setStatusText(`Exported '${draftPack.name}'.`);
+      setStatusText(soundPackStrings.exported(draftPack.name));
     } catch (error) {
-      setErrorText(getErrorMessage(error, "Failed to export sound pack ZIP."));
+      setErrorText(getErrorMessage(error, soundPackStrings.failedToExportZip));
     } finally {
       setIsBusy(false);
     }
@@ -503,9 +508,9 @@ export default function SoundPackSettings({
     try {
       const importedPack = await importNh3dSoundPackFromZip(file);
       await reloadSoundPacks(importedPack.id);
-      setStatusText(`Imported sound pack '${importedPack.name}'.`);
+      setStatusText(soundPackStrings.imported(importedPack.name));
     } catch (error) {
-      setErrorText(getErrorMessage(error, "Failed to import sound pack ZIP."));
+      setErrorText(getErrorMessage(error, soundPackStrings.failedToImportZip));
     } finally {
       setIsBusy(false);
     }
@@ -516,10 +521,10 @@ export default function SoundPackSettings({
       return;
     }
     const confirmed = await requestInGameConfirmation({
-      title: "Delete Sound Pack?",
-      message: `Delete sound pack '${draftPack.name}'? This cannot be undone.`,
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
+      title: soundPackStrings.deleteTitle,
+      message: soundPackStrings.deleteMessage(draftPack.name),
+      confirmLabel: commonStrings.delete,
+      cancelLabel: commonStrings.cancel,
       confirmClassName: "nh3d-menu-action-cancel",
     });
     if (!confirmed) {
@@ -534,9 +539,9 @@ export default function SoundPackSettings({
         draftPack.id,
       );
       await reloadSoundPacks(nextActivePackId);
-      setStatusText(`Deleted sound pack '${draftPack.name}'.`);
+      setStatusText(soundPackStrings.deleted(draftPack.name));
     } catch (error) {
-      setErrorText(getErrorMessage(error, "Failed to delete sound pack."));
+      setErrorText(getErrorMessage(error, soundPackStrings.failedToDelete));
     } finally {
       setIsBusy(false);
     }
@@ -589,7 +594,7 @@ export default function SoundPackSettings({
       }
 
       if (!previewUrl) {
-        throw new Error("No preview source available for this sound.");
+        throw new Error(soundPackStrings.noPreviewSource);
       }
 
       const audio = previewAudioRef.current ?? new Audio();
@@ -615,7 +620,7 @@ export default function SoundPackSettings({
           URL.revokeObjectURL(previewObjectUrlRef.current);
           previewObjectUrlRef.current = null;
         }
-        setErrorText("Unable to preview this sound.");
+        setErrorText(soundPackStrings.unableToPreview);
       };
 
       if (revokeAfterPlay) {
@@ -629,7 +634,7 @@ export default function SoundPackSettings({
         URL.revokeObjectURL(previewUrl);
       }
       previewObjectUrlRef.current = null;
-      setErrorText(getErrorMessage(error, "Unable to preview this sound."));
+      setErrorText(getErrorMessage(error, soundPackStrings.unableToPreview));
     }
   };
 
@@ -662,9 +667,9 @@ export default function SoundPackSettings({
     <div className="nh3d-soundpack-manager">
       <div className="nh3d-option-row">
         <div className="nh3d-option-copy">
-          <div className="nh3d-option-label">Sound pack</div>
+          <div className="nh3d-option-label">{soundPackStrings.activePack}</div>
           <div className="nh3d-option-description">
-            Select the active sound pack used for sound path resolution.
+            {soundPackStrings.activePackDescription}
           </div>
         </div>
         <div className="nh3d-option-select-controls nh3d-soundpack-select-controls">
@@ -692,7 +697,7 @@ export default function SoundPackSettings({
             }}
             type="button"
           >
-            + Add new soundpack
+            {soundPackStrings.createNew}
           </button>
         </div>
       </div>
@@ -703,13 +708,13 @@ export default function SoundPackSettings({
             className="nh3d-option-label"
             htmlFor="nh3d-soundpack-new-name"
           >
-            New sound pack name
+            {soundPackStrings.createNameLabel}
           </label>
           <input
             className="nh3d-text-input"
             id="nh3d-soundpack-new-name"
             onChange={(event) => setNewPackName(event.target.value)}
-            placeholder="My Sound Pack"
+            placeholder={soundPackStrings.createPlaceholder}
             type="text"
             value={newPackName}
           />
@@ -722,7 +727,7 @@ export default function SoundPackSettings({
               }}
               type="button"
             >
-              Create and save
+              {soundPackStrings.createAndSave}
             </button>
             <button
               className="nh3d-menu-action-button nh3d-menu-action-cancel"
@@ -733,7 +738,7 @@ export default function SoundPackSettings({
               }}
               type="button"
             >
-              Cancel
+              {commonStrings.cancel}
             </button>
           </div>
         </div>
@@ -742,9 +747,9 @@ export default function SoundPackSettings({
       {draftPack && !isDefaultDraft ? (
         <div className="nh3d-option-row nh3d-soundpack-name-row">
           <div className="nh3d-option-copy">
-            <div className="nh3d-option-label">Pack name</div>
+            <div className="nh3d-option-label">{soundPackStrings.packName}</div>
             <div className="nh3d-option-description">
-              Rename this pack and save to update its sound file namespace.
+              {soundPackStrings.packNameDescription}
             </div>
           </div>
           <div className="nh3d-soundpack-name-controls">
@@ -774,7 +779,7 @@ export default function SoundPackSettings({
               }}
               type="button"
             >
-              Save sound pack
+              {soundPackStrings.savePack}
             </button>
           </div>
         </div>
@@ -789,7 +794,7 @@ export default function SoundPackSettings({
           }}
           type="button"
         >
-          Export soundpack
+          {soundPackStrings.export}
         </button>
         <button
           className="nh3d-menu-action-button"
@@ -797,7 +802,7 @@ export default function SoundPackSettings({
           onClick={() => importFileInputRef.current?.click()}
           type="button"
         >
-          Import soundpack
+          {soundPackStrings.import}
         </button>
         {draftPack && !isDefaultDraft ? (
           <button
@@ -808,7 +813,7 @@ export default function SoundPackSettings({
             }}
             type="button"
           >
-            Delete soundpack
+            {soundPackStrings.deletePack}
           </button>
         ) : null}
         {playingSoundSlotKey ? (
@@ -817,7 +822,7 @@ export default function SoundPackSettings({
             onClick={stopPreview}
             type="button"
           >
-            Stop preview
+            {soundPackStrings.stopPreview}
           </button>
         ) : null}
         <input
@@ -832,7 +837,7 @@ export default function SoundPackSettings({
       </div>
 
       {isLoading ? (
-        <div className="nh3d-option-description">Loading sound packs...</div>
+        <div className="nh3d-option-description">{soundPackStrings.loading}</div>
       ) : null}
       {statusText ? (
         <div className="nh3d-soundpack-status">{statusText}</div>
@@ -872,11 +877,11 @@ export default function SoundPackSettings({
                         : variation.fileName;
                     const displayFileName =
                       pendingUpload instanceof Blob
-                        ? `${pendingFileName} (pending save)`
+                        ? `${pendingFileName}${soundPackStrings.pendingSaveSuffix}`
                         : pendingUpload === null
-                          ? `${fallbackSound?.fileName || resolveNh3dBundledBuiltinSoundPath(soundKey) || "No bundled sound"} (default)`
+                          ? `${fallbackSound?.fileName || resolveNh3dBundledBuiltinSoundPath(soundKey) || soundPackStrings.noBundledSound}${soundPackStrings.defaultSuffix}`
                           : variation.source === "user"
-                            ? `${variation.fileName} (custom)`
+                            ? `${variation.fileName}${soundPackStrings.customSuffix}`
                             : variation.fileName;
                     const volumePercent = Math.round(variation.volume * 100);
                     const updateVolumeFromPercentValue = (
@@ -912,7 +917,9 @@ export default function SoundPackSettings({
                         <div className="nh3d-soundpack-control-row nh3d-soundpack-control-row-primary">
                           <button
                             aria-checked={variation.enabled}
-                            aria-label={`Enable ${soundDisplayLabel}`}
+                            aria-label={soundPackStrings.enableSoundAria(
+                              soundDisplayLabel,
+                            )}
                             className={`nh3d-option-switch nh3d-soundpack-toggle${
                               variation.enabled ? " is-on" : ""
                             }`}
@@ -939,11 +946,13 @@ export default function SoundPackSettings({
                           </div>
                           <div className="nh3d-soundpack-info-box nh3d-soundpack-volume-box">
                             <div className="nh3d-option-description">
-                              Volume
+                              {soundPackStrings.volume}
                             </div>
                             <div className="nh3d-soundpack-volume-control">
                               <input
-                                aria-label={`Volume for ${soundDisplayLabel}`}
+                                aria-label={soundPackStrings.volumeAria(
+                                  soundDisplayLabel,
+                                )}
                                 className="nh3d-option-slider"
                                 disabled={isBusy}
                                 max={100}
@@ -977,7 +986,9 @@ export default function SoundPackSettings({
                             }}
                             type="button"
                           >
-                            {isPlaying ? "Playing..." : "Play"}
+                            {isPlaying
+                              ? soundPackStrings.playing
+                              : soundPackStrings.play}
                           </button>
                         </div>
 
@@ -1000,7 +1011,7 @@ export default function SoundPackSettings({
                                   }}
                                   type="button"
                                 >
-                                  Remove
+                                  {soundPackStrings.remove}
                                 </button>
                               ) : null}
                               <button
@@ -1013,7 +1024,7 @@ export default function SoundPackSettings({
                                 }}
                                 type="button"
                               >
-                                Replace
+                                {soundPackStrings.replace}
                               </button>
                             </div>
                             <input
@@ -1055,7 +1066,7 @@ export default function SoundPackSettings({
                             />
                             <div className="nh3d-soundpack-info-box nh3d-soundpack-path">
                               <div className="nh3d-option-description">
-                                Sound file
+                                {soundPackStrings.soundFile}
                               </div>
                               <div className="nh3d-soundpack-path-value">
                                 {displayFileName}
@@ -1099,7 +1110,7 @@ export default function SoundPackSettings({
                               }}
                               type="button"
                             >
-                              Reset
+                              {soundPackStrings.reset}
                             </button>
                           </div>
                         ) : null}
@@ -1107,10 +1118,12 @@ export default function SoundPackSettings({
                         <div className="nh3d-soundpack-control-row nh3d-soundpack-control-row-tertiary">
                           <div className="nh3d-soundpack-info-box nh3d-soundpack-attribution-box">
                             <div className="nh3d-option-description">
-                              Attribution
+                              {soundPackStrings.attribution}
                             </div>
                             <input
-                              aria-label={`Attribution for ${soundDisplayLabel}`}
+                              aria-label={soundPackStrings.attributionAria(
+                                soundDisplayLabel,
+                              )}
                               className="nh3d-text-input nh3d-soundpack-attribution-input"
                               disabled={isBusy}
                               onChange={(event) => {
@@ -1128,7 +1141,7 @@ export default function SoundPackSettings({
                                 soundKey,
                                 variationId,
                               )}
-                              placeholder="Source, creator, or license details"
+                              placeholder={soundPackStrings.attributionPlaceholder}
                               readOnly={isDefaultDraft}
                               type="text"
                               value={variation.attribution}
@@ -1148,7 +1161,7 @@ export default function SoundPackSettings({
                     }}
                     type="button"
                   >
-                    + Add variation
+                    {soundPackStrings.addVariation}
                   </button>
                 ) : null}
               </div>

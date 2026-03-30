@@ -47,7 +47,7 @@ function installWorkerConsoleMirrors(): void {
   const originalAssert = console.assert.bind(console);
 
   const mirror = (
-    level: RuntimeWorkerEnvelope extends { level: infer T } ? T : never,
+    level: Extract<RuntimeWorkerEnvelope, { type: "runtime_console" }>["level"],
     source: string,
     args: unknown[],
   ): void => {

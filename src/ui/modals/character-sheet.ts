@@ -1,4 +1,5 @@
 import type { InfoMenuState } from "../../game/ui-types";
+import { getTranslationStrings } from "../../i18n/core";
 
 export type CharacterSheetSectionId =
   | "background"
@@ -54,15 +55,17 @@ export type CharacterSheetData = {
   statEntries: CharacterSheetStat[];
 };
 
+const characterSheetStrings = getTranslationStrings().characterSheet;
+
 const sectionTitleById: Record<
   Exclude<CharacterSheetSectionId, "misc">,
   string
 > = {
-  background: "Background",
-  basics: "Basics",
-  characteristics: "Current Characteristics",
-  status: "Current Status",
-  attributes: "Current Attributes",
+  background: characterSheetStrings.sectionTitles.background,
+  basics: characterSheetStrings.sectionTitles.basics,
+  characteristics: characterSheetStrings.sectionTitles.characteristics,
+  status: characterSheetStrings.sectionTitles.status,
+  attributes: characterSheetStrings.sectionTitles.attributes,
 };
 
 const sectionIdByHeading: Record<string, CharacterSheetSectionId> = {
@@ -117,7 +120,7 @@ function splitCharacterSections(lines: string[]): CharacterSheetSection[] {
     }
     const overviewSection: CharacterSheetSection = {
       id: "misc",
-      title: "Overview",
+      title: characterSheetStrings.sectionTitles.overview,
       lines: [],
     };
     sections.push(overviewSection);
@@ -326,20 +329,36 @@ export function parseCharacterSheetInfoMenu(
   );
 
   const statEntries: CharacterSheetStat[] = [
-    extractCharacterStat(characteristicOrAllLines, "strength", "Strength"),
-    extractCharacterStat(characteristicOrAllLines, "dexterity", "Dexterity"),
+    extractCharacterStat(
+      characteristicOrAllLines,
+      "strength",
+      characterSheetStrings.statLabels.strength,
+    ),
+    extractCharacterStat(
+      characteristicOrAllLines,
+      "dexterity",
+      characterSheetStrings.statLabels.dexterity,
+    ),
     extractCharacterStat(
       characteristicOrAllLines,
       "constitution",
-      "Constitution",
+      characterSheetStrings.statLabels.constitution,
     ),
     extractCharacterStat(
       characteristicOrAllLines,
       "intelligence",
-      "Intelligence",
+      characterSheetStrings.statLabels.intelligence,
     ),
-    extractCharacterStat(characteristicOrAllLines, "wisdom", "Wisdom"),
-    extractCharacterStat(characteristicOrAllLines, "charisma", "Charisma"),
+    extractCharacterStat(
+      characteristicOrAllLines,
+      "wisdom",
+      characterSheetStrings.statLabels.wisdom,
+    ),
+    extractCharacterStat(
+      characteristicOrAllLines,
+      "charisma",
+      characterSheetStrings.statLabels.charisma,
+    ),
   ];
 
   const primarySections: CharacterSheetSection[] = [];
@@ -360,7 +379,8 @@ export function parseCharacterSheetInfoMenu(
   );
 
   return {
-    title: normalizeInfoLine(infoMenu.title) || "Character Sheet",
+    title:
+      normalizeInfoLine(infoMenu.title) || characterSheetStrings.titleFallback,
     sections: primarySections,
     extraSections,
     backgroundLines,
@@ -395,44 +415,44 @@ const characterCommandCatalog: readonly CharacterCommandAction[] = [
   {
     id: "enhance",
     command: "enhance",
-    label: "Enhance",
-    detail: "Level up skills",
+    label: characterSheetStrings.commands.enhance.label,
+    detail: characterSheetStrings.commands.enhance.detail,
   },
   {
     id: "conduct",
     command: "conduct",
-    label: "Conduct",
-    detail: "Show challenge progress",
+    label: characterSheetStrings.commands.conduct.label,
+    detail: characterSheetStrings.commands.conduct.detail,
   },
   {
     id: "overview",
     command: "overview",
-    label: "Overview",
-    detail: "Show dungeon progress",
+    label: characterSheetStrings.commands.overview.label,
+    detail: characterSheetStrings.commands.overview.detail,
   },
   {
     id: "spells",
     command: "spells",
-    label: "Spells",
-    detail: "Review known spells",
+    label: characterSheetStrings.commands.spells.label,
+    detail: characterSheetStrings.commands.spells.detail,
   },
   {
     id: "seespells",
     command: "seespells",
-    label: "Spellbook",
-    detail: "List spell inventory",
+    label: characterSheetStrings.commands.seespells.label,
+    detail: characterSheetStrings.commands.seespells.detail,
   },
   {
     id: "known",
     command: "known",
-    label: "Discoveries",
-    detail: "Known object list",
+    label: characterSheetStrings.commands.known.label,
+    detail: characterSheetStrings.commands.known.detail,
   },
   {
     id: "pray",
     command: "pray",
-    label: "Pray",
-    detail: "Attempt prayer",
+    label: characterSheetStrings.commands.pray.label,
+    detail: characterSheetStrings.commands.pray.detail,
   },
 ];
 

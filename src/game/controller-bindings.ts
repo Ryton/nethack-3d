@@ -1,3 +1,5 @@
+import { getTranslationStrings } from "../i18n/core";
+
 export type Nh3dControllerBinding = string;
 
 export type Nh3dControllerActionId =
@@ -60,145 +62,146 @@ export type ParsedNh3dControllerBinding =
 
 const axisBindingPattern = /^axis:(\d+):([+-])$/i;
 const buttonBindingPattern = /^button:(\d+)$/i;
+const controllerStrings = getTranslationStrings().controller;
 
 const controllerActionSpecs: readonly Nh3dControllerActionSpec[] = [
   {
     id: "dpad_up",
-    label: "D-Pad Up",
-    description: "Navigate upward in dialogs and movement highlight.",
-    group: "Movement",
+    label: controllerStrings.actions.dpad_up.label,
+    description: controllerStrings.actions.dpad_up.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "dpad_down",
-    label: "D-Pad Down",
-    description: "Navigate downward in dialogs and movement highlight.",
-    group: "Movement",
+    label: controllerStrings.actions.dpad_down.label,
+    description: controllerStrings.actions.dpad_down.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "dpad_left",
-    label: "D-Pad Left",
-    description: "Navigate left in dialogs and movement highlight.",
-    group: "Movement",
+    label: controllerStrings.actions.dpad_left.label,
+    description: controllerStrings.actions.dpad_left.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "dpad_right",
-    label: "D-Pad Right",
-    description: "Navigate right in dialogs and movement highlight.",
-    group: "Movement",
+    label: controllerStrings.actions.dpad_right.label,
+    description: controllerStrings.actions.dpad_right.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "left_stick_up",
-    label: "Left Stick Up",
-    description: "Movement highlight and virtual cursor up.",
-    group: "Movement",
+    label: controllerStrings.actions.left_stick_up.label,
+    description: controllerStrings.actions.left_stick_up.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "left_stick_down",
-    label: "Left Stick Down",
-    description: "Movement highlight and virtual cursor down.",
-    group: "Movement",
+    label: controllerStrings.actions.left_stick_down.label,
+    description: controllerStrings.actions.left_stick_down.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "left_stick_left",
-    label: "Left Stick Left",
-    description: "Movement highlight and virtual cursor left.",
-    group: "Movement",
+    label: controllerStrings.actions.left_stick_left.label,
+    description: controllerStrings.actions.left_stick_left.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "left_stick_right",
-    label: "Left Stick Right",
-    description: "Movement highlight and virtual cursor right.",
-    group: "Movement",
+    label: controllerStrings.actions.left_stick_right.label,
+    description: controllerStrings.actions.left_stick_right.description,
+    group: controllerStrings.groups.movement,
   },
   {
     id: "right_stick_up",
-    label: "Right Stick Up",
-    description: "Look, camera pan, and dialog scrolling up.",
-    group: "Look And Camera",
+    label: controllerStrings.actions.right_stick_up.label,
+    description: controllerStrings.actions.right_stick_up.description,
+    group: controllerStrings.groups.lookAndCamera,
   },
   {
     id: "right_stick_down",
-    label: "Right Stick Down",
-    description: "Look, camera pan, and dialog scrolling down.",
-    group: "Look And Camera",
+    label: controllerStrings.actions.right_stick_down.label,
+    description: controllerStrings.actions.right_stick_down.description,
+    group: controllerStrings.groups.lookAndCamera,
   },
   {
     id: "right_stick_left",
-    label: "Right Stick Left",
-    description: "Look and camera pan left.",
-    group: "Look And Camera",
+    label: controllerStrings.actions.right_stick_left.label,
+    description: controllerStrings.actions.right_stick_left.description,
+    group: controllerStrings.groups.lookAndCamera,
   },
   {
     id: "right_stick_right",
-    label: "Right Stick Right",
-    description: "Look and camera pan right.",
-    group: "Look And Camera",
+    label: controllerStrings.actions.right_stick_right.label,
+    description: controllerStrings.actions.right_stick_right.description,
+    group: controllerStrings.groups.lookAndCamera,
   },
   {
     id: "confirm",
-    label: "Confirm / Click",
-    description: "Confirm movement and click in dialogs.",
-    group: "Actions",
+    label: controllerStrings.actions.confirm.label,
+    description: controllerStrings.actions.confirm.description,
+    group: controllerStrings.groups.actions,
   },
   {
     id: "search",
-    label: "Search",
-    description: "Search current tile when no movement preview is active.",
-    group: "Actions",
+    label: controllerStrings.actions.search.label,
+    description: controllerStrings.actions.search.description,
+    group: controllerStrings.groups.actions,
   },
   {
     id: "cancel_or_context",
-    label: "Cancel / Context",
-    description: "Open context actions or cancel current dialog.",
-    group: "Actions",
+    label: controllerStrings.actions.cancel_or_context.label,
+    description: controllerStrings.actions.cancel_or_context.description,
+    group: controllerStrings.groups.actions,
   },
   {
     id: "action_menu",
-    label: "Action Menu",
-    description: "Open controller radial action menu.",
-    group: "Actions",
+    label: controllerStrings.actions.action_menu.label,
+    description: controllerStrings.actions.action_menu.description,
+    group: controllerStrings.groups.actions,
   },
   {
     id: "run_modifier",
-    label: "Run Modifier",
-    description: "Hold to send run prefix before movement.",
-    group: "Actions",
+    label: controllerStrings.actions.run_modifier.label,
+    description: controllerStrings.actions.run_modifier.description,
+    group: controllerStrings.groups.actions,
   },
   {
     id: "zoom_in",
-    label: "Zoom (Hold)",
-    description: "Hold, then use left or right stick up/down to zoom in/out.",
-    group: "Look And Camera",
+    label: controllerStrings.actions.zoom_in.label,
+    description: controllerStrings.actions.zoom_in.description,
+    group: controllerStrings.groups.lookAndCamera,
   },
   {
     id: "recenter_camera",
-    label: "Recenter Camera",
-    description: "Return camera to player center.",
-    group: "Look And Camera",
+    label: controllerStrings.actions.recenter_camera.label,
+    description: controllerStrings.actions.recenter_camera.description,
+    group: controllerStrings.groups.lookAndCamera,
   },
   {
     id: "toggle_large_minimap",
-    label: "Toggle Large Minimap",
-    description: "Toggle very large minimap size.",
-    group: "System",
+    label: controllerStrings.actions.toggle_large_minimap.label,
+    description: controllerStrings.actions.toggle_large_minimap.description,
+    group: controllerStrings.groups.system,
   },
   {
     id: "pause_menu",
-    label: "Pause Menu",
-    description: "Open or close pause menu.",
-    group: "System",
+    label: controllerStrings.actions.pause_menu.label,
+    description: controllerStrings.actions.pause_menu.description,
+    group: controllerStrings.groups.system,
   },
   {
     id: "open_inventory",
-    label: "Inventory",
-    description: "Open inventory window.",
-    group: "Dialogs",
+    label: controllerStrings.actions.open_inventory.label,
+    description: controllerStrings.actions.open_inventory.description,
+    group: controllerStrings.groups.dialogs,
   },
   {
     id: "open_character",
-    label: "Character Sheet",
-    description: "Open character sheet window.",
-    group: "Dialogs",
+    label: controllerStrings.actions.open_character.label,
+    description: controllerStrings.actions.open_character.description,
+    group: controllerStrings.groups.dialogs,
   },
 ];
 
@@ -349,30 +352,30 @@ export function normalizeNh3dControllerBindings(
 }
 
 const buttonLabelByIndex: Record<number, string> = {
-  0: "A",
-  1: "B",
-  2: "X",
-  3: "Y",
-  4: "Left Bumper",
-  5: "Right Bumper",
-  6: "Left Trigger",
-  7: "Right Trigger",
-  8: "Back / View",
-  9: "Start / Menu",
-  10: "Left Stick Click",
-  11: "Right Stick Click",
-  12: "D-Pad Up",
-  13: "D-Pad Down",
-  14: "D-Pad Left",
-  15: "D-Pad Right",
-  16: "Home",
+  0: controllerStrings.buttonLabels[0],
+  1: controllerStrings.buttonLabels[1],
+  2: controllerStrings.buttonLabels[2],
+  3: controllerStrings.buttonLabels[3],
+  4: controllerStrings.buttonLabels[4],
+  5: controllerStrings.buttonLabels[5],
+  6: controllerStrings.buttonLabels[6],
+  7: controllerStrings.buttonLabels[7],
+  8: controllerStrings.buttonLabels[8],
+  9: controllerStrings.buttonLabels[9],
+  10: controllerStrings.buttonLabels[10],
+  11: controllerStrings.buttonLabels[11],
+  12: controllerStrings.buttonLabels[12],
+  13: controllerStrings.buttonLabels[13],
+  14: controllerStrings.buttonLabels[14],
+  15: controllerStrings.buttonLabels[15],
+  16: controllerStrings.buttonLabels[16],
 };
 
 const axisLabelByIndex: Record<number, string> = {
-  0: "Left Stick X",
-  1: "Left Stick Y",
-  2: "Right Stick X",
-  3: "Right Stick Y",
+  0: controllerStrings.axisLabels[0],
+  1: controllerStrings.axisLabels[1],
+  2: controllerStrings.axisLabels[2],
+  3: controllerStrings.axisLabels[3],
 };
 
 function formatAxisDirectionLabel(
@@ -380,18 +383,27 @@ function formatAxisDirectionLabel(
   direction: -1 | 1,
 ): string {
   if (axisIndex === 0) {
-    return direction < 0 ? "Left Stick Left" : "Left Stick Right";
+    return direction < 0
+      ? controllerStrings.directions.leftStickLeft
+      : controllerStrings.directions.leftStickRight;
   }
   if (axisIndex === 1) {
-    return direction < 0 ? "Left Stick Up" : "Left Stick Down";
+    return direction < 0
+      ? controllerStrings.directions.leftStickUp
+      : controllerStrings.directions.leftStickDown;
   }
   if (axisIndex === 2) {
-    return direction < 0 ? "Right Stick Left" : "Right Stick Right";
+    return direction < 0
+      ? controllerStrings.directions.rightStickLeft
+      : controllerStrings.directions.rightStickRight;
   }
   if (axisIndex === 3) {
-    return direction < 0 ? "Right Stick Up" : "Right Stick Down";
+    return direction < 0
+      ? controllerStrings.directions.rightStickUp
+      : controllerStrings.directions.rightStickDown;
   }
-  const axisLabel = axisLabelByIndex[axisIndex] ?? `Axis ${axisIndex}`;
+  const axisLabel =
+    axisLabelByIndex[axisIndex] ?? controllerStrings.axisFallback(axisIndex);
   return `${axisLabel} ${direction < 0 ? "-" : "+"}`;
 }
 
@@ -399,14 +411,17 @@ export function formatNh3dControllerBindingLabel(
   binding: Nh3dControllerBinding | null | undefined,
 ): string {
   if (!binding) {
-    return "Unbound";
+    return controllerStrings.unbound;
   }
   const parsed = parseNh3dControllerBinding(binding);
   if (!parsed) {
-    return "Unbound";
+    return controllerStrings.unbound;
   }
   if (parsed.kind === "button") {
-    return buttonLabelByIndex[parsed.index] ?? `Button ${parsed.index}`;
+    return (
+      buttonLabelByIndex[parsed.index] ??
+      controllerStrings.buttonFallback(parsed.index)
+    );
   }
   return formatAxisDirectionLabel(parsed.index, parsed.direction);
 }

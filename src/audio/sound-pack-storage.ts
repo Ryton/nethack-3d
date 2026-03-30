@@ -1,4 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import { getTranslationStrings } from "../i18n/core";
 
 export type Nh3dMessageLogKeyword = string | RegExp;
 
@@ -7,36 +8,40 @@ type Nh3dSoundEffectDefinitionShape = {
   label: string;
   messageLogKeywords?: readonly Nh3dMessageLogKeyword[];
 };
+const soundEffectStrings = getTranslationStrings().soundEffects.byKey;
 
 export const nh3dSoundEffectDefinitions = [
-  { key: "player-walk", label: "Player walk" },
-  { key: "hit", label: "Hit" },
-  { key: "monster-killed", label: "Monster killed (player)" },
-  { key: "monster-killed-other", label: "Monster killed (other)" },
+  { key: "player-walk", label: soundEffectStrings["player-walk"] },
+  { key: "hit", label: soundEffectStrings.hit },
+  { key: "monster-killed", label: soundEffectStrings["monster-killed"] },
+  {
+    key: "monster-killed-other",
+    label: soundEffectStrings["monster-killed-other"],
+  },
   // { key: "player-hurt", label: "Player hurt" },
   {
     key: "missed-attack",
-    label: "Missed attack",
+    label: soundEffectStrings["missed-attack"],
     messageLogKeywords: [/\bmiss\b/i, /\bmisses\b/i],
   },
   {
     key: "door-opens",
-    label: "Door opens",
+    label: soundEffectStrings["door-opens"],
     messageLogKeywords: ["The door opens."],
   },
   {
     key: "door-closes",
-    label: "Door closes",
+    label: soundEffectStrings["door-closes"],
     messageLogKeywords: ["The door closes."],
   },
   {
     key: "door-kick",
-    label: "Door kick",
+    label: soundEffectStrings["door-kick"],
     messageLogKeywords: ["WHAMMM!!!", "Whammm!!", "Thwack!!"],
   },
   {
     key: "door-smash",
-    label: "Door smash",
+    label: soundEffectStrings["door-smash"],
     messageLogKeywords: [
       "As you kick the door, it crashes open!",
       "As you kick the door, it shatters to pieces!",
@@ -44,22 +49,22 @@ export const nh3dSoundEffectDefinitions = [
   },
   {
     key: "door-resists",
-    label: "Door resists",
+    label: soundEffectStrings["door-resists"],
     messageLogKeywords: ["The door resists!"],
   },
   {
     key: "door-distant",
-    label: "Door in the distance",
+    label: soundEffectStrings["door-distant"],
     messageLogKeywords: ["hear a door"],
   },
   {
     key: "walk-down-stairs",
-    label: "Walk down stairs",
+    label: soundEffectStrings["walk-down-stairs"],
     messageLogKeywords: ["You descend the stairs."],
   },
   {
     key: "walk-up-stairs",
-    label: "Walk up stairs",
+    label: soundEffectStrings["walk-up-stairs"],
     messageLogKeywords: ["You climb up the stairs."],
   },
   // {
@@ -89,50 +94,50 @@ export const nh3dSoundEffectDefinitions = [
   // },
   {
     key: "eating",
-    label: "Eating",
+    label: soundEffectStrings.eating,
     messageLogKeywords: ["you eat", "you finish eating", "tastes"],
   },
   {
     key: "drink",
-    label: "Drink",
+    label: soundEffectStrings.drink,
   },
   {
     key: "quaff-potion",
-    label: "Quaff a potion",
+    label: soundEffectStrings["quaff-potion"],
   },
   {
     key: "pickup-gold",
-    label: "Pick up gold",
+    label: soundEffectStrings["pickup-gold"],
     messageLogKeywords: ["$ - "],
   },
   {
     key: "pickup-item",
-    label: "Pick up item",
+    label: soundEffectStrings["pickup-item"],
     messageLogKeywords: [/[a-z] - /i],
   },
   {
     key: "find-hidden",
-    label: "Find hidden door/passage",
+    label: soundEffectStrings["find-hidden"],
     messageLogKeywords: ["find a hidden"],
   },
   {
     key: "level-up",
-    label: "Level up",
+    label: soundEffectStrings["level-up"],
     messageLogKeywords: ["Welcome to experience level"],
   },
   {
     key: "unlock",
-    label: "Unlock",
+    label: soundEffectStrings.unlock,
     messageLogKeywords: ["unlock"],
   },
   {
     key: "boulder-push",
-    label: "Boulder push",
+    label: soundEffectStrings["boulder-push"],
     messageLogKeywords: ["With great effort you move the"],
   },
   {
     key: "boulder-blocked",
-    label: "Boulder blocked",
+    label: soundEffectStrings["boulder-blocked"],
     messageLogKeywords: [", but in vain."],
   },
   // {
@@ -149,12 +154,12 @@ export const nh3dSoundEffectDefinitions = [
   // },
   {
     key: "splash",
-    label: "Splash",
+    label: soundEffectStrings.splash,
     messageLogKeywords: ["splashing of a naiad"],
   },
   {
     key: "searching",
-    label: "Searching",
+    label: soundEffectStrings.searching,
     messageLogKeywords: [
       /\byou find\b.*\b(?:hidden|secret|trap|door)\b/i,
       /\byou pick up\b.*\bgold\b/i,
@@ -162,17 +167,17 @@ export const nh3dSoundEffectDefinitions = [
   },
   {
     key: "magic-cast",
-    label: "Magic cast",
+    label: soundEffectStrings["magic-cast"],
     messageLogKeywords: ["you cast"],
   },
   {
     key: "magic-heal",
-    label: "Magic heal",
+    label: soundEffectStrings["magic-heal"],
     messageLogKeywords: ["you feel better"],
   },
   {
     key: "magic-buff",
-    label: "Magic buff",
+    label: soundEffectStrings["magic-buff"],
     messageLogKeywords: [
       /\byou feel (?:stronger|faster|more agile|wiser|tougher|powerful)\b/i,
     ],

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getTranslationStrings } from "../../i18n/core";
 
 export type ConfirmationDialogRequest = {
   title?: string;
@@ -17,6 +18,7 @@ export type ConfirmationDialogState = {
 };
 
 export function useConfirmationDialog() {
+  const commonStrings = getTranslationStrings().common;
   const [dialog, setDialog] = useState<ConfirmationDialogState | null>(null);
   const resolveRef = useRef<((confirmed: boolean) => void) | null>(null);
 
@@ -32,8 +34,12 @@ export function useConfirmationDialog() {
       const normalized: ConfirmationDialogState = {
         title: String(request.title || "").trim(),
         message: String(request.message || "").trim(),
-        confirmLabel: String(request.confirmLabel || "Confirm").trim() || "Confirm",
-        cancelLabel: String(request.cancelLabel || "Cancel").trim() || "Cancel",
+        confirmLabel:
+          String(request.confirmLabel || commonStrings.confirm).trim() ||
+          commonStrings.confirm,
+        cancelLabel:
+          String(request.cancelLabel || commonStrings.cancel).trim() ||
+          commonStrings.cancel,
         confirmClassName:
           String(request.confirmClassName || "nh3d-menu-action-confirm").trim() ||
           "nh3d-menu-action-confirm",
@@ -49,7 +55,7 @@ export function useConfirmationDialog() {
         setDialog(normalized);
       });
     },
-    [],
+    [commonStrings.cancel, commonStrings.confirm],
   );
 
   useEffect(() => {

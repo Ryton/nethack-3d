@@ -1,4 +1,5 @@
 import { useId, type ChangeEvent } from "react";
+import { getTranslationStrings } from "../../i18n/core";
 import {
   StartupInitOptionValues,
   StartupInitOptionValue,
@@ -212,6 +213,7 @@ export default function StartupInitOptionsAccordion({
   onOptionValueChange,
   onResetDefaults,
 }: StartupInitOptionsAccordionProps): JSX.Element {
+  const accordionStrings = getTranslationStrings().startupInitOptions.accordion;
   const accordionIdPrefix = useId().replace(/:/g, "");
   const summaryId = `${accordionIdPrefix}-summary`;
   const panelId = `${accordionIdPrefix}-panel`;
@@ -227,7 +229,7 @@ export default function StartupInitOptionsAccordion({
         className="nh3d-startup-init-options-summary"
         id={summaryId}
       >
-        Initialization options (optional)
+        {accordionStrings.summary}
       </summary>
       <div
         aria-labelledby={summaryId}
@@ -236,8 +238,7 @@ export default function StartupInitOptionsAccordion({
         role="region"
       >
         <div className="nh3d-option-description nh3d-startup-init-options-description">
-          Additional NetHack `OPTIONS` entries applied at startup. Window-port
-          and platform-specific options are intentionally omitted.
+          {accordionStrings.description}
         </div>
         <div className="nh3d-overflow-glow-frame">
           <div
@@ -283,7 +284,7 @@ export default function StartupInitOptionsAccordion({
                 onClick={onResetDefaults}
                 type="button"
               >
-                Reset to defaults
+                {accordionStrings.resetToDefaults}
               </button>
             </div>
           </div>
