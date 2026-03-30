@@ -553,8 +553,7 @@ export const en = {
         "Click a direction. Center circle targets self. You can also use numpad (1-4,6-9), arrow keys, <, >, or s. Press ESC to cancel.",
       viKeys:
         "Click a direction. Center circle targets self. You can also use hjkl/yubn, arrow keys, <, >, or s. Press ESC to cancel.",
-      fps:
-        "Look to aim. Left-click or W confirms. S targets self. A/D or right-click cancels.",
+      fps: "Look to aim. Left-click or W confirms. S targets self. A/D or right-click cancels.",
     },
     inventoryContextActions: {
       apply: "Apply",
@@ -639,6 +638,14 @@ export const en = {
             "Movement repeat delay for left stick in FPS mode (lower is faster).",
         },
         groupInterface: "Interface",
+        locale: {
+          label: "Language",
+          description:
+            "Choose the interface language. Defaults to your browser region when supported, with English as the fallback.",
+          options: {
+            en: "English",
+          },
+        },
         sectionDisplayCamera: "Camera and perspective",
         fpsMode: {
           label: "First-person mode",
@@ -800,11 +807,13 @@ export const en = {
         },
         displayStatChangesAbovePlayer: {
           label: "Display stat changes above player",
-          description: "Show floating labels for stat changes such as Strength and AC.",
+          description:
+            "Show floating labels for stat changes such as Strength and AC.",
         },
         displayXpGainsAbovePlayer: {
           label: "Display XP gains above player",
-          description: "Show floating XP gain labels when experience increases.",
+          description:
+            "Show floating XP gain labels when experience increases.",
         },
         tileShakeOnHit: {
           label: "Tile shake on hit",
@@ -816,7 +825,8 @@ export const en = {
         },
         monsterShatter: {
           label: "Monster shatter",
-          description: "Split defeated monster billboards into physical shard pieces.",
+          description:
+            "Split defeated monster billboards into physical shard pieces.",
         },
         monsterShatterBloodBorders: {
           label: "Shatter blood borders",
@@ -906,8 +916,7 @@ export const en = {
       checkingForUpdates: "Checking for updates...",
       unsupportedPlatform:
         "This platform does not support online game updates.",
-      latestAlreadyInstalledOptions:
-        "You already have the latest game update.",
+      latestAlreadyInstalledOptions: "You already have the latest game update.",
       oneUpdateAvailable: "1 game update is available.",
       manyUpdatesAvailable: (count: number) =>
         `${count} game updates are available.`,
@@ -1039,8 +1048,7 @@ export const en = {
       debugLogs: {
         closeLabel: "Close debug logs",
         title: "Saved Debug Logs",
-        hint:
-          "Logs are only captured after the hidden debug log toggle is enabled.",
+        hint: "Logs are only captured after the hidden debug log toggle is enabled.",
         showingEntries: (count: number, startedAt: string) =>
           `Showing ${count} entries from ${startedAt}.`,
         noneSaved: "No saved debug logs yet.",
@@ -1094,8 +1102,7 @@ export const en = {
           title: "Game Updates",
           description:
             "Check the published online manifest and compare it to your installed build.",
-          idle:
-            "Press Check for Updates to verify game files are up to date.",
+          idle: "Press Check for Updates to verify game files are up to date.",
           button: "Check for Updates",
         },
         buttons: {
@@ -1123,8 +1130,7 @@ export const en = {
         controllerRemap: {
           title: "Controller Remap",
           closeLabel: "Close controller remap",
-          hint:
-            "Select a slot, then press a button or move a stick. Each action has two slots.",
+          hint: "Select a slot, then press a button or move a stick. Each action has two slots.",
           listeningFor: (label: string, slot: number) =>
             `Listening for ${label} (slot ${slot}). Press ESC to cancel.`,
         },
@@ -1186,6 +1192,10 @@ export const en = {
         page: (current: number, total: number) => `Page ${current} / ${total}`,
         pageHintMultiple: "Use < and > to change pages. Press ESC to cancel",
         pageHintSingle: "Press ESC to cancel",
+        choices: {
+          leftRingFinger: "Left ring-finger",
+          rightRingFinger: "Right ring-finger",
+        },
       },
       runtimeStartError: {
         closeLabel: "Return to main menu",

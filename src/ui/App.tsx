@@ -139,7 +139,13 @@ import {
   resolveCharacterCommandActions,
 } from "./modals/character-sheet";
 import { parseEnhanceMenu } from "./modals/enhance-menu";
-import { getTranslationStrings } from "../i18n/core";
+import {
+  getCurrentLocale,
+  getSupportedLocaleOptions,
+  getTranslationStrings,
+  resolveSupportedLocale,
+  setCurrentLocale,
+} from "../i18n/core";
 
 type CoreStatKey =
   | "strength"
@@ -166,6 +172,7 @@ type PlayerStatusBadge = {
 const translationStrings = getTranslationStrings();
 const commonStrings = translationStrings.common;
 const t = translationStrings.app;
+const supportedLocaleOptions = getSupportedLocaleOptions();
 
 const nh3dAppVersion =
   typeof import.meta.env.VITE_NH3D_APP_VERSION === "string" &&
@@ -802,10 +809,10 @@ function getQuestionChoiceLabel(
   const normalizedChoice = choice.trim();
   if (questionText.includes("Which ring-finger")) {
     if (normalizedChoice === "l") {
-      return "l) Left ring-finger";
+      return `l) ${t.dialogs.question.choices.leftRingFinger}`;
     }
     if (normalizedChoice === "r") {
-      return "r) Right ring-finger";
+      return `r) ${t.dialogs.question.choices.rightRingFinger}`;
     }
   }
 
@@ -1817,6 +1824,7 @@ type ClientOptionToggle = {
 
 type ClientOptionSelect = {
   key:
+    | "locale"
     | "tilesetMode"
     | "tilesetPath"
     | "antialiasing"
@@ -3274,6 +3282,13 @@ const clientOptionsConfig: ClientOption[] = [
     key: "group-interface",
     label: t.clientOptions.config.groupInterface,
     type: "group",
+  },
+  {
+    key: "locale",
+    label: t.clientOptions.config.locale.label,
+    description: t.clientOptions.config.locale.description,
+    type: "select",
+    options: supportedLocaleOptions,
   },
   {
     key: "section-display-camera",
@@ -6955,6 +6970,20 @@ export default function App(): JSX.Element {
     if (!hasHydratedUserTilesets) {
       return;
     }
+    const currentLocale = getCurrentLocale();
+    if (clientOptions.locale === currentLocale) {
+      return;
+    }
+    setCurrentLocale(clientOptions.locale);
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  }, [clientOptions.locale, hasHydratedUserTilesets]);
+
+  useEffect(() => {
+    if (!hasHydratedUserTilesets) {
+      return;
+    }
     persistNh3dClientOptionsToIndexedDb(clientOptions).catch((error) => {
       console.warn("Failed to persist client options to IndexedDB:", error);
     });
@@ -10142,6 +10171,28 @@ export default function App(): JSX.Element {
     controller?.dismissFpsCrosshairContextMenu();
   };
 
+  const persistLocaleSelectionAndReloadIfNeeded = useCallback(
+    async (nextOptions: Nh3dClientOptions): Promise<void> => {
+      const previousLocale = getCurrentLocale();
+      setCurrentLocale(nextOptions.locale);
+      if (nextOptions.locale === previousLocale) {
+        return;
+      }
+      try {
+        await persistNh3dClientOptionsToIndexedDb(nextOptions);
+      } catch (error) {
+        console.warn(
+          "Failed to persist client options before locale reload:",
+          error,
+        );
+      }
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    },
+    [],
+  );
+
   const closeClientOptionsDialog = async (): Promise<void> => {
     const canDiscardSoundPackChanges =
       (await soundPackDialogActionsRef.current?.confirmDiscardIfNeeded()) ??
@@ -10178,6 +10229,7 @@ export default function App(): JSX.Element {
     setIsControllerRemapVisible(false);
     setControllerRemapListening(null);
     controller?.setClientOptions(next);
+    await persistLocaleSelectionAndReloadIfNeeded(next);
   };
 
   const requestCloseClientOptionsDialog = (): void => {
@@ -10196,7 +10248,7 @@ export default function App(): JSX.Element {
     setIsResetClientOptionsConfirmationVisible(false);
   };
 
-  const confirmResetClientOptionsToDefaults = (): void => {
+  const confirmResetClientOptionsToDefaults = async (): Promise<void> => {
     const next = normalizeNh3dClientOptions(defaultNh3dClientOptions);
     setClientOptions(next);
     setClientOptionsDraft(next);
@@ -10208,25 +10260,24 @@ export default function App(): JSX.Element {
     setIsControllerRemapVisible(false);
     setControllerRemapListening(null);
     controller?.setClientOptions(next);
-    void (async () => {
+    try {
+      await resetNh3dDefaultSoundPackVolumeLevelsToDefaults();
+    } catch (error) {
+      console.warn(
+        "Failed to reset default sound-pack volume levels to defaults:",
+        error,
+      );
+    } finally {
       try {
-        await resetNh3dDefaultSoundPackVolumeLevelsToDefaults();
+        await soundPackDialogActionsRef.current?.reloadFromStorage();
       } catch (error) {
         console.warn(
-          "Failed to reset default sound-pack volume levels to defaults:",
+          "Failed to reload sound-pack state after resetting defaults:",
           error,
         );
-      } finally {
-        try {
-          await soundPackDialogActionsRef.current?.reloadFromStorage();
-        } catch (error) {
-          console.warn(
-            "Failed to reload sound-pack state after resetting defaults:",
-            error,
-          );
-        }
       }
-    })();
+    }
+    await persistLocaleSelectionAndReloadIfNeeded(next);
   };
 
   const updateClientOptionDraft = <
@@ -14365,6 +14416,16 @@ export default function App(): JSX.Element {
                             className="nh3d-startup-config-select"
                             disabled={selectDisabled}
                             onChange={(event) => {
+                              if (option.key === "locale") {
+                                const nextValue =
+                                  resolveSupportedLocale(event.target.value) ??
+                                  clientOptionsDraft.locale;
+                                updateClientOptionDraft(
+                                  option.key,
+                                  nextValue,
+                                );
+                                return;
+                              }
                               if (option.key === "tilesetMode") {
                                 updateClientOptionDraft(
                                   option.key,

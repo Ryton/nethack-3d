@@ -11,6 +11,12 @@ import {
   normalizeNh3dControllerBindings,
   type Nh3dControllerBindings,
 } from "./controller-bindings";
+import {
+  getCurrentLocale,
+  resolveSupportedLocale,
+  resolveSystemLocale,
+  type SupportedLocale,
+} from "../i18n/core";
 
 export type NethackConnectionState =
   | "disconnected"
@@ -160,6 +166,7 @@ export type TilesetBackgroundRemovalModeByTileset = Record<
 export type TilesetSolidChromaKeyColorHexByTileset = Record<string, string>;
 
 export type Nh3dClientOptions = {
+  locale: SupportedLocale;
   fpsMode: boolean;
   fpsFov: number;
   fpsLookSensitivityX: number;
@@ -244,6 +251,7 @@ const isMobilePortrait = window.matchMedia(
 const isMobile = window.matchMedia("(pointer: coarse)");
 
 export const defaultNh3dClientOptions: Nh3dClientOptions = {
+  locale: resolveSystemLocale(),
   fpsMode: false,
   fpsFov: isMobilePortrait.matches ? 95 : 62,
   fpsLookSensitivityX: isMobile.matches ? 1.5 : 1,
@@ -531,6 +539,7 @@ function normalizeTilesetSolidChromaKeyColorHexByTileset(
 export function normalizeNh3dClientOptions(
   overrides?: Partial<Nh3dClientOptions> | null,
 ): Nh3dClientOptions {
+  const locale = resolveSupportedLocale(overrides?.locale) ?? getCurrentLocale();
   const rawFpsFov =
     typeof overrides?.fpsFov === "number" && Number.isFinite(overrides.fpsFov)
       ? overrides.fpsFov
@@ -803,6 +812,7 @@ export function normalizeNh3dClientOptions(
     defaultSolidChromaKeyForTileset,
   );
   return {
+    locale,
     fpsMode:
       typeof overrides?.fpsMode === "boolean"
         ? overrides.fpsMode
