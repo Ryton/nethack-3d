@@ -1,15 +1,18 @@
 import { en, type TranslationDictionary } from "./locales/en";
+import { zhCn } from "./locales/zh-cn";
 
-export type SupportedLocale = "en";
+export type SupportedLocale = "en" | "zh-cn";
 
 const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
   en,
+  "zh-cn": zhCn,
 };
 
 const localeStorageKey = "nh3d-locale";
 
 const localeLabels: Record<SupportedLocale, string> = {
   en: "English",
+  "zh-cn": "简体中文",
 };
 
 const supportedLocales = Object.keys(dictionaries) as SupportedLocale[];
@@ -21,12 +24,23 @@ function normalizeLocaleTag(value: string): string {
     .toLowerCase();
 }
 
+const localeAliases: Record<string, SupportedLocale> = {
+  zh: "zh-cn",
+  "zh-cn": "zh-cn",
+  "zh-hans": "zh-cn",
+  "zh-hans-cn": "zh-cn",
+};
+
 export function resolveSupportedLocale(
   value: string | null | undefined,
 ): SupportedLocale | null {
   const normalized = normalizeLocaleTag(value || "");
   if (!normalized) {
     return null;
+  }
+  const alias = localeAliases[normalized];
+  if (alias) {
+    return alias;
   }
   if (supportedLocales.includes(normalized as SupportedLocale)) {
     return normalized as SupportedLocale;
