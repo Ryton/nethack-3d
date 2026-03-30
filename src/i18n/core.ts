@@ -1,11 +1,12 @@
 import { en, type TranslationDictionary } from "./locales/en";
-import { zhCn } from "./locales/zh-cn";
+import { zhCnOverrides } from "./locales/zh-cn";
+import { mergeTranslations } from "./locale-helpers";
 
 export type SupportedLocale = "en" | "zh-cn";
 
 const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
   en,
-  "zh-cn": zhCn,
+  "zh-cn": mergeTranslations(en, zhCnOverrides),
 };
 
 const localeStorageKey = "nh3d-locale";

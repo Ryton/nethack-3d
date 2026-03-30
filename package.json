@@ -31,6 +31,7 @@
     "electron:dist:all:parallel": "node scripts/electron/dist-all.mjs --parallel",
     "glyphs:generate": "node scripts/glyphs/generate-glyph-catalog.mjs",
     "glyphs:check": "node scripts/glyphs/check-glyph-catalog.mjs",
+    "i18n:check": "node scripts/i18n/check-translations.mjs",
     "check:tsc": "tsc --noEmit --pretty false",
     "vulture:prebake": "node scripts/vulture/prebake-vulture-projections.mjs",
     "copy-wasm": "node scripts/wasm/copy-wasm.mjs",
