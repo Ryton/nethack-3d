@@ -37,7 +37,7 @@ const fallbackBackgroundTileId = 0;
 const fallbackBackgroundRemovalMode: Nh3dTilesetBackgroundRemovalMode = "tile";
 const fallbackSolidChromaKeyColorHex = "#466d6c";
 export const nh3dTilesetAtlasTileColumns = 40;
-const builtinNh343TilesetPathPrefix = "assets/3.4.3/";
+const builtinSlashEmTilesetPathPrefix = "assets/slashem/";
 const builtinNh37TilesetPathPrefix = "assets/3.7/";
 const userTilesetPathPrefix = "user:";
 const vultureTilesetPathPrefix = "vulture:";
@@ -62,6 +62,10 @@ const tilesetSolidChromaKeyPresetByLabel: Readonly<Record<string, string>> = {
   "Vanilla NetHack Tiles": "#476C6C",
   "NetHack Modern": "#000000",
 };
+const tilesetAtlasTileColumnsPresetByPath: Readonly<Record<string, number>> = {
+  "assets/slashem/Abigaba.bmp": 38,
+  "assets/slashem/Absurd.png": 38,
+};
 
 // Centralized per-tileset defaults. Add entries here to override fallback
 // behavior for any specific built-in tileset path.
@@ -70,9 +74,6 @@ const tilesetBackgroundRemovalModePresetByPath: Readonly<
 > = {
   "assets/3.7/Nevanda (3.7).png": "solid",
   "assets/3.7/Vanilla NetHack Tiles (3.7).png": "solid",
-  "assets/3.4.3/Nevanda (3.4.3).png": "solid",
-  "assets/3.4.3/DawnHack (3.4.3).png": "tile",
-  "assets/3.4.3/Vanilla NetHack TIles (3.4.3).png": "solid",
   "assets/3.6/Nevanda.png": "solid",
   "assets/3.6/NetHack Modern.bmp": "solid",
   "assets/3.6/DawnHack.bmp": "tile",
@@ -163,11 +164,31 @@ function isBuiltinNh37Tileset(tileset: Nh3dTilesetEntry): boolean {
 }
 
 export function inferNh3dTilesetTileSizeFromAtlasWidth(width: number): number {
+  return inferNh3dTilesetTileSizeFromAtlasWidthForPath(width);
+}
+
+export function getNh3dTilesetAtlasTileColumns(
+  path: string | null | undefined,
+): number {
+  const normalizedPath = String(path || "").trim();
+  const preset =
+    tilesetAtlasTileColumnsPresetByPath[normalizedPath] ??
+    tilesetAtlasTileColumnsPresetByPath[String(findNh3dTilesetByPath(path)?.path || "").trim()];
+  if (typeof preset === "number" && Number.isFinite(preset)) {
+    return Math.max(1, Math.trunc(preset));
+  }
+  return nh3dTilesetAtlasTileColumns;
+}
+
+export function inferNh3dTilesetTileSizeFromAtlasWidthForPath(
+  width: number,
+  path?: string | null,
+): number {
   const safeWidth = Math.max(0, Math.trunc(width));
   if (safeWidth <= 0) {
     return fallbackTileSize;
   }
-  return Math.max(1, Math.trunc(safeWidth / nh3dTilesetAtlasTileColumns));
+  return Math.max(1, Math.trunc(safeWidth / getNh3dTilesetAtlasTileColumns(path)));
 }
 
 function normalizeVultureDataRoot(rawRoot: string): string {
@@ -209,7 +230,12 @@ const seenPaths = new Set<string>();
 for (const rawEntry of GENERATED_TILESET_MANIFEST) {
   const path = String(rawEntry?.path || "").trim();
   const label = String(rawEntry?.label || "").trim();
-  const tileSize = fallbackTileSize;
+  const tileSize = Math.max(
+    1,
+    Math.trunc(
+      Number.isFinite(rawEntry?.tileSize) ? rawEntry.tileSize : fallbackTileSize,
+    ),
+  );
   const tileLayoutVersion = normalizeGeneratedTileLayoutVersion(
     rawEntry?.tileLayoutVersion,
   );
@@ -357,6 +383,11 @@ export const nh3dTilesetCatalog: ReadonlyArray<Nh3dTilesetEntry> =
 
 const preferredDefaultTilesetPath = "assets/3.6/Nevanda 3.6.png";
 const preferredDefaultTilesetLabel = "Nevanda";
+const preferredDefaultTilesetPathByRuntime: Readonly<
+  Partial<Record<NethackRuntimeVersion, string>>
+> = {
+  slashem: "assets/slashem/Absurd.png",
+};
 export const defaultNh3dTilesetPath: string =
   builtinTilesets.find((entry) => entry.path === preferredDefaultTilesetPath)
     ?.path ??
@@ -364,6 +395,25 @@ export const defaultNh3dTilesetPath: string =
     ?.path ??
   builtinTilesets[0]?.path ??
   "";
+
+function getDefaultNh3dTilesetPathForRuntime(
+  runtimeVersion: NethackRuntimeVersion,
+): string {
+  const preferredPath = preferredDefaultTilesetPathByRuntime[runtimeVersion];
+  const preferredTileset = preferredPath
+    ? builtinTilesets.find((entry) => entry.path === preferredPath)
+    : undefined;
+  if (
+    preferredTileset &&
+    isNh3dTilesetCompatibleWithRuntime(preferredTileset, runtimeVersion)
+  ) {
+    return preferredTileset.path;
+  }
+  return (
+    getNh3dCompatibleTilesetCatalog(runtimeVersion)[0]?.path ??
+    defaultNh3dTilesetPath
+  );
+}
 
 export function findNh3dTilesetByPath(
   path: string | null | undefined,
@@ -419,10 +469,7 @@ export function resolveNh3dCompatibleTilesetPathForRuntime(
 ): string {
   const selectedTileset = findNh3dTilesetByPath(path);
   if (!selectedTileset) {
-    return (
-      getNh3dCompatibleTilesetCatalog(runtimeVersion)[0]?.path ??
-      defaultNh3dTilesetPath
-    );
+    return getDefaultNh3dTilesetPathForRuntime(runtimeVersion);
   }
   if (isNh3dTilesetCompatibleWithRuntime(selectedTileset, runtimeVersion)) {
     return selectedTileset.path;
@@ -434,10 +481,7 @@ export function resolveNh3dCompatibleTilesetPathForRuntime(
   if (labelMatchedTileset) {
     return labelMatchedTileset.path;
   }
-  return (
-    getNh3dCompatibleTilesetCatalog(runtimeVersion)[0]?.path ??
-    defaultNh3dTilesetPath
-  );
+  return getDefaultNh3dTilesetPathForRuntime(runtimeVersion);
 }
 
 export function resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(
@@ -528,7 +572,7 @@ export function resolveDefaultNh3dTilesetBackgroundRemovalMode(
   }
   if (
     tileset.source === "builtin" &&
-    String(tileset.path || "").startsWith(builtinNh343TilesetPathPrefix)
+    String(tileset.path || "").startsWith(builtinSlashEmTilesetPathPrefix)
   ) {
     return "solid";
   }

@@ -7,8 +7,8 @@ const PROJECT_ROOT = resolve(__dirname, "../..");
 
 const TILESET_MANIFEST_SOURCES = [
   {
-    sourceDir: resolve(PROJECT_ROOT, "public/assets/3.4.3"),
-    assetPrefix: "assets/3.4.3",
+    sourceDir: resolve(PROJECT_ROOT, "public/assets/slashem"),
+    assetPrefix: "assets/slashem",
     tileLayoutVersion: "3.4.3",
   },
   {

@@ -84,7 +84,7 @@ import {
 } from "./controller-bindings";
 import {
   findNh3dTilesetByPath,
-  inferNh3dTilesetTileSizeFromAtlasWidth,
+  inferNh3dTilesetTileSizeFromAtlasWidthForPath,
   resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime,
   resolveNh3dTilesetAssetUrl,
   type Nh3dTilesetTileLayoutVersion,
@@ -4770,7 +4770,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
           return;
         }
         const atlasWidth = Math.max(0, Math.trunc(sourceImage.width || 0));
-        const tileSize = inferNh3dTilesetTileSizeFromAtlasWidth(atlasWidth);
+        const tileSize = inferNh3dTilesetTileSizeFromAtlasWidthForPath(
+          atlasWidth,
+          tileset.path,
+        );
         const atlasHeight = Math.max(0, Math.trunc(sourceImage.height || 0));
         const sourceTilesPerRow = Math.floor(atlasWidth / Math.max(1, tileSize));
         const sourceRows = Math.floor(atlasHeight / Math.max(1, tileSize));

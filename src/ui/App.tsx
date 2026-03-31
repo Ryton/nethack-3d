@@ -64,10 +64,10 @@ import {
 import { GLYPH_CATALOG as GLYPH_CATALOG_367 } from "../game/glyphs/glyph-catalog.367.generated";
 import {
   findNh3dTilesetByPath,
+  getNh3dTilesetAtlasTileColumns,
   getNh3dCompatibleTilesetCatalog,
-  inferNh3dTilesetTileSizeFromAtlasWidth,
+  inferNh3dTilesetTileSizeFromAtlasWidthForPath,
   isNh3dTilesetPathAvailable,
-  nh3dTilesetAtlasTileColumns,
   getNh3dUserTilesetPath,
   resolveNh3dCompatibleTilesetPathForRuntime,
   resolveDefaultNh3dTilesetBackgroundTileId,
@@ -4354,7 +4354,7 @@ async function inferTilesetTileSizeFromBlob(blob: Blob): Promise<number> {
     const size = await new Promise<number>((resolve, reject) => {
       const image = new window.Image();
       image.onload = () =>
-        resolve(inferNh3dTilesetTileSizeFromAtlasWidth(image.naturalWidth));
+        resolve(inferNh3dTilesetTileSizeFromAtlasWidthForPath(image.naturalWidth));
       image.onerror = () => reject(new Error(t.tilesets.failedToReadImage));
       image.src = objectUrl;
     });
@@ -7172,9 +7172,12 @@ export default function App(): JSX.Element {
       }
       const naturalWidth = Math.max(0, Math.trunc(atlasImage.naturalWidth));
       const tileSourceSize =
-        inferNh3dTilesetTileSizeFromAtlasWidth(naturalWidth);
+        inferNh3dTilesetTileSizeFromAtlasWidthForPath(
+          naturalWidth,
+          selectedTilesetEntry.path,
+        );
       const height = Math.max(0, Math.trunc(atlasImage.naturalHeight));
-      const columns = nh3dTilesetAtlasTileColumns;
+      const columns = getNh3dTilesetAtlasTileColumns(selectedTilesetEntry.path);
       const rows = Math.max(0, Math.floor(height / tileSourceSize));
       const tileCount = columns > 0 && rows > 0 ? columns * rows : 0;
       setTileAtlasState({
@@ -7231,9 +7234,14 @@ export default function App(): JSX.Element {
       }
       const naturalWidth = Math.max(0, Math.trunc(atlasImage.naturalWidth));
       const tileSourceSize =
-        inferNh3dTilesetTileSizeFromAtlasWidth(naturalWidth);
+        inferNh3dTilesetTileSizeFromAtlasWidthForPath(
+          naturalWidth,
+          selectedTilesetManagerEditEntry.path,
+        );
       const height = Math.max(0, Math.trunc(atlasImage.naturalHeight));
-      const columns = nh3dTilesetAtlasTileColumns;
+      const columns = getNh3dTilesetAtlasTileColumns(
+        selectedTilesetManagerEditEntry.path,
+      );
       const rows = Math.max(0, Math.floor(height / tileSourceSize));
       const tileCount = columns > 0 && rows > 0 ? columns * rows : 0;
       setTilesetManagerAtlasState({
@@ -13322,14 +13330,6 @@ export default function App(): JSX.Element {
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
-              onClick={openClientOptionsDialog}
-              style={{ marginTop: "14px" }}
-              type="button"
-            >
-              {t.dialogs.startup.options}
-            </button>
-            <button
-              className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => {
                 void requestGameQuit();
               }}
@@ -13380,6 +13380,13 @@ export default function App(): JSX.Element {
               type="button"
             >
               {t.dialogs.startup.loadGame}
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={openClientOptionsDialog}
+              type="button"
+            >
+              {t.dialogs.startup.options}
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
