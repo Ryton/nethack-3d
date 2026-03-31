@@ -48,6 +48,8 @@ class LocalNetHackRuntime {
     this.hasShownCharacterSelection = false;
     this.lastQuestionText = null; // Store the last question for menu expansion
     this.activeYnPrompt = null;
+    this.legacyAutoHelpYnPromptSignature = "";
+    this.legacyAutoHelpYnPromptUntilMs = 0;
 
     // Multi-pickup selection tracking
     this.menuSelections = new Map(); // Track selected items: key=menuChar, value={menuChar, originalAccelerator, menuIndex}
@@ -2074,6 +2076,8 @@ class LocalNetHackRuntime {
     this.pendingContextualLookMapRouteSelection = false;
     this.contextualLookInfoAutoFlowStage = "none";
     this.contextualLookInfoAutoFlowUntilMs = 0;
+    this.legacyAutoHelpYnPromptSignature = "";
+    this.legacyAutoHelpYnPromptUntilMs = 0;
     this.setPositionInputActive(false);
     this.activeInputRequest = null;
     this.menuSelections.clear();
@@ -5685,6 +5689,50 @@ class LocalNetHackRuntime {
       return String.fromCharCode(Math.trunc(defaultChoice)).toLowerCase();
     }
     return "";
+  }
+
+  resolveLegacyAutoHelpYnPromptAnswer(question, choices) {
+    if (this.runtimeVersion !== "slashem") {
+      return null;
+    }
+
+    const normalizedQuestion = this.normalizeQuestionText(question);
+    const normalizedChoices =
+      typeof choices === "string" ? choices.trim().toLowerCase() : "";
+    const bracketMatch = String(question || "").match(/\[([^\]]+)\]/);
+    const normalizedBracketChoices =
+      typeof bracketMatch?.[1] === "string"
+        ? bracketMatch[1].trim().toLowerCase()
+        : "";
+    const effectiveChoices = `${normalizedChoices}${normalizedBracketChoices}`;
+    const autoChoice = effectiveChoices.includes(",")
+      ? ","
+      : effectiveChoices.includes("*")
+        ? "*"
+        : null;
+    if (!autoChoice) {
+      return null;
+    }
+
+    const signature = `${normalizedQuestion}|${effectiveChoices}`;
+    const nowMs = Date.now();
+    if (
+      this.legacyAutoHelpYnPromptSignature === signature &&
+      nowMs <= this.legacyAutoHelpYnPromptUntilMs
+    ) {
+      return null;
+    }
+
+    this.legacyAutoHelpYnPromptSignature = signature;
+    this.legacyAutoHelpYnPromptUntilMs = nowMs + 2500;
+    console.log(
+      `Auto-answering legacy yn_function inventory prompt with "${autoChoice}"`,
+      {
+      question: normalizedQuestion,
+      choices: effectiveChoices,
+      },
+    );
+    return autoChoice;
   }
 
   resolveContextualLookInfoAutoAnswer(question, choices, defaultChoice) {
@@ -9405,6 +9453,12 @@ class LocalNetHackRuntime {
     if (this.isContainerLootTypeQuestion(question)) {
       console.log('Auto-answering container loot type question with "a"');
       return this.processKey("a");
+    }
+
+    const legacyAutoHelpYnPromptAnswer =
+      this.resolveLegacyAutoHelpYnPromptAnswer(question, normalizedChoices);
+    if (legacyAutoHelpYnPromptAnswer) {
+      return this.processKey(legacyAutoHelpYnPromptAnswer);
     }
 
     const contextualLookInfoAutoAnswer =

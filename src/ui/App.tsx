@@ -691,6 +691,14 @@ function isYesNoChoicePrompt(parsedChoices: string[]): boolean {
   return hasYes && hasNo && onlySimpleChoices;
 }
 
+function capitalizeFirstLetter(text: string): string {
+  const normalized = String(text || "");
+  if (!normalized) {
+    return normalized;
+  }
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 function normalizeTileIndexCandidate(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
     return null;
@@ -8696,18 +8704,36 @@ export default function App(): JSX.Element {
   const parsedQuestionChoices = question
     ? parseQuestionChoices(question.text, question.choices)
     : [];
+  const hideLegacySlashEmInventoryShortcuts =
+    activeRuntimeVersion === "slashem" &&
+    parsedQuestionChoices.some((choice) => choice.trim() === "*");
+  const visibleQuestionChoices =
+    hideLegacySlashEmInventoryShortcuts
+      ? parsedQuestionChoices.filter((choice) => {
+          const normalizedChoice = choice.trim();
+          return normalizedChoice !== "*" && normalizedChoice !== "?";
+        })
+      : parsedQuestionChoices;
   const orderedQuestionChoices = orderQuestionChoicesForDisplay(
-    parsedQuestionChoices,
+    visibleQuestionChoices,
     activeRuntimeVersion,
   );
-  const isYesNoQuestionChoices = isYesNoChoicePrompt(parsedQuestionChoices);
+  const isYesNoQuestionChoices = isYesNoChoicePrompt(visibleQuestionChoices);
   const useInventoryChoiceLabels = !isYesNoQuestionChoices;
   const showLegacyInventoryQuestionCancelButton =
     isLegacyInventoryQuestionChoicePrompt(
-      parsedQuestionChoices,
+      visibleQuestionChoices,
       activeRuntimeVersion,
       isYesNoQuestionChoices,
     );
+  const showQuestionCancelButton =
+    Boolean(question) &&
+    ((question?.menuItems.length ?? 0) === 0 ||
+      showLegacyInventoryQuestionCancelButton);
+  const displayedQuestionText =
+    question && isYesNoQuestionChoices
+      ? capitalizeFirstLetter(question.text)
+      : question?.text ?? "";
   const questionMenuPageIndex = question?.menuPageIndex ?? 0;
   const questionMenuPageCount = Math.max(1, question?.menuPageCount ?? 1);
   const enhanceMenuData = useMemo(
@@ -15521,7 +15547,7 @@ export default function App(): JSX.Element {
               () => controller?.cancelActivePrompt(),
               t.dialogs.question.cancelPrompt,
             )}
-            <div className="nh3d-question-text">{question.text}</div>
+            <div className="nh3d-question-text">{displayedQuestionText}</div>
             {question.menuItems.length > 0 ? (
               question.isPickupDialog ? (
                 <>
@@ -16030,7 +16056,7 @@ export default function App(): JSX.Element {
                     );
                   })}
                 </div>
-                {showLegacyInventoryQuestionCancelButton ? (
+                {showQuestionCancelButton ? (
                   <div className="nh3d-menu-actions">
                     <button
                       className={`nh3d-menu-action-button nh3d-menu-action-cancel${

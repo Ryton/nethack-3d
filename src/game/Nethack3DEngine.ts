@@ -23802,8 +23802,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     defaultChoice: string,
     menuItems: any[],
   ): void {
+    const runtimeVersion = this.resolveRuntimeVersion();
+    const uiChoices =
+      runtimeVersion === "slashem"
+        ? String(choices || "").replace(/\*/g, "")
+        : choices || "";
     this.activeQuestionText = question || "";
-    this.activeQuestionChoices = choices || "";
+    this.activeQuestionChoices = uiChoices;
     this.activeQuestionDefaultChoice = defaultChoice || "";
     this.activeQuestionMenuItems = this.normalizeMenuItemsForUi(menuItems);
     this.activeQuestionIsPickupDialog =
