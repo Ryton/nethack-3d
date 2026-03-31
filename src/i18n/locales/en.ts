@@ -1196,6 +1196,10 @@ export const en = {
         choices: {
           leftRingFinger: "Left ring-finger",
           rightRingFinger: "Right ring-finger",
+          here: "Here",
+          onGround: "On ground",
+          eligibleItems: "Eligible items",
+          allInventory: "All inventory",
         },
       },
       runtimeStartError: {

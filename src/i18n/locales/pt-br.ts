@@ -1232,6 +1232,10 @@ export const ptBrOverrides = {
         choices: {
           leftRingFinger: "Dedo anelar esquerdo",
           rightRingFinger: "Dedo anelar direito",
+          here: "Aqui",
+          onGround: "No chão",
+          eligibleItems: "Itens válidos",
+          allInventory: "Inventário completo",
         },
       },
       runtimeStartError: {

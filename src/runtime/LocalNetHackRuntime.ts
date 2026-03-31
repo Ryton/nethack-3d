@@ -4977,7 +4977,29 @@ class LocalNetHackRuntime {
   }
 
   isPrintableAccelerator(code) {
-    return typeof code === "number" && code > 32 && code < 127;
+    return this.getPrintableAcceleratorCharacter(code).length === 1;
+  }
+
+  isLegacyMenuAcceleratorRuntime() {
+    return this.runtimeVersion === "3.6.7" || this.runtimeVersion === "slashem";
+  }
+
+  getPrintableAcceleratorCharacter(code) {
+    if (typeof code === "string" && this.isLegacyMenuAcceleratorRuntime()) {
+      const normalized = code.replace(/[\u0000-\u001f\u007f]/g, "");
+      if (normalized.length !== 1) {
+        return "";
+      }
+      const charCode = normalized.charCodeAt(0);
+      return charCode > 32 && charCode < 127 ? normalized : "";
+    }
+    if (typeof code === "number" && Number.isFinite(code)) {
+      const normalized = Math.trunc(code);
+      if (normalized > 32 && normalized < 127) {
+        return String.fromCharCode(normalized);
+      }
+    }
+    return "";
   }
 
   normalizeNonNegativeInteger(value) {
@@ -6675,11 +6697,11 @@ class LocalNetHackRuntime {
         if (accel && accel === expectedAccelerator) {
           return true;
         }
-        if (this.isPrintableAccelerator(item.originalAccelerator)) {
-          return (
-            String.fromCharCode(item.originalAccelerator) ===
-            expectedAccelerator
-          );
+        const originalAccelerator = this.getPrintableAcceleratorCharacter(
+          item.originalAccelerator,
+        );
+        if (originalAccelerator) {
+          return originalAccelerator === expectedAccelerator;
         }
         return false;
       });
@@ -7067,8 +7089,13 @@ class LocalNetHackRuntime {
       firstSelection.menuChar.length === 1
     ) {
       wakeInput = firstSelection.menuChar;
-    } else if (this.isPrintableAccelerator(firstSelection.originalAccelerator)) {
-      wakeInput = String.fromCharCode(firstSelection.originalAccelerator);
+    } else {
+      const originalWakeInput = this.getPrintableAcceleratorCharacter(
+        firstSelection.originalAccelerator,
+      );
+      if (originalWakeInput) {
+        wakeInput = originalWakeInput;
+      }
     }
 
     console.log(
@@ -7086,8 +7113,13 @@ class LocalNetHackRuntime {
       typeof menuItem.accelerator === "string" ? menuItem.accelerator : "";
     const originalAccelerator = menuItem.originalAccelerator;
     const identifier = menuItem.identifier;
+    const originalAcceleratorChar =
+      this.getPrintableAcceleratorCharacter(originalAccelerator);
     const selectsMapTarget =
-      accelerator === "/" || originalAccelerator === 47 || identifier === 47;
+      accelerator === "/" ||
+      originalAccelerator === 47 ||
+      originalAcceleratorChar === "/" ||
+      identifier === 47;
     if (!selectsMapTarget) {
       return false;
     }
@@ -7162,9 +7194,11 @@ class LocalNetHackRuntime {
       return menuItem.accelerator;
     }
 
-    const original = menuItem?.originalAccelerator;
-    if (this.isPrintableAccelerator(original)) {
-      return String.fromCharCode(original);
+    const original = this.getPrintableAcceleratorCharacter(
+      menuItem?.originalAccelerator,
+    );
+    if (original) {
+      return original;
     }
     return "Enter";
   }
@@ -9809,7 +9843,14 @@ class LocalNetHackRuntime {
         const menuWinid = Number(args[0]);
         const menuGlyph = args[1];
         const identifier = args[2];
-        const accelerator = Number(args[3]);
+        const rawAccelerator = args[3];
+        const accelerator =
+          typeof rawAccelerator === "string" &&
+          this.isLegacyMenuAcceleratorRuntime()
+            ? rawAccelerator
+            : Number.isFinite(Number(rawAccelerator))
+              ? Math.trunc(Number(rawAccelerator))
+              : rawAccelerator;
         const menuAttr = Number(args[5]);
         const menuText = String((args[menuTextArgIndex] ?? "") || "");
         const menuItemFlags = Number(args[itemFlagsArgIndex] ?? 0);
@@ -9964,10 +10005,11 @@ class LocalNetHackRuntime {
 
         if (!isCategory) {
           // For non-category items, determine the accelerator key
-          const isAsciiAccelerator = this.isPrintableAccelerator(accelerator);
-          if (isSelectable && isAsciiAccelerator) {
-            // If accelerator is a valid ASCII character code, use it
-            menuChar = String.fromCharCode(accelerator);
+          const printableAccelerator =
+            this.getPrintableAcceleratorCharacter(accelerator);
+          if (isSelectable && printableAccelerator) {
+            // Preserve runtime-provided printable menu accelerators as-is.
+            menuChar = printableAccelerator;
           } else if (isSelectable) {
             // Curses-style fallback for selectable rows with no accelerator.
             const existingItems = this.currentMenuItems.filter(

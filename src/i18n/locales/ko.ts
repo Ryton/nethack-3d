@@ -1196,6 +1196,10 @@ export const ko = {
         choices: {
           leftRingFinger: "왼손 약지",
           rightRingFinger: "오른손 약지",
+          here: "여기서",
+          onGround: "바닥에서",
+          eligibleItems: "가능한 아이템",
+          allInventory: "전체 인벤토리",
         },
       },
       runtimeStartError: {

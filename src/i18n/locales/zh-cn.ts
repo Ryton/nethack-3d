@@ -929,6 +929,10 @@ export const zhCnOverrides = {
         choices: {
           leftRingFinger: "左手无名指",
           rightRingFinger: "右手无名指",
+          here: "这里",
+          onGround: "地上",
+          eligibleItems: "可选物品",
+          allInventory: "全部物品栏",
         },
       },
       runtimeStartError: {

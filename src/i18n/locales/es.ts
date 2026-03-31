@@ -1113,6 +1113,10 @@ export const esOverrides = {
                 choices: {
                     leftRingFinger: "Dedo anular izquierdo",
                     rightRingFinger: "Dedo anular derecho",
+                    here: "Aquí",
+                    onGround: "En el suelo",
+                    eligibleItems: "Objetos válidos",
+                    allInventory: "Todo el inventario",
                 },
             },
             runtimeStartError: {

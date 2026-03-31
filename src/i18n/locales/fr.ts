@@ -1232,6 +1232,10 @@ export const fr = {
         choices: {
           leftRingFinger: "Annulaire gauche",
           rightRingFinger: "Annulaire droit",
+          here: "Ici",
+          onGround: "Au sol",
+          eligibleItems: "Objets valides",
+          allInventory: "Tout l'inventaire",
         },
       },
       runtimeStartError: {

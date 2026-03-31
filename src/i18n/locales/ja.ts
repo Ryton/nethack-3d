@@ -1178,6 +1178,10 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         choices: {
           leftRingFinger: "左手薬指",
           rightRingFinger: "右手薬指",
+          here: "ここ",
+          onGround: "足元",
+          eligibleItems: "候補のアイテム",
+          allInventory: "すべての持ち物",
         },
       },
       runtimeStartError: {

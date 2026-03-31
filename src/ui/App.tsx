@@ -347,7 +347,10 @@ function resolveHungerStatusBadge(
     return null;
   }
   const normalized = label.toLowerCase();
-  if (normalized === "not hungry" || normalized === "satiated") {
+  if (normalized === "not hungry") {
+    return null;
+  }
+  if (normalized === "satiated") {
     return { label, severity: "good" };
   }
   if (normalized === "hungry") {
@@ -617,6 +620,51 @@ function parseQuestionChoices(question: string, choices: string): string[] {
   return merged;
 }
 
+function isLegacyQuestionChoiceRuntime(
+  runtimeVersion: NethackRuntimeVersion,
+): boolean {
+  return runtimeVersion !== "3.7";
+}
+
+function orderQuestionChoicesForDisplay(
+  parsedChoices: string[],
+  runtimeVersion: NethackRuntimeVersion,
+): string[] {
+  if (
+    !isLegacyQuestionChoiceRuntime(runtimeVersion) ||
+    !parsedChoices.some((choice) => choice.trim() === ".")
+  ) {
+    return parsedChoices;
+  }
+
+  const localActionChoices = parsedChoices.filter(
+    (choice) => choice.trim() === ".",
+  );
+  const remainingChoices = parsedChoices.filter(
+    (choice) => choice.trim() !== ".",
+  );
+  return [...localActionChoices, ...remainingChoices];
+}
+
+function isLegacyInventoryQuestionChoicePrompt(
+  parsedChoices: string[],
+  runtimeVersion: NethackRuntimeVersion,
+  isYesNoPrompt: boolean,
+): boolean {
+  if (isYesNoPrompt || !isLegacyQuestionChoiceRuntime(runtimeVersion)) {
+    return false;
+  }
+  return parsedChoices.some((choice) => {
+    const normalizedChoice = choice.trim();
+    return (
+      normalizedChoice === "." ||
+      normalizedChoice === "," ||
+      normalizedChoice === "?" ||
+      normalizedChoice === "*"
+    );
+  });
+}
+
 function isYesNoChoicePrompt(parsedChoices: string[]): boolean {
   if (!Array.isArray(parsedChoices) || parsedChoices.length === 0) {
     return false;
@@ -804,6 +852,7 @@ function getQuestionChoiceLabel(
   questionText: string,
   choice: string,
   inventoryItems: NethackMenuItem[],
+  runtimeVersion: NethackRuntimeVersion,
   useInventoryLabels = true,
 ): string {
   const normalizedChoice = choice.trim();
@@ -818,6 +867,20 @@ function getQuestionChoiceLabel(
 
   if (!normalizedChoice) {
     return choice;
+  }
+  if (isLegacyQuestionChoiceRuntime(runtimeVersion)) {
+    if (normalizedChoice === ".") {
+      return `.) ${t.dialogs.question.choices.here}`;
+    }
+    if (normalizedChoice === ",") {
+      return `,) ${t.dialogs.question.choices.onGround}`;
+    }
+    if (normalizedChoice === "?") {
+      return `?) ${t.dialogs.question.choices.eligibleItems}`;
+    }
+    if (normalizedChoice === "*") {
+      return `*) ${t.dialogs.question.choices.allInventory}`;
+    }
   }
   if (!useInventoryLabels) {
     return normalizedChoice;
@@ -8609,8 +8672,18 @@ export default function App(): JSX.Element {
   const parsedQuestionChoices = question
     ? parseQuestionChoices(question.text, question.choices)
     : [];
+  const orderedQuestionChoices = orderQuestionChoicesForDisplay(
+    parsedQuestionChoices,
+    activeRuntimeVersion,
+  );
   const isYesNoQuestionChoices = isYesNoChoicePrompt(parsedQuestionChoices);
   const useInventoryChoiceLabels = !isYesNoQuestionChoices;
+  const showLegacyInventoryQuestionCancelButton =
+    isLegacyInventoryQuestionChoicePrompt(
+      parsedQuestionChoices,
+      activeRuntimeVersion,
+      isYesNoQuestionChoices,
+    );
   const questionMenuPageIndex = question?.menuPageIndex ?? 0;
   const questionMenuPageCount = Math.max(1, question?.menuPageCount ?? 1);
   const enhanceMenuData = useMemo(
@@ -15853,8 +15926,8 @@ export default function App(): JSX.Element {
               <div className="nh3d-overflow-glow-frame">
                 <div
                   className={`nh3d-choice-list${
-                    parsedQuestionChoices.length > 0 &&
-                    parsedQuestionChoices.every(
+                    orderedQuestionChoices.length > 0 &&
+                    orderedQuestionChoices.every(
                       (choice) => choice.trim().length === 1,
                     )
                       ? " is-compact"
@@ -15863,7 +15936,7 @@ export default function App(): JSX.Element {
                   data-nh3d-overflow-glow
                   data-nh3d-overflow-glow-host="parent"
                 >
-                  {parsedQuestionChoices.map((choice) => {
+                  {orderedQuestionChoices.map((choice) => {
                     const inventoryChoiceItem = useInventoryChoiceLabels
                       ? getInventoryItemForQuestionChoice(
                           choice,
@@ -15921,6 +15994,7 @@ export default function App(): JSX.Element {
                             question.text,
                             choice,
                             inventory.items,
+                            activeRuntimeVersion,
                             useInventoryChoiceLabels,
                           )}
                         </span>
@@ -15928,6 +16002,21 @@ export default function App(): JSX.Element {
                     );
                   })}
                 </div>
+                {showLegacyInventoryQuestionCancelButton ? (
+                  <div className="nh3d-menu-actions">
+                    <button
+                      className={`nh3d-menu-action-button nh3d-menu-action-cancel${
+                        question.activeActionButton === "cancel"
+                          ? " nh3d-action-button-active"
+                          : ""
+                      }`}
+                      onClick={() => controller?.cancelActivePrompt()}
+                      type="button"
+                    >
+                      {commonStrings.cancel}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
             {question.menuItems.length > 0 && questionMenuPageCount > 1 ? (

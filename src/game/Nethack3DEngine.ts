@@ -590,8 +590,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly tileFlushMaxPerFrame: number = 72;
   private tileStateCache: Map<string, string> = new Map();
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
-  private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> =
-    new Map();
+  private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> = new Map();
   private fpsAuthoritativeUnderPlayerFallbackSuppressedKeys: Set<string> =
     new Set();
   private inferredDarkCorridorWallTiles: Map<string, { x: number; y: number }> =
@@ -653,8 +652,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private vultureWallMaterialRefreshScheduled: boolean = false;
   private readonly vultureWallMaterialRefreshMaxPerFrame: number = 48;
   private readonly vultureDoorPlaneOverlayMeshes: Set<THREE.Mesh> = new Set();
-  private readonly ironBarsWallPlaneOverlayMeshes: Set<THREE.Mesh> =
-    new Set();
+  private readonly ironBarsWallPlaneOverlayMeshes: Set<THREE.Mesh> = new Set();
   private playerPos = { x: 0, y: 0 };
   private gameMessages: string[] = [];
   private hasSeenPlayerPosition: boolean = false;
@@ -1024,8 +1022,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private tilesetTexture: THREE.Texture | null = null;
   private loadedTilesetSourceAtlasImage: HTMLImageElement | null = null;
   private tilesetBackgroundReferenceTileCanvas: HTMLCanvasElement | null = null;
-  private tilesetBackgroundReferenceTilePixels: Uint8ClampedArray | null =
-    null;
+  private tilesetBackgroundReferenceTilePixels: Uint8ClampedArray | null = null;
   private tileSourceSize = 32;
   private vultureWallProjectionQuadEW: VultureWallProjectionQuad = {
     topLeft: { x: 0.2165, y: 0.2268 },
@@ -2703,7 +2700,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const readEncodedInteger = (tokenKey: string): number | undefined => {
-      const token = encodedTokens.find((value) => value.startsWith(`${tokenKey}:`));
+      const token = encodedTokens.find((value) =>
+        value.startsWith(`${tokenKey}:`),
+      );
       if (!token) {
         return undefined;
       }
@@ -3367,7 +3366,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (runtimeVersion !== "slashem") {
       return false;
     }
-    if (!tile || typeof tile.glyph !== "number" || !Number.isFinite(tile.glyph)) {
+    if (
+      !tile ||
+      typeof tile.glyph !== "number" ||
+      !Number.isFinite(tile.glyph)
+    ) {
       return false;
     }
 
@@ -3412,7 +3415,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       | null
       | undefined,
   ): boolean {
-    if (!tile || typeof tile.glyph !== "number" || !Number.isFinite(tile.glyph)) {
+    if (
+      !tile ||
+      typeof tile.glyph !== "number" ||
+      !Number.isFinite(tile.glyph)
+    ) {
       return false;
     }
     if (this.isLegacy343StyleDarkCorridorInferenceTile(tile)) {
@@ -4191,7 +4198,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (tilesetBackgroundTileChanged && !tilesetPathChanged) {
       this.captureTilesetBackgroundReferenceTile(
-        this.loadedTilesetSourceAtlasImage ?? this.resolveTilesetAtlasImageSource(),
+        this.loadedTilesetSourceAtlasImage ??
+          this.resolveTilesetAtlasImageSource(),
         this.tileSourceSize,
       );
     }
@@ -4662,8 +4670,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       tileSize,
       tileSize,
     );
-    this.tilesetBackgroundReferenceTilePixels =
-      context.getImageData(0, 0, tileSize, tileSize).data;
+    this.tilesetBackgroundReferenceTilePixels = context.getImageData(
+      0,
+      0,
+      tileSize,
+      tileSize,
+    ).data;
     this.tilesetBackgroundReferenceTileCanvas = canvas;
   }
 
@@ -4743,9 +4755,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         rawMappedTileIndex < 0 &&
         fuseBaseImage !== null &&
         nh37TileIndex < fuseBaseTileCount;
-      const sourceTileIndex = rawMappedTileIndex < 0
-        ? Math.abs(rawMappedTileIndex)
-        : rawMappedTileIndex;
+      const sourceTileIndex =
+        rawMappedTileIndex < 0
+          ? Math.abs(rawMappedTileIndex)
+          : rawMappedTileIndex;
       const destX = (nh37TileIndex % nh37TilesPerRow) * tileSize;
       const destY = Math.floor(nh37TileIndex / nh37TilesPerRow) * tileSize;
       context.clearRect(destX, destY, tileSize, tileSize);
@@ -4774,7 +4787,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         continue;
       }
       const sourceX = (sourceTileIndex % sourceTilesPerRow) * tileSize;
-      const sourceY = Math.floor(sourceTileIndex / sourceTilesPerRow) * tileSize;
+      const sourceY =
+        Math.floor(sourceTileIndex / sourceTilesPerRow) * tileSize;
       context.drawImage(
         legacyAtlasImage,
         sourceX,
@@ -4854,7 +4868,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
           tileset.path,
         );
         const atlasHeight = Math.max(0, Math.trunc(sourceImage.height || 0));
-        const sourceTilesPerRow = Math.floor(atlasWidth / Math.max(1, tileSize));
+        const sourceTilesPerRow = Math.floor(
+          atlasWidth / Math.max(1, tileSize),
+        );
         const sourceRows = Math.floor(atlasHeight / Math.max(1, tileSize));
         const sourceTileCount =
           sourceTilesPerRow > 0 && sourceRows > 0
@@ -4876,13 +4892,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
           const fuseBaseTilesetPath =
             resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(tileset.path);
           const fuseBaseTilesetAssetUrl = fuseBaseTilesetPath
-            ? resolveNh3dTilesetAssetUrl(fuseBaseTilesetPath) ??
-              fuseBaseTilesetPath
+            ? (resolveNh3dTilesetAssetUrl(fuseBaseTilesetPath) ??
+              fuseBaseTilesetPath)
             : null;
           let fuseBaseImage: HTMLImageElement | null = null;
           if (fuseBaseTilesetAssetUrl) {
             try {
-              fuseBaseImage = await this.loadTilesetImage(fuseBaseTilesetAssetUrl);
+              fuseBaseImage = await this.loadTilesetImage(
+                fuseBaseTilesetAssetUrl,
+              );
             } catch (error) {
               console.warn(
                 `Failed to load fuse base tileset atlas: ${fuseBaseTilesetAssetUrl}`,
@@ -7586,7 +7604,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
           data.x,
           data.y,
         );
-        if (didMove && this.shouldShowUnderPlayerFeaturesInOverheadTilesMode()) {
+        if (
+          didMove &&
+          this.shouldShowUnderPlayerFeaturesInOverheadTilesMode()
+        ) {
           this.requestPlayerTileRefresh("overhead-under-player-move");
         }
         this.requestInferredDarkCorridorWallReconcile({ forceImmediate: true });
@@ -7803,9 +7824,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (shouldRefreshCtrlMCache) {
           this.lastInfoMenu = normalizedInfoMenu;
         }
-        this.showInfoMenuDialog(normalizedInfoMenu.title, normalizedInfoMenu.lines, {
-          blocking: Boolean(data.blocking),
-        });
+        this.showInfoMenuDialog(
+          normalizedInfoMenu.title,
+          normalizedInfoMenu.lines,
+          {
+            blocking: Boolean(data.blocking),
+          },
+        );
         break;
 
       case "position_request":
@@ -8261,7 +8286,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private shouldHandleUnderPlayerItemGlyphEvents(): boolean {
     return (
-      this.isFpsMode() || this.shouldShowUnderPlayerFeaturesInOverheadTilesMode()
+      this.isFpsMode() ||
+      this.shouldShowUnderPlayerFeaturesInOverheadTilesMode()
     );
   }
 
@@ -8477,8 +8503,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeColor: typeof tile.color === "number" ? tile.color : null,
       runtimeTileIndex:
         typeof tile.tileIndex === "number" ? tile.tileIndex : null,
-      runtimeSymidx:
-        typeof tile.symidx === "number" ? tile.symidx : null,
+      runtimeSymidx: typeof tile.symidx === "number" ? tile.symidx : null,
       priorTerrain: this.lastKnownTerrain.get(key) ?? null,
     });
   }
@@ -8583,11 +8608,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previousBehavior,
     );
     if (!previousTerrain) {
-      const previousFlatFeature =
-        this.snapshotFlatFeatureUnderPlayerFromTile(
-          previousTile,
-          previousBehavior,
-        );
+      const previousFlatFeature = this.snapshotFlatFeatureUnderPlayerFromTile(
+        previousTile,
+        previousBehavior,
+      );
       if (previousFlatFeature) {
         this.flatFeatureUnderPlayerCache.set(key, previousFlatFeature);
       }
@@ -8603,9 +8627,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private seedFlatFeatureUnderPlayerCacheFromPreviousState(
-    key: string,
-  ): void {
+  private seedFlatFeatureUnderPlayerCacheFromPreviousState(key: string): void {
     if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
       return;
     }
@@ -9227,7 +9249,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         tileRelation.isStepDestinationTile ||
         tileRelation.isPredictedPlayerTile ||
         isLikelyPlayerGlyphTile);
-    if (isFpsPlayerTileNeedingUnderlaySeed || isOverheadPlayerTileNeedingUnderlaySeed) {
+    if (
+      isFpsPlayerTileNeedingUnderlaySeed ||
+      isOverheadPlayerTileNeedingUnderlaySeed
+    ) {
       this.seedFlatFeatureUnderPlayerCacheFromPreviousState(key);
     }
     const shouldSuppressRecentPreviousPlayerTileInFps =
@@ -9306,8 +9331,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
       runtimeTileIndex:
         typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
-      runtimeSymidx:
-        typeof tile.symidx === "number" ? tile.symidx : undefined,
+      runtimeSymidx: typeof tile.symidx === "number" ? tile.symidx : undefined,
       runtimeFloorUnderlayGlyph:
         typeof tile.floorUnderlayGlyph === "number"
           ? tile.floorUnderlayGlyph
@@ -9494,7 +9518,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const neighborBehavior = classifyTileBehavior({
         glyph: snapshot.glyph,
         runtimeChar: snapshot.char ?? null,
-        runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
+        runtimeColor:
+          typeof snapshot.color === "number" ? snapshot.color : null,
         runtimeTileIndex:
           typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
         priorTerrain: snapshot,
@@ -9743,12 +9768,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
    * @param y The y coordinate of the tile
    */
   public requestTileUpdate(x: number, y: number): void {
-    if (this.session) {
-      console.log(`Requesting tile update for (${x}, ${y})`);
-      this.session.requestTileUpdate(x, y);
-    } else {
-      console.log("Cannot request tile update - runtime not started");
-    }
+    // Temporarily disable explicit per-tile refresh requests across all
+    // runtimes so we can verify whether newer state-sync logic still needs
+    // them. Keep the public entry point intact for easy re-enable if needed.
+    void x;
+    void y;
   }
   public requestAreaUpdate(
     centerX: number,
@@ -9818,7 +9842,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (activePlan !== plan) {
           return;
         }
-        activePlan.timerIds = activePlan.timerIds.filter((id) => id !== timerId);
+        activePlan.timerIds = activePlan.timerIds.filter(
+          (id) => id !== timerId,
+        );
         this.requestTileUpdate(x, y);
         if (activePlan.timerIds.length <= 0) {
           this.tileRefreshRetryPlansByKey.delete(key);
@@ -12806,8 +12832,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     let translatedDrawSucceeded = false;
     if (!applyChromaKey && useBackgroundReferenceTile) {
-      translatedDrawSucceeded =
-        this.drawTilesetBackgroundReferenceTile(context, size);
+      translatedDrawSucceeded = this.drawTilesetBackgroundReferenceTile(
+        context,
+        size,
+      );
     }
     let usedPrebakedProjectionTexture = false;
     if (!applyChromaKey && resolvedLookup) {
@@ -17221,7 +17249,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
         depthWrite: false,
       });
       this.patchMaterialForVignette(material);
-      const widthFraction = THREE.MathUtils.clamp(strip.width / TILE_SIZE, 0, 1);
+      const widthFraction = THREE.MathUtils.clamp(
+        strip.width / TILE_SIZE,
+        0,
+        1,
+      );
       const heightFraction = THREE.MathUtils.clamp(
         strip.height / TILE_SIZE,
         0,
@@ -17841,8 +17873,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       visualScale,
     );
 
-    const hasTrim =
-      transform.scaleX < 0.9999 || transform.scaleY < 0.9999;
+    const hasTrim = transform.scaleX < 0.9999 || transform.scaleY < 0.9999;
     if (this.clientOptions.tilesetMode === "tiles" && hasTrim) {
       const floorUnderlayBehavior = this.resolveNormalRoomFloorBehavior();
       const floorUnderlayDarkenFactor =
@@ -18004,9 +18035,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       // Legacy 3.4.3/3.6.x dark corridor walls should chamfer using the dark hallway
       // floor texture, not the generic dark room texture.
       fallbackGlyph =
-        runtimeVersion !== "3.7"
-          ? getDefaultDarkFloorGlyph()
-          : floorGlyph + 1;
+        runtimeVersion !== "3.7" ? getDefaultDarkFloorGlyph() : floorGlyph + 1;
     }
     const behavior = classifyTileBehavior({
       glyph: fallbackGlyph,
@@ -20528,11 +20557,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.isBoulderGlyphByCatalog(normalizedSourceGlyph);
 
     // Determine sprite scale based on mode
-    let scaleBase = this.isFpsMode()
-      ? entityType === "loot"
-        ? 0.5
-        : 0.75
-      : 1;
+    let scaleBase = this.isFpsMode() ? (entityType === "loot" ? 0.5 : 0.75) : 1;
     if (shouldForceBoulderScale) {
       scaleBase = 1;
     }
@@ -20748,11 +20773,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       isLootLikeCharacter ||
       (this.isFpsMode() && isAltarOrTombstone) ||
       (useTiles &&
-        (isSink ||
-          isFountain ||
-          isStairsUp ||
-          isAltarOrTombstone ||
-          isStatue));
+        (isSink || isFountain || isStairsUp || isAltarOrTombstone || isStatue));
     const shouldUseElevatedBillboard =
       shouldElevateEntity && (useTiles || this.isFpsMode());
 
@@ -21413,7 +21434,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const shouldIncludeFlatUnderPlayerFeatures =
         this.shouldShowUnderPlayerFeaturesInOverheadTilesMode();
       const floorSnapshotCandidates: TerrainSnapshot[] = [];
-      const cachedUnderPlayerFeature = this.flatFeatureUnderPlayerCache.get(key);
+      const cachedUnderPlayerFeature =
+        this.flatFeatureUnderPlayerCache.get(key);
       if (cachedUnderPlayerFeature && shouldIncludeFlatUnderPlayerFeatures) {
         floorSnapshotCandidates.push(cachedUnderPlayerFeature);
       }
@@ -23077,10 +23099,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return currentCategory;
   }
 
-  private isSpecialInventoryCategoryLabel(categoryLabel: string | null): boolean {
-    return String(categoryLabel || "")
-      .trim()
-      .toLowerCase() === "special";
+  private isSpecialInventoryCategoryLabel(
+    categoryLabel: string | null,
+  ): boolean {
+    return (
+      String(categoryLabel || "")
+        .trim()
+        .toLowerCase() === "special"
+    );
   }
 
   private shouldPlayDrinkSoundForInventorySelection(
@@ -24074,9 +24100,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (this.lastInfoMenu) {
-      this.showInfoMenuDialog(this.lastInfoMenu.title, this.lastInfoMenu.lines, {
-        blocking: false,
-      });
+      this.showInfoMenuDialog(
+        this.lastInfoMenu.title,
+        this.lastInfoMenu.lines,
+        {
+          blocking: false,
+        },
+      );
     } else {
       this.addGameMessage("No recent information panel to reopen.");
     }
@@ -24576,10 +24606,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const commandKey = commandMap[normalizedActionId];
     const contextSelectionInput = `${this.inventoryContextSelectionPrefix}${accelerator}:${normalizedActionId}`;
     if (normalizedActionId === "info") {
-      this.sendInputSequence([
-        contextSelectionInput,
-        "/",
-      ]);
+      this.sendInputSequence([contextSelectionInput, "/"]);
       return;
     }
     if (!commandKey) {
@@ -24598,10 +24625,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    this.sendInputSequence([
-      contextSelectionInput,
-      commandKey,
-    ]);
+    this.sendInputSequence([contextSelectionInput, commandKey]);
     if (normalizedActionId === "drop" || normalizedActionId === "eat") {
       this.requestPlayerTileRefresh(`inventory-${normalizedActionId}`);
     }
@@ -28168,7 +28192,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.pointerNdc.set(ndcX, ndcY);
     this.pointerRaycaster.setFromCamera(this.pointerNdc, this.camera);
-    const intersections = this.pointerRaycaster.intersectObjects(candidates, false);
+    const intersections = this.pointerRaycaster.intersectObjects(
+      candidates,
+      false,
+    );
     if (intersections.length === 0) {
       return null;
     }
@@ -33405,7 +33432,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.expireBlindSearchInferenceWindowIfNeeded();
     this.updateLightingCenter(deltaSeconds);
     if (this.clientOptions.minimap) {
-    this.renderMinimapViewportOverlay();
+      this.renderMinimapViewportOverlay();
     }
     this.updateMetaCommandModalPosition();
     this.disposeLightingOverlay();
@@ -33431,7 +33458,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.renderer.render(this.scene, this.camera);
     if (shouldCollectFpsDebugStats) {
-      this.updateFpsDebugDisplay(rawDeltaMs, performance.now() - renderStartedAtMs);
+      this.updateFpsDebugDisplay(
+        rawDeltaMs,
+        performance.now() - renderStartedAtMs,
+      );
     }
   }
 }

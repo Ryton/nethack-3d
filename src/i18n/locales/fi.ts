@@ -1219,6 +1219,10 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         choices: {
           leftRingFinger: "Vasen nimetön",
           rightRingFinger: "Oikea nimetön",
+          here: "Tässä",
+          onGround: "Maassa",
+          eligibleItems: "Kelvolliset esineet",
+          allInventory: "Koko inventaario",
         },
       },
       runtimeStartError: {

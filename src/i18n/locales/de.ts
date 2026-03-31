@@ -1256,6 +1256,10 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         choices: {
           leftRingFinger: "Linker Ringfinger",
           rightRingFinger: "Rechter Ringfinger",
+          here: "Hier",
+          onGround: "Am Boden",
+          eligibleItems: "Passende Gegenstände",
+          allInventory: "Ganzes Inventar",
         },
       },
       runtimeStartError: {
