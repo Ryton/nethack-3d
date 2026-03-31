@@ -858,9 +858,9 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         groupCompatibility: "Ajonaikainen yhteensopivuus",
         darkCorridorWalls367: {
-          label: "NetHack 3.6.7:n tummat käytäväseinät",
+          label: "Perinteiset tummat käytäväseinät",
           description:
-            "Päättele ja välimuistita tummat käytäväseinien ruudut (NetHack 3.6.7:n toiminta).",
+            "Päättele ja välimuistita tummien käytäväseinien ruudut vanhoille NetHack 3.4.3/3.6.x -ajoalustoille, mukaan lukien Slash'EM.",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "Ohita NetHack 3.7:n tummat seinäruudut",
@@ -1140,7 +1140,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           darkWallsDisabledByVulture:
             " Pois käytöstä, kun Vulture-ruudut ovat aktiivisia.",
           enableDarkWallsFirst:
-            " Ota ensin käyttöön NetHack 3.6.7:n tummat käytäväseinät tai NetHack 3.7:n tummien seinien ohitukset.",
+            " Ota ensin käyttöön perinteiset tummat käytäväseinät tai NetHack 3.7:n tummien seinien ohitukset.",
           enableFpsFirst: " Ota ensin käyttöön ensimmäisen persoonan tila Näyttö-osiossa.",
         },
         darkWallControls: {

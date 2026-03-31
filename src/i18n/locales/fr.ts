@@ -865,9 +865,9 @@ export const fr = {
         },
         groupCompatibility: "Compatibilite d'execution",
         darkCorridorWalls367: {
-          label: "Murs de couloir sombres NetHack 3.6.7",
+          label: "Murs de couloir sombres legacy",
           description:
-            "Deduit et met en cache les tuiles de murs de couloir sombres (comportement NetHack 3.6.7).",
+            "Deduit et met en cache les tuiles de murs de couloir sombres pour les runtimes NetHack 3.4.3/3.6.x anciens, y compris Slash'EM.",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "Remplacer les tuiles de murs sombres NetHack 3.7",
@@ -1152,7 +1152,7 @@ export const fr = {
           darkWallsDisabledByVulture:
             " Desactivee lorsque les tuiles Vulture sont utilisees.",
           enableDarkWallsFirst:
-            " Activez d'abord les murs de couloir sombres NetHack 3.6.7 ou les remplacements de murs sombres NetHack 3.7.",
+            " Activez d'abord les murs de couloir sombres legacy ou les remplacements de murs sombres NetHack 3.7.",
           enableFpsFirst: " Activez d'abord le mode a la premiere personne dans Affichage.",
         },
         darkWallControls: {

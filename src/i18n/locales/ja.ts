@@ -812,9 +812,9 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         groupCompatibility: "ランタイム互換性",
         darkCorridorWalls367: {
-          label: "NetHack 3.6.7 の暗い通路壁",
+          label: "旧世代ランタイムの暗い通路壁",
           description:
-            "暗い通路壁タイルを推測してキャッシュします（NetHack 3.6.7 の挙動）。",
+            "Slash'EM を含む旧世代の NetHack 3.4.3/3.6.x 系ランタイム向けに、暗い通路壁タイルを推測してキャッシュします。",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "NetHack 3.7 の暗い壁タイルを上書き",
@@ -1099,7 +1099,7 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           darkWallsDisabledByVulture:
             " Vulture タイルが有効な間は無効です。",
           enableDarkWallsFirst:
-            " 先に NetHack 3.6.7 の暗い通路壁、または NetHack 3.7 の暗い壁上書きを有効にしてください。",
+            " 先に旧世代ランタイムの暗い通路壁、または NetHack 3.7 の暗い壁上書きを有効にしてください。",
           enableFpsFirst: " 先に表示設定で一人称モードを有効にしてください。",
         },
         darkWallControls: {

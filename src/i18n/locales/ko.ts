@@ -836,9 +836,9 @@ export const ko = {
         },
         groupCompatibility: "런타임 호환성",
         darkCorridorWalls367: {
-          label: "NetHack 3.6.7 어두운 복도 벽",
+          label: "레거시 어두운 복도 벽",
           description:
-            "어두운 복도 벽 타일을 추론하고 캐시합니다(NetHack 3.6.7 동작).",
+            "Slash'EM을 포함한 레거시 NetHack 3.4.3/3.6.x 계열 런타임용 어두운 복도 벽 타일을 추론하고 캐시합니다.",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "NetHack 3.7 어두운 벽 타일 덮어쓰기",
@@ -1117,7 +1117,7 @@ export const ko = {
           darkWallsDisabledByVulture:
             " Vulture 타일이 활성화되어 있는 동안에는 비활성화됩니다.",
           enableDarkWallsFirst:
-            " 먼저 NetHack 3.6.7 어두운 복도 벽 또는 NetHack 3.7 어두운 벽 덮어쓰기를 활성화하세요.",
+            " 먼저 레거시 어두운 복도 벽 또는 NetHack 3.7 어두운 벽 덮어쓰기를 활성화하세요.",
           enableFpsFirst: " 먼저 표시 설정에서 1인칭 모드를 활성화하세요.",
         },
         darkWallControls: {

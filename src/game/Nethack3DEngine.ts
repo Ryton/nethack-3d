@@ -3351,9 +3351,79 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private isLegacy343StyleDarkCorridorInferenceTile(
+    tile:
+      | Pick<TerrainSnapshot, "glyph" | "char" | "tileIndex">
+      | {
+          glyph?: number;
+          char?: string;
+          tileIndex?: number;
+        }
+      | null
+      | undefined,
+  ): boolean {
+    const runtimeVersion =
+      this.characterCreationConfig.runtimeVersion ?? "3.6.7";
+    if (runtimeVersion !== "slashem") {
+      return false;
+    }
+    if (!tile || typeof tile.glyph !== "number" || !Number.isFinite(tile.glyph)) {
+      return false;
+    }
+
+    const glyph = Math.trunc(tile.glyph);
+    // Slash'EM / NetHack 3.4.3-style runtimes expose discovered dark corridor
+    // floors through glyph 3612 (`#`, tile 1195) rather than the cmap-index 21
+    // signal used by the 3.6.x inference path.
+    if (glyph === 3612) {
+      return true;
+    }
+
+    const catalogEntry = getGlyphCatalogEntry(glyph);
+    const runtimeChar =
+      typeof tile.char === "string" && tile.char.length > 0
+        ? tile.char.charAt(0)
+        : null;
+    const resolvedChar =
+      runtimeChar ??
+      (typeof catalogEntry?.asciiChar === "string" &&
+      catalogEntry.asciiChar.length > 0
+        ? catalogEntry.asciiChar.charAt(0)
+        : null);
+    const resolvedTileIndex =
+      typeof tile.tileIndex === "number" && Number.isFinite(tile.tileIndex)
+        ? Math.trunc(tile.tileIndex)
+        : typeof catalogEntry?.tileIndex === "number" &&
+            Number.isFinite(catalogEntry.tileIndex)
+          ? Math.trunc(catalogEntry.tileIndex)
+          : null;
+
+    return resolvedChar === "#" && resolvedTileIndex === 1195;
+  }
+
+  private isDarkCorridorInferenceTile(
+    tile:
+      | Pick<TerrainSnapshot, "glyph" | "char" | "tileIndex">
+      | {
+          glyph?: number;
+          char?: string;
+          tileIndex?: number;
+        }
+      | null
+      | undefined,
+  ): boolean {
+    if (!tile || typeof tile.glyph !== "number" || !Number.isFinite(tile.glyph)) {
+      return false;
+    }
+    if (this.isLegacy343StyleDarkCorridorInferenceTile(tile)) {
+      return true;
+    }
+    return isDarkCorridorCmapGlyph(Math.trunc(tile.glyph));
+  }
+
   private isTileKnownAsDarkCorridorFromCaches(key: string): boolean {
     const terrain = this.getKnownTerrainSnapshotForInferenceAtKey(key);
-    return Boolean(terrain && isDarkCorridorCmapGlyph(terrain.glyph));
+    return this.isDarkCorridorInferenceTile(terrain);
   }
 
   private recordNewlyDiscoveredDarkCorridorTileForCurrentInput(
@@ -3372,7 +3442,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!this.isValidMinimapCoordinate(tile.x, tile.y)) {
       return;
     }
-    if (!isDarkCorridorCmapGlyph(tile.glyph)) {
+    if (!this.isDarkCorridorInferenceTile(tile)) {
       return;
     }
 
@@ -3479,8 +3549,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
   > {
     const discovered = new Map<string, { x: number; y: number }>();
 
-    const tryAddKey = (key: string, glyph: number): void => {
-      if (!isDarkCorridorCmapGlyph(glyph)) {
+    const tryAddKey = (
+      key: string,
+      tile:
+        | Pick<TerrainSnapshot, "glyph" | "char" | "tileIndex">
+        | {
+            glyph?: number;
+            char?: string;
+            tileIndex?: number;
+          },
+    ): void => {
+      if (!this.isDarkCorridorInferenceTile(tile)) {
         return;
       }
       const parsedKey = this.parseTileKey(key);
@@ -3495,7 +3574,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     for (const [key, terrain] of this.lastKnownTerrain.entries()) {
       if (terrain && typeof terrain.glyph === "number") {
-        tryAddKey(key, terrain.glyph);
+        tryAddKey(key, terrain);
       }
     }
 
@@ -3507,7 +3586,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (!parsed) {
         continue;
       }
-      tryAddKey(key, parsed.glyph);
+      tryAddKey(key, parsed);
     }
 
     return discovered;
@@ -3530,7 +3609,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (runtimeVersion === "3.7") {
       return false;
     }
-    // Vulture mode relies on NetHack 3.6.7 dark corridor wall inference, so
+    // Vulture mode relies on legacy 3.4.3/3.6.x dark corridor wall inference, so
     // the toggle is ignored and treated as enabled while Vulture tiles are active.
     if (this.isVultureTilesActive(this.clientOptions)) {
       return true;
@@ -17922,7 +18001,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (materialKind === "dark") {
       const runtimeVersion =
         this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-      // NetHack 3.6.7 dark corridor walls should chamfer using the dark hallway
+      // Legacy 3.4.3/3.6.x dark corridor walls should chamfer using the dark hallway
       // floor texture, not the generic dark room texture.
       fallbackGlyph =
         runtimeVersion !== "3.7"

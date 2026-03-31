@@ -867,9 +867,9 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         groupCompatibility: "Runtime-Kompatibilit\u00e4t",
         darkCorridorWalls367: {
-          label: "NetHack 3.6.7 dunkle Korridorw\u00e4nde",
+          label: "Dunkle Korridorw\u00e4nde f\u00fcr Legacy-Runtimes",
           description:
-            "Leitet dunkle Korridorwand-Kacheln ab und speichert sie zwischen (NetHack-3.6.7-Verhalten).",
+            "Leitet Kacheln f\u00fcr dunkle Korridorw\u00e4nde ab und speichert sie f\u00fcr \u00e4ltere NetHack-3.4.3-/3.6.x-Laufzeiten, einschlie\u00dflich Slash'EM.",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "Dunkle Wandkacheln in NetHack 3.7 \u00fcberschreiben",
@@ -1173,7 +1173,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           darkWallsDisabledByVulture:
             " Deaktiviert, solange Vulture-Tiles aktiv sind.",
           enableDarkWallsFirst:
-            " Aktiviere zuerst dunkle Korridorw\u00e4nde in NetHack 3.6.7 oder dunkle Wand-\u00dcberschreibungen in NetHack 3.7.",
+            " Aktiviere zuerst dunkle Korridorw\u00e4nde f\u00fcr Legacy-Runtimes oder dunkle Wand-\u00dcberschreibungen in NetHack 3.7.",
           enableFpsFirst:
             " Aktiviere zuerst den Ego-Modus unter Anzeige.",
         },

@@ -836,9 +836,9 @@ export const en = {
         },
         groupCompatibility: "Runtime compatibility",
         darkCorridorWalls367: {
-          label: "NetHack 3.6.7 dark corridor walls",
+          label: "Legacy dark corridor walls",
           description:
-            "Infer and cache dark corridor wall tiles (NetHack 3.6.7 behavior).",
+            "Infer and cache dark corridor wall tiles for legacy NetHack 3.4.3/3.6.x-style runtimes, including Slash'EM.",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "Override NetHack 3.7 dark wall tiles",
@@ -1117,7 +1117,7 @@ export const en = {
           darkWallsDisabledByVulture:
             " Disabled while Vulture tiles are active.",
           enableDarkWallsFirst:
-            " Enable NetHack 3.6.7 dark corridor walls or NetHack 3.7 dark wall overrides first.",
+            " Enable legacy dark corridor walls or NetHack 3.7 dark wall overrides first.",
           enableFpsFirst: " Enable First-person mode in Display first.",
         },
         darkWallControls: {

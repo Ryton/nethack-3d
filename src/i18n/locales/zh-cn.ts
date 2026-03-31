@@ -594,8 +594,8 @@ export const zhCnOverrides = {
         },
         groupCompatibility: "运行时兼容性",
         darkCorridorWalls367: {
-          label: "NetHack 3.6.7 黑暗走廊墙",
-          description: "推断并缓存黑暗走廊墙瓦片（NetHack 3.6.7 行为）。",
+          label: "旧版黑暗走廊墙",
+          description: "为旧版 NetHack 3.4.3/3.6.x 运行时（包括 Slash'EM）推断并缓存黑暗走廊墙瓦片。",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "覆盖 NetHack 3.7 黑暗墙瓦片",
@@ -856,7 +856,7 @@ export const zhCnOverrides = {
           darkWallsAlwaysEnabled: " 使用 Vulture 瓦片时始终启用。",
           darkWallsDisabledByVulture: " 使用 Vulture 瓦片时会被禁用。",
           enableDarkWallsFirst:
-            " 请先启用 NetHack 3.6.7 黑暗走廊墙或 NetHack 3.7 黑暗墙覆盖。",
+            " 请先启用旧版黑暗走廊墙或 NetHack 3.7 黑暗墙覆盖。",
           enableFpsFirst: " 请先在显示中启用第一人称模式。",
         },
         darkWallControls: {

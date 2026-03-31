@@ -140,6 +140,74 @@ class LocalNetHackRuntime {
     return value === "3.7" || value === "slashem" ? value : "3.6.7";
   }
 
+  getDefaultRuntimeWindowGlobals(runtimeVersion = this.runtimeVersion) {
+    return {
+      WIN_MESSAGE: 1,
+      WIN_STATUS: 2,
+      WIN_MAP: 3,
+      WIN_INVEN: 4,
+    };
+  }
+
+  getRuntimeWindowGlobals() {
+    const defaults = this.getDefaultRuntimeWindowGlobals(this.runtimeVersion);
+    const globals =
+      globalThis.nethackGlobal &&
+      globalThis.nethackGlobal.globals &&
+      typeof globalThis.nethackGlobal.globals === "object"
+        ? globalThis.nethackGlobal.globals
+        : null;
+    if (!globals) {
+      return defaults;
+    }
+
+    const merged = { ...defaults };
+    for (const [name, fallback] of Object.entries(defaults)) {
+      const candidate = Number(globals[name]);
+      if (Number.isInteger(candidate)) {
+        merged[name] = candidate;
+      } else if (Number.isInteger(fallback)) {
+        merged[name] = fallback;
+      }
+    }
+    return merged;
+  }
+
+  getRuntimeWindowTypeLabels(runtimeVersion = this.runtimeVersion) {
+    const globals = this.getDefaultRuntimeWindowGlobals(runtimeVersion);
+    return Object.fromEntries(
+      Object.entries(globals).map(([name, id]) => [id, name]),
+    );
+  }
+
+  getRuntimeWindowId(name) {
+    const globals = this.getRuntimeWindowGlobals();
+    const candidate = Number(globals?.[name]);
+    if (Number.isInteger(candidate)) {
+      return candidate;
+    }
+    const fallback = Number(
+      this.getDefaultRuntimeWindowGlobals(this.runtimeVersion)?.[name],
+    );
+    return Number.isInteger(fallback) ? fallback : null;
+  }
+
+  isMessageWindow(winId) {
+    return Number(winId) === this.getRuntimeWindowId("WIN_MESSAGE");
+  }
+
+  isStatusWindow(winId) {
+    return Number(winId) === this.getRuntimeWindowId("WIN_STATUS");
+  }
+
+  isMapWindow(winId) {
+    return Number(winId) === this.getRuntimeWindowId("WIN_MAP");
+  }
+
+  isInventoryWindow(winId) {
+    return Number(winId) === this.getRuntimeWindowId("WIN_INVEN");
+  }
+
   getRuntimeModuleAssetPath(runtimeVersion = this.runtimeVersion) {
     if (runtimeVersion === "3.7") {
       return "nethack-37.js";
@@ -906,6 +974,336 @@ class LocalNetHackRuntime {
     }
 
     constants.STATUS_FIELD = merged;
+  }
+
+  resolveStatusFieldIndex(fieldName) {
+    const normalizedFieldName = String(fieldName || "").trim();
+    if (!normalizedFieldName) {
+      return null;
+    }
+
+    const constants =
+      globalThis.nethackGlobal && globalThis.nethackGlobal.constants
+        ? globalThis.nethackGlobal.constants
+        : null;
+    const statusFieldConstants =
+      constants &&
+      constants.STATUS_FIELD &&
+      typeof constants.STATUS_FIELD === "object"
+        ? constants.STATUS_FIELD
+        : null;
+    if (statusFieldConstants) {
+      const direct = Number(statusFieldConstants[normalizedFieldName]);
+      if (Number.isFinite(direct)) {
+        return Math.trunc(direct);
+      }
+    }
+
+    const fallback = this.getRuntimeStatusFieldMap();
+    for (const [rawIndex, rawFieldName] of Object.entries(fallback || {})) {
+      if (String(rawFieldName || "").trim() !== normalizedFieldName) {
+        continue;
+      }
+      const parsedIndex = Number(rawIndex);
+      if (Number.isFinite(parsedIndex)) {
+        return Math.trunc(parsedIndex);
+      }
+    }
+
+    return null;
+  }
+
+  normalizeLegacyStatusNumericToken(value) {
+    const normalized = String(value ?? "")
+      .replace(/,/g, "")
+      .trim();
+    if (!normalized) {
+      return null;
+    }
+    return this.normalizeRuntimeInteger(normalized);
+  }
+
+  pushLegacyStatusUpdate(updates, fieldName, value) {
+    const normalizedFieldName = String(fieldName || "").trim();
+    if (!normalizedFieldName) {
+      return;
+    }
+    if (value === null || value === undefined) {
+      return;
+    }
+    const normalizedValue =
+      typeof value === "string" ? value.trim() : value;
+    if (normalizedValue === "") {
+      return;
+    }
+    const existingIndex = updates.findIndex(
+      (entry) => entry?.fieldName === normalizedFieldName,
+    );
+    const nextEntry = {
+      fieldName: normalizedFieldName,
+      value: normalizedValue,
+    };
+    if (existingIndex >= 0) {
+      updates[existingIndex] = nextEntry;
+      return;
+    }
+    updates.push(nextEntry);
+  }
+
+  extractLegacySlashEmStatusUpdates(line) {
+    if (this.runtimeVersion !== "slashem") {
+      return [];
+    }
+
+    const rawLine = String(line ?? "").replace(/\u0000/g, "");
+    const trimmedLine = rawLine.trim();
+    if (!trimmedLine) {
+      return [];
+    }
+
+    const updates = [];
+    const statMatches = Array.from(
+      rawLine.matchAll(/\b(St|Dx|Co|In|Wi|Ch):([^\s]+)/g),
+    );
+    if (statMatches.length > 0) {
+      const firstStatIndex =
+        typeof statMatches[0]?.index === "number" ? statMatches[0].index : -1;
+      const title =
+        firstStatIndex >= 0
+          ? rawLine
+              .slice(0, firstStatIndex)
+              .replace(/\s+/g, " ")
+              .trim()
+          : "";
+      if (title) {
+        this.pushLegacyStatusUpdate(updates, "BL_TITLE", title);
+      }
+
+      const statFieldByToken = {
+        St: "BL_STR",
+        Dx: "BL_DX",
+        Co: "BL_CO",
+        In: "BL_IN",
+        Wi: "BL_WI",
+        Ch: "BL_CH",
+      };
+      for (const match of statMatches) {
+        const token = match?.[1];
+        const value = match?.[2];
+        const fieldName = statFieldByToken[token];
+        if (!fieldName || !value) {
+          continue;
+        }
+        this.pushLegacyStatusUpdate(updates, fieldName, value);
+      }
+
+      const alignmentMatch = trimmedLine.match(
+        /\b(Lawful|Neutral|Chaotic|Unaligned)\s*$/i,
+      );
+      if (alignmentMatch?.[1]) {
+        const alignment = alignmentMatch[1];
+        this.pushLegacyStatusUpdate(
+          updates,
+          "BL_ALIGN",
+          alignment.charAt(0).toUpperCase() + alignment.slice(1).toLowerCase(),
+        );
+      }
+
+      return updates;
+    }
+
+    const normalizedLine = trimmedLine.replace(/\s+/g, " ");
+    const firstMetricMatch = normalizedLine.match(
+      /(?:\$:|\b(?:HP|Pw|AC|Xp|Exp|S|Score|T):)/,
+    );
+    if (firstMetricMatch && typeof firstMetricMatch.index === "number") {
+      const descriptor = normalizedLine
+        .slice(0, firstMetricMatch.index)
+        .trim();
+      if (descriptor) {
+        this.pushLegacyStatusUpdate(updates, "BL_LEVELDESC", descriptor);
+        const dlevelMatch = descriptor.match(/^Dlvl:\s*(-?\d+)$/i);
+        if (dlevelMatch?.[1]) {
+          const dlevel = this.normalizeLegacyStatusNumericToken(dlevelMatch[1]);
+          if (dlevel !== null) {
+            this.pushLegacyStatusUpdate(updates, "BL_DLEVEL", dlevel);
+          }
+        }
+      }
+    }
+
+    const goldMatch = normalizedLine.match(/\$:\s*([^\s]+)/i);
+    if (goldMatch?.[1]) {
+      const gold = this.normalizeLegacyStatusNumericToken(goldMatch[1]);
+      if (gold !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_GOLD", gold);
+      }
+    }
+
+    const hpMatch = normalizedLine.match(
+      /\bHP:\s*(-?\d+)(?:\((-?\d+)\)|\/(-?\d+))?/i,
+    );
+    if (hpMatch?.[1]) {
+      const hp = this.normalizeLegacyStatusNumericToken(hpMatch[1]);
+      const hpMax = this.normalizeLegacyStatusNumericToken(
+        hpMatch[2] ?? hpMatch[3],
+      );
+      if (hp !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_HP", hp);
+      }
+      if (hpMax !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_HPMAX", hpMax);
+      }
+    }
+
+    const powerMatch = normalizedLine.match(
+      /\bPw:\s*(-?\d+)(?:\((-?\d+)\)|\/(-?\d+))?/i,
+    );
+    if (powerMatch?.[1]) {
+      const power = this.normalizeLegacyStatusNumericToken(powerMatch[1]);
+      const maxPower = this.normalizeLegacyStatusNumericToken(
+        powerMatch[2] ?? powerMatch[3],
+      );
+      if (power !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_ENE", power);
+      }
+      if (maxPower !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_ENEMAX", maxPower);
+      }
+    }
+
+    const acMatch = normalizedLine.match(/\bAC:\s*([^\s]+)/i);
+    if (acMatch?.[1]) {
+      const armor = this.normalizeLegacyStatusNumericToken(acMatch[1]);
+      if (armor !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_AC", armor);
+      }
+    }
+
+    const xpMatch = normalizedLine.match(/\b(?:Xp|Exp):\s*([^\s]+)/i);
+    if (xpMatch?.[1]) {
+      const xpToken = String(xpMatch[1] || "").trim();
+      if (xpToken.includes("/")) {
+        const [levelToken, experienceToken] = xpToken.split("/", 2);
+        const level = this.normalizeLegacyStatusNumericToken(levelToken);
+        const experience =
+          this.normalizeLegacyStatusNumericToken(experienceToken);
+        if (level !== null) {
+          this.pushLegacyStatusUpdate(updates, "BL_XP", level);
+        }
+        if (experience !== null) {
+          this.pushLegacyStatusUpdate(updates, "BL_EXP", experience);
+        }
+      } else {
+        const level = this.normalizeLegacyStatusNumericToken(xpToken);
+        if (level !== null) {
+          this.pushLegacyStatusUpdate(updates, "BL_XP", level);
+        }
+      }
+    }
+
+    const scoreMatch = normalizedLine.match(/\b(?:Score|S):\s*([^\s]+)/i);
+    if (scoreMatch?.[1]) {
+      const score = this.normalizeLegacyStatusNumericToken(scoreMatch[1]);
+      if (score !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_SCORE", score);
+      }
+    }
+
+    const timeMatch = normalizedLine.match(/\bT:\s*([^\s]+)/i);
+    if (timeMatch?.[1]) {
+      const time = this.normalizeLegacyStatusNumericToken(timeMatch[1]);
+      if (time !== null) {
+        this.pushLegacyStatusUpdate(updates, "BL_TIME", time);
+      }
+    }
+
+    const hungerStates = [
+      "Satiated",
+      "Hungry",
+      "Weak",
+      "Fainting",
+      "Fainted",
+      "Starved",
+    ];
+    for (const hungerState of hungerStates) {
+      if (new RegExp(`\\b${hungerState}\\b`, "i").test(normalizedLine)) {
+        this.pushLegacyStatusUpdate(updates, "BL_HUNGER", hungerState);
+        break;
+      }
+    }
+
+    const encumbranceStates = [
+      "Burdened",
+      "Stressed",
+      "Strained",
+      "Overtaxed",
+      "Overloaded",
+    ];
+    for (const encumbranceState of encumbranceStates) {
+      if (new RegExp(`\\b${encumbranceState}\\b`, "i").test(normalizedLine)) {
+        this.pushLegacyStatusUpdate(updates, "BL_CAP", encumbranceState);
+        break;
+      }
+    }
+
+    return updates;
+  }
+
+  emitLegacyStatusUpdates(updates, source = "legacy_status_window") {
+    const normalizedUpdates = Array.isArray(updates) ? updates : [];
+    let emittedCount = 0;
+    for (const update of normalizedUpdates) {
+      const fieldName = String(update?.fieldName || "").trim();
+      if (!fieldName) {
+        continue;
+      }
+      const payloadKey = `legacy:${fieldName}`;
+      const value = update?.value;
+      const previousPayload = this.latestStatusUpdates.get(payloadKey);
+      if (
+        previousPayload &&
+        String(previousPayload.value ?? "") === String(value ?? "")
+      ) {
+        continue;
+      }
+
+      const fieldIndex = this.resolveStatusFieldIndex(fieldName);
+      const payload = {
+        type: "status_update",
+        field: Number.isFinite(fieldIndex) ? fieldIndex : -1,
+        fieldName,
+        value,
+        valueType: typeof value === "number" ? "n" : "s",
+        ptrToArg: 0,
+        usedFallback: true,
+        chg: 0,
+        percent: 0,
+        color: 0,
+        colormask: 0,
+        levelIdentity: this.resolveRuntimeLevelIdentity(),
+        source,
+      };
+      this.latestStatusUpdates.set(payloadKey, payload);
+      this.recordLastKnownGold(fieldName, value);
+      if (this.eventHandler) {
+        this.emit(payload);
+      }
+      emittedCount += 1;
+    }
+    return emittedCount;
+  }
+
+  shouldHandleLegacyStatusLine(winId, text) {
+    if (this.runtimeVersion !== "slashem" || !this.isStatusWindow(winId)) {
+      return false;
+    }
+    const updates = this.extractLegacySlashEmStatusUpdates(text);
+    if (updates.length <= 0) {
+      return false;
+    }
+    this.emitLegacyStatusUpdates(updates, "slashem_status_window");
+    return true;
   }
 
   private unpackGlyphArgs(args: number[]) {
@@ -3954,7 +4352,7 @@ class LocalNetHackRuntime {
             floorUnderlayColor: null,
             floorUnderlayTileIndex: null,
             floorUnderlaySymidx: null,
-            window: 2,
+            window: this.getRuntimeWindowId("WIN_MAP"),
             isRefresh: true,
             isRuntimeUndiscoveredClear: true,
           });
@@ -4018,7 +4416,7 @@ class LocalNetHackRuntime {
             floorUnderlayColor: floorUnderlay?.color ?? null,
             floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
             floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
-            window: 2,
+            window: this.getRuntimeWindowId("WIN_MAP"),
             isRefresh: true,
             isRuntimeUndiscoveredClear: true,
           });
@@ -4058,7 +4456,7 @@ class LocalNetHackRuntime {
           floorUnderlayColor: floorUnderlay?.color ?? null,
           floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
           floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
-          window: 2,
+          window: this.getRuntimeWindowId("WIN_MAP"),
           isRefresh: true,
         });
       }
@@ -4109,7 +4507,7 @@ class LocalNetHackRuntime {
           floorUnderlayColor: tileData.floorUnderlayColor ?? null,
           floorUnderlayTileIndex: tileData.floorUnderlayTileIndex ?? null,
           floorUnderlaySymidx: tileData.floorUnderlaySymidx ?? null,
-          window: 2, // WIN_MAP
+          window: this.getRuntimeWindowId("WIN_MAP"),
           isRefresh: true, // Mark this as a refresh to distinguish from new data
         });
       }
@@ -4206,7 +4604,7 @@ class LocalNetHackRuntime {
                     floorUnderlayColor: null,
                     floorUnderlayTileIndex: null,
                     floorUnderlaySymidx: null,
-                    window: 2,
+                    window: this.getRuntimeWindowId("WIN_MAP"),
                     isRefresh: true,
                     isAreaRefresh: true,
                     isRuntimeUndiscoveredClear: true,
@@ -4277,7 +4675,7 @@ class LocalNetHackRuntime {
                     floorUnderlayColor: floorUnderlay?.color ?? null,
                     floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                     floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
-                    window: 2,
+                    window: this.getRuntimeWindowId("WIN_MAP"),
                     isRefresh: true,
                     isAreaRefresh: true,
                     isRuntimeUndiscoveredClear: true,
@@ -4319,7 +4717,7 @@ class LocalNetHackRuntime {
                   floorUnderlayColor: floorUnderlay?.color ?? null,
                   floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                   floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
-                  window: 2,
+                  window: this.getRuntimeWindowId("WIN_MAP"),
                   isRefresh: true,
                   isAreaRefresh: true,
                 });
@@ -4348,7 +4746,7 @@ class LocalNetHackRuntime {
               floorUnderlayColor: tileData.floorUnderlayColor ?? null,
               floorUnderlayTileIndex: tileData.floorUnderlayTileIndex ?? null,
               floorUnderlaySymidx: tileData.floorUnderlaySymidx ?? null,
-              window: 2, // WIN_MAP
+              window: this.getRuntimeWindowId("WIN_MAP"),
               isRefresh: true,
               isAreaRefresh: true,
             });
@@ -4776,7 +5174,7 @@ class LocalNetHackRuntime {
 
     for (let index = this.gameMessages.length - 1; index >= 0; index -= 1) {
       const entry = this.gameMessages[index];
-      if (!entry || Number(entry.window) !== 1) {
+      if (!entry || !this.isMessageWindow(entry.window)) {
         continue;
       }
       const text = this.normalizePromptContextMessage(entry.text);
@@ -4902,7 +5300,10 @@ class LocalNetHackRuntime {
       if (!text.trim()) {
         continue;
       }
-      if (Number(winId) === 1) {
+      if (this.shouldHandleLegacyStatusLine(winId, text)) {
+        continue;
+      }
+      if (this.isMessageWindow(winId)) {
         this.rememberPromptContextMessage(text, "message_window");
       }
       this.gameMessages.push({
@@ -4986,7 +5387,7 @@ class LocalNetHackRuntime {
       }
       const win = Number(entry.window);
       // Recall should mirror the top-line message stream (WIN_MESSAGE).
-      if (win !== 1) {
+      if (!this.isMessageWindow(win)) {
         continue;
       }
       lines.push(text);
@@ -8004,14 +8405,11 @@ class LocalNetHackRuntime {
       };
 
       if (!globalThis.nethackGlobal) {
+        const runtimeWindowGlobals =
+          this.getDefaultRuntimeWindowGlobals(runtimeVersion);
         globalThis.nethackGlobal = {
           constants: {
-            WIN_TYPE: {
-              1: "WIN_MESSAGE",
-              2: "WIN_MAP",
-              3: "WIN_STATUS",
-              4: "WIN_INVEN",
-            },
+            WIN_TYPE: this.getRuntimeWindowTypeLabels(runtimeVersion),
             STATUS_FIELD: {},
             MENU_SELECT: { PICK_NONE: 0, PICK_ONE: 1, PICK_ANY: 2 },
           },
@@ -8087,7 +8485,7 @@ class LocalNetHackRuntime {
               }
             },
           },
-          globals: { WIN_MAP: 2, WIN_INVEN: 4, WIN_STATUS: 3, WIN_MESSAGE: 1 },
+          globals: runtimeWindowGlobals,
         };
       }
       this.seedRuntimeStatusFieldConstants();
@@ -9070,12 +9468,7 @@ class LocalNetHackRuntime {
         }
 
         // Log window type for debugging
-        const windowTypes = {
-          1: "WIN_MESSAGE",
-          2: "WIN_MAP",
-          3: "WIN_STATUS",
-          4: "WIN_INVEN",
-        };
+        const windowTypes = this.getRuntimeWindowTypeLabels(this.runtimeVersion);
         console.log(
           `📋 Starting menu for window ${menuWinId} (${
             windowTypes[menuWinId] || "UNKNOWN"
@@ -9087,7 +9480,7 @@ class LocalNetHackRuntime {
         console.log("NetHack ending menu:", args);
 
         // Check if this is just an inventory update vs an actual question
-        const isInventoryWindow = endMenuWinid === 4; // WIN_INVEN = 4
+        const isInventoryWindow = this.isInventoryWindow(endMenuWinid);
         const normalizedMenuQuestion =
           typeof menuQuestion === "string" ? menuQuestion : "";
         const hasMenuQuestion = normalizedMenuQuestion.trim().length > 0;
@@ -9641,8 +10034,11 @@ class LocalNetHackRuntime {
       case "shim_putstr":
         const [win, textAttr, textStr] = args;
         console.log(`💬 TEXT [Win ${win}]: "${textStr}"`);
+        if (this.shouldHandleLegacyStatusLine(win, textStr)) {
+          return 0;
+        }
         this.appendWindowTextBuffer(win, textStr);
-        if (Number(win) === 1) {
+        if (this.isMessageWindow(win)) {
           this.rememberPromptContextMessage(textStr, "message_window");
         }
 
@@ -9727,7 +10123,7 @@ class LocalNetHackRuntime {
           );
         }
 
-        if (printWin === 3) {
+        if (this.isMapWindow(printWin)) {
           const key = `${x},${y}`;
           const previousTileData = this.gameMap.get(key);
           if (this.isUndiscoveredOrNothingGlyph(printGlyph)) {
@@ -9982,7 +10378,7 @@ class LocalNetHackRuntime {
           this.emit({
             type: "text",
             text: String(menuMessage),
-            window: 1,
+            window: this.getRuntimeWindowId("WIN_MESSAGE"),
             attr: 0,
             source: "message_menu",
           });
@@ -10386,8 +10782,7 @@ class LocalNetHackRuntime {
         this.resetWindowTextBuffer(clearWinId);
 
         // If clearing the map window, clear the 3D scene
-        if (clearWinId === 2 || clearWinId === 3) {
-          // WIN_MAP = 2, but window 3 is also used for map display in some contexts
+        if (this.isMapWindow(clearWinId)) {
           console.log("Map window cleared - clearing 3D scene");
           this.emit({
             type: "clear_scene",
@@ -10421,7 +10816,7 @@ class LocalNetHackRuntime {
             this.rememberPromptContextMessage(text, "putmsghistory");
             this.gameMessages.push({
               text,
-              window: 1,
+              window: this.getRuntimeWindowId("WIN_MESSAGE"),
               timestamp: Date.now(),
               attr: 0,
             });
@@ -10503,7 +10898,7 @@ class LocalNetHackRuntime {
           this.eventHandler &&
           Number.isFinite(cursX) &&
           Number.isFinite(cursY) &&
-          (cursWin === 2 || cursWin === 3)
+          this.isMapWindow(cursWin)
         ) {
           this.emit({
             type: "map_cursor",

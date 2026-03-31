@@ -858,9 +858,9 @@ export const ptBrOverrides = {
         },
         groupCompatibility: "Compatibilidade de runtime",
         darkCorridorWalls367: {
-          label: "Paredes escuras de corredor do NetHack 3.6.7",
+          label: "Paredes escuras de corredor legadas",
           description:
-            "Infere e armazena em cache tiles de paredes de corredor escuro (comportamento do NetHack 3.6.7).",
+            "Infere e armazena em cache tiles de paredes de corredor escuro para runtimes legados do NetHack 3.4.3/3.6.x, incluindo Slash'EM.",
         },
         overrideNh37DarkCorridorWallTiles: {
           label: "Substituir tiles de paredes escuras do NetHack 3.7",
@@ -1149,7 +1149,7 @@ export const ptBrOverrides = {
           darkWallsDisabledByVulture:
             " Desativado enquanto os tiles de Vulture estiverem ativos.",
           enableDarkWallsFirst:
-            " Ative primeiro as paredes escuras de corredor do NetHack 3.6.7 ou as substituições de paredes escuras do NetHack 3.7.",
+            " Ative primeiro as paredes escuras de corredor legadas ou as substituições de paredes escuras do NetHack 3.7.",
           enableFpsFirst:
             " Ative primeiro o modo em primeira pessoa em Exibição.",
         },

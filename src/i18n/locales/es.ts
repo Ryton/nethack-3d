@@ -788,8 +788,8 @@ export const esOverrides = {
                 },
                 groupCompatibility: "Compatibilidad en tiempo de ejecuci\u00F3n",
                 darkCorridorWalls367: {
-                    label: "NetHack 3.6.7 paredes de pasillo oscuro",
-                    description: "Inferir y almacenar en cach\u00E9 los mosaicos de las paredes de los pasillos oscuros (comportamiento de NetHack 3.6.7).",
+                    label: "Paredes oscuras de pasillo heredadas",
+                    description: "Inferir y almacenar en cach\u00E9 los mosaicos de paredes de pasillos oscuros para runtimes heredados de NetHack 3.4.3/3.6.x, incluido Slash'EM.",
                 },
                 overrideNh37DarkCorridorWallTiles: {
                     label: "Anular los mosaicos de pared oscuros de NetHack 3.7",
@@ -1043,7 +1043,7 @@ export const esOverrides = {
                 hints: {
                     darkWallsAlwaysEnabled: "Siempre habilitado mientras los mosaicos de Vulture est\u00E1n activos.",
                     darkWallsDisabledByVulture: "Deshabilitado mientras los mosaicos de Vulture est\u00E1n activos.",
-                    enableDarkWallsFirst: "Habilite primero las paredes de pasillo oscuro de NetHack 3.6.7 o las anulaciones de paredes oscuras de NetHack 3.7.",
+                    enableDarkWallsFirst: "Habilite primero las paredes oscuras de pasillo heredadas o las anulaciones de paredes oscuras de NetHack 3.7.",
                     enableFpsFirst: "Habilite el modo en primera persona en Pantalla primero.",
                 },
                 darkWallControls: {
