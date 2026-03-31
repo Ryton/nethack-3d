@@ -937,6 +937,7 @@ function isReadOnlyQuestionOptionMenuItem(
 }
 
 type TileAtlasState = {
+  tilesetPath: string;
   loaded: boolean;
   failed: boolean;
   tileSourceSize: number;
@@ -946,6 +947,7 @@ type TileAtlasState = {
 };
 
 const createDefaultTileAtlasState = (): TileAtlasState => ({
+  tilesetPath: "",
   loaded: false,
   failed: false,
   tileSourceSize: 32,
@@ -6744,6 +6746,7 @@ export default function App(): JSX.Element {
     () => findNh3dTilesetByPath(clientOptionsDraft.tilesetPath),
     [clientOptionsDraft.tilesetPath, tilesetCatalog],
   );
+  const selectedTileAtlasLoadRequested = characterCreationConfig !== null;
   const isVultureTilesetSelected =
     clientOptionsDraft.tilesetMode === "tiles" &&
     selectedTilesetEntry?.source === "vulture";
@@ -6767,7 +6770,8 @@ export default function App(): JSX.Element {
     tileAtlasState.loaded,
     tileAtlasState.tileCount,
   ]);
-  const tilePickerStatusText = !selectedTilesetEntry
+  const tilePickerStatusText = !selectedTilesetEntry ||
+    !selectedTileAtlasLoadRequested
     ? t.tilePicker.noAtlasAvailable
     : tileAtlasState.failed
       ? t.tilePicker.unableToLoadAtlas
@@ -7218,7 +7222,7 @@ export default function App(): JSX.Element {
     if (typeof window === "undefined") {
       return;
     }
-    if (!selectedTilesetEntry) {
+    if (characterCreationConfig === null || !selectedTilesetEntry) {
       setTileAtlasState(createDefaultTileAtlasState());
       setTileAtlasImage(null);
       return;
@@ -7244,6 +7248,7 @@ export default function App(): JSX.Element {
       const rows = Math.max(0, Math.floor(height / tileSourceSize));
       const tileCount = columns > 0 && rows > 0 ? columns * rows : 0;
       setTileAtlasState({
+        tilesetPath: selectedTilesetEntry.path,
         loaded: tileCount > 0,
         failed: tileCount <= 0,
         tileSourceSize,
@@ -7260,6 +7265,7 @@ export default function App(): JSX.Element {
       }
       setTileAtlasState({
         ...createDefaultTileAtlasState(),
+        tilesetPath: selectedTilesetEntry.path,
         failed: true,
       });
       setTileAtlasImage(null);
@@ -7274,15 +7280,24 @@ export default function App(): JSX.Element {
       atlasImage.removeEventListener("load", handleLoad);
       atlasImage.removeEventListener("error", handleError);
     };
-  }, [selectedTilesetEntry]);
+  }, [characterCreationConfig, selectedTilesetEntry]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
-    if (!selectedTilesetManagerEditEntry) {
+    if (!isTilesetManagerVisible || !selectedTilesetManagerEditEntry) {
       setTilesetManagerAtlasState(createDefaultTileAtlasState());
       setTilesetManagerAtlasImage(null);
+      return;
+    }
+    if (
+      tileAtlasState.loaded &&
+      tileAtlasState.tilesetPath === selectedTilesetManagerEditEntry.path &&
+      tileAtlasImage
+    ) {
+      setTilesetManagerAtlasState(tileAtlasState);
+      setTilesetManagerAtlasImage(tileAtlasImage);
       return;
     }
     let disposed = false;
@@ -7308,6 +7323,7 @@ export default function App(): JSX.Element {
       const rows = Math.max(0, Math.floor(height / tileSourceSize));
       const tileCount = columns > 0 && rows > 0 ? columns * rows : 0;
       setTilesetManagerAtlasState({
+        tilesetPath: selectedTilesetManagerEditEntry.path,
         loaded: tileCount > 0,
         failed: tileCount <= 0,
         tileSourceSize,
@@ -7324,6 +7340,7 @@ export default function App(): JSX.Element {
       }
       setTilesetManagerAtlasState({
         ...createDefaultTileAtlasState(),
+        tilesetPath: selectedTilesetManagerEditEntry.path,
         failed: true,
       });
       setTilesetManagerAtlasImage(null);
@@ -7338,7 +7355,12 @@ export default function App(): JSX.Element {
       atlasImage.removeEventListener("load", handleLoad);
       atlasImage.removeEventListener("error", handleError);
     };
-  }, [selectedTilesetManagerEditEntry]);
+  }, [
+    isTilesetManagerVisible,
+    selectedTilesetManagerEditEntry,
+    tileAtlasImage,
+    tileAtlasState,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) {
@@ -7793,10 +7815,12 @@ export default function App(): JSX.Element {
   const runtimeLoadingVisible =
     loadingVisible && characterCreationConfig !== null;
   const tilesetLoadingVisible =
-    (Boolean(selectedTilesetEntry) &&
+    (selectedTileAtlasLoadRequested &&
+      Boolean(selectedTilesetEntry) &&
       !tileAtlasState.loaded &&
       !tileAtlasState.failed) ||
-    (Boolean(selectedTilesetManagerEditEntry) &&
+    (isTilesetManagerVisible &&
+      Boolean(selectedTilesetManagerEditEntry) &&
       !tilesetManagerAtlasState.loaded &&
       !tilesetManagerAtlasState.failed);
   const loadingOverlayVisible =
