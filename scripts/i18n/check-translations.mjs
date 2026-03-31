@@ -29,6 +29,11 @@ const localeChecks = [
     exportName: "fi",
   },
   {
+    locale: "fr",
+    file: path.join(repoRoot, "src", "i18n", "locales", "fr.ts"),
+    exportName: "fr",
+  },
+  {
     locale: "ja",
     file: path.join(repoRoot, "src", "i18n", "locales", "ja.ts"),
     exportName: "ja",
