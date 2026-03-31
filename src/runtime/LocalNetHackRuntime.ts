@@ -90,9 +90,15 @@ class LocalNetHackRuntime {
     this.inventoryContextSelectionPrefix = "__INVCTX_SELECT__:";
     this.inventoryContextSelectionCountPrefix = "__INVCTX_SELECT_COUNT__:";
     this.contextualGlanceProbePrefix = "__CTX_GLANCE_PROBE__";
+    this.contextualLookInfoProbePrefix = "__CTX_LOOK_INFO_PROBE__";
     this.contextualGlanceProbeMouseDeadlineMs = 0;
     this.contextualGlanceAutoCancelPositionUntilMs = 0;
     this.contextualGlanceAutoCancelPositionWindowMs = 450;
+    this.contextualLookInfoProbeMouseDeadlineMs = 0;
+    this.contextualLookInfoProbeMouseWindowMs = 5000;
+    this.pendingContextualLookMapRouteSelection = false;
+    this.contextualLookInfoAutoFlowStage = "none";
+    this.contextualLookInfoAutoFlowUntilMs = 0;
     this.runtime37TileContextAutoPickFirstUntilMs = 0;
     this.runtime37TileContextAutoPickFirstWindowMs = 2000;
     this.pendingPostActionPlayerTileRefreshReason = null;
@@ -2062,6 +2068,12 @@ class LocalNetHackRuntime {
     this.farLookMode = "none";
     this.farLookOrigin = null;
     this.pendingLookMenuFarLookArm = false;
+    this.contextualGlanceProbeMouseDeadlineMs = 0;
+    this.contextualGlanceAutoCancelPositionUntilMs = 0;
+    this.contextualLookInfoProbeMouseDeadlineMs = 0;
+    this.pendingContextualLookMapRouteSelection = false;
+    this.contextualLookInfoAutoFlowStage = "none";
+    this.contextualLookInfoAutoFlowUntilMs = 0;
     this.setPositionInputActive(false);
     this.activeInputRequest = null;
     this.menuSelections.clear();
@@ -2204,6 +2216,19 @@ class LocalNetHackRuntime {
       // the modern #glance flow.
       this.contextualGlanceProbeMouseDeadlineMs = Date.now() + 1200;
       this.contextualGlanceAutoCancelPositionUntilMs = 0;
+      return;
+    }
+    if (input === this.contextualLookInfoProbePrefix) {
+      // Arms a synthetic map-routed "/what is" probe which should choose the
+      // map target, then request verbose info and exit the follow-up loop.
+      this.pendingContextualLookMapRouteSelection = true;
+      this.contextualLookInfoProbeMouseDeadlineMs =
+        Date.now() + this.contextualLookInfoProbeMouseWindowMs;
+      this.contextualLookInfoAutoFlowStage =
+        this.runtimeVersion === "slashem"
+          ? "await_cursor_confirm"
+          : "await_mouse_target";
+      this.contextualLookInfoAutoFlowUntilMs = Date.now() + 15000;
       return;
     }
 
@@ -3815,6 +3840,30 @@ class LocalNetHackRuntime {
       requestKind === "position" &&
       this.applyMouseTokenToPoskeyRequest(token, requestContext)
     ) {
+      if (this.contextualLookInfoProbeMouseDeadlineMs > 0) {
+        const nowMs = Date.now();
+        if (nowMs <= this.contextualLookInfoProbeMouseDeadlineMs) {
+          if (this.runtimeVersion === "slashem") {
+            console.log(
+              'Queueing contextual tile info follow-up input ["Escape"] for legacy /what is map probe',
+            );
+            this.enqueueInputKeys(["Escape"], "synthetic", ["position"]);
+            this.contextualLookInfoAutoFlowStage = "await_more_info";
+            this.contextualLookInfoAutoFlowUntilMs = nowMs + 30000;
+          } else {
+            console.log(
+              'Queueing contextual tile info follow-up inputs [":", "Escape"] for /what is map probe',
+            );
+            this.enqueueInputKeys([":", "Escape"], "synthetic", ["position"]);
+            this.contextualLookInfoAutoFlowStage = "await_exit";
+            this.contextualLookInfoAutoFlowUntilMs = nowMs + 30000;
+          }
+        } else {
+          this.clearContextualLookInfoAutoFlow("mouse target expired");
+        }
+        this.contextualLookInfoProbeMouseDeadlineMs = 0;
+        this.pendingContextualLookMapRouteSelection = false;
+      }
       if (this.contextualGlanceProbeMouseDeadlineMs > 0) {
         const nowMs = Date.now();
         if (nowMs <= this.contextualGlanceProbeMouseDeadlineMs) {
@@ -3840,6 +3889,16 @@ class LocalNetHackRuntime {
         : rawKey;
     if (!key) {
       return 0;
+    }
+
+    if (
+      token &&
+      token.source === "synthetic" &&
+      requestKind === "position" &&
+      key === "Escape" &&
+      this.isContextualLookInfoAutoFlowActive()
+    ) {
+      this.clearContextualLookInfoAutoFlow("synthetic escape consumed");
     }
 
     if (requestKind === "event" && key === "Escape") {
@@ -5583,6 +5642,109 @@ class LocalNetHackRuntime {
     return question.trim().toLowerCase();
   }
 
+  clearContextualLookInfoAutoFlow(reason = "") {
+    if (reason) {
+      console.log(`Clearing contextual tile info auto-flow: ${reason}`);
+    }
+    this.contextualLookInfoProbeMouseDeadlineMs = 0;
+    this.pendingContextualLookMapRouteSelection = false;
+    this.contextualLookInfoAutoFlowStage = "none";
+    this.contextualLookInfoAutoFlowUntilMs = 0;
+  }
+
+  isContextualLookInfoAutoFlowActive() {
+    if (this.contextualLookInfoAutoFlowStage === "none") {
+      return false;
+    }
+    if (
+      !Number.isFinite(this.contextualLookInfoAutoFlowUntilMs) ||
+      Date.now() > this.contextualLookInfoAutoFlowUntilMs
+    ) {
+      this.clearContextualLookInfoAutoFlow("expired");
+      return false;
+    }
+    return true;
+  }
+
+  shouldSuppressLegacyContextualLookInfoRawPrint() {
+    return (
+      this.runtimeVersion === "slashem" &&
+      this.isContextualLookInfoAutoFlowActive()
+    );
+  }
+
+  normalizeYnDefaultChoice(defaultChoice) {
+    if (typeof defaultChoice === "string" && defaultChoice.length > 0) {
+      return defaultChoice.trim().charAt(0).toLowerCase();
+    }
+    if (
+      typeof defaultChoice === "number" &&
+      Number.isFinite(defaultChoice) &&
+      defaultChoice > 0
+    ) {
+      return String.fromCharCode(Math.trunc(defaultChoice)).toLowerCase();
+    }
+    return "";
+  }
+
+  resolveContextualLookInfoAutoAnswer(question, choices, defaultChoice) {
+    if (!this.isContextualLookInfoAutoFlowActive()) {
+      return null;
+    }
+
+    const normalizedQuestion = this.normalizeQuestionText(question);
+    const normalizedChoices =
+      typeof choices === "string" ? choices.trim().toLowerCase() : "";
+    const normalizedDefaultChoice =
+      this.normalizeYnDefaultChoice(defaultChoice);
+    const stage = this.contextualLookInfoAutoFlowStage;
+
+    if (this.runtimeVersion === "slashem") {
+      const isCursorPrompt =
+        stage === "await_cursor_confirm" &&
+        normalizedQuestion.includes("cursor") &&
+        normalizedChoices.includes("y") &&
+        normalizedChoices.includes("q") &&
+        normalizedDefaultChoice === "q";
+      if (isCursorPrompt) {
+        console.log(
+          'Auto-answering contextual tile info cursor prompt with "y"',
+        );
+        this.contextualLookInfoAutoFlowStage = "await_mouse_target";
+        return "y";
+      }
+
+      const isMoreInfoPrompt =
+        stage === "await_more_info" &&
+        normalizedQuestion.includes("more info") &&
+        normalizedChoices.includes("y") &&
+        normalizedChoices.includes("n") &&
+        normalizedDefaultChoice === "n";
+      if (isMoreInfoPrompt) {
+        console.log('Auto-answering contextual tile info "More info?" with "y"');
+        this.contextualLookInfoAutoFlowStage = "await_exit";
+        this.contextualLookInfoAutoFlowUntilMs = Date.now() + 30000;
+        return "y";
+      }
+    }
+
+    if (stage !== "none") {
+      console.log(
+        "Unexpected prompt during contextual tile info auto-flow; using Escape failsafe",
+        {
+          question: normalizedQuestion,
+          choices: normalizedChoices,
+          defaultChoice: normalizedDefaultChoice,
+          stage,
+        },
+      );
+      this.clearContextualLookInfoAutoFlow("unexpected prompt");
+      return "Escape";
+    }
+
+    return null;
+  }
+
   isGameOverPossessionsIdentifyQuestion(question) {
     const normalized = this.normalizeQuestionText(question);
     if (!normalized) {
@@ -6921,6 +7083,27 @@ class LocalNetHackRuntime {
     );
   }
 
+  resolveLookMapRouteMenuItem(menuItems) {
+    if (!Array.isArray(menuItems) || menuItems.length === 0) {
+      return null;
+    }
+
+    const byText = menuItems.find(
+      (item) =>
+        item &&
+        !item.isCategory &&
+        typeof item.text === "string" &&
+        item.text.toLowerCase().includes("something on the map"),
+    );
+    if (byText) {
+      return byText;
+    }
+
+    return (
+      menuItems.find((item) => this.isLookAtMapMenuSelection(item)) || null
+    );
+  }
+
   tryAutoHandlePendingInventoryContextSelection(
     menuQuestion,
     menuItems,
@@ -6977,6 +7160,25 @@ class LocalNetHackRuntime {
     }
 
     if (this.isLookAtMenuQuestion(menuQuestion)) {
+      if (
+        this.pendingContextualLookMapRouteSelection &&
+        this.contextualLookInfoProbeMouseDeadlineMs > 0 &&
+        Date.now() <= this.contextualLookInfoProbeMouseDeadlineMs
+      ) {
+        const lookMapRouteItem = this.resolveLookMapRouteMenuItem(menuItems);
+        if (
+          lookMapRouteItem &&
+          this.tryAutoSelectMenuItem(
+            lookMapRouteItem,
+            `${reason} (look map route)`,
+          )
+        ) {
+          return true;
+        }
+        this.clearContextualLookInfoAutoFlow("look map route unavailable");
+      } else if (this.pendingContextualLookMapRouteSelection) {
+        this.clearContextualLookInfoAutoFlow("look map route expired");
+      }
       const lookInventoryRouteItem =
         this.resolveLookInventoryRouteMenuItem(menuItems);
       if (
@@ -9205,6 +9407,16 @@ class LocalNetHackRuntime {
       return this.processKey("a");
     }
 
+    const contextualLookInfoAutoAnswer =
+      this.resolveContextualLookInfoAutoAnswer(
+        question,
+        normalizedChoices,
+        defaultChoice,
+      );
+    if (contextualLookInfoAutoAnswer) {
+      return this.processKey(contextualLookInfoAutoAnswer);
+    }
+
     if (question && question.toLowerCase().includes("direction")) {
       this.activeYnPrompt = {
         choices: normalizedChoices,
@@ -10331,7 +10543,11 @@ class LocalNetHackRuntime {
         return 0;
       case "shim_raw_print":
         const [rawText] = args;
-        console.log(`📢 RAW PRINT: "${rawText}"`);
+        const suppressLegacyContextualLookInfoRawPrint =
+          this.shouldSuppressLegacyContextualLookInfoRawPrint();
+        if (!suppressLegacyContextualLookInfoRawPrint) {
+          console.log(`📢 RAW PRINT: "${rawText}"`);
+        }
         const normalizedRawText = this.normalizePromptContextMessage(rawText);
         if (normalizedRawText) {
           this.captureGameOverSummaryFromLines(
@@ -10386,7 +10602,11 @@ class LocalNetHackRuntime {
         }
 
         // Send raw print messages to the UI log
-        if (this.eventHandler && normalizedRawText) {
+        if (
+          this.eventHandler &&
+          normalizedRawText &&
+          !suppressLegacyContextualLookInfoRawPrint
+        ) {
           this.emit({
             type: "raw_print",
             text: normalizedRawText,

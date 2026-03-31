@@ -767,6 +767,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly inventoryContextSelectionCountPrefix =
     "__INVCTX_SELECT_COUNT__:";
   private readonly contextualGlanceProbePrefix = "__CTX_GLANCE_PROBE__";
+  private readonly contextualLookInfoProbePrefix = "__CTX_LOOK_INFO_PROBE__";
   private repeatableAction: RepeatableActionSpec | null = null;
   private repeatActionVisible: boolean = false;
   private repeatAutoDirectionPending: boolean = false;
@@ -24715,6 +24716,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  public runContextualAction(actionId: string): void {
+    const normalizedActionId = String(actionId || "")
+      .trim()
+      .toLowerCase();
+    switch (normalizedActionId) {
+      case "info":
+        this.executeContextualTileInfoAction();
+        break;
+      default:
+        break;
+    }
+  }
+
   public repeatLastAction(): void {
     if (!this.repeatActionVisible || !this.repeatableAction) {
       return;
@@ -24791,6 +24805,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
       "Tab",
     ]);
     return !nonNameTokens.has(trimmed);
+  }
+
+  private executeContextualTileInfoAction(): boolean {
+    const targetTile = this.activeContextActionTile;
+    if (!targetTile || !this.session) {
+      return false;
+    }
+
+    this.closeAnyTileContextMenu(true);
+    if (!this.canExecuteRepeatableGameplayAction()) {
+      return false;
+    }
+
+    this.hideInfoMenuDialog();
+    if (this.isInventoryDialogOpen()) {
+      this.hideInventoryDialog();
+    }
+
+    this.clearRepeatDirectionCandidate();
+    this.clearFpsContextAutoDirection();
+    this.skipNextMobileFpsClickLookPromptMessage = true;
+
+    // Route /what is to the map, then let the runtime confirm verbose info
+    // and exit the follow-up location prompt automatically.
+    this.sendInput(this.contextualLookInfoProbePrefix);
+    this.sendInput("/");
+    this.logClickLookTileDebug("fps-info", targetTile.x, targetTile.y);
+    this.sendMouseInput(targetTile.x, targetTile.y, 0);
+    return true;
   }
 
   private logNameInputTrace(input: string): void {
@@ -29012,6 +29055,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
         value,
       });
     };
+    const addContextualAction = (
+      id: string,
+      label: string,
+      value: string = id,
+    ) => {
+      if (
+        actions.some(
+          (action) => action.id === id && action.kind === "contextual",
+        )
+      ) {
+        return;
+      }
+      actions.push({
+        id,
+        label,
+        kind: "contextual",
+        value,
+      });
+    };
+
+    addContextualAction("info", "Info");
 
     let isMonster =
       Boolean(mesh.userData?.isMonsterLikeCharacter) ||

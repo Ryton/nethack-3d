@@ -11686,6 +11686,10 @@ export default function App(): JSX.Element {
     const contextualSubmitDelayMs = 0;
     const autoDirectionFromFpsAim =
       fpsCrosshairContext?.autoDirectionFromFpsAim === true;
+    if (action.kind === "contextual") {
+      controller?.runContextualAction(action.value);
+      return;
+    }
     if (action.kind === "quick") {
       controller?.runQuickAction(action.value, {
         autoDirectionFromFpsAim,
