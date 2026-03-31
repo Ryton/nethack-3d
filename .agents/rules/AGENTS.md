@@ -76,15 +76,15 @@ Start here before making changes.
 
 ## NetHack Reference
 
-- The pinned NetHack source in `third_party/nethack-3.6.7` and `third_party/nethack-3.7` is the source of truth for game behavior, data files, and shim expectations.
-- Forked NetHack WASM monorepo reference (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo`.
-- Forked 3.6.7 WASM package path (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367`.
-- Forked NetHack 3.6.7 source inside that package (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\NetHack`.
-- Forked 3.7 WASM package path (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-37`.
-- Forked NetHack 3.7 source inside that package (WSL): `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-37\NetHack`.
-- If you need an upstream reference, use the official NetHack repository: https://github.com/NetHack/NetHack.
+- The WSL-hosted NetHack code is the source of truth for game behavior, data files, and shim expectations:
+  - Forked NetHack WASM monorepo reference: `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo`.
+  - Forked 3.6.7 WASM package path: `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367`.
+  - Forked NetHack 3.6.7 source inside that package: `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\NetHack`.
+  - Forked 3.7 WASM package path: `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-37`.
+  - Forked NetHack 3.7 source inside that package: `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-37\NetHack`.
+  - Forked SLASH-EM (NetHack 3.4.3-based variant) WASM build and source code: `\\wsl.localhost\Ubuntu\home\james\Repos\slashem-wasm`.
 - Never modify the imported NetHack source unless the user explicitly asks for it.
-- Do not patch WASM shims directly here; adjust our runtime integration instead. If shim changes are unavoidable, call that out clearly so they can be made upstream or in the WASM package.
+- Prefer not patching WASM shims, as changes there are expensive. Adjust our runtime integration instead when possible. If shim changes are unavoidable, call that out clearly before doing it and confirm with the user first.
 
 ## Vulture Reference
 

@@ -2200,6 +2200,8 @@ class LocalNetHackRuntime {
       return;
     }
     if (input === this.contextualGlanceProbePrefix) {
+      // Arms auto-cancel for synthetic contextual tile probes driven by
+      // the modern #glance flow.
       this.contextualGlanceProbeMouseDeadlineMs = Date.now() + 1200;
       this.contextualGlanceAutoCancelPositionUntilMs = 0;
       return;
@@ -7482,7 +7484,13 @@ class LocalNetHackRuntime {
         continue;
       }
       console.log(
-        `Resolved extended command table from exported pointer "${exportedPointerName}" (entries=${entries.length}, base=${basePtr}, mode=${exportedPointerMode})`,
+        `Resolved extended command table from exported pointer "${exportedPointerName}"`,
+        {
+          entries: entries.length,
+          base: basePtr,
+          mode: exportedPointerMode,
+          commands: entries.map((entry) => entry.name),
+        },
       );
       return entries;
     }
@@ -9288,7 +9296,7 @@ class LocalNetHackRuntime {
       const nowMs = Date.now();
       if (nowMs <= this.contextualGlanceAutoCancelPositionUntilMs) {
         console.log(
-          "Auto-canceling contextual glance follow-up position request",
+          "Auto-canceling contextual look/glance follow-up position request",
         );
         this.contextualGlanceAutoCancelPositionUntilMs = 0;
         this.setPositionInputActive(false);

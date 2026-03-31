@@ -48,8 +48,8 @@ This is a living steering doc. Update it whenever architecture, file ownership, 
 - `src/update/manifest.ts`: update manifest parsing and resolution.
 - `src/update/types.ts`: update type definitions.
 - `public/assets/*`: shipped images, UI icons, and Vulture asset roots.
-- `public/nethack-367.js`, `public/nethack-367.wasm`, `public/nethack-37.wasm`: checked-in runtime artifacts consumed by the browser build.
-- `imported/nethack-3.6.7/*`: pinned NetHack source and data files used as reference inputs.
+- `public/nethack-367.js`, `public/nethack-367.wasm`, `public/nethack-37.js`, `public/nethack-37.wasm`, `public/slashem.js`, `public/slashem.wasm`: checked-in runtime artifacts consumed by the browser build.
+- `imported/nethack-3.6.7/*`: A few imported NetHack 3.6.7 source code files needed to run the UI properly.
 - `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo`: forked NetHack WASM monorepo reference in WSL.
 - `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367`: forked wasm-367 package reference in WSL.
 - `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\NetHack`: forked NetHack source inside the wasm-367 package in WSL.
