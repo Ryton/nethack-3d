@@ -4,6 +4,7 @@ import { esOverrides } from "./locales/es";
 import { fi } from "./locales/fi";
 import { fr } from "./locales/fr";
 import { ja } from "./locales/ja";
+import { ko } from "./locales/ko";
 import { ptBrOverrides } from "./locales/pt-br";
 import { zhCnOverrides } from "./locales/zh-cn";
 import { mergeTranslations } from "./locale-helpers";
@@ -15,6 +16,7 @@ export type SupportedLocale =
   | "fi"
   | "fr"
   | "ja"
+  | "ko"
   | "pt-br"
   | "zh-cn";
 
@@ -25,6 +27,7 @@ const dictionaries: Record<SupportedLocale, TranslationDictionary> = {
   fi,
   fr,
   ja,
+  ko,
   "pt-br": mergeTranslations(en, ptBrOverrides),
   "zh-cn": mergeTranslations(en, zhCnOverrides),
 };
@@ -38,6 +41,7 @@ const localeLabels: Record<SupportedLocale, string> = {
   fi: "Suomi",
   fr: "Français",
   ja: "\u65e5\u672c\u8a9e",
+  ko: "\ud55c\uad6d\uc5b4",
   "pt-br": "Portugu\u00eas (Brasil)",
   "zh-cn": "\u7b80\u4f53\u4e2d\u6587",
 };
@@ -70,6 +74,8 @@ const localeAliases: Record<string, SupportedLocale> = {
   "fr-ch": "fr",
   ja: "ja",
   "ja-jp": "ja",
+  ko: "ko",
+  "ko-kr": "ko",
   pt: "pt-br",
   "pt-br": "pt-br",
   "pt-pt": "pt-br",
