@@ -8211,7 +8211,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private shouldUseTransparentTileFloorUnderlay(
     behavior: TileBehaviorResult,
   ): boolean {
-    return this.shouldUseRaisedSpecialTileBillboardInTiles(behavior);
+    return (
+      this.shouldUseRaisedSpecialTileBillboardInTiles(behavior) ||
+      this.isOpenDoorFloorBehavior(behavior)
+    );
   }
 
   private shouldUseTransparentWallGroundPlaneUnderlay(
@@ -8222,6 +8225,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private isIronBarsLikeBehavior(behavior: TileBehaviorResult): boolean {
     return isIronBarsCmapGlyph(behavior.effective.glyph);
+  }
+
+  private isPassableDoorwayTerrainBehavior(
+    behavior: TileBehaviorResult,
+  ): boolean {
+    return (
+      !behavior.isWall &&
+      isDoorwayCmapGlyph(behavior.effective.glyph)
+    );
+  }
+
+  private isOpenDoorFloorBehavior(behavior: TileBehaviorResult): boolean {
+    const effectiveGlyph = behavior.effective.glyph;
+    return (
+      behavior.materialKind === "door" &&
+      this.isPassableDoorwayTerrainBehavior(behavior) &&
+      getOpenDoorGlyphFrom(effectiveGlyph) === effectiveGlyph
+    );
   }
 
   private isTileAdjacentToIronBars(tileX: number, tileY: number): boolean {
@@ -8391,6 +8412,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
   }
 
+  private resolveTransparentOpenDoorwayFloorTileIndex(): number {
+    if (this.loadedTilesetTileLayoutVersion === "3.4.3") {
+      return 1187;
+    }
+    if (this.loadedTilesetTileLayoutVersion === "3.7") {
+      return 1281;
+    }
+    return 862;
+  }
+
+  private resolveTransparentOpenDoorwayFloorBehavior(): TileBehaviorResult {
+    return classifyTileBehavior({
+      glyph: getDefaultFloorGlyph(),
+      runtimeChar: ".",
+      runtimeColor: null,
+      runtimeTileIndex: this.resolveTransparentOpenDoorwayFloorTileIndex(),
+      priorTerrain: null,
+    });
+  }
+
   private isGoldLikeBehavior(behavior: TileBehaviorResult): boolean {
     if (behavior.effective.kind !== "obj") {
       return false;
@@ -8547,6 +8588,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (this.isBoulderLikeBehavior(behavior)) {
         return false;
       }
+      return true;
+    }
+    if (this.isPassableDoorwayTerrainBehavior(behavior)) {
       return true;
     }
     switch (behavior.materialKind) {
@@ -21264,9 +21308,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.userData.glyphChar = behavior.glyphChar;
     mesh.userData.sourceGlyph = glyph;
     mesh.userData.tileTextureSourceGlyph = renderBehavior.effective.glyph;
+    const shouldCompositeTransparentFloorOnFlatTile =
+      useTiles &&
+      this.clientOptions.tilesetBackgroundRemovalMode === "none" &&
+      this.isOpenDoorFloorBehavior(renderBehavior);
     const shouldUseTransparentFloorUnderlayTreatmentOnTile =
       (shouldUseElevatedBillboard &&
         this.shouldUseTransparentTileFloorUnderlay(renderBehavior)) ||
+      shouldCompositeTransparentFloorOnFlatTile ||
       (this.isFpsMode() &&
         shouldSuppressPlayerTileVisualInFps &&
         this.shouldRenderFlatFeatureUnderPlayer(renderBehavior));
@@ -21281,11 +21330,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.userData.glyphTextColor = tileTextColor;
     mesh.userData.glyphDarkenFactor = behavior.darkenFactor;
     mesh.userData.glyphBaseColorHex = material.color.getHexString();
-    const tileTextureIndex =
-      this.resolveInferredDarkCorridorWallTileTextureIndex(
-        renderBehavior.effective.tileIndex,
-        darkCorridorWallCompatibilityActive,
-      );
+    const tileTextureIndex = this.resolveInferredDarkCorridorWallTileTextureIndex(
+      renderBehavior.effective.tileIndex,
+      darkCorridorWallCompatibilityActive,
+    );
     const inferredDarkWallSolidColorHex =
       this.resolveInferredDarkCorridorWallSolidColorHex(
         darkCorridorWallCompatibilityActive,
@@ -21306,11 +21354,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clientOptions.tilesetBackgroundRemovalMode === "none" &&
       shouldUseTransparentFloorUnderlayTreatmentOnTile;
     if (shouldCompositeFloorUnderFlatFeatureOnTile) {
-      const floorUnderlayBehavior = this.shouldUseTransparentTileFloorUnderlay(
-        renderBehavior,
-      )
-        ? this.resolveRaisedSpecialTileFloorBehavior()
-        : this.resolveFpsFloorUnderlayBehaviorFromCache(key);
+      const floorUnderlayBehavior = shouldCompositeTransparentFloorOnFlatTile
+        ? this.resolveTransparentOpenDoorwayFloorBehavior()
+        : this.shouldUseTransparentTileFloorUnderlay(renderBehavior)
+          ? this.resolveRaisedSpecialTileFloorBehavior()
+          : this.resolveFpsFloorUnderlayBehaviorFromCache(key);
       mesh.userData.floorUnderlaySourceGlyph =
         floorUnderlayBehavior.effective.glyph;
       mesh.userData.floorUnderlayTileIndex =

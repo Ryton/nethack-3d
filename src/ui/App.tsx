@@ -61,7 +61,6 @@ import {
   getStoredFileByteLength,
   isRecoverableCheckpointLevelZeroByteLength,
 } from "../runtime/save-storage";
-import { GLYPH_CATALOG as GLYPH_CATALOG_367 } from "../game/glyphs/glyph-catalog.367.generated";
 import {
   findNh3dTilesetByPath,
   getNh3dTilesetAtlasTileColumns,
@@ -75,6 +74,8 @@ import {
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
   resolveNh3dTilesetAssetUrl,
   setNh3dUserTilesets,
+  type Nh3dTilesetEntry,
+  type Nh3dTilesetTileLayoutVersion,
 } from "../game/tilesets";
 import {
   shouldTranslateNh367TilesetForNh37Runtime,
@@ -96,6 +97,7 @@ import {
   persistNh3dStartupInitOptionsToIndexedDb,
   type StartupCharacterPreferences,
 } from "../storage/client-options-storage";
+import { getGlyphCatalogEntriesForVersion } from "../game/glyphs/registry";
 import {
   activateNh3dClientUpdateIfNeeded,
   applyNh3dClientUpdate,
@@ -149,6 +151,7 @@ import {
   resolveSupportedLocale,
   setCurrentLocale,
 } from "../i18n/core";
+import type { GlyphCatalogEntry } from "../game/glyphs/types";
 
 type CoreStatKey =
   | "strength"
@@ -177,6 +180,48 @@ const commonStrings = translationStrings.common;
 const t = translationStrings.app;
 const supportedLocaleOptions = getSupportedLocaleOptions();
 
+function resolveTilesetLayoutShortLabel(
+  tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
+): string {
+  switch (tileLayoutVersion) {
+    case "3.4.3":
+      return "3.4.3";
+    case "3.7":
+      return "3.7";
+    case "3.6.7":
+      return "3.6.7";
+    default:
+      return "unknown";
+  }
+}
+
+function resolveTilesetLayoutDisplayLabel(
+  tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
+): string {
+  switch (tileLayoutVersion) {
+    case "3.4.3":
+      return "Slash'EM / NetHack 3.4.3 layout";
+    case "3.7":
+      return t.dialogs.tilesetManager.layout37;
+    case "3.6.7":
+      return t.dialogs.tilesetManager.layout367;
+    default:
+      return "Unknown layout";
+  }
+}
+
+function formatTilesetPickerOptionLabel(
+  tileset: Nh3dTilesetEntry,
+  showLayoutVersion: boolean,
+): string {
+  if (!showLayoutVersion) {
+    return tileset.label;
+  }
+  return `${tileset.label} (${resolveTilesetLayoutShortLabel(
+    tileset.tileLayoutVersion,
+  )})`;
+}
+
 const nh3dAppVersion =
   typeof import.meta.env.VITE_NH3D_APP_VERSION === "string" &&
   import.meta.env.VITE_NH3D_APP_VERSION.trim()
@@ -193,6 +238,7 @@ const nh3dBuildLabel = nh3dBuildCommitSha
   : `v${nh3dAppVersion}`;
 
 const nh3dBuildLabelDebugEnableClickCount = 10;
+const emptyGlyphCatalogEntries: readonly GlyphCatalogEntry[] = [];
 
 function formatDebugSessionLogTimestamp(value: string): string {
   if (!value) {
@@ -6050,8 +6096,8 @@ export default function App(): JSX.Element {
     Map<HTMLSelectElement, string>
   >(new Map());
   const tilesetCatalog = useMemo(
-    () => getNh3dCompatibleTilesetCatalog(runtimeVersion),
-    [runtimeVersion, userTilesets],
+    () => getNh3dCompatibleTilesetCatalog(activeRuntimeVersion),
+    [activeRuntimeVersion, userTilesets],
   );
   const showBuiltInTilesetsInTilesetManagerList = useMemo(
     () => isRunningOnLocalhost(),
@@ -6074,21 +6120,30 @@ export default function App(): JSX.Element {
     [showBuiltInTilesetsInTilesetManagerList, tilesetCatalog],
   );
   const hasAnyTilesets = tilesetCatalog.length > 0;
+  const tilesetCatalogLayoutVersionCount = useMemo(
+    () =>
+      new Set(tilesetCatalog.map((tileset) => tileset.tileLayoutVersion)).size,
+    [tilesetCatalog],
+  );
+  const showTilesetLayoutInDropdown = tilesetCatalogLayoutVersionCount > 1;
   const tilesetDropdownOptions = useMemo(
     () =>
       hasAnyTilesets
         ? tilesetCatalog.map((tileset) => ({
             value: tileset.path,
-            label: tileset.label,
+            label: formatTilesetPickerOptionLabel(
+              tileset,
+              showTilesetLayoutInDropdown,
+            ),
           }))
         : [{ value: "", label: t.tilesets.noTilesetsFound }],
-    [hasAnyTilesets, tilesetCatalog],
+    [hasAnyTilesets, showTilesetLayoutInDropdown, tilesetCatalog],
   );
   useEffect(() => {
     const currentClientTilesetPath = String(clientOptions.tilesetPath || "").trim();
     const compatibleClientTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
       currentClientTilesetPath,
-      runtimeVersion,
+      activeRuntimeVersion,
     );
     if (
       compatibleClientTilesetPath &&
@@ -6107,7 +6162,7 @@ export default function App(): JSX.Element {
     ).trim();
     const compatibleDraftTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
       currentDraftTilesetPath,
-      runtimeVersion,
+      activeRuntimeVersion,
     );
     if (
       compatibleDraftTilesetPath &&
@@ -6123,7 +6178,7 @@ export default function App(): JSX.Element {
   }, [
     clientOptions.tilesetPath,
     clientOptionsDraft.tilesetPath,
-    runtimeVersion,
+    activeRuntimeVersion,
     userTilesets,
   ]);
   const selectedClientOptionsTab = useMemo<ClientOptionsTab>(
@@ -6846,13 +6901,33 @@ export default function App(): JSX.Element {
     },
     [handleInventoryRowActivationDismissCapture],
   );
+  const [tilesetPickerGlyphCatalog, setTilesetPickerGlyphCatalog] = useState<
+    readonly GlyphCatalogEntry[]
+  >(emptyGlyphCatalogEntries);
+  useEffect(() => {
+    let cancelled = false;
+    void getGlyphCatalogEntriesForVersion(activeRuntimeVersion)
+      .then((glyphCatalog) => {
+        if (!cancelled) {
+          setTilesetPickerGlyphCatalog(glyphCatalog);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTilesetPickerGlyphCatalog(emptyGlyphCatalogEntries);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRuntimeVersion]);
   const representativeGlyphByTileId = useMemo(
-    () => buildRepresentativeGlyphByTileId(GLYPH_CATALOG_367),
-    [],
+    () => buildRepresentativeGlyphByTileId(tilesetPickerGlyphCatalog),
+    [tilesetPickerGlyphCatalog],
   );
   const representativeGlyphNumberByTileId = useMemo(
-    () => buildRepresentativeGlyphNumberByTileId(GLYPH_CATALOG_367),
-    [],
+    () => buildRepresentativeGlyphNumberByTileId(tilesetPickerGlyphCatalog),
+    [tilesetPickerGlyphCatalog],
   );
   const showTilePickerGlyphNumber = import.meta.env.DEV;
   const defaultDarkWallTileId = Math.max(
@@ -7214,7 +7289,7 @@ export default function App(): JSX.Element {
       return null;
     }
     const remappedTileId = resolvePreviewAtlasTileIdForRuntime(
-      runtimeVersion,
+      activeRuntimeVersion,
       tileId,
       tileAtlasState.tileCount,
     );
@@ -10407,7 +10482,7 @@ export default function App(): JSX.Element {
     setTilesetManagerEditPath("");
     setTilesetManagerName("");
     setTilesetManagerTileLayoutVersion(
-      runtimeVersion === "slashem"
+      activeRuntimeVersion === "slashem"
         ? "3.4.3"
         : defaultUserTilesetTileLayoutVersion,
     );
@@ -15638,10 +15713,14 @@ export default function App(): JSX.Element {
                             {isUserTileset
                               ? t.dialogs.tilesetManager.uploadedDetails(
                                   userRecord?.fileName || tilesetPath,
-                                  userRecord?.tileLayoutVersion || "3.6.7",
+                                  resolveTilesetLayoutShortLabel(
+                                    tileset.tileLayoutVersion,
+                                  ),
                                 )
                               : t.dialogs.tilesetManager.builtInDetails(
-                                  tilesetPath,
+                                  resolveTilesetLayoutDisplayLabel(
+                                    tileset.tileLayoutVersion,
+                                  ),
                                 )}
                           </div>
                         </div>

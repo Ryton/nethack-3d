@@ -42,33 +42,50 @@ const GLYPH_CATALOG_BY_VERSION: Record<
 let activeGlyphCatalogVersion: NethackRuntimeVersion = "3.6.7";
 let activeGlyphCatalog: GlyphCatalogModule = GLYPH_CATALOG_BY_VERSION["3.6.7"];
 
+async function loadGlyphCatalogModule(
+  version: NethackRuntimeVersion,
+): Promise<GlyphCatalogModule> {
+  if (version === "3.7") {
+    const existing = GLYPH_CATALOG_BY_VERSION["3.7"];
+    if (existing.GLYPH_CATALOG !== GLYPH_CATALOG_367) {
+      return existing;
+    }
+    const mod =
+      (await import("./glyph-catalog.37.generated")) as GlyphCatalogModule;
+    GLYPH_CATALOG_BY_VERSION["3.7"] = mod;
+    return mod;
+  }
+
+  if (version === "slashem") {
+    const existing = GLYPH_CATALOG_BY_VERSION.slashem;
+    if (existing.GLYPH_CATALOG !== GLYPH_CATALOG_367) {
+      return existing;
+    }
+    const mod =
+      (await import("./glyph-catalog.slashem.generated")) as GlyphCatalogModule;
+    GLYPH_CATALOG_BY_VERSION.slashem = mod;
+    return mod;
+  }
+
+  return GLYPH_CATALOG_BY_VERSION["3.6.7"];
+}
+
 export async function setActiveGlyphCatalog(
   version: NethackRuntimeVersion,
 ): Promise<void> {
   if (version === activeGlyphCatalogVersion) {
     return;
   }
-
-  if (version === "3.7") {
-    const mod =
-      (await import("./glyph-catalog.37.generated")) as GlyphCatalogModule;
-    GLYPH_CATALOG_BY_VERSION["3.7"] = mod;
-    activeGlyphCatalog = mod;
-    activeGlyphCatalogVersion = version;
-    return;
-  }
-
-  if (version === "slashem") {
-    const mod =
-      (await import("./glyph-catalog.slashem.generated")) as GlyphCatalogModule;
-    GLYPH_CATALOG_BY_VERSION.slashem = mod;
-    activeGlyphCatalog = mod;
-    activeGlyphCatalogVersion = version;
-    return;
-  }
-
+  const mod = await loadGlyphCatalogModule(version);
+  activeGlyphCatalog = mod;
   activeGlyphCatalogVersion = version;
-  activeGlyphCatalog = GLYPH_CATALOG_BY_VERSION["3.6.7"];
+}
+
+export async function getGlyphCatalogEntriesForVersion(
+  version: NethackRuntimeVersion,
+): Promise<readonly GlyphCatalogEntry[]> {
+  const mod = await loadGlyphCatalogModule(version);
+  return mod.GLYPH_CATALOG;
 }
 
 export function getActiveGlyphCatalogVersion(): NethackRuntimeVersion {
