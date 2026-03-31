@@ -139,6 +139,13 @@ import {
   resolveCharacterCommandActions,
 } from "./modals/character-sheet";
 import { parseEnhanceMenu } from "./modals/enhance-menu";
+import {
+  getCurrentLocale,
+  getSupportedLocaleOptions,
+  getTranslationStrings,
+  resolveSupportedLocale,
+  setCurrentLocale,
+} from "../i18n/core";
 
 type CoreStatKey =
   | "strength"
@@ -162,6 +169,11 @@ type PlayerStatusBadge = {
   severity: StatusSeverity;
 };
 
+const translationStrings = getTranslationStrings();
+const commonStrings = translationStrings.common;
+const t = translationStrings.app;
+const supportedLocaleOptions = getSupportedLocaleOptions();
+
 const nh3dAppVersion =
   typeof import.meta.env.VITE_NH3D_APP_VERSION === "string" &&
   import.meta.env.VITE_NH3D_APP_VERSION.trim()
@@ -178,37 +190,10 @@ const nh3dBuildLabel = nh3dBuildCommitSha
   : `v${nh3dAppVersion}`;
 
 const nh3dBuildLabelDebugEnableClickCount = 10;
-const debugSessionLogsUnlockedStorageKey = "nh3d-debug-log-unlocked-v1";
-
-function readDebugSessionLogsUnlockedState(): boolean {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return false;
-  }
-  try {
-    return window.localStorage.getItem(debugSessionLogsUnlockedStorageKey) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function persistDebugSessionLogsUnlockedState(enabled: boolean): void {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return;
-  }
-  try {
-    if (enabled) {
-      window.localStorage.setItem(debugSessionLogsUnlockedStorageKey, "1");
-    } else {
-      window.localStorage.removeItem(debugSessionLogsUnlockedStorageKey);
-    }
-  } catch {
-    // Best effort only.
-  }
-}
 
 function formatDebugSessionLogTimestamp(value: string): string {
   if (!value) {
-    return "Unknown time";
+    return t.unknownTime;
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -217,34 +202,141 @@ function formatDebugSessionLogTimestamp(value: string): string {
   return parsed.toLocaleString();
 }
 
-function describeDebugSessionLogSession(session: DebugSessionLogSession): string {
+function describeDebugSessionLogSession(
+  session: DebugSessionLogSession,
+): string {
   const closeReason =
     session.closeReason === "abrupt-stop"
-      ? "possible crash"
+      ? t.debugSession.possibleCrash
       : session.closeReason === "active"
-        ? "active"
+        ? t.debugSession.active
         : session.closeReason.replace(/-/g, " ");
   return `${formatDebugSessionLogTimestamp(session.startedAt)} - ${closeReason}`;
 }
 
-const playerConditionStatusDefinitions: ReadonlyArray<{
+const playerConditionStatusDefinitions367: ReadonlyArray<{
   mask: number;
   label: string;
   severity: StatusSeverity;
 }> = [
-  { mask: 0x00000001, label: "Stone", severity: "danger" },
-  { mask: 0x00000002, label: "Slime", severity: "danger" },
-  { mask: 0x00000004, label: "Strngl", severity: "danger" },
-  { mask: 0x00000008, label: "FoodPois", severity: "danger" },
-  { mask: 0x00000010, label: "TermIll", severity: "danger" },
-  { mask: 0x00000020, label: "Blind", severity: "warning" },
-  { mask: 0x00000040, label: "Deaf", severity: "warning" },
-  { mask: 0x00000080, label: "Stun", severity: "warning" },
-  { mask: 0x00000100, label: "Conf", severity: "warning" },
-  { mask: 0x00000200, label: "Hallu", severity: "warning" },
-  { mask: 0x00000400, label: "Lev", severity: "good" },
-  { mask: 0x00000800, label: "Fly", severity: "good" },
-  { mask: 0x00001000, label: "Ride", severity: "good" },
+  {
+    mask: 0x00000001,
+    label: t.statusEffects.turningToStone,
+    severity: "danger",
+  },
+  { mask: 0x00000002, label: t.statusEffects.slimed, severity: "danger" },
+  {
+    mask: 0x00000004,
+    label: t.statusEffects.strangled,
+    severity: "danger",
+  },
+  {
+    mask: 0x00000008,
+    label: t.statusEffects.foodPoisoning,
+    severity: "danger",
+  },
+  {
+    mask: 0x00000010,
+    label: t.statusEffects.terminallyIll,
+    severity: "danger",
+  },
+  { mask: 0x00000020, label: t.statusEffects.blind, severity: "warning" },
+  { mask: 0x00000040, label: t.statusEffects.deaf, severity: "warning" },
+  { mask: 0x00000080, label: t.statusEffects.stunned, severity: "warning" },
+  { mask: 0x00000100, label: t.statusEffects.confused, severity: "warning" },
+  {
+    mask: 0x00000200,
+    label: t.statusEffects.hallucinating,
+    severity: "warning",
+  },
+  {
+    mask: 0x00000400,
+    label: t.statusEffects.levitating,
+    severity: "good",
+  },
+  { mask: 0x00000800, label: t.statusEffects.flying, severity: "good" },
+  { mask: 0x00001000, label: t.statusEffects.riding, severity: "good" },
+];
+
+const playerConditionStatusDefinitions37: ReadonlyArray<{
+  mask: number;
+  label: string;
+  severity: StatusSeverity;
+}> = [
+  {
+    mask: 0x00000001,
+    label: t.statusEffects.barehanded,
+    severity: "warning",
+  },
+  { mask: 0x00000002, label: t.statusEffects.blind, severity: "warning" },
+  { mask: 0x00000004, label: t.statusEffects.busy, severity: "warning" },
+  { mask: 0x00000008, label: t.statusEffects.confused, severity: "warning" },
+  { mask: 0x00000010, label: t.statusEffects.deaf, severity: "warning" },
+  { mask: 0x00000020, label: t.statusEffects.iron, severity: "warning" },
+  { mask: 0x00000040, label: t.statusEffects.flying, severity: "good" },
+  {
+    mask: 0x00000080,
+    label: t.statusEffects.foodPoisoning,
+    severity: "danger",
+  },
+  {
+    mask: 0x00000100,
+    label: t.statusEffects.glowingHands,
+    severity: "warning",
+  },
+  { mask: 0x00000200, label: t.statusEffects.grabbed, severity: "danger" },
+  {
+    mask: 0x00000400,
+    label: t.statusEffects.hallucinating,
+    severity: "warning",
+  },
+  { mask: 0x00000800, label: t.statusEffects.held, severity: "warning" },
+  { mask: 0x00001000, label: t.statusEffects.icy, severity: "warning" },
+  { mask: 0x00002000, label: t.statusEffects.inLava, severity: "danger" },
+  {
+    mask: 0x00004000,
+    label: t.statusEffects.levitating,
+    severity: "good",
+  },
+  {
+    mask: 0x00008000,
+    label: t.statusEffects.paralyzed,
+    severity: "danger",
+  },
+  { mask: 0x00010000, label: t.statusEffects.riding, severity: "good" },
+  { mask: 0x00020000, label: t.statusEffects.sleeping, severity: "warning" },
+  { mask: 0x00040000, label: t.statusEffects.slimed, severity: "danger" },
+  { mask: 0x00080000, label: t.statusEffects.slippery, severity: "warning" },
+  {
+    mask: 0x00100000,
+    label: t.statusEffects.turningToStone,
+    severity: "danger",
+  },
+  {
+    mask: 0x00200000,
+    label: t.statusEffects.strangled,
+    severity: "danger",
+  },
+  { mask: 0x00400000, label: t.statusEffects.stunned, severity: "warning" },
+  { mask: 0x00800000, label: t.statusEffects.submerged, severity: "warning" },
+  {
+    mask: 0x01000000,
+    label: t.statusEffects.terminallyIll,
+    severity: "danger",
+  },
+  { mask: 0x02000000, label: t.statusEffects.tethered, severity: "warning" },
+  { mask: 0x04000000, label: t.statusEffects.trapped, severity: "warning" },
+  {
+    mask: 0x08000000,
+    label: t.statusEffects.unconscious,
+    severity: "danger",
+  },
+  {
+    mask: 0x10000000,
+    label: t.statusEffects.woundedLegs,
+    severity: "warning",
+  },
+  { mask: 0x20000000, label: t.statusEffects.holding, severity: "warning" },
 ];
 
 function resolveHungerStatusBadge(
@@ -296,7 +388,10 @@ function resolveEncumbranceStatusBadge(
   return { label, severity: "warning" };
 }
 
-function resolveConditionStatusBadges(rawMask: unknown): PlayerStatusBadge[] {
+function resolveConditionStatusBadges(
+  rawMask: unknown,
+  runtimeVersion: NethackRuntimeVersion,
+): PlayerStatusBadge[] {
   const conditionMask =
     typeof rawMask === "number" && Number.isFinite(rawMask)
       ? Math.trunc(rawMask) >>> 0
@@ -304,7 +399,11 @@ function resolveConditionStatusBadges(rawMask: unknown): PlayerStatusBadge[] {
   if (conditionMask === 0) {
     return [];
   }
-  return playerConditionStatusDefinitions
+  const definitions =
+    runtimeVersion === "3.7"
+      ? playerConditionStatusDefinitions37
+      : playerConditionStatusDefinitions367;
+  return definitions
     .filter((entry) => (conditionMask & entry.mask) !== 0)
     .map((entry) => ({
       label: entry.label,
@@ -314,6 +413,7 @@ function resolveConditionStatusBadges(rawMask: unknown): PlayerStatusBadge[] {
 
 function buildPlayerStatusBadges(
   stats: PlayerStatsSnapshot,
+  runtimeVersion: NethackRuntimeVersion,
 ): PlayerStatusBadge[] {
   const badges: PlayerStatusBadge[] = [];
   const seen = new Set<string>();
@@ -331,7 +431,10 @@ function buildPlayerStatusBadges(
 
   pushUnique(resolveHungerStatusBadge(stats.hunger));
   pushUnique(resolveEncumbranceStatusBadge(stats.encumbrance));
-  for (const badge of resolveConditionStatusBadges(stats.conditionMask)) {
+  for (const badge of resolveConditionStatusBadges(
+    stats.conditionMask,
+    runtimeVersion,
+  )) {
     pushUnique(badge);
   }
   return badges;
@@ -348,16 +451,15 @@ const trackedCoreStatKeys: CoreStatKey[] = [
 ];
 
 const characterStatDescriptionById: Record<CharacterSheetStatKey, string> = {
-  strength: "Affects melee damage, carrying capacity, and forcing actions.",
-  dexterity: "Affects hit chance, trap interaction, and defensive agility.",
-  constitution: "Affects HP growth and resistance to poison and drain effects.",
-  intelligence: "Affects reading and success with many spell-related actions.",
-  wisdom: "Affects spell energy growth and spell-casting reliability.",
-  charisma: "Affects shop interactions, pet handling, and social outcomes.",
+  strength: t.characterStats.descriptions.strength,
+  dexterity: t.characterStats.descriptions.dexterity,
+  constitution: t.characterStats.descriptions.constitution,
+  intelligence: t.characterStats.descriptions.intelligence,
+  wisdom: t.characterStats.descriptions.wisdom,
+  charisma: t.characterStats.descriptions.charisma,
 };
 
-const armorClassDescription =
-  "Lower is better. Armor Class reduces enemy hit chance against you.";
+const armorClassDescription = t.characterStats.armorClassDescription;
 
 const maxExperienceLevel = 30;
 
@@ -421,11 +523,11 @@ const getDirectionHelpText = (
 ) =>
   numberPadModeEnabled
     ? controllerEnabled
-      ? "Click a direction, or use left stick/DPAD to preview and release to confirm. Center circle targets self. Use < or > for stairs. Press ESC to cancel."
-      : "Click a direction. Center circle targets self. You can also use numpad (1-4,6-9), arrow keys, <, >, or s. Press ESC to cancel."
+      ? t.directionHelp.controller
+      : t.directionHelp.numpad
     : controllerEnabled
-      ? "Click a direction, or use left stick/DPAD to preview and release to confirm. Center circle targets self. Use < or > for stairs. Press ESC to cancel."
-      : "Click a direction. Center circle targets self. You can also use hjkl/yubn, arrow keys, <, >, or s. Press ESC to cancel.";
+      ? t.directionHelp.controller
+      : t.directionHelp.viKeys;
 
 function expandChoiceSpec(spec: string): string[] {
   const normalized = String(spec || "")
@@ -707,10 +809,10 @@ function getQuestionChoiceLabel(
   const normalizedChoice = choice.trim();
   if (questionText.includes("Which ring-finger")) {
     if (normalizedChoice === "l") {
-      return "l) Left ring-finger";
+      return `l) ${t.dialogs.question.choices.leftRingFinger}`;
     }
     if (normalizedChoice === "r") {
-      return "r) Right ring-finger";
+      return `r) ${t.dialogs.question.choices.rightRingFinger}`;
     }
   }
 
@@ -859,11 +961,11 @@ function TilesetTilePickerDialog({
         </span>
         <div className="nh3d-dark-wall-picker-selected-copy">
           <div className="nh3d-option-label">
-            Selected: tile #{selectedTileId}
-            {selectedTileId === defaultTileId ? " (default)" : ""}
+            {t.tilePicker.selectedTile(selectedTileId)}
+            {selectedTileId === defaultTileId ? t.soundPack.defaultSuffix : ""}
           </div>
           <div className="nh3d-option-description">
-            Glyph {selectedGlyphLabel}
+            {t.tilePicker.glyph(selectedGlyphLabel)}
             {showGlyphNumber && typeof selectedGlyphNumber === "number"
               ? ` (${selectedGlyphNumber})`
               : ""}
@@ -895,17 +997,17 @@ function TilesetTilePickerDialog({
                     {renderTilePreviewImage(entry.tileId)}
                   </span>
                   <span className="nh3d-dark-wall-tile-card-glyph">
-                    Glyph {entry.glyphLabel}
+                    {t.tilePicker.glyph(entry.glyphLabel)}
                     {showGlyphNumber && typeof entry.glyphNumber === "number"
                       ? ` (${entry.glyphNumber})`
                       : ""}
                   </span>
                   <span className="nh3d-dark-wall-tile-card-id">
-                    Tile {entry.tileId}
+                    {t.tilePicker.tile(entry.tileId)}
                   </span>
                   {isDefault ? (
                     <span className="nh3d-dark-wall-tile-card-default">
-                      Default
+                      {t.tilePicker.defaultBadge}
                     </span>
                   ) : null}
                 </button>
@@ -921,14 +1023,14 @@ function TilesetTilePickerDialog({
           onClick={onResetToDefault}
           type="button"
         >
-          Reset to default
+          {t.tilePicker.resetToDefault}
         </button>
         <button
           className="nh3d-menu-action-button nh3d-menu-action-confirm"
           onClick={onDone}
           type="button"
         >
-          Done
+          {commonStrings.done}
         </button>
       </div>
     </div>
@@ -1722,6 +1824,7 @@ type ClientOptionToggle = {
 
 type ClientOptionSelect = {
   key:
+    | "locale"
     | "tilesetMode"
     | "tilesetPath"
     | "antialiasing"
@@ -1801,6 +1904,7 @@ type ClientOptionsTab = {
 
 type ClientOptionToggleKey =
   | "fpsMode"
+  | "lightingEnabled"
   | "fpsFlattenEntityBillboards"
   | "showItemsUnderPlayerInOverheadTilesMode"
   | "controllerEnabled"
@@ -1863,59 +1967,89 @@ type InventoryCategoryId =
   | "bagged_boxed_items";
 
 const inventoryContextActions: InventoryContextAction[] = [
-  { id: "apply", label: "Apply" },
-  { id: "invoke", label: "Invoke", kind: "extended", value: "invoke" },
-  { id: "tip", label: "Tip", kind: "extended", value: "tip" },
+  { id: "apply", label: t.inventoryContextActions.apply },
+  {
+    id: "invoke",
+    label: t.inventoryContextActions.invoke,
+    kind: "extended",
+    value: "invoke",
+  },
+  {
+    id: "tip",
+    label: t.inventoryContextActions.tip,
+    kind: "extended",
+    value: "tip",
+  },
   {
     id: "loot",
-    label: "Loot",
+    label: t.inventoryContextActions.loot,
     kind: "extended",
     value: "loot",
     armInventorySelection: false,
   },
-  { id: "drop", label: "Drop" },
-  { id: "eat", label: "Eat" },
-  { id: "quaff", label: "Quaff" },
-  { id: "read", label: "Read" },
-  { id: "rub", label: "Rub", kind: "extended", value: "rub" },
-  { id: "throw", label: "Throw" },
-  { id: "wield", label: "Wield" },
-  { id: "quiver", label: "Quiver" },
-  { id: "wear", label: "Wear" },
-  { id: "take-off", label: "Take Off" },
-  { id: "put-on", label: "Put On" },
-  { id: "remove", label: "Remove" },
-  { id: "zap", label: "Zap" },
+  { id: "drop", label: t.inventoryContextActions.drop },
+  { id: "eat", label: t.inventoryContextActions.eat },
+  { id: "quaff", label: t.inventoryContextActions.quaff },
+  { id: "read", label: t.inventoryContextActions.read },
+  {
+    id: "rub",
+    label: t.inventoryContextActions.rub,
+    kind: "extended",
+    value: "rub",
+  },
+  { id: "throw", label: t.inventoryContextActions.throw },
+  { id: "wield", label: t.inventoryContextActions.wield },
+  { id: "quiver", label: t.inventoryContextActions.quiver },
+  { id: "wear", label: t.inventoryContextActions.wear },
+  { id: "take-off", label: t.inventoryContextActions.takeOff },
+  { id: "put-on", label: t.inventoryContextActions.putOn },
+  { id: "remove", label: t.inventoryContextActions.remove },
+  { id: "zap", label: t.inventoryContextActions.zap },
   {
     id: "untrap",
-    label: "Untrap",
+    label: t.inventoryContextActions.untrap,
     kind: "extended",
     value: "untrap",
     armInventorySelection: false,
   },
   {
     id: "offer",
-    label: "Offer",
+    label: t.inventoryContextActions.offer,
     kind: "extended",
     value: "offer",
     armInventorySelection: false,
   },
   {
     id: "name",
-    label: "Name",
+    label: t.inventoryContextActions.name,
     kind: "extended",
     value: "name",
   },
   {
     id: "call",
-    label: "Call",
+    label: t.inventoryContextActions.call,
     kind: "extended",
     value: "call",
   },
-  { id: "adjust", label: "Adjust", kind: "extended", value: "adjust" },
-  { id: "engrave", label: "Engrave", kind: "extended", value: "engrave" },
-  { id: "dip", label: "Dip", kind: "extended", value: "dip" },
-  { id: "info", label: "Info" },
+  {
+    id: "adjust",
+    label: t.inventoryContextActions.adjust,
+    kind: "extended",
+    value: "adjust",
+  },
+  {
+    id: "engrave",
+    label: t.inventoryContextActions.engrave,
+    kind: "extended",
+    value: "engrave",
+  },
+  {
+    id: "dip",
+    label: t.inventoryContextActions.dip,
+    kind: "extended",
+    value: "dip",
+  },
+  { id: "info", label: t.inventoryContextActions.info },
 ];
 
 const emptyInventoryActionIdSet: ReadonlySet<string> = new Set<string>();
@@ -3075,35 +3209,35 @@ function findControllerScrollableElement(
 const clientOptionsConfig: ClientOption[] = [
   {
     key: "group-controls",
-    label: "Controller and first-person mode",
+    label: t.clientOptions.config.groupControls,
     type: "group",
   },
   {
     key: "section-controls-controller",
-    label: "Controller",
+    label: t.clientOptions.config.sectionControlsController,
     type: "section",
   },
   {
     key: "controllerEnabled",
-    label: "Enable controller support",
-    description: "Enable gamepad input for gameplay and UI dialogs.",
+    label: t.clientOptions.config.controllerEnabled.label,
+    description: t.clientOptions.config.controllerEnabled.description,
     type: "boolean",
   },
   {
     key: "section-controls-look",
-    label: "Look and camera",
+    label: t.clientOptions.config.sectionControlsLook,
     type: "section",
   },
   {
     key: "invertLookYAxis",
-    label: "Invert Y-axis look",
-    description: "Invert vertical mouselook and touch-look direction.",
+    label: t.clientOptions.config.invertLookYAxis.label,
+    description: t.clientOptions.config.invertLookYAxis.description,
     type: "boolean",
   },
   {
     key: "fpsLookSensitivityX",
-    label: "FPS Look Sensitivity X",
-    description: "Horizontal mouselook/touch-look sensitivity.",
+    label: t.clientOptions.config.fpsLookSensitivityX.label,
+    description: t.clientOptions.config.fpsLookSensitivityX.description,
     type: "slider",
     min: nh3dFpsLookSensitivityMin,
     max: nh3dFpsLookSensitivityMax,
@@ -3111,8 +3245,8 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "fpsLookSensitivityY",
-    label: "FPS Look Sensitivity Y",
-    description: "Vertical mouselook/touch-look sensitivity.",
+    label: t.clientOptions.config.fpsLookSensitivityY.label,
+    description: t.clientOptions.config.fpsLookSensitivityY.description,
     type: "slider",
     min: nh3dFpsLookSensitivityMin,
     max: nh3dFpsLookSensitivityMax,
@@ -3120,28 +3254,25 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "snapCameraYawToNearest45",
-    label: "Snap camera yaw to 45 degrees",
-    description:
-      "When camera rotation input is released, smoothly snap yaw to the nearest 45 degree angle.",
+    label: t.clientOptions.config.snapCameraYawToNearest45.label,
+    description: t.clientOptions.config.snapCameraYawToNearest45.description,
     type: "boolean",
   },
   {
     key: "section-controls-movement",
-    label: "Movement behavior",
+    label: t.clientOptions.config.sectionControlsMovement,
     type: "section",
   },
   {
     key: "cameraRelativeMovement",
-    label: "Camera-relative movement and swipes",
-    description:
-      "Rotate movement keys and swipe directions based on the camera Y-axis angle.",
+    label: t.clientOptions.config.cameraRelativeMovement.label,
+    description: t.clientOptions.config.cameraRelativeMovement.description,
     type: "boolean",
   },
   {
     key: "controllerFpsMoveRepeatMs",
-    label: "FPS left-stick move repeat",
-    description:
-      "Movement repeat delay for left stick in FPS mode (lower is faster).",
+    label: t.clientOptions.config.controllerFpsMoveRepeatMs.label,
+    description: t.clientOptions.config.controllerFpsMoveRepeatMs.description,
     type: "slider",
     min: 80,
     max: 900,
@@ -3149,38 +3280,45 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "group-interface",
-    label: "Interface",
+    label: t.clientOptions.config.groupInterface,
     type: "group",
   },
   {
+    key: "locale",
+    label: t.clientOptions.config.locale.label,
+    description: t.clientOptions.config.locale.description,
+    type: "select",
+    options: supportedLocaleOptions,
+  },
+  {
     key: "section-display-camera",
-    label: "Camera and perspective",
+    label: t.clientOptions.config.sectionDisplayCamera,
     type: "section",
   },
   {
     key: "fpsMode",
-    label: "First-person mode",
-    description: "Use first-person controls and mouselook.",
+    label: t.clientOptions.config.fpsMode.label,
+    description: t.clientOptions.config.fpsMode.description,
     type: "boolean",
   },
   {
     key: "fpsFlattenEntityBillboards",
-    label: "Flatten overlapping tile sprites",
-    description:
-      "Flatten tile sprites for loot or dungeon features when monsters, pets, or the player stand on them. Disable to keep overlapping sprites as standing billboards. Vulture tiles always stay standing.",
+    label: t.clientOptions.config.fpsFlattenEntityBillboards.label,
+    description: t.clientOptions.config.fpsFlattenEntityBillboards.description,
     type: "boolean",
   },
   {
     key: "showItemsUnderPlayerInOverheadTilesMode",
-    label: "Show under-player items in overhead tiles",
+    label: t.clientOptions.config.showItemsUnderPlayerInOverheadTilesMode.label,
     description:
-      "Show items and floor features under the player in overhead tiles mode using runtime underlay glyph data.",
+      t.clientOptions.config.showItemsUnderPlayerInOverheadTilesMode
+        .description,
     type: "boolean",
   },
   {
     key: "fpsFov",
-    label: "FPS Field of View",
-    description: "Adjust first-person camera FOV.",
+    label: t.clientOptions.config.fpsFov.label,
+    description: t.clientOptions.config.fpsFov.description,
     type: "slider",
     min: 45,
     max: 110,
@@ -3188,47 +3326,65 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "section-display-graphics",
-    label: "Graphics and rendering",
+    label: t.clientOptions.config.sectionDisplayGraphics,
     type: "section",
   },
   {
     key: "tilesetMode",
-    label: "Display",
-    description: "Use graphical tiles instead of ASCII.",
+    label: t.clientOptions.config.tilesetMode.label,
+    description: t.clientOptions.config.tilesetMode.description,
     type: "select",
     options: [
-      { value: "ascii", label: "ASCII" },
-      { value: "tiles", label: "Tiles" },
+      {
+        value: "ascii",
+        label: t.clientOptions.config.tilesetMode.options.ascii,
+      },
+      {
+        value: "tiles",
+        label: t.clientOptions.config.tilesetMode.options.tiles,
+      },
     ],
   },
   {
     key: "tilesetPath",
-    label: "Tileset",
-    description: "Built-in and uploaded tilesets.",
+    label: t.clientOptions.config.tilesetPath.label,
+    description: t.clientOptions.config.tilesetPath.description,
     type: "select",
     options: [],
     disabled: false,
   },
   {
     key: "antialiasing",
-    label: "Antialiasing",
-    description: "Edge smoothing mode for 3D rendering.",
+    label: t.clientOptions.config.antialiasing.label,
+    description: t.clientOptions.config.antialiasing.description,
     type: "select",
     options: [
-      { value: "taa", label: "TAA" },
-      { value: "fxaa", label: "FXAA" },
+      {
+        value: "taa",
+        label: t.clientOptions.config.antialiasing.options.taa,
+      },
+      {
+        value: "fxaa",
+        label: t.clientOptions.config.antialiasing.options.fxaa,
+      },
     ],
   },
   {
+    key: "lightingEnabled",
+    label: t.clientOptions.config.lightingEnabled.label,
+    description: t.clientOptions.config.lightingEnabled.description,
+    type: "boolean",
+  },
+  {
     key: "blockAmbientOcclusion",
-    label: "Ambient occlusion",
-    description: "Adds subtle contact shadowing between floor and wall blocks.",
+    label: t.clientOptions.config.blockAmbientOcclusion.label,
+    description: t.clientOptions.config.blockAmbientOcclusion.description,
     type: "boolean",
   },
   {
     key: "brightness",
-    label: "Brightness",
-    description: "Adjust overall scene brightness.",
+    label: t.clientOptions.config.brightness.label,
+    description: t.clientOptions.config.brightness.description,
     type: "slider",
     min: -0.25,
     max: 0.25,
@@ -3236,8 +3392,8 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "contrast",
-    label: "Contrast",
-    description: "Adjust global contrast of rendered scene content.",
+    label: t.clientOptions.config.contrast.label,
+    description: t.clientOptions.config.contrast.description,
     type: "slider",
     min: -0.25,
     max: 0.25,
@@ -3245,8 +3401,8 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "gamma",
-    label: "Gamma",
-    description: "Adjust display gamma for rendered scene content.",
+    label: t.clientOptions.config.gamma.label,
+    description: t.clientOptions.config.gamma.description,
     type: "slider",
     min: 0.5,
     max: 2.5,
@@ -3254,13 +3410,13 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "section-display-interface",
-    label: "Interface",
+    label: t.clientOptions.config.sectionDisplayInterface,
     type: "section",
   },
   {
     key: "uiFontScale",
-    label: "UI font scale",
-    description: "Scale all game UI font sizes from their defaults.",
+    label: t.clientOptions.config.uiFontScale.label,
+    description: t.clientOptions.config.uiFontScale.description,
     type: "slider",
     min: 0.7,
     max: 1.8,
@@ -3268,40 +3424,48 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "disableAnimatedTransitions",
-    label: "Disable animated transitions",
-    description:
-      "Turn off interface fade, motion, and transition animations for snappier UI changes.",
+    label: t.clientOptions.config.disableAnimatedTransitions.label,
+    description: t.clientOptions.config.disableAnimatedTransitions.description,
     type: "boolean",
   },
   {
     key: "uiTileBackgroundRemoval",
-    label: "Remove tile backgrounds in UI",
-    description:
-      "Apply tile/chroma background removal to tile icons shown in UI panels.",
+    label: t.clientOptions.config.uiTileBackgroundRemoval.label,
+    description: t.clientOptions.config.uiTileBackgroundRemoval.description,
     type: "boolean",
   },
   {
     key: "desktopTouchInterfaceMode",
-    label: "Desktop touch interface",
-    description:
-      "Show touch controls on desktop and choose portrait or landscape layout.",
+    label: t.clientOptions.config.desktopTouchInterfaceMode.label,
+    description: t.clientOptions.config.desktopTouchInterfaceMode.description,
     type: "select",
     options: [
-      { value: "off", label: "Off" },
-      { value: "portrait", label: "Use portrait touch UI" },
-      { value: "landscape", label: "Use landscape touch UI" },
+      {
+        value: "off",
+        label: t.clientOptions.config.desktopTouchInterfaceMode.options.off,
+      },
+      {
+        value: "portrait",
+        label:
+          t.clientOptions.config.desktopTouchInterfaceMode.options.portrait,
+      },
+      {
+        value: "landscape",
+        label:
+          t.clientOptions.config.desktopTouchInterfaceMode.options.landscape,
+      },
     ],
   },
   {
     key: "section-display-messages",
-    label: "Messages and log",
+    label: t.clientOptions.config.sectionDisplayMessages,
     type: "section",
   },
   {
     key: "desktopMessageLogWindowScale",
-    label: "Desktop message log window scale",
+    label: t.clientOptions.config.desktopMessageLogWindowScale.label,
     description:
-      "Scale the boxed desktop message log window size without changing font size.",
+      t.clientOptions.config.desktopMessageLogWindowScale.description,
     type: "slider",
     min: 0.33,
     max: 1.5,
@@ -3309,14 +3473,14 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "liveMessageLog",
-    label: "Live message log",
-    description: "Display the scrolling in-game message log.",
+    label: t.clientOptions.config.liveMessageLog.label,
+    description: t.clientOptions.config.liveMessageLog.description,
     type: "boolean",
   },
   {
     key: "liveMessageDisplayTimeMs",
-    label: "Live message display time",
-    description: "Time a floating message stays fully visible before fading.",
+    label: t.clientOptions.config.liveMessageDisplayTimeMs.label,
+    description: t.clientOptions.config.liveMessageDisplayTimeMs.description,
     type: "slider",
     min: 250,
     max: 6000,
@@ -3324,8 +3488,8 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "liveMessageFadeOutTimeMs",
-    label: "Live message fade-out time",
-    description: "Duration of floating message fade-out animation.",
+    label: t.clientOptions.config.liveMessageFadeOutTimeMs.label,
+    description: t.clientOptions.config.liveMessageFadeOutTimeMs.description,
     type: "slider",
     min: 120,
     max: 4000,
@@ -3333,9 +3497,8 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "liveMessageLogFontScale",
-    label: "Live message font scale",
-    description:
-      "Scale the fade-up floating action messages from their default size.",
+    label: t.clientOptions.config.liveMessageLogFontScale.label,
+    description: t.clientOptions.config.liveMessageLogFontScale.description,
     type: "slider",
     min: 0.7,
     max: 2.2,
@@ -3343,19 +3506,19 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "section-display-minimap",
-    label: "Minimap",
+    label: t.clientOptions.config.sectionDisplayMinimap,
     type: "section",
   },
   {
     key: "minimap",
-    label: "Minimap",
-    description: "Show or hide the dungeon minimap.",
+    label: t.clientOptions.config.minimap.label,
+    description: t.clientOptions.config.minimap.description,
     type: "boolean",
   },
   {
     key: "minimapScale",
-    label: "Minimap scale",
-    description: "Scale the minimap size from its default.",
+    label: t.clientOptions.config.minimapScale.label,
+    description: t.clientOptions.config.minimapScale.description,
     type: "slider",
     min: 0.6,
     max: 2.2,
@@ -3363,140 +3526,147 @@ const clientOptionsConfig: ClientOption[] = [
   },
   {
     key: "section-display-inventory",
-    label: "Inventory presentation",
+    label: t.clientOptions.config.sectionDisplayInventory,
     type: "section",
   },
   {
     key: "reduceInventoryMotion",
-    label: "Reduce inventory motion",
-    description:
-      "Disable animated inventory row expansion and use simpler interactions.",
+    label: t.clientOptions.config.reduceInventoryMotion.label,
+    description: t.clientOptions.config.reduceInventoryMotion.description,
     type: "boolean",
   },
   {
     key: "inventoryTileOnlyMotion",
-    label: "Animate inventory tiles only",
-    description:
-      "Animate icon tiles while keeping inventory row height and spacing fixed.",
+    label: t.clientOptions.config.inventoryTileOnlyMotion.label,
+    description: t.clientOptions.config.inventoryTileOnlyMotion.description,
     type: "boolean",
   },
   {
     key: "inventoryFixedTileSize",
-    label: "Fixed inventory tile size",
-    description:
-      "Applies only when Reduce inventory motion is enabled. Choose a fixed icon size.",
+    label: t.clientOptions.config.inventoryFixedTileSize.label,
+    description: t.clientOptions.config.inventoryFixedTileSize.description,
     type: "select",
     options: [
-      { value: "none", label: "None" },
-      { value: "small", label: "Small" },
-      { value: "medium", label: "Medium" },
-      { value: "large", label: "Large" },
+      {
+        value: "none",
+        label: t.clientOptions.config.inventoryFixedTileSize.options.none,
+      },
+      {
+        value: "small",
+        label: t.clientOptions.config.inventoryFixedTileSize.options.small,
+      },
+      {
+        value: "medium",
+        label: t.clientOptions.config.inventoryFixedTileSize.options.medium,
+      },
+      {
+        value: "large",
+        label: t.clientOptions.config.inventoryFixedTileSize.options.large,
+      },
     ],
   },
   {
     key: "group-sound",
-    label: "Sound",
+    label: t.clientOptions.config.groupSound,
     type: "group",
   },
   {
     key: "soundEnabled",
-    label: "Enable sound",
-    description:
-      "Turn FMOD audio on or off. Disabling reduces audio processing overhead on lower-end devices.",
+    label: t.clientOptions.config.soundEnabled.label,
+    description: t.clientOptions.config.soundEnabled.description,
     type: "boolean",
   },
   {
     key: "group-mobile-controls",
-    label: "Mobile controls",
+    label: t.clientOptions.config.groupMobileControls,
     type: "group",
   },
   {
     key: "invertTouchPanningDirection",
-    label: "Invert touch panning direction",
-    description:
-      "Reverse drag direction for touch panning after hold-to-pan starts.",
+    label: t.clientOptions.config.invertTouchPanningDirection.label,
+    description: t.clientOptions.config.invertTouchPanningDirection.description,
     type: "boolean",
   },
   {
     key: "group-combat",
-    label: "Combat feedback",
+    label: t.clientOptions.config.groupCombat,
     type: "group",
   },
   {
     key: "damageNumbers",
-    label: "Damage numbers",
-    description: "Show floating damage and healing numbers.",
+    label: t.clientOptions.config.damageNumbers.label,
+    description: t.clientOptions.config.damageNumbers.description,
     type: "boolean",
   },
   {
     key: "displayStatChangesAbovePlayer",
-    label: "Display stat changes above player",
+    label: t.clientOptions.config.displayStatChangesAbovePlayer.label,
     description:
-      "Show floating labels for stat changes such as Strength and AC.",
+      t.clientOptions.config.displayStatChangesAbovePlayer.description,
     type: "boolean",
   },
   {
     key: "displayXpGainsAbovePlayer",
-    label: "Display XP gains above player",
-    description: "Show floating XP gain labels when experience increases.",
+    label: t.clientOptions.config.displayXpGainsAbovePlayer.label,
+    description: t.clientOptions.config.displayXpGainsAbovePlayer.description,
     type: "boolean",
   },
   {
     key: "tileShakeOnHit",
-    label: "Tile shake on hit",
-    description: "Shake impact tiles when combat lands.",
+    label: t.clientOptions.config.tileShakeOnHit.label,
+    description: t.clientOptions.config.tileShakeOnHit.description,
     type: "boolean",
   },
   {
     key: "blood",
-    label: "Blood",
-    description: "Render blood mist particle effects on hits.",
+    label: t.clientOptions.config.blood.label,
+    description: t.clientOptions.config.blood.description,
     type: "boolean",
   },
   {
     key: "monsterShatter",
-    label: "Monster shatter",
-    description:
-      "Split defeated monster billboards into physical shard pieces.",
+    label: t.clientOptions.config.monsterShatter.label,
+    description: t.clientOptions.config.monsterShatter.description,
     type: "boolean",
   },
   {
     key: "monsterShatterBloodBorders",
-    label: "Shatter blood borders",
-    description:
-      "Tint shard pixels near split lines with randomized blood-red edges.",
+    label: t.clientOptions.config.monsterShatterBloodBorders.label,
+    description: t.clientOptions.config.monsterShatterBloodBorders.description,
     type: "boolean",
   },
   {
     key: "group-compatibility",
-    label: "Runtime compatibility",
+    label: t.clientOptions.config.groupCompatibility,
     type: "group",
   },
   {
     key: "darkCorridorWalls367",
-    label: "NetHack 3.6.7 dark corridor walls",
-    description:
-      "Infer and cache dark corridor wall tiles (NetHack 3.6.7 behavior).",
+    label: t.clientOptions.config.darkCorridorWalls367.label,
+    description: t.clientOptions.config.darkCorridorWalls367.description,
     type: "boolean",
   },
   {
     key: "overrideNh37DarkCorridorWallTiles",
-    label: "Override NetHack 3.7 dark wall tiles",
+    label: t.clientOptions.config.overrideNh37DarkCorridorWallTiles.label,
     description:
-      "Apply dark wall override settings to NetHack 3.7 dark corridor wall tiles.",
+      t.clientOptions.config.overrideNh37DarkCorridorWallTiles.description,
     type: "boolean",
   },
   {
     key: "darkCorridorWallTileOverrideEnabled",
-    label: "Override dark wall tile",
+    label: t.clientOptions.config.darkCorridorWallTileOverrideEnabled.label,
     description:
-      "Use a custom atlas tile for dark wall overrides, saved per tileset.",
+      t.clientOptions.config.darkCorridorWallTileOverrideEnabled.description,
     type: "boolean",
   },
   {
     key: "darkCorridorWallSolidColorOverrideEnabled",
-    label: "Use solid color for dark walls",
-    description: "Use a picked RGB color instead of a tileset tile.",
+    label:
+      t.clientOptions.config.darkCorridorWallSolidColorOverrideEnabled.label,
+    description:
+      t.clientOptions.config.darkCorridorWallSolidColorOverrideEnabled
+        .description,
     type: "boolean",
   },
 ];
@@ -3506,44 +3676,44 @@ const clientOptionsDefaultTabId: ClientOptionsTabId = "display";
 const clientOptionsTabs: ClientOptionsTab[] = [
   {
     id: "display",
-    label: "Display",
-    description: "Interface and display settings.",
+    label: t.clientOptions.tabs.display.label,
+    description: t.clientOptions.tabs.display.description,
     groupKey: "group-interface",
   },
   {
     id: "mobile",
-    label: "Mobile",
-    description: "Touch control settings for mobile gameplay.",
+    label: t.clientOptions.tabs.mobile.label,
+    description: t.clientOptions.tabs.mobile.description,
     groupKey: "group-mobile-controls",
   },
   {
     id: "controls",
-    label: "Controls",
-    description: "Controller mappings, FPS mode, and look behavior.",
+    label: t.clientOptions.tabs.controls.label,
+    description: t.clientOptions.tabs.controls.description,
     groupKey: "group-controls",
   },
   {
     id: "sound",
-    label: "Sound",
-    description: "Audio output and performance-related sound controls.",
+    label: t.clientOptions.tabs.sound.label,
+    description: t.clientOptions.tabs.sound.description,
     groupKey: "group-sound",
   },
   {
     id: "combat",
-    label: "Combat",
-    description: "Combat impact feedback and visual response.",
+    label: t.clientOptions.tabs.combat.label,
+    description: t.clientOptions.tabs.combat.description,
     groupKey: "group-combat",
   },
   {
     id: "compatibility",
-    label: "Compatibility",
-    description: "Runtime compatibility and NetHack behavior toggles.",
+    label: t.clientOptions.tabs.compatibility.label,
+    description: t.clientOptions.tabs.compatibility.description,
     groupKey: "group-compatibility",
   },
   {
     id: "updates",
-    label: "Updates",
-    description: "Check for online game updates and review pending changes.",
+    label: t.clientOptions.tabs.updates.label,
+    description: t.clientOptions.tabs.updates.description,
     groupKey: "group-updates",
   },
 ];
@@ -3732,21 +3902,51 @@ const clampTileContextMenuPosition = (
 const tileContextMenuAnchorOffsetY = 30;
 
 const mobileActions: MobileActionEntry[] = [
-  { id: "wait", label: "Wait", kind: "quick", value: "wait" },
-  { id: "zap", label: "Zap", kind: "extended", value: "zap" },
-  { id: "cast", label: "Cast", kind: "extended", value: "cast" },
-  { id: "kick", label: "Kick", kind: "extended", value: "kick" },
-  { id: "read", label: "Read", kind: "extended", value: "read" },
-  { id: "quaff", label: "Quaff", kind: "extended", value: "quaff" },
-  { id: "eat", label: "Eat", kind: "extended", value: "eat" },
-  { id: "glance", label: "Glance", kind: "extended", value: "glance" },
-  { id: "loot", label: "Loot", kind: "quick", value: "loot" },
-  { id: "open", label: "Open", kind: "quick", value: "open" },
-  { id: "wield", label: "Wield", kind: "extended", value: "wield" },
-  { id: "wear", label: "Wear", kind: "extended", value: "wear" },
-  { id: "put-on", label: "Put On", kind: "extended", value: "puton" },
-  { id: "take-off", label: "Take Off", kind: "extended", value: "takeoff" },
-  { id: "extended", label: "Extended", kind: "quick", value: "extended" },
+  { id: "wait", label: t.mobileActions.wait, kind: "quick", value: "wait" },
+  { id: "zap", label: t.mobileActions.zap, kind: "extended", value: "zap" },
+  { id: "cast", label: t.mobileActions.cast, kind: "extended", value: "cast" },
+  { id: "kick", label: t.mobileActions.kick, kind: "extended", value: "kick" },
+  { id: "read", label: t.mobileActions.read, kind: "extended", value: "read" },
+  {
+    id: "quaff",
+    label: t.mobileActions.quaff,
+    kind: "extended",
+    value: "quaff",
+  },
+  { id: "eat", label: t.mobileActions.eat, kind: "extended", value: "eat" },
+  {
+    id: "glance",
+    label: t.mobileActions.glance,
+    kind: "extended",
+    value: "glance",
+  },
+  { id: "loot", label: t.mobileActions.loot, kind: "quick", value: "loot" },
+  { id: "open", label: t.mobileActions.open, kind: "quick", value: "open" },
+  {
+    id: "wield",
+    label: t.mobileActions.wield,
+    kind: "extended",
+    value: "wield",
+  },
+  { id: "wear", label: t.mobileActions.wear, kind: "extended", value: "wear" },
+  {
+    id: "put-on",
+    label: t.mobileActions.putOn,
+    kind: "extended",
+    value: "puton",
+  },
+  {
+    id: "take-off",
+    label: t.mobileActions.takeOff,
+    kind: "extended",
+    value: "takeoff",
+  },
+  {
+    id: "extended",
+    label: t.mobileActions.extended,
+    kind: "quick",
+    value: "extended",
+  },
 ];
 
 const controllerActionWheelOuterRadiusPercent = 50;
@@ -4121,7 +4321,7 @@ function stripUserTilesetNameSuffix(value: string): string {
 
 function appendUserTilesetNameSuffix(value: string): string {
   const normalized = stripUserTilesetNameSuffix(value);
-  return normalized ? `${normalized} (user)` : "User Tileset (user)";
+  return normalized ? `${normalized} (user)` : t.tilesets.userTilesetSuffix;
 }
 
 const defaultUserTilesetTileLayoutVersion: StoredUserTilesetTileLayoutVersion =
@@ -4155,7 +4355,7 @@ async function inferTilesetTileSizeFromBlob(blob: Blob): Promise<number> {
       const image = new window.Image();
       image.onload = () =>
         resolve(inferNh3dTilesetTileSizeFromAtlasWidth(image.naturalWidth));
-      image.onerror = () => reject(new Error("Failed to read tileset image."));
+      image.onerror = () => reject(new Error(t.tilesets.failedToReadImage));
       image.src = objectUrl;
     });
     return size;
@@ -4684,6 +4884,8 @@ export default function App(): JSX.Element {
     useState<StartupFlowStep>("variant");
   const [runtimeVersion, setRuntimeVersion] =
     useState<NethackRuntimeVersion>("3.6.7");
+  const activeRuntimeVersion =
+    characterCreationConfig?.runtimeVersion ?? runtimeVersion;
   const [createRole, setCreateRole] = useState(
     startupDefaultCharacterPreferences.createRole,
   );
@@ -4728,14 +4930,14 @@ export default function App(): JSX.Element {
       [
         {
           key: "manual" as const,
-          label: "Manual Saves",
+          label: t.saves.sections.manual,
           saves: resumableSavedGames.filter(
             (save) => save.category === "manual",
           ),
         },
         {
           key: "autosave" as const,
-          label: "Autosaves",
+          label: t.saves.sections.autosave,
           saves: resumableSavedGames.filter(
             (save) => save.category === "autosave",
           ),
@@ -4856,10 +5058,10 @@ export default function App(): JSX.Element {
   ) => {
     e.stopPropagation();
     const confirmed = await requestConfirmation({
-      title: "Delete Saved Game?",
-      message: `Are you sure you want to delete ${save.displayName}?`,
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
+      title: t.saves.deleteTitle,
+      message: t.saves.deleteMessage(save.displayName),
+      confirmLabel: commonStrings.delete,
+      cancelLabel: commonStrings.cancel,
       confirmClassName: "nh3d-menu-action-cancel",
     });
     if (!confirmed) {
@@ -4876,7 +5078,7 @@ export default function App(): JSX.Element {
       const saves = await fetchSavedGames(runtimeVersion);
       setSavedGames(saves);
     } catch (e) {
-      console.error("Error loading saves", e);
+      console.error(t.saves.errorLoading, e);
     } finally {
       setIsLoadingSaves(false);
     }
@@ -4903,10 +5105,10 @@ export default function App(): JSX.Element {
         const matchingSaves = saves.filter((s) => s.name === configName);
         if (matchingSaves.length > 0) {
           const confirmed = await requestConfirmation({
-            title: "Overwrite Saved Game?",
-            message: `A saved game named "${configName}" already exists. Do you want to overwrite it with a new character?`,
+            title: t.saves.overwriteTitle,
+            message: t.saves.overwriteMessage(configName),
             confirmLabel: "Overwrite",
-            cancelLabel: "Cancel",
+            cancelLabel: commonStrings.cancel,
             confirmClassName: "nh3d-menu-action-cancel",
           });
           if (!confirmed) {
@@ -5058,6 +5260,8 @@ export default function App(): JSX.Element {
     isControllerSupportPromptVisible,
     setIsControllerSupportPromptVisible,
   ] = useState(false);
+  const [isDebugSessionLogsLinkVisible, setIsDebugSessionLogsLinkVisible] =
+    useState(false);
   const [userTilesets, setUserTilesets] = useState<StoredUserTilesetRecord[]>(
     [],
   );
@@ -5103,9 +5307,7 @@ export default function App(): JSX.Element {
     useState(0);
   const [startupBuildLabelToastVisible, setStartupBuildLabelToastVisible] =
     useState(false);
-  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(() =>
-    readDebugSessionLogsUnlockedState(),
-  );
+  const [debugSessionLogsEnabled, setDebugSessionLogsEnabled] = useState(false);
   const [isDebugSessionLogsVisible, setIsDebugSessionLogsVisible] =
     useState(false);
   const [debugSessionLogs, setDebugSessionLogs] = useState<
@@ -5294,10 +5496,10 @@ export default function App(): JSX.Element {
       setLoggingEnabled(true);
       enableDebugSessionLogCapture({ buildLabel: nh3dBuildLabel });
       recordDebugSessionLogEvent("debug-log-toggle", [
-        "Debug log enabled from startup build label easter egg.",
+        t.debugLogs.enabledLogEntry,
       ]);
-      persistDebugSessionLogsUnlockedState(true);
       setDebugSessionLogsEnabled(true);
+      setIsDebugSessionLogsLinkVisible(true);
       refreshDebugSessionLogs();
       setStartupBuildLabelToastVisible(true);
       if (startupBuildLabelToastTimerRef.current !== null) {
@@ -5312,7 +5514,9 @@ export default function App(): JSX.Element {
   }, [refreshDebugSessionLogs]);
   const selectedDebugSessionLog = useMemo(
     () =>
-      debugSessionLogs.find((session) => session.id === selectedDebugSessionLogId) ||
+      debugSessionLogs.find(
+        (session) => session.id === selectedDebugSessionLogId,
+      ) ||
       debugSessionLogs[0] ||
       null,
     [debugSessionLogs, selectedDebugSessionLogId],
@@ -5321,7 +5525,7 @@ export default function App(): JSX.Element {
     () =>
       selectedDebugSessionLog
         ? formatDebugSessionLogSession(selectedDebugSessionLog)
-        : "No saved debug logs yet.",
+        : t.dialogs.debugLogs.noneSaved,
     [selectedDebugSessionLog],
   );
   useEffect(() => {
@@ -5503,7 +5707,7 @@ export default function App(): JSX.Element {
             value: tileset.path,
             label: tileset.label,
           }))
-        : [{ value: "", label: "No tilesets found" }],
+        : [{ value: "", label: t.tilesets.noTilesetsFound }],
     [hasAnyTilesets, tilesetCatalog],
   );
   useEffect(() => {
@@ -6501,12 +6705,12 @@ export default function App(): JSX.Element {
     tileAtlasState.tileCount,
   ]);
   const tilePickerStatusText = !selectedTilesetEntry
-    ? "No tileset atlas available."
+    ? t.tilePicker.noAtlasAvailable
     : tileAtlasState.failed
-      ? "Unable to load tile atlas."
+      ? t.tilePicker.unableToLoadAtlas
       : tileAtlasState.loaded
-        ? "Tile atlas loaded."
-        : "Loading tile atlas...";
+        ? t.tilePicker.atlasLoaded
+        : t.tilePicker.loadingAtlas;
   const tilePreviewDataUrlByIdRaw = useMemo(() => {
     const previewByTileId = new Map<number, string>();
     if (
@@ -6711,12 +6915,12 @@ export default function App(): JSX.Element {
     tilesetManagerAtlasState.tileCount,
   ]);
   const tilesetManagerTilePickerStatusText = !selectedTilesetManagerEditEntry
-    ? "No tileset atlas available."
+    ? t.tilePicker.noAtlasAvailable
     : tilesetManagerAtlasState.failed
-      ? "Unable to load tile atlas."
+      ? t.tilePicker.unableToLoadAtlas
       : tilesetManagerAtlasState.loaded
-        ? "Tile atlas loaded."
-        : "Loading tile atlas...";
+        ? t.tilePicker.atlasLoaded
+        : t.tilePicker.loadingAtlas;
   const tilesetManagerTilePreviewDataUrlById = useMemo(() => {
     const previewByTileId = new Map<number, string>();
     if (
@@ -6817,6 +7021,20 @@ export default function App(): JSX.Element {
       }),
     );
   }, [clientOptions, controller, isControllerSupportPromptVisible]);
+
+  useEffect(() => {
+    if (!hasHydratedUserTilesets) {
+      return;
+    }
+    const currentLocale = getCurrentLocale();
+    if (clientOptions.locale === currentLocale) {
+      return;
+    }
+    setCurrentLocale(clientOptions.locale);
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  }, [clientOptions.locale, hasHydratedUserTilesets]);
 
   useEffect(() => {
     if (!hasHydratedUserTilesets) {
@@ -7513,10 +7731,10 @@ export default function App(): JSX.Element {
   const loadingOverlayVisible =
     startupLoadingVisible || runtimeLoadingVisible || tilesetLoadingVisible;
   const loadingSubtitle = startupLoadingVisible
-    ? "Loading startup data..."
+    ? t.update.loading.startupData
     : tilesetLoadingVisible
-      ? "Loading tileset..."
-      : "Starting local runtime...";
+      ? t.update.loading.tileset
+      : t.update.loading.runtime;
   const startupInitialLoadingVisible =
     !hasShownStartupMenu && loadingOverlayVisible;
   const startupLogoVisible = startupUiVisible && !startupInitialLoadingVisible;
@@ -7545,7 +7763,7 @@ export default function App(): JSX.Element {
   const runtimeInitializationErrorMessage = runtimeInitializationErrorVisible
     ? latestGameMessage ||
       statusText.trim() ||
-      "The local NetHack runtime stopped before startup finished."
+      t.update.runtimeStoppedBeforeStartup
     : "";
   const startupUpdateDialogOpen =
     startupMenuVisible && isStartupUpdateDialogVisible;
@@ -7597,13 +7815,14 @@ export default function App(): JSX.Element {
         : null;
   const startupUpdateProgressSummary =
     startupUpdateProgressMessage ||
-    (startupUpdateBusy
-      ? "Preparing game update download..."
-      : "Update status is idle.");
+    (startupUpdateBusy ? t.update.preparingDownload : t.update.idleStatus);
   const startupUpdateProgressFileSummary =
     typeof startupUpdateProgressFileIndex === "number" &&
     typeof startupUpdateProgressFileCount === "number"
-      ? `File ${startupUpdateProgressFileIndex} of ${startupUpdateProgressFileCount}`
+      ? t.update.fileProgress(
+          startupUpdateProgressFileIndex,
+          startupUpdateProgressFileCount,
+        )
       : null;
 
   useEffect(() => {
@@ -7758,7 +7977,7 @@ export default function App(): JSX.Element {
         const errorMessage =
           error instanceof Error
             ? error.message
-            : "Unexpected update check failure.";
+            : t.update.unexpectedCheckFailure;
         console.warn("Failed to check for client updates:", errorMessage);
         setStartupUpdateCheck((previous) => ({
           ...(previous ?? {
@@ -7825,8 +8044,8 @@ export default function App(): JSX.Element {
     appendStartupUpdateProgressEntry({
       phase: "cancel",
       status: "warning",
-      message: "Cancel requested.",
-      detail: "Stopping active download task.",
+      message: t.update.cancelRequested,
+      detail: t.update.stoppingActiveDownloadTask,
     });
     const cancelResult = await cancelNh3dClientUpdate();
     if (!cancelResult.ok) {
@@ -7835,7 +8054,7 @@ export default function App(): JSX.Element {
         appendStartupUpdateProgressEntry({
           phase: "cancel",
           status: "error",
-          message: "Unable to cancel update download.",
+          message: t.update.unableToCancelDownload,
           detail: cancelResult.error,
         });
       }
@@ -7847,7 +8066,7 @@ export default function App(): JSX.Element {
       appendStartupUpdateProgressEntry({
         phase: "cancel",
         status: "warning",
-        message: "No active update download to cancel.",
+        message: t.update.noActiveDownloadToCancel,
       });
     }
   }, [
@@ -7872,14 +8091,14 @@ export default function App(): JSX.Element {
     setStartupUpdateError("");
     startupUpdateProgressEntryIdRef.current = 0;
     setStartupUpdateProgressEntries([]);
-    setStartupUpdateProgressMessage("Starting game update download.");
+    setStartupUpdateProgressMessage(t.update.startingDownload);
     setStartupUpdateProgressPercent(0);
     setStartupUpdateProgressFileIndex(null);
     setStartupUpdateProgressFileCount(null);
     appendStartupUpdateProgressEntry({
       phase: "start",
       status: "info",
-      message: "Starting game update download.",
+      message: t.update.startingDownload,
     });
 
     try {
@@ -7888,23 +8107,23 @@ export default function App(): JSX.Element {
       );
       if (!applyResult.ok) {
         if (applyResult.canceled) {
-          setStartupUpdateError("Update download was canceled.");
+          setStartupUpdateError(t.update.canceled);
           appendStartupUpdateProgressEntry({
             phase: "cancel",
             status: "warning",
-            message: "Update download was canceled.",
+            message: t.update.canceled,
             progressPercent: startupUpdateProgressPercent ?? null,
           });
           return;
         }
         setStartupUpdateError(
-          applyResult.error || "Unable to download and apply updates.",
+          applyResult.error || t.update.unableToDownloadAndApply,
         );
         appendStartupUpdateProgressEntry({
           phase: "error",
           status: "error",
-          message: "Update failed.",
-          detail: applyResult.error || "Unable to download and apply updates.",
+          message: t.update.failed,
+          detail: applyResult.error || t.update.unableToDownloadAndApply,
         });
         return;
       }
@@ -7914,8 +8133,8 @@ export default function App(): JSX.Element {
           phase: "complete",
           status: "success",
           message: applyResult.alreadyInstalled
-            ? "Latest update already installed."
-            : "Update download complete.",
+            ? t.update.latestAlreadyInstalled
+            : t.update.downloadComplete,
           progressPercent: 100,
         });
         const activated = await activateNh3dClientUpdateIfNeeded();
@@ -7926,22 +8145,20 @@ export default function App(): JSX.Element {
         return;
       }
 
-      setStartupUpdateError(
-        "No updates were applied. Please try checking again.",
-      );
+      setStartupUpdateError(t.update.nothingAppliedTryAgain);
       appendStartupUpdateProgressEntry({
         phase: "warning",
         status: "warning",
-        message: "No update files were applied.",
+        message: t.update.noFilesApplied,
       });
     } catch (error) {
       setStartupUpdateError(
-        error instanceof Error ? error.message : "Unexpected update failure.",
+        error instanceof Error ? error.message : t.update.unexpectedFailure,
       );
       appendStartupUpdateProgressEntry({
         phase: "error",
         status: "error",
-        message: "Unexpected update failure.",
+        message: t.update.unexpectedFailure,
         detail: error instanceof Error ? error.message : null,
       });
     } finally {
@@ -7960,22 +8177,22 @@ export default function App(): JSX.Element {
       return;
     }
     setOptionsUpdateCheckBusy(true);
-    setOptionsUpdateCheckStatus("Checking for updates...");
+    setOptionsUpdateCheckStatus(t.update.checkingForUpdates);
 
     try {
       const result = await checkForNh3dClientUpdates();
       setOptionsUpdateCheckResult(result);
 
       if (!result.supported) {
-        setOptionsUpdateCheckStatus(
-          "This platform does not support online game updates.",
-        );
+        setOptionsUpdateCheckStatus(t.update.unsupportedPlatform);
         return;
       }
       if (result.error) {
         if (result.hostWarningMessage) {
           setOptionsUpdateCheckStatus(
-            `Update check failed: ${result.error} ${result.hostWarningMessage}`,
+            t.update.updateCheckFailed(
+              `${result.error} ${result.hostWarningMessage}`,
+            ),
           );
           if (startupMenuVisible) {
             setStartupUpdateError(result.hostWarningMessage);
@@ -7984,7 +8201,7 @@ export default function App(): JSX.Element {
           }
           return;
         }
-        setOptionsUpdateCheckStatus(`Update check failed: ${result.error}`);
+        setOptionsUpdateCheckStatus(t.update.updateCheckFailed(result.error));
         return;
       }
 
@@ -7999,8 +8216,8 @@ export default function App(): JSX.Element {
       if (!result.hasUpdate) {
         setOptionsUpdateCheckStatus(
           result.hostWarningMessage
-            ? `You already have the latest game update. ${result.hostWarningMessage}`
-            : "You already have the latest game update.",
+            ? `${t.update.latestAlreadyInstalledOptions} ${result.hostWarningMessage}`
+            : t.update.latestAlreadyInstalledOptions,
         );
         if (startupMenuVisible) {
           setStartupUpdateDetailsVisible(false);
@@ -8014,8 +8231,8 @@ export default function App(): JSX.Element {
 
       setOptionsUpdateCheckStatus(
         result.pendingCount === 1
-          ? "1 game update is available."
-          : `${result.pendingCount} game updates are available.`,
+          ? t.update.oneUpdateAvailable
+          : t.update.manyUpdatesAvailable(result.pendingCount),
       );
       if (startupMenuVisible) {
         if (!result.hostWarningMessage) {
@@ -8028,8 +8245,8 @@ export default function App(): JSX.Element {
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "Unexpected update check failure.";
-      setOptionsUpdateCheckStatus(`Update check failed: ${errorMessage}`);
+          : t.update.unexpectedCheckFailure;
+      setOptionsUpdateCheckStatus(t.update.updateCheckFailed(errorMessage));
     } finally {
       setOptionsUpdateCheckBusy(false);
     }
@@ -8354,8 +8571,8 @@ export default function App(): JSX.Element {
     [coreStatBoldUntilTurn, currentStatsTurn, highlightedCoreStatStyle],
   );
   const playerStatusBadges = useMemo(
-    () => buildPlayerStatusBadges(playerStats),
-    [playerStats],
+    () => buildPlayerStatusBadges(playerStats, activeRuntimeVersion),
+    [activeRuntimeVersion, playerStats],
   );
   const locationLabel = String(playerStats.locationLabel || "").trim();
   const fallbackLocationLabel = Number.isFinite(playerStats.dlevel)
@@ -8412,8 +8629,8 @@ export default function App(): JSX.Element {
   const inventoryContextMenuOpen =
     inventoryContextMenu !== null && inventoryContextActionsEnabled;
   const inventoryCloseInstructionText = inventoryContextActionsEnabled
-    ? "Select an item to open contextual commands. Press ENTER, ESC, or 'i' to close"
-    : "Press ENTER, ESC, or 'i' to close.";
+    ? t.dialogs.inventory.closeHintWithContext
+    : t.dialogs.inventory.closeHint;
 
   useLayoutEffect(() => {
     if (typeof document === "undefined") {
@@ -9829,19 +10046,19 @@ export default function App(): JSX.Element {
       .replace(/\.[^.]+$/g, "")
       .trim();
     if (!tilesetManagerName.trim()) {
-      setTilesetManagerName(strippedName || "User Tileset");
+      setTilesetManagerName(strippedName || t.tilesets.userTileset);
     }
   };
 
   const removeUserTileset = async (
     record: StoredUserTilesetRecord,
   ): Promise<void> => {
-    const label = String(record.label || "this tileset");
+    const label = String(record.label || t.tilesets.currentSelectionFallback);
     const confirmed = await requestConfirmation({
-      title: "Delete Uploaded Tileset?",
-      message: `Delete '${label}' from uploaded tilesets?`,
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
+      title: t.tilesets.deleteUploadedTitle,
+      message: t.tilesets.deleteUploadedMessage(label),
+      confirmLabel: commonStrings.delete,
+      cancelLabel: commonStrings.cancel,
       confirmClassName: "nh3d-menu-action-cancel",
     });
     if (!confirmed) {
@@ -9872,7 +10089,7 @@ export default function App(): JSX.Element {
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to delete tileset.";
+        error instanceof Error ? error.message : t.tilesets.failedToDelete;
       setTilesetManagerError(message);
     } finally {
       setTilesetManagerBusy(false);
@@ -9913,11 +10130,11 @@ export default function App(): JSX.Element {
     const tileLayoutVersion = tilesetManagerTileLayoutVersion;
     if (tilesetManagerInNewMode) {
       if (!file) {
-        setTilesetManagerError("Choose a PNG/BMP/GIF/JPEG tileset file.");
+        setTilesetManagerError(t.tilesets.chooseFile);
         return;
       }
       if (!label) {
-        setTilesetManagerError("Provide a name for this tileset.");
+        setTilesetManagerError(t.tilesets.provideName);
         return;
       }
     }
@@ -9926,7 +10143,7 @@ export default function App(): JSX.Element {
       selectedTilesetManagerEditUserRecord &&
       !label
     ) {
-      setTilesetManagerError("Provide a name for this tileset.");
+      setTilesetManagerError(t.tilesets.provideName);
       return;
     }
 
@@ -9970,7 +10187,7 @@ export default function App(): JSX.Element {
       saveTilesetManagerSettingsDraft();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to save tileset.";
+        error instanceof Error ? error.message : t.tilesets.failedToSave;
       setTilesetManagerError(message);
     } finally {
       setTilesetManagerBusy(false);
@@ -9979,7 +10196,7 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     refreshUserTilesetCatalog(true).catch((error) => {
-      console.warn("Failed to load uploaded tilesets:", error);
+      console.warn(t.tilesets.failedToLoadUploaded, error);
     });
   }, [refreshUserTilesetCatalog]);
 
@@ -10017,6 +10234,28 @@ export default function App(): JSX.Element {
     controller?.dismissFpsCrosshairContextMenu();
   };
 
+  const persistLocaleSelectionAndReloadIfNeeded = useCallback(
+    async (nextOptions: Nh3dClientOptions): Promise<void> => {
+      const previousLocale = getCurrentLocale();
+      setCurrentLocale(nextOptions.locale);
+      if (nextOptions.locale === previousLocale) {
+        return;
+      }
+      try {
+        await persistNh3dClientOptionsToIndexedDb(nextOptions);
+      } catch (error) {
+        console.warn(
+          "Failed to persist client options before locale reload:",
+          error,
+        );
+      }
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    },
+    [],
+  );
+
   const closeClientOptionsDialog = async (): Promise<void> => {
     const canDiscardSoundPackChanges =
       (await soundPackDialogActionsRef.current?.confirmDiscardIfNeeded()) ??
@@ -10053,6 +10292,7 @@ export default function App(): JSX.Element {
     setIsControllerRemapVisible(false);
     setControllerRemapListening(null);
     controller?.setClientOptions(next);
+    await persistLocaleSelectionAndReloadIfNeeded(next);
   };
 
   const requestCloseClientOptionsDialog = (): void => {
@@ -10071,7 +10311,7 @@ export default function App(): JSX.Element {
     setIsResetClientOptionsConfirmationVisible(false);
   };
 
-  const confirmResetClientOptionsToDefaults = (): void => {
+  const confirmResetClientOptionsToDefaults = async (): Promise<void> => {
     const next = normalizeNh3dClientOptions(defaultNh3dClientOptions);
     setClientOptions(next);
     setClientOptionsDraft(next);
@@ -10083,25 +10323,24 @@ export default function App(): JSX.Element {
     setIsControllerRemapVisible(false);
     setControllerRemapListening(null);
     controller?.setClientOptions(next);
-    void (async () => {
+    try {
+      await resetNh3dDefaultSoundPackVolumeLevelsToDefaults();
+    } catch (error) {
+      console.warn(
+        "Failed to reset default sound-pack volume levels to defaults:",
+        error,
+      );
+    } finally {
       try {
-        await resetNh3dDefaultSoundPackVolumeLevelsToDefaults();
+        await soundPackDialogActionsRef.current?.reloadFromStorage();
       } catch (error) {
         console.warn(
-          "Failed to reset default sound-pack volume levels to defaults:",
+          "Failed to reload sound-pack state after resetting defaults:",
           error,
         );
-      } finally {
-        try {
-          await soundPackDialogActionsRef.current?.reloadFromStorage();
-        } catch (error) {
-          console.warn(
-            "Failed to reload sound-pack state after resetting defaults:",
-            error,
-          );
-        }
       }
-    })();
+    }
+    await persistLocaleSelectionAndReloadIfNeeded(next);
   };
 
   const updateClientOptionDraft = <
@@ -11337,7 +11576,7 @@ export default function App(): JSX.Element {
     const initialWithRegionClamp = resolveInventoryContextMenuPosition(
       {
         accelerator: itemAccelerator,
-        itemText: String(item.text || "Unknown item"),
+        itemText: String(item.text || t.dialogs.inventory.unknownItem),
         x: initial.x,
         y: initial.y,
         anchorBottomY,
@@ -11350,7 +11589,7 @@ export default function App(): JSX.Element {
 
     setInventoryContextMenu({
       accelerator: itemAccelerator,
-      itemText: String(item.text || "Unknown item"),
+      itemText: String(item.text || t.dialogs.inventory.unknownItem),
       x: initialWithRegionClamp.x,
       y: initialWithRegionClamp.y,
       anchorBottomY,
@@ -11622,7 +11861,7 @@ export default function App(): JSX.Element {
         typeof gameOver.deathMessage === "string" &&
         gameOver.deathMessage.trim()
           ? gameOver.deathMessage.trim()
-          : "Game over",
+          : t.dialogs.newGamePrompt.reasonFallback,
     });
   }, [
     directionQuestion,
@@ -12551,7 +12790,7 @@ export default function App(): JSX.Element {
         {isExitConfirmationVisible ? (
           <>
             <div className="nh3d-question-text">
-              Do you want to save before quitting?
+              {t.dialogs.pauseMenu.saveBeforeQuit}
             </div>
             <div className="nh3d-menu-actions">
               <button
@@ -12563,7 +12802,7 @@ export default function App(): JSX.Element {
                 }}
                 type="button"
               >
-                Yes
+                {commonStrings.yes}
               </button>
               <button
                 className="nh3d-menu-action-button"
@@ -12572,20 +12811,22 @@ export default function App(): JSX.Element {
                 }}
                 type="button"
               >
-                No
+                {commonStrings.no}
               </button>
               <button
                 className="nh3d-menu-action-button nh3d-menu-action-cancel"
                 onClick={() => setIsExitConfirmationVisible(false)}
                 type="button"
               >
-                Cancel
+                {commonStrings.cancel}
               </button>
             </div>
           </>
         ) : (
           <>
-            <div className="nh3d-options-title">Game Paused</div>
+            <div className="nh3d-options-title">
+              {t.dialogs.pauseMenu.title}
+            </div>
             <div className="nh3d-overflow-glow-frame">
               <div
                 className="nh3d-choice-list"
@@ -12597,14 +12838,14 @@ export default function App(): JSX.Element {
                   onClick={() => setIsPauseMenuVisible(false)}
                   type="button"
                 >
-                  Resume
+                  {t.dialogs.pauseMenu.resume}
                 </button>
                 <button
                   className="nh3d-choice-button"
                   onClick={openClientOptionsDialog}
                   type="button"
                 >
-                  Options
+                  {t.dialogs.pauseMenu.options}
                 </button>
                 <button
                   className="nh3d-choice-button"
@@ -12614,14 +12855,14 @@ export default function App(): JSX.Element {
                   }}
                   type="button"
                 >
-                  Save game
+                  {t.dialogs.pauseMenu.saveGame}
                 </button>
                 <button
                   className="nh3d-choice-button"
                   onClick={() => setIsExitConfirmationVisible(true)}
                   type="button"
                 >
-                  Exit to main menu
+                  {t.dialogs.pauseMenu.exitToMainMenu}
                 </button>
                 <button
                   className="nh3d-choice-button"
@@ -12630,7 +12871,7 @@ export default function App(): JSX.Element {
                   }}
                   type="button"
                 >
-                  Quit Game
+                  {t.dialogs.pauseMenu.quitGame}
                 </button>
               </div>
             </div>
@@ -12647,7 +12888,11 @@ export default function App(): JSX.Element {
       {startupMenuVisible ? (
         <>
           <button
-            aria-label={`Build ${nh3dBuildLabel}. Hidden debug logging toggle progress ${startupBuildLabelClickCount} of ${nh3dBuildLabelDebugEnableClickCount}.`}
+            aria-label={t.debugLogs.buildLabelAria(
+              nh3dBuildLabel,
+              startupBuildLabelClickCount,
+              nh3dBuildLabelDebugEnableClickCount,
+            )}
             className="nh3d-startup-build-label"
             onClick={handleStartupBuildLabelClick}
             type="button"
@@ -12655,20 +12900,19 @@ export default function App(): JSX.Element {
             {nh3dBuildLabel}
           </button>
           {startupBuildLabelToastVisible ? (
-            <div
-              aria-live="polite"
-              className="nh3d-startup-build-label-toast"
-            >
-              Debug log enabled
+            <div aria-live="polite" className="nh3d-startup-build-label-toast">
+              {t.debugLogs.enabledToast}
             </div>
           ) : null}
-          {debugSessionLogsEnabled ? (
+          {isDebugSessionLogsLinkVisible ? (
             <button
-              className="nh3d-startup-build-label-link"
+              className={`nh3d-startup-build-label-link${
+                startupBuildLabelToastVisible ? " is-offset" : ""
+              }`}
               onClick={openDebugSessionLogsDialog}
               type="button"
             >
-              View debug logs
+              {t.debugLogs.openLink}
             </button>
           ) : null}
         </>
@@ -12682,12 +12926,12 @@ export default function App(): JSX.Element {
           <>
             {renderMobileDialogCloseButton(
               () => setIsDebugSessionLogsVisible(false),
-              "Close debug logs",
+              t.dialogs.debugLogs.closeLabel,
             )}
-            <div className="nh3d-options-title">Saved Debug Logs</div>
-            <div className="nh3d-dialog-hint">
-              Logs are only captured after the hidden debug log toggle is enabled.
+            <div className="nh3d-options-title">
+              {t.dialogs.debugLogs.title}
             </div>
+            <div className="nh3d-dialog-hint">{t.dialogs.debugLogs.hint}</div>
             {debugSessionLogs.length > 0 ? (
               <>
                 <div className="nh3d-debug-log-session-list">
@@ -12708,17 +12952,18 @@ export default function App(): JSX.Element {
                 </div>
                 {selectedDebugSessionLog ? (
                   <div className="nh3d-debug-log-session-summary">
-                    Showing {selectedDebugSessionLog.entries.length} entries from{" "}
-                    {formatDebugSessionLogTimestamp(
-                      selectedDebugSessionLog.startedAt,
+                    {t.dialogs.debugLogs.showingEntries(
+                      selectedDebugSessionLog.entries.length,
+                      formatDebugSessionLogTimestamp(
+                        selectedDebugSessionLog.startedAt,
+                      ),
                     )}
-                    .
                   </div>
                 ) : null}
               </>
             ) : (
               <div className="nh3d-question-text">
-                No saved debug logs yet.
+                {t.dialogs.debugLogs.noneSaved}
               </div>
             )}
             <div className="nh3d-debug-log-viewer" data-nh3d-overflow-glow>
@@ -12732,7 +12977,7 @@ export default function App(): JSX.Element {
                 onClick={refreshDebugSessionLogs}
                 type="button"
               >
-                Refresh
+                {t.dialogs.debugLogs.refresh}
               </button>
               <button
                 className="nh3d-menu-action-button nh3d-menu-action-cancel"
@@ -12740,20 +12985,20 @@ export default function App(): JSX.Element {
                   clearDebugSessionLogs();
                   enableDebugSessionLogCapture({ buildLabel: nh3dBuildLabel });
                   recordDebugSessionLogEvent("debug-log-clear", [
-                    "Stored debug logs cleared by user.",
+                    t.debugLogs.clearedLogEntry,
                   ]);
                   refreshDebugSessionLogs();
                 }}
                 type="button"
               >
-                Clear Logs
+                {t.dialogs.debugLogs.clearLogs}
               </button>
               <button
                 className="nh3d-menu-action-button"
                 onClick={() => setIsDebugSessionLogsVisible(false)}
                 type="button"
               >
-                Close
+                {commonStrings.close}
               </button>
             </div>
           </>
@@ -12842,21 +13087,19 @@ export default function App(): JSX.Element {
       >
         <div className="nh3d-question-text">
           {startupPendingUpdateCount <= 0
-            ? "Game update maintenance notice."
+            ? t.dialogs.startupUpdate.maintenanceNotice
             : startupPendingUpdateCount === 1
-              ? "1 game update is available."
-              : `${startupPendingUpdateCount} game updates are available.`}
+              ? t.update.oneUpdateAvailable
+              : t.update.manyUpdatesAvailable(startupPendingUpdateCount)}
         </div>
         <div className="nh3d-startup-update-summary">
           {startupPendingUpdateCount > 0
-            ? "Download the latest build files now and refresh into the updated game."
-            : startupHostWarningMessage ||
-              "No downloadable game update is currently pending."}
+            ? t.dialogs.startupUpdate.summaryAvailable
+            : startupHostWarningMessage || t.dialogs.startupUpdate.summaryNone}
         </div>
         {startupClientUpdateRequired ? (
           <div className="nh3d-startup-update-client-warning">
-            A full client upgrade is also required for the newest platform
-            enhancements.
+            {t.dialogs.startupUpdate.clientUpgradeRequired}
             {startupClientUpdateMessage ? ` ${startupClientUpdateMessage}` : ""}
           </div>
         ) : null}
@@ -12867,7 +13110,7 @@ export default function App(): JSX.Element {
           <div className="nh3d-startup-update-progress-pane">
             <div className="nh3d-startup-update-progress-pane-header">
               <div className="nh3d-startup-update-progress-pane-title">
-                Update Download Status
+                {t.dialogs.startupUpdate.progressTitle}
               </div>
               <div className="nh3d-startup-update-progress-pane-percent">
                 {typeof startupUpdateProgressPercentValue === "number"
@@ -12877,7 +13120,7 @@ export default function App(): JSX.Element {
             </div>
             <div className="nh3d-startup-update-progress-pane-summary">
               {startupUpdateCancelBusy
-                ? "Canceling update download..."
+                ? t.dialogs.startupUpdate.canceling
                 : startupUpdateProgressSummary}
             </div>
             <div
@@ -12908,7 +13151,7 @@ export default function App(): JSX.Element {
               {startupUpdateProgressFileSummary ? (
                 <span>{startupUpdateProgressFileSummary}</span>
               ) : (
-                <span>No active file transfer.</span>
+                <span>{t.dialogs.startupUpdate.noActiveTransfer}</span>
               )}
               {startupLatestUpdateProgressEntry?.detail ? (
                 <span>{startupLatestUpdateProgressEntry.detail}</span>
@@ -12949,7 +13192,7 @@ export default function App(): JSX.Element {
                       --:--:--
                     </span>
                     <span className="nh3d-startup-update-progress-log-message">
-                      Waiting for updater activity.
+                      {t.dialogs.startupUpdate.waitingForUpdater}
                     </span>
                   </div>
                 )}
@@ -12965,7 +13208,7 @@ export default function App(): JSX.Element {
               data-nh3d-overflow-glow-host="parent"
             >
               <div className="nh3d-startup-update-details-title">
-                Pending Updates
+                {t.dialogs.startupUpdate.pendingUpdates}
               </div>
               <ul className="nh3d-startup-update-details-list">
                 {startupPendingUpdateCommits.length > 0 ? (
@@ -12975,7 +13218,7 @@ export default function App(): JSX.Element {
                     </li>
                   ))
                 ) : (
-                  <li>Update payload is available.</li>
+                  <li>{t.dialogs.startupUpdate.payloadAvailable}</li>
                 )}
               </ul>
             </div>
@@ -12990,7 +13233,9 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            {startupUpdateBusy ? "Downloading..." : "Download Updates"}
+            {startupUpdateBusy
+              ? commonStrings.downloading
+              : t.dialogs.startupUpdate.downloadUpdates}
           </button>
           <button
             className="nh3d-menu-action-button"
@@ -12998,7 +13243,9 @@ export default function App(): JSX.Element {
             onClick={toggleStartupUpdateDetails}
             type="button"
           >
-            {startupUpdateDetailsVisible ? "Hide Details" : "More Details"}
+            {startupUpdateDetailsVisible
+              ? t.dialogs.startupUpdate.hideDetails
+              : t.dialogs.startupUpdate.moreDetails}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
@@ -13017,9 +13264,9 @@ export default function App(): JSX.Element {
           >
             {startupUpdateBusy && startupCanCancelUpdateDownload
               ? startupUpdateCancelBusy
-                ? "Canceling..."
-                : "Cancel Download"
-              : "Later"}
+                ? commonStrings.canceling
+                : t.dialogs.startupUpdate.cancelDownload
+              : commonStrings.later}
           </button>
         </div>
       </AnimatedDialog>
@@ -13034,7 +13281,9 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
-        <div className="nh3d-question-text">Choose your NetHack variant:</div>
+        <div className="nh3d-question-text">
+          {t.dialogs.startup.chooseVariant}
+        </div>
         <div className="nh3d-overflow-glow-frame">
           <div
             className="nh3d-choice-list nh3d-choice-list-startup-choose"
@@ -13077,7 +13326,7 @@ export default function App(): JSX.Element {
               style={{ marginTop: "14px" }}
               type="button"
             >
-              NetHack 3D Options
+              {t.dialogs.startup.options}
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
@@ -13086,7 +13335,7 @@ export default function App(): JSX.Element {
               }}
               type="button"
             >
-              Quit Game
+              {t.dialogs.startup.quitGame}
             </button>
           </div>
         </div>
@@ -13102,7 +13351,9 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
-        <div className="nh3d-question-text">Choose your character setup:</div>
+        <div className="nh3d-question-text">
+          {t.dialogs.startup.chooseSetup}
+        </div>
         <div className="nh3d-overflow-glow-frame">
           <div
             className="nh3d-choice-list nh3d-choice-list-startup-choose"
@@ -13114,28 +13365,28 @@ export default function App(): JSX.Element {
               onClick={() => setStartupFlowStep("random")}
               type="button"
             >
-              Random character
+              {t.dialogs.startup.randomCharacter}
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => setStartupFlowStep("create")}
               type="button"
             >
-              Create character
+              {t.dialogs.startup.createCharacter}
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={handleResumeClick}
               type="button"
             >
-              Load game
+              {t.dialogs.startup.loadGame}
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => setStartupFlowStep("variant")}
               type="button"
             >
-              Back
+              {commonStrings.back}
             </button>
           </div>
         </div>
@@ -13151,7 +13402,9 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
-        <div className="nh3d-question-text">Select a saved game:</div>
+        <div className="nh3d-question-text">
+          {t.dialogs.startup.selectSavedGame}
+        </div>
         <div className="nh3d-overflow-glow-frame">
           <div
             className="nh3d-choice-list nh3d-choice-list-startup-resume"
@@ -13166,7 +13419,7 @@ export default function App(): JSX.Element {
                   color: "var(--nh3d-ui-text-muted)",
                 }}
               >
-                Loading saves...
+                {t.saves.loading}
               </div>
             ) : savedGameSections.length > 0 ? (
               <div
@@ -13272,7 +13525,7 @@ export default function App(): JSX.Element {
                                 fontWeight: "normal",
                               }}
                             >
-                              Saved: {save.dateFormatted}
+                              {t.saves.savedAt(save.dateFormatted)}
                             </div>
                           </div>
                         </button>
@@ -13296,7 +13549,7 @@ export default function App(): JSX.Element {
                   color: "var(--nh3d-ui-text-muted)",
                 }}
               >
-                No saved games found.
+                {t.saves.noneFound}
               </div>
             )}
           </div>
@@ -13307,7 +13560,7 @@ export default function App(): JSX.Element {
             onClick={() => setStartupFlowStep("choose")}
             type="button"
           >
-            Back
+            {commonStrings.back}
           </button>
         </div>
       </AnimatedDialog>
@@ -13325,11 +13578,11 @@ export default function App(): JSX.Element {
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
         <div className="nh3d-question-text">
-          Enter a name for your random character:
+          {t.dialogs.startup.enterRandomName}
         </div>
         <div className="nh3d-startup-config-grid centered">
           <label className="nh3d-startup-config-field">
-            <span>Name</span>
+            <span>{t.dialogs.startup.name}</span>
             <input
               className="nh3d-startup-config-input"
               maxLength={30}
@@ -13366,21 +13619,21 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Start game
+            {t.dialogs.startup.startGame}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
             onClick={() => setStartupFlowStep("choose")}
             type="button"
           >
-            Back
+            {commonStrings.back}
           </button>
           <button
             className="nh3d-menu-action-button"
             onClick={openClientOptionsDialog}
             type="button"
           >
-            NetHack 3D Options
+            {t.dialogs.startup.options}
           </button>
         </div>
       </AnimatedDialog>
@@ -13397,10 +13650,12 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
-        <div className="nh3d-question-text">Create your character:</div>
+        <div className="nh3d-question-text">
+          {t.dialogs.startup.createCharacterPrompt}
+        </div>
         <div className="nh3d-startup-config-grid">
           <label className="nh3d-startup-config-field">
-            <span>Name</span>
+            <span>{t.dialogs.startup.name}</span>
             <input
               className="nh3d-startup-config-input"
               maxLength={30}
@@ -13411,7 +13666,7 @@ export default function App(): JSX.Element {
             />
           </label>
           <label className="nh3d-startup-config-field">
-            <span>Role</span>
+            <span>{t.dialogs.startup.role}</span>
             <select
               className="nh3d-startup-config-select"
               onChange={(event) => setCreateRole(event.target.value)}
@@ -13425,7 +13680,7 @@ export default function App(): JSX.Element {
             </select>
           </label>
           <label className="nh3d-startup-config-field">
-            <span>Race</span>
+            <span>{t.dialogs.startup.race}</span>
             <select
               className="nh3d-startup-config-select"
               onChange={(event) => setCreateRace(event.target.value)}
@@ -13439,7 +13694,7 @@ export default function App(): JSX.Element {
             </select>
           </label>
           <label className="nh3d-startup-config-field">
-            <span>Gender</span>
+            <span>{t.dialogs.startup.gender}</span>
             <select
               className="nh3d-startup-config-select"
               onChange={(event) => setCreateGender(event.target.value)}
@@ -13453,7 +13708,7 @@ export default function App(): JSX.Element {
             </select>
           </label>
           <label className="nh3d-startup-config-field">
-            <span>Alignment</span>
+            <span>{t.dialogs.startup.alignment}</span>
             <select
               className="nh3d-startup-config-select"
               onChange={(event) => setCreateAlign(event.target.value)}
@@ -13493,21 +13748,21 @@ export default function App(): JSX.Element {
             }
             type="button"
           >
-            Start game
+            {t.dialogs.startup.startGame}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
             onClick={() => setStartupFlowStep("choose")}
             type="button"
           >
-            Back
+            {commonStrings.back}
           </button>
           <button
             className="nh3d-menu-action-button"
             onClick={openClientOptionsDialog}
             type="button"
           >
-            NetHack 3D Options
+            {t.dialogs.startup.options}
           </button>
         </div>
       </AnimatedDialog>
@@ -13565,7 +13820,7 @@ export default function App(): JSX.Element {
           >
             {renderMobileDialogCloseButton(
               () => setIsMobileLogVisible(false),
-              "Close message log",
+              t.dialogs.mobileActions.closeMessageLog,
             )}
             {gameMessages.map((message, index) => (
               <div key={`${index}-${message}`}>{message}</div>
@@ -13748,13 +14003,15 @@ export default function App(): JSX.Element {
       >
         {renderMobileDialogCloseButton(
           requestCloseClientOptionsDialog,
-          "Close NetHack 3D options",
+          t.dialogs.clientOptions.closeLabel,
         )}
-        <div className="nh3d-options-title">NetHack 3D Client Options</div>
+        <div className="nh3d-options-title">
+          {t.dialogs.clientOptions.title}
+        </div>
         <div className="nh3d-options-layout">
           <div className="nh3d-overflow-glow-frame nh3d-options-nav-shell">
             <div
-              aria-label="Settings categories"
+              aria-label={t.dialogs.clientOptions.categoriesLabel}
               className="nh3d-options-nav"
               data-nh3d-overflow-glow
               data-nh3d-overflow-glow-host="parent"
@@ -13803,11 +14060,13 @@ export default function App(): JSX.Element {
                     <div className="nh3d-option-row nh3d-option-row-inline-toggle">
                       <div className="nh3d-option-copy">
                         <div className="nh3d-option-label">
-                          Check for updates on launch
+                          {t.dialogs.clientOptions.updates.checkOnLaunchLabel}
                         </div>
                         <div className="nh3d-option-description">
-                          Automatically checks the online manifest when the game
-                          starts.
+                          {
+                            t.dialogs.clientOptions.updates
+                              .checkOnLaunchDescription
+                          }
                         </div>
                       </div>
                       <button
@@ -13831,10 +14090,11 @@ export default function App(): JSX.Element {
                     </div>
                     <div className="nh3d-option-row nh3d-option-row-updates">
                       <div className="nh3d-option-copy">
-                        <div className="nh3d-option-label">Game Updates</div>
+                        <div className="nh3d-option-label">
+                          {t.dialogs.clientOptions.updates.title}
+                        </div>
                         <div className="nh3d-option-description">
-                          Check the published online manifest and compare it to
-                          your installed build.
+                          {t.dialogs.clientOptions.updates.description}
                         </div>
                         {optionsUpdateCheckStatus ? (
                           <div className="nh3d-updates-status">
@@ -13842,8 +14102,7 @@ export default function App(): JSX.Element {
                           </div>
                         ) : (
                           <div className="nh3d-updates-status">
-                            Press Check for Updates to verify game files are up
-                            to date.
+                            {t.dialogs.clientOptions.updates.idle}
                           </div>
                         )}
                         {optionsUpdateCheckResult &&
@@ -13873,8 +14132,8 @@ export default function App(): JSX.Element {
                           type="button"
                         >
                           {optionsUpdateCheckBusy
-                            ? "Checking..."
-                            : "Check for Updates"}
+                            ? commonStrings.checking
+                            : t.dialogs.clientOptions.updates.button}
                         </button>
                       </div>
                     </div>
@@ -13933,13 +14192,14 @@ export default function App(): JSX.Element {
                       invertLookOptionDisabledByFpsMode;
                     const toggleDisabledHint =
                       darkCorridorWallsForcedOnByVulture
-                        ? " Always enabled while Vulture tiles are active."
+                        ? t.dialogs.clientOptions.hints.darkWallsAlwaysEnabled
                         : darkCorridorOptionSuppressedByVulture
-                          ? " Disabled while Vulture tiles are active."
+                          ? t.dialogs.clientOptions.hints
+                              .darkWallsDisabledByVulture
                           : darkWallOverrideDisabledByDarkCorridorWalls
-                            ? " Enable NetHack 3.6.7 dark corridor walls or NetHack 3.7 dark wall overrides first."
+                            ? t.dialogs.clientOptions.hints.enableDarkWallsFirst
                             : invertLookOptionDisabledByFpsMode
-                              ? " Enable First-person mode in Display first."
+                              ? t.dialogs.clientOptions.hints.enableFpsFirst
                               : "";
                     const darkWallSecondaryControlsDisabled =
                       !enabled || toggleDisabled;
@@ -14007,9 +14267,17 @@ export default function App(): JSX.Element {
                                 <div className="nh3d-dark-wall-solid-color-input-row">
                                   <div className="nh3d-dark-wall-solid-color-input-group">
                                     <label className="nh3d-dark-wall-mode-color">
-                                      <span>Normal</span>
+                                      <span>
+                                        {
+                                          t.dialogs.clientOptions
+                                            .darkWallControls.normal
+                                        }
+                                      </span>
                                       <input
-                                        aria-label="Dark wall solid color (normal mode)"
+                                        aria-label={
+                                          t.dialogs.clientOptions
+                                            .darkWallControls.normalAria
+                                        }
                                         className="nh3d-option-solid-color-native-picker"
                                         disabled={
                                           darkWallSecondaryControlsDisabled
@@ -14026,9 +14294,17 @@ export default function App(): JSX.Element {
                                       />
                                     </label>
                                     <label className="nh3d-dark-wall-mode-color">
-                                      <span>FPS</span>
+                                      <span>
+                                        {
+                                          t.dialogs.clientOptions
+                                            .darkWallControls.fps
+                                        }
+                                      </span>
                                       <input
-                                        aria-label="Dark wall solid color (FPS mode)"
+                                        aria-label={
+                                          t.dialogs.clientOptions
+                                            .darkWallControls.fpsAria
+                                        }
                                         className="nh3d-option-solid-color-native-picker"
                                         disabled={
                                           darkWallSecondaryControlsDisabled
@@ -14061,10 +14337,20 @@ export default function App(): JSX.Element {
                                         }
                                         type="checkbox"
                                       />
-                                      <span>Grid lines</span>
+                                      <span>
+                                        {
+                                          t.dialogs.clientOptions
+                                            .darkWallControls.gridLines
+                                        }
+                                      </span>
                                     </label>
                                     <label className="nh3d-dark-wall-grid-darkness">
-                                      <span>Intensity</span>
+                                      <span>
+                                        {
+                                          t.dialogs.clientOptions
+                                            .darkWallControls.intensity
+                                        }
+                                      </span>
                                       <span className="nh3d-dark-wall-grid-darkness-input-wrap">
                                         <input
                                           className="nh3d-dark-wall-grid-darkness-input"
@@ -14132,11 +14418,10 @@ export default function App(): JSX.Element {
                           <div className="nh3d-option-row nh3d-option-row-controller-remap">
                             <div className="nh3d-option-copy">
                               <div className="nh3d-option-label">
-                                Controller remap
+                                {t.dialogs.clientOptions.controllerRemap.title}
                               </div>
                               <div className="nh3d-option-description">
-                                Set two bindings per action for gameplay and
-                                dialog controls.
+                                {t.dialogs.clientOptions.controllerRemap.hint}
                               </div>
                             </div>
                             <div className="nh3d-option-select-controls">
@@ -14145,7 +14430,10 @@ export default function App(): JSX.Element {
                                 onClick={openControllerRemapDialog}
                                 type="button"
                               >
-                                Remap Controller
+                                {
+                                  t.dialogs.clientOptions.buttons
+                                    .remapController
+                                }
                               </button>
                             </div>
                           </div>
@@ -14196,13 +14484,23 @@ export default function App(): JSX.Element {
                               onClick={openTilesetManager}
                               type="button"
                             >
-                              Manage Tile Sets
+                              {t.dialogs.clientOptions.buttons.manageTileSets}
                             </button>
                           ) : null}
                           <select
                             className="nh3d-startup-config-select"
                             disabled={selectDisabled}
                             onChange={(event) => {
+                              if (option.key === "locale") {
+                                const nextValue =
+                                  resolveSupportedLocale(event.target.value) ??
+                                  clientOptionsDraft.locale;
+                                updateClientOptionDraft(
+                                  option.key,
+                                  nextValue,
+                                );
+                                return;
+                              }
                               if (option.key === "tilesetMode") {
                                 updateClientOptionDraft(
                                   option.key,
@@ -14346,21 +14644,21 @@ export default function App(): JSX.Element {
             onClick={requestConfirmClientOptionsDialog}
             type="button"
           >
-            Confirm
+            {commonStrings.confirm}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
             onClick={requestCloseClientOptionsDialog}
             type="button"
           >
-            Cancel
+            {commonStrings.cancel}
           </button>
           <button
             className="nh3d-menu-action-button"
             onClick={openResetClientOptionsConfirmation}
             type="button"
           >
-            Reset to Defaults
+            {commonStrings.resetToDefaults}
           </button>
         </div>
       </AnimatedDialog>
@@ -14371,7 +14669,7 @@ export default function App(): JSX.Element {
         id="nh3d-reset-client-options-confirmation-dialog"
       >
         <div className="nh3d-question-text">
-          Reset NetHack 3D options to defaults? Custom tile sets will be kept.
+          {t.dialogs.clientOptions.resetPrompt}
         </div>
         <div className="nh3d-menu-actions">
           <button
@@ -14379,14 +14677,14 @@ export default function App(): JSX.Element {
             onClick={confirmResetClientOptionsToDefaults}
             type="button"
           >
-            Yes
+            {commonStrings.yes}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
             onClick={cancelResetClientOptionsConfirmation}
             type="button"
           >
-            No
+            {commonStrings.no}
           </button>
         </div>
       </AnimatedDialog>
@@ -14398,25 +14696,25 @@ export default function App(): JSX.Element {
       >
         {renderMobileDialogCloseButton(
           closeControllerRemapDialog,
-          "Close controller remap",
+          t.dialogs.clientOptions.controllerRemap.closeLabel,
         )}
-        <div className="nh3d-options-title">Controller Remap</div>
+        <div className="nh3d-options-title">
+          {t.dialogs.clientOptions.controllerRemap.title}
+        </div>
         <div className="nh3d-controller-remap-hint">
-          Select a slot, then press a button or move a stick. Each action has
-          two slots.
+          {t.dialogs.clientOptions.controllerRemap.hint}
         </div>
         <div className="nh3d-controller-remap-status">
-          {controllerRemapListening ? (
-            <>
-              Listening for{" "}
-              <strong>{controllerRemapListeningActionLabel}</strong> (slot{" "}
-              {controllerRemapListening.slotIndex + 1}). Press ESC to cancel.
-            </>
-          ) : connectedControllerCount > 0 ? (
-            `${connectedControllerCount} controller${connectedControllerCount === 1 ? "" : "s"} detected.`
-          ) : (
-            "No controller detected."
-          )}
+          {controllerRemapListening
+            ? t.dialogs.clientOptions.controllerRemap.listeningFor(
+                controllerRemapListeningActionLabel,
+                controllerRemapListening.slotIndex + 1,
+              )
+            : connectedControllerCount > 0
+              ? translationStrings.controller.controllerDetected(
+                  connectedControllerCount,
+                )
+              : translationStrings.controller.noControllerDetected}
         </div>
         <div className="nh3d-overflow-glow-frame nh3d-controller-remap-list-shell">
           <div
@@ -14471,11 +14769,13 @@ export default function App(): JSX.Element {
                                 type="button"
                               >
                                 <span className="nh3d-controller-remap-slot-label">
-                                  Slot {slotIndex + 1}
+                                  {translationStrings.controller.slotLabel(
+                                    slotIndex,
+                                  )}
                                 </span>
                                 <span className="nh3d-controller-remap-slot-value">
                                   {listeningForSlot
-                                    ? "Press input..."
+                                    ? translationStrings.controller.listening
                                     : formatNh3dControllerBindingLabel(binding)}
                                 </span>
                               </button>
@@ -14493,7 +14793,7 @@ export default function App(): JSX.Element {
                                 }}
                                 type="button"
                               >
-                                Clear
+                                {translationStrings.controller.clear}
                               </button>
                             </div>
                           );
@@ -14512,14 +14812,14 @@ export default function App(): JSX.Element {
             onClick={closeControllerRemapDialog}
             type="button"
           >
-            Done
+            {commonStrings.done}
           </button>
           <button
             className="nh3d-menu-action-button"
             onClick={resetControllerBindingsToDefaultsDraft}
             type="button"
           >
-            Reset Controller Defaults
+            {t.dialogs.clientOptions.buttons.resetControllerDefaults}
           </button>
         </div>
       </AnimatedDialog>
@@ -14531,11 +14831,13 @@ export default function App(): JSX.Element {
       >
         {renderMobileDialogCloseButton(
           closeTilesetManager,
-          "Close tileset manager",
+          t.dialogs.tilesetManager.closeLabel,
         )}
-        <div className="nh3d-options-title">Manage Tile Sets</div>
+        <div className="nh3d-options-title">
+          {t.dialogs.tilesetManager.title}
+        </div>
         <div className="nh3d-option-description">
-          Add tile sets and edit per-tileset background/chroma settings.
+          {t.dialogs.tilesetManager.description}
         </div>
         <div className="nh3d-tileset-manager-content-shell">
           <div className="nh3d-tileset-manager-content">
@@ -14548,10 +14850,12 @@ export default function App(): JSX.Element {
                 <div className="nh3d-tileset-manager-header">
                   <div className="nh3d-option-label">
                     {tilesetManagerInNewMode
-                      ? "Create New Tile Set"
+                      ? t.dialogs.tilesetManager.createTitle
                       : selectedTilesetManagerEditEntry
-                        ? `Edit Tile Set: ${selectedTilesetManagerEditEntry.label}`
-                        : "Edit Tile Set"}
+                        ? t.dialogs.tilesetManager.editTitleWithName(
+                            selectedTilesetManagerEditEntry.label,
+                          )
+                        : t.dialogs.tilesetManager.editTitle}
                   </div>
                 </div>
                 <div className="nh3d-tileset-manager-upload-row">
@@ -14559,7 +14863,7 @@ export default function App(): JSX.Element {
                     className="nh3d-option-label"
                     htmlFor="nh3d-tileset-name"
                   >
-                    Tile Set Name
+                    {t.dialogs.tilesetManager.tileSetName}
                   </label>
                   <input
                     className="nh3d-text-input nh3d-tileset-manager-input"
@@ -14567,14 +14871,14 @@ export default function App(): JSX.Element {
                     onChange={(event) =>
                       setTilesetManagerName(event.target.value)
                     }
-                    placeholder="My Tileset"
+                    placeholder={t.dialogs.tilesetManager.tileSetPlaceholder}
                     readOnly={tilesetManagerNameInputDisabled}
                     type="text"
                     value={tilesetManagerName}
                   />
                   {tilesetManagerNameInputDisabled ? (
                     <div className="nh3d-option-description">
-                      Built-in tile set names cannot be changed.
+                      {t.dialogs.tilesetManager.builtInNamesLocked}
                     </div>
                   ) : null}
                 </div>
@@ -14585,7 +14889,7 @@ export default function App(): JSX.Element {
                       className="nh3d-option-label"
                       htmlFor="nh3d-tileset-version"
                     >
-                      Tile Layout Version
+                      {t.dialogs.tilesetManager.tileLayoutVersion}
                     </label>
                     <select
                       className="nh3d-startup-config-select"
@@ -14602,11 +14906,11 @@ export default function App(): JSX.Element {
                       value={tilesetManagerTileLayoutVersion}
                     >
                       <option value="3.4.3">Slash&apos;EM / NetHack 3.4.3 layout</option>
-                      <option value="3.6.7">NetHack 3.6.7 layout</option>
-                      <option value="3.7">NetHack 3.7 layout</option>
+                      <option value="3.6.7">{t.dialogs.tilesetManager.layout367}</option>
+                      <option value="3.7">{t.dialogs.tilesetManager.layout37}</option>
                     </select>
                     <div className="nh3d-option-description">
-                      Choose the tile index layout used by this uploaded atlas.
+                      {t.dialogs.tilesetManager.tileLayoutDescription}
                     </div>
                   </div>
                 ) : null}
@@ -14618,8 +14922,8 @@ export default function App(): JSX.Element {
                       htmlFor="nh3d-tileset-upload-file"
                     >
                       {tilesetManagerInNewMode
-                        ? "Tileset Image"
-                        : "Tileset Image (optional replacement)"}
+                        ? t.dialogs.tilesetManager.tileImage
+                        : t.dialogs.tilesetManager.tileImageOptional}
                     </label>
                     <input
                       accept=".png,.bmp,.gif,.jpg,.jpeg,image/*"
@@ -14631,18 +14935,22 @@ export default function App(): JSX.Element {
                     />
                     <div className="nh3d-option-description">
                       {tilesetManagerFile
-                        ? `Selected: ${tilesetManagerFile.name}`
+                        ? t.dialogs.tilesetManager.selectedFile(
+                            tilesetManagerFile.name,
+                          )
                         : tilesetManagerInNewMode
-                          ? "Choose a tileset image file."
-                          : `Current: ${selectedTilesetManagerEditUserRecord?.fileName || "uploaded image"}`}
+                          ? t.tilesets.chooseFile
+                          : t.dialogs.tilesetManager.currentFile(
+                              selectedTilesetManagerEditUserRecord?.fileName ||
+                                t.dialogs.tilesetManager.uploadedImage,
+                            )}
                     </div>
                   </div>
                 ) : null}
                 {selectedTilesetManagerEditEntry ? (
                   <Fragment>
                     <div className="nh3d-option-description">
-                      Configure billboard background removal for this tileset,
-                      or leave both modes off to keep atlas backgrounds intact.
+                      {t.dialogs.tilesetManager.backgroundRemovalDescription}
                     </div>
                     <div
                       className={`nh3d-option-row nh3d-option-row-inline-toggle nh3d-option-row-has-secondary-controls${
@@ -14653,11 +14961,13 @@ export default function App(): JSX.Element {
                     >
                       <div className="nh3d-option-copy">
                         <div className="nh3d-option-label">
-                          Background Tile Removal
+                          {t.dialogs.tilesetManager.backgroundTileRemoval}
                         </div>
                         <div className="nh3d-option-description">
-                          Use a selected atlas tile for billboard background
-                          removal.
+                          {
+                            t.dialogs.tilesetManager
+                              .backgroundTileRemovalDescription
+                          }
                         </div>
                       </div>
                       <div className="nh3d-option-toggle-controls nh3d-option-secondary-controls">
@@ -14722,11 +15032,10 @@ export default function App(): JSX.Element {
                     >
                       <div className="nh3d-option-copy">
                         <div className="nh3d-option-label">
-                          Solid Color Chroma Key
+                          {t.dialogs.tilesetManager.solidChromaKey}
                         </div>
                         <div className="nh3d-option-description">
-                          Use a single solid RGB color for billboard background
-                          removal.
+                          {t.dialogs.tilesetManager.solidChromaKeyDescription}
                         </div>
                       </div>
                       <div className="nh3d-option-toggle-controls nh3d-option-secondary-controls">
@@ -14760,7 +15069,7 @@ export default function App(): JSX.Element {
                               )}
                             </span>
                             <span className="nh3d-option-tile-picker-id">
-                              click to pick from atlas
+                              {t.dialogs.tilesetManager.clickToPickFromAtlas}
                             </span>
                           </span>
                         </button>
@@ -14799,8 +15108,7 @@ export default function App(): JSX.Element {
                   </Fragment>
                 ) : (
                   <div className="nh3d-option-description">
-                    Save the new tile set first, then edit background/chroma
-                    settings.
+                    {t.dialogs.tilesetManager.saveFirstThenEdit}
                   </div>
                 )}
                 <div className="nh3d-tileset-manager-upload-actions">
@@ -14813,10 +15121,10 @@ export default function App(): JSX.Element {
                     type="button"
                   >
                     {tilesetManagerInNewMode
-                      ? "Create Tile Set"
+                      ? t.dialogs.tilesetManager.createTileSet
                       : selectedTilesetManagerEditUserRecord
-                        ? "Save Tile Set"
-                        : "Save Tile Settings"}
+                        ? t.dialogs.tilesetManager.saveTileSet
+                        : t.dialogs.tilesetManager.saveTileSettings}
                   </button>
                 </div>
               </div>
@@ -14833,7 +15141,7 @@ export default function App(): JSX.Element {
               onClick={openTilesetManagerNewEditor}
               type="button"
             >
-              + Import New Tile Set
+              {t.dialogs.tilesetManager.importNewTileSet}
             </button>
             <div className="nh3d-overflow-glow-frame nh3d-tileset-manager-list-shell">
               <div
@@ -14843,7 +15151,7 @@ export default function App(): JSX.Element {
               >
                 {tilesetManagerListTilesets.length === 0 ? (
                   <div className="nh3d-option-description">
-                    No uploaded tilesets available.
+                    {t.dialogs.tilesetManager.noUploadedTilesets}
                   </div>
                 ) : (
                   tilesetManagerListTilesets.map((tileset) => {
@@ -14863,13 +15171,22 @@ export default function App(): JSX.Element {
                         <div className="nh3d-tileset-manager-item-copy">
                           <div className="nh3d-option-label">
                             {tileset.label}
-                            {isSelected ? " (selected)" : ""}
-                            {isEditing ? " (editing)" : ""}
+                            {isSelected
+                              ? t.dialogs.tilesetManager.selectedSuffix
+                              : ""}
+                            {isEditing
+                              ? t.dialogs.tilesetManager.editingSuffix
+                              : ""}
                           </div>
                           <div className="nh3d-option-description">
                             {isUserTileset
-                              ? `${userRecord?.fileName || tilesetPath} | uploaded | layout ${userRecord?.tileLayoutVersion || "3.6.7"}`
-                              : `${tilesetPath} | built-in`}
+                              ? t.dialogs.tilesetManager.uploadedDetails(
+                                  userRecord?.fileName || tilesetPath,
+                                  userRecord?.tileLayoutVersion || "3.6.7",
+                                )
+                              : t.dialogs.tilesetManager.builtInDetails(
+                                  tilesetPath,
+                                )}
                           </div>
                         </div>
                         <div className="nh3d-tileset-manager-item-actions">
@@ -14880,7 +15197,7 @@ export default function App(): JSX.Element {
                             }
                             type="button"
                           >
-                            Edit
+                            {commonStrings.edit}
                           </button>
                           {isUserTileset ? (
                             <button
@@ -14913,13 +15230,13 @@ export default function App(): JSX.Element {
             onClick={closeTilesetManager}
             type="button"
           >
-            Done
+            {commonStrings.done}
           </button>
         </div>
       </AnimatedDialog>
 
       <TilesetTilePickerDialog
-        closeLabel="Close dark wall tile picker"
+        closeLabel={t.tilePicker.closeDarkWall}
         defaultTileId={defaultDarkWallTileId}
         dialogId="nh3d-dark-wall-tile-picker-dialog"
         entries={tilePickerEntries}
@@ -14936,16 +15253,16 @@ export default function App(): JSX.Element {
         showGlyphNumber={showTilePickerGlyphNumber}
         statusText={tilePickerStatusText}
         tileAtlasLoaded={tileAtlasState.loaded}
-        title="Dark Wall Tile Picker"
+        title={t.tilePicker.darkWallTitle}
         visible={isClientOptionsVisible && isDarkWallTilePickerVisible}
       />
 
       <TilesetTilePickerDialog
-        closeLabel="Close tileset background tile picker"
+        closeLabel={t.tilePicker.closeBackground}
         defaultTileId={tilesetManagerDefaultBackgroundTileId}
         dialogId="nh3d-tileset-background-tile-picker-dialog"
         entries={tilesetManagerTilePickerEntries}
-        helperText="Used for removing shared tileset background from monster/loot billboards."
+        helperText={t.tilePicker.backgroundHelper}
         onDone={() => setIsTilesetBackgroundTilePickerVisible(false)}
         onResetToDefault={() =>
           updateTilesetBackgroundTileIdDraft(
@@ -14971,8 +15288,10 @@ export default function App(): JSX.Element {
         tileAtlasLoaded={tilesetManagerAtlasState.loaded}
         title={
           selectedTilesetManagerEditEntry
-            ? `Tileset Background Tile Picker: ${selectedTilesetManagerEditEntry.label}`
-            : "Tileset Background Tile Picker"
+            ? t.tilePicker.backgroundTitleWithLabel(
+                selectedTilesetManagerEditEntry.label,
+              )
+            : t.tilePicker.backgroundTitle
         }
         visible={
           isClientOptionsVisible &&
@@ -14988,7 +15307,7 @@ export default function App(): JSX.Element {
           tilesetManagerAtlasState.columns *
           tilesetManagerAtlasState.tileSourceSize
         }
-        closeLabel="Close solid chroma key color picker"
+        closeLabel={t.tilePicker.closeSolidColor}
         dialogId="nh3d-tileset-solid-color-picker-dialog"
         onDone={() => setIsTilesetSolidColorPickerVisible(false)}
         onSelectColorHex={(rawHex) =>
@@ -15004,8 +15323,10 @@ export default function App(): JSX.Element {
         tileSourceSize={tilesetManagerAtlasState.tileSourceSize}
         title={
           selectedTilesetManagerEditEntry
-            ? `Solid Color Chroma Key Picker: ${selectedTilesetManagerEditEntry.label}`
-            : "Solid Color Chroma Key Picker"
+            ? t.tilePicker.solidColorTitleWithLabel(
+                selectedTilesetManagerEditEntry.label,
+              )
+            : t.tilePicker.solidColorTitle
         }
         visible={
           isClientOptionsVisible &&
@@ -15024,7 +15345,7 @@ export default function App(): JSX.Element {
           <>
             {renderMobileDialogCloseButton(
               () => submitTextInput(""),
-              "Cancel text input",
+              t.dialogs.textInput.cancelLabel,
             )}
             {textInputRequest.contextMessage ? (
               <div className="nh3d-text-input-context" role="note">
@@ -15048,7 +15369,9 @@ export default function App(): JSX.Element {
                   submitTextInput("");
                 }
               }}
-              placeholder={textInputRequest.placeholder ?? "Enter text"}
+              placeholder={
+                textInputRequest.placeholder ?? t.dialogs.textInput.placeholder
+              }
               ref={textInputRef}
               type="text"
               value={textInputValue}
@@ -15059,14 +15382,14 @@ export default function App(): JSX.Element {
                 onClick={() => submitTextInput(textInputValue)}
                 type="button"
               >
-                OK
+                {t.dialogs.textInput.ok}
               </button>
               <button
                 className="nh3d-menu-action-button nh3d-menu-action-cancel"
                 onClick={() => submitTextInput("")}
                 type="button"
               >
-                Cancel
+                {commonStrings.cancel}
               </button>
             </div>
           </>
@@ -15088,7 +15411,7 @@ export default function App(): JSX.Element {
           <>
             {renderMobileDialogCloseButton(
               () => controller?.cancelActivePrompt(),
-              "Cancel prompt",
+              t.dialogs.question.cancelPrompt,
             )}
             <div className="nh3d-question-text">{question.text}</div>
             {question.menuItems.length > 0 ? (
@@ -15191,8 +15514,8 @@ export default function App(): JSX.Element {
                           type="button"
                         >
                           {question.allPickupSelected
-                            ? "Deselect All"
-                            : "Select All"}
+                            ? t.dialogs.question.deselectAll
+                            : t.dialogs.question.selectAll}
                         </button>
                       ) : null}
                       <button
@@ -15204,7 +15527,7 @@ export default function App(): JSX.Element {
                         onClick={() => controller?.confirmPickupChoices()}
                         type="button"
                       >
-                        Confirm
+                        {commonStrings.confirm}
                       </button>
                       <button
                         className={`nh3d-pickup-action-button nh3d-pickup-action-cancel${
@@ -15215,7 +15538,7 @@ export default function App(): JSX.Element {
                         onClick={() => controller?.cancelActivePrompt()}
                         type="button"
                       >
-                        Cancel
+                        {commonStrings.cancel}
                       </button>
                     </div>
                   ) : null}
@@ -15225,17 +15548,24 @@ export default function App(): JSX.Element {
                   <div className="nh3d-enhance-menu">
                     <div className="nh3d-enhance-summary">
                       <span className="nh3d-enhance-summary-chip is-available">
-                        {enhanceMenuData.availableCount} available
+                        {translationStrings.enhanceMenu.summary.available(
+                          enhanceMenuData.availableCount,
+                        )}
                       </span>
                       <span className="nh3d-enhance-summary-chip is-gated">
-                        {enhanceMenuData.needsExperienceCount} gated by
-                        experience/slots
+                        {translationStrings.enhanceMenu.summary.gated(
+                          enhanceMenuData.needsExperienceCount,
+                        )}
                       </span>
                       <span className="nh3d-enhance-summary-chip is-practice">
-                        {enhanceMenuData.needsPracticeCount} need practice
+                        {translationStrings.enhanceMenu.summary.practice(
+                          enhanceMenuData.needsPracticeCount,
+                        )}
                       </span>
                       <span className="nh3d-enhance-summary-chip is-maxed">
-                        {enhanceMenuData.maxedOutCount} maxed
+                        {translationStrings.enhanceMenu.summary.maxed(
+                          enhanceMenuData.maxedOutCount,
+                        )}
                       </span>
                     </div>
                     {enhanceMenuData.legendLines.length > 0 ? (
@@ -15313,15 +15643,16 @@ export default function App(): JSX.Element {
                                     </>
                                   ) : (
                                     <span className="nh3d-enhance-rank-max">
-                                      Max
+                                      {translationStrings.enhanceMenu.maxLabel}
                                     </span>
                                   )}
                                 </div>
                                 {enhanceMenuData.showSlotCost &&
                                 entry.slotCostForNextRank ? (
                                   <div className="nh3d-enhance-slot-cost">
-                                    {entry.slotCostForNextRank} slot
-                                    {entry.slotCostForNextRank === 1 ? "" : "s"}
+                                    {translationStrings.enhanceMenu.slotCount(
+                                      entry.slotCostForNextRank,
+                                    )}
                                   </div>
                                 ) : null}
                               </button>
@@ -15351,15 +15682,16 @@ export default function App(): JSX.Element {
                                     </>
                                   ) : (
                                     <span className="nh3d-enhance-rank-max">
-                                      Max
+                                      {translationStrings.enhanceMenu.maxLabel}
                                     </span>
                                   )}
                                 </div>
                                 {enhanceMenuData.showSlotCost &&
                                 entry.slotCostForNextRank ? (
                                   <div className="nh3d-enhance-slot-cost">
-                                    {entry.slotCostForNextRank} slot
-                                    {entry.slotCostForNextRank === 1 ? "" : "s"}
+                                    {translationStrings.enhanceMenu.slotCount(
+                                      entry.slotCostForNextRank,
+                                    )}
                                   </div>
                                 ) : null}
                               </div>
@@ -15379,7 +15711,7 @@ export default function App(): JSX.Element {
                       onClick={() => controller?.cancelActivePrompt()}
                       type="button"
                     >
-                      Cancel
+                      {commonStrings.cancel}
                     </button>
                   </div>
                 </>
@@ -15402,7 +15734,7 @@ export default function App(): JSX.Element {
                       onClick={() => controller?.cancelActivePrompt()}
                       type="button"
                     >
-                      Cancel
+                      {commonStrings.cancel}
                     </button>
                   </div>
                 </>
@@ -15504,7 +15836,7 @@ export default function App(): JSX.Element {
                         onClick={() => controller?.cancelActivePrompt()}
                         type="button"
                       >
-                        Cancel
+                        {commonStrings.cancel}
                       </button>
                     </div>
                   ) : null}
@@ -15602,7 +15934,10 @@ export default function App(): JSX.Element {
                   {"<"}
                 </button>
                 <div className="nh3d-question-page-indicator">
-                  Page {questionMenuPageIndex + 1} / {questionMenuPageCount}
+                  {t.dialogs.question.page(
+                    questionMenuPageIndex + 1,
+                    questionMenuPageCount,
+                  )}
                 </div>
                 <button
                   className="nh3d-question-page-button"
@@ -15616,8 +15951,8 @@ export default function App(): JSX.Element {
             ) : null}
             <div className="nh3d-dialog-hint">
               {question.menuItems.length > 0 && questionMenuPageCount > 1
-                ? "Use < and > to change pages. Press ESC to cancel"
-                : "Press ESC to cancel"}
+                ? t.dialogs.question.pageHintMultiple
+                : t.dialogs.question.pageHintSingle}
             </div>
           </>
         ) : null}
@@ -15638,9 +15973,11 @@ export default function App(): JSX.Element {
       >
         {renderMobileDialogCloseButton(
           startNewGameFromPrompt,
-          "Return to main menu",
+          t.dialogs.runtimeStartError.closeLabel,
         )}
-        <div className="nh3d-question-text">NetHack failed to initialize.</div>
+        <div className="nh3d-question-text">
+          {t.dialogs.runtimeStartError.title}
+        </div>
         <div className="nh3d-runtime-start-error-copy">
           {runtimeInitializationErrorMessage}
         </div>
@@ -15650,7 +15987,7 @@ export default function App(): JSX.Element {
             onClick={startNewGameFromPrompt}
             type="button"
           >
-            Return to main menu
+            {t.dialogs.runtimeStartError.returnToMainMenu}
           </button>
         </div>
       </AnimatedDialog>
@@ -15665,9 +16002,11 @@ export default function App(): JSX.Element {
       >
         {renderMobileDialogCloseButton(
           () => setNewGamePrompt({ visible: false, reason: null }),
-          "Close new game prompt",
+          t.dialogs.newGamePrompt.closeLabel,
         )}
-        <div className="nh3d-question-text">Return to main menu?</div>
+        <div className="nh3d-question-text">
+          {t.dialogs.newGamePrompt.title}
+        </div>
         {gameOverTombstoneLines.length > 0 ? (
           <pre className="nh3d-game-over-tombstone">
             {gameOverTombstoneLines.join("\n")}
@@ -15680,7 +16019,7 @@ export default function App(): JSX.Element {
             ref={newGamePromptYesButtonRef}
             type="button"
           >
-            Yes
+            {commonStrings.yes}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
@@ -15688,7 +16027,7 @@ export default function App(): JSX.Element {
             ref={newGamePromptNoButtonRef}
             type="button"
           >
-            No
+            {commonStrings.no}
           </button>
         </div>
       </AnimatedDialog>
@@ -15702,12 +16041,12 @@ export default function App(): JSX.Element {
           <>
             {renderMobileDialogCloseButton(
               () => controller?.cancelActivePrompt(),
-              "Cancel direction prompt",
+              t.dialogs.direction.cancelLabel,
             )}
             <div className="nh3d-direction-text">{directionQuestion}</div>
             <div className="nh3d-direction-fps-hint">
               {isFpsPlayMode
-                ? "Look to aim. Left-click or W confirms. S targets self. A/D or right-click cancels."
+                ? t.directionHelp.fps
                 : getDirectionHelpText(
                     numberPadModeEnabled,
                     clientOptions.controllerEnabled,
@@ -15730,8 +16069,8 @@ export default function App(): JSX.Element {
             {renderMobileDialogCloseButton(
               closeInfoMenuDialog,
               isCharacterSheetVisible
-                ? "Close character window"
-                : "Close information window",
+                ? t.dialogs.info.closeCharacter
+                : t.dialogs.info.closeInformation,
             )}
             {isCharacterSheetVisible && characterSheet ? (
               <>
@@ -15740,11 +16079,17 @@ export default function App(): JSX.Element {
                   data-nh3d-overflow-glow
                   data-nh3d-overflow-glow-host="parent"
                 >
-                  <div className="nh3d-info-title">Character</div>
+                  <div className="nh3d-info-title">
+                    {t.dialogs.info.characterTitle}
+                  </div>
                   <div className="nh3d-character-xp-block nh3d-character-xp-block-top">
                     <div className="nh3d-character-xp-header">
-                      <span>Experience Progress</span>
-                      <span>Level {characterExperienceProgress.level}</span>
+                      <span>{t.dialogs.info.experienceProgress}</span>
+                      <span>
+                        {t.dialogs.info.levelLabel(
+                          characterExperienceProgress.level,
+                        )}
+                      </span>
                     </div>
                     <div className="nh3d-character-xp-track">
                       <div
@@ -15757,27 +16102,25 @@ export default function App(): JSX.Element {
                     <div className="nh3d-character-xp-meta">
                       {characterExperienceProgress.isMaxLevel ? (
                         <>
-                          XP{" "}
-                          {formatCharacterNumber(
-                            characterExperienceProgress.experiencePoints,
-                          )}{" "}
-                          (max level reached)
+                          {t.dialogs.info.xpAtMaxLevel(
+                            formatCharacterNumber(
+                              characterExperienceProgress.experiencePoints,
+                            ),
+                          )}
                         </>
                       ) : (
                         <>
-                          XP{" "}
-                          {formatCharacterNumber(
-                            characterExperienceProgress.experiencePoints,
-                          )}{" "}
-                          /{" "}
-                          {formatCharacterNumber(
-                            characterExperienceProgress.nextLevelThreshold,
+                          {t.dialogs.info.xpToNextLevel(
+                            formatCharacterNumber(
+                              characterExperienceProgress.experiencePoints,
+                            ),
+                            formatCharacterNumber(
+                              characterExperienceProgress.nextLevelThreshold,
+                            ),
+                            formatCharacterNumber(
+                              characterExperienceProgress.toNextLevel,
+                            ),
                           )}
-                          {" \u2022 "}
-                          {formatCharacterNumber(
-                            characterExperienceProgress.toNextLevel,
-                          )}{" "}
-                          to next level
                         </>
                       )}
                     </div>
@@ -15785,7 +16128,10 @@ export default function App(): JSX.Element {
                   <div className="nh3d-character-grid">
                     <section className="nh3d-character-panel">
                       <div className="nh3d-character-panel-title">
-                        Background
+                        {
+                          translationStrings.characterSheet.sectionTitles
+                            .background
+                        }
                       </div>
                       <div className="nh3d-character-line-stack">
                         {characterSheet.backgroundLines.length > 0 ? (
@@ -15806,7 +16152,9 @@ export default function App(): JSX.Element {
                     </section>
 
                     <section className="nh3d-character-panel">
-                      <div className="nh3d-character-panel-title">Vitals</div>
+                      <div className="nh3d-character-panel-title">
+                        {t.dialogs.info.vitals}
+                      </div>
                       <div className="nh3d-character-line-stack">
                         {characterSheet.hitPointsLine ? (
                           <div className="nh3d-character-line">
@@ -15848,13 +16196,13 @@ export default function App(): JSX.Element {
 
                     <section className="nh3d-character-panel nh3d-character-panel-characteristics">
                       <div className="nh3d-character-panel-title">
-                        Characteristics
+                        {t.dialogs.info.characteristics}
                       </div>
                       {hasCharacterStatValues ? (
                         <div className="nh3d-character-stat-grid">
                           {hasCharacterStatLimits ? (
                             <div className="nh3d-character-stat-grid-hint">
-                              Current / Limit
+                              {t.dialogs.info.currentLimit}
                             </div>
                           ) : null}
                           {characterSheet.statEntries.map((entry) => (
@@ -15887,7 +16235,7 @@ export default function App(): JSX.Element {
                           ))}
                           <div className="nh3d-character-stat">
                             <div className="nh3d-character-stat-label">
-                              Armor Class
+                              {t.dialogs.info.armorClass}
                             </div>
                             <div className="nh3d-character-stat-value">
                               <span className="nh3d-character-stat-current">
@@ -15917,7 +16265,7 @@ export default function App(): JSX.Element {
 
                     <section className="nh3d-character-panel">
                       <div className="nh3d-character-panel-title">
-                        Current Status
+                        {t.dialogs.info.currentStatus}
                       </div>
                       <div className="nh3d-character-chip-list">
                         {characterSheet.statusLines.length > 0 ? (
@@ -15931,7 +16279,7 @@ export default function App(): JSX.Element {
                           ))
                         ) : (
                           <div className="nh3d-character-line">
-                            No active status.
+                            {t.dialogs.info.noActiveStatus}
                           </div>
                         )}
                       </div>
@@ -15939,7 +16287,7 @@ export default function App(): JSX.Element {
 
                     <section className="nh3d-character-panel">
                       <div className="nh3d-character-panel-title">
-                        Current Attributes
+                        {t.dialogs.info.currentAttributes}
                       </div>
                       <div className="nh3d-character-chip-list">
                         {characterSheet.attributeLines.length > 0 ? (
@@ -15953,7 +16301,7 @@ export default function App(): JSX.Element {
                           ))
                         ) : (
                           <div className="nh3d-character-line">
-                            No temporary attribute effects.
+                            {t.dialogs.info.noTemporaryAttributes}
                           </div>
                         )}
                       </div>
@@ -15961,7 +16309,7 @@ export default function App(): JSX.Element {
 
                     <section className="nh3d-character-panel nh3d-character-panel-actions">
                       <div className="nh3d-character-panel-title">
-                        Character Actions
+                        {t.dialogs.info.characterActions}
                       </div>
                       <div className="nh3d-character-actions-grid">
                         <button
@@ -15970,10 +16318,10 @@ export default function App(): JSX.Element {
                           type="button"
                         >
                           <span className="nh3d-character-action-label">
-                            Inventory
+                            {t.dialogs.info.inventory}
                           </span>
                           <span className="nh3d-character-action-detail">
-                            Open carried items
+                            {t.dialogs.info.inventoryDetail}
                           </span>
                         </button>
                         {characterCommandActions.map((action) => (
@@ -16021,7 +16369,7 @@ export default function App(): JSX.Element {
                   </div>
 
                   <div className="nh3d-info-hint">
-                    Press SPACE, ENTER, or ESC to close. Press Ctrl+M to reopen.
+                    {t.dialogs.info.closeHint}
                   </div>
                 </div>
                 <div className="nh3d-menu-actions">
@@ -16030,7 +16378,7 @@ export default function App(): JSX.Element {
                     onClick={closeInfoMenuDialog}
                     type="button"
                   >
-                    Close
+                    {commonStrings.close}
                   </button>
                 </div>
               </>
@@ -16042,15 +16390,15 @@ export default function App(): JSX.Element {
                   data-nh3d-overflow-glow-host="parent"
                 >
                   <div className="nh3d-info-title">
-                    {infoMenu.title || "NetHack Information"}
+                    {infoMenu.title || t.dialogs.info.infoTitleFallback}
                   </div>
                   <div className="nh3d-info-body">
                     {infoMenu.lines.length > 0
                       ? infoMenu.lines.join("\n")
-                      : "(No details)"}
+                      : t.dialogs.info.noDetails}
                   </div>
                   <div className="nh3d-info-hint">
-                    Press SPACE, ENTER, or ESC to close. Press Ctrl+M to reopen.
+                    {t.dialogs.info.closeHint}
                   </div>
                 </div>
                 <div className="nh3d-menu-actions">
@@ -16059,7 +16407,7 @@ export default function App(): JSX.Element {
                     onClick={closeInfoMenuDialog}
                     type="button"
                   >
-                    Close
+                    {commonStrings.close}
                   </button>
                 </div>
               </>
@@ -16083,9 +16431,9 @@ export default function App(): JSX.Element {
       >
         {renderMobileDialogCloseButton(
           () => controller?.closeInventoryDialog(),
-          "Close inventory",
+          t.dialogs.inventory.closeLabel,
         )}
-        <div className="nh3d-inventory-title">INVENTORY</div>
+        <div className="nh3d-inventory-title">{t.dialogs.inventory.title}</div>
         <div className="nh3d-overflow-glow-frame nh3d-overflow-glow-shell-fill">
           <div
             className={`nh3d-inventory-items${
@@ -16172,7 +16520,7 @@ export default function App(): JSX.Element {
           >
             {inventory.items.length === 0 ? (
               <div className="nh3d-inventory-empty">
-                Your inventory is empty.
+                {t.dialogs.inventory.empty}
               </div>
             ) : (
               inventory.items.map((item, index) => {
@@ -16386,7 +16734,7 @@ export default function App(): JSX.Element {
                       </span>
                     </span>
                     <span className={item.className as string}>
-                      {item.text || "Unknown item"}
+                      {item.text || t.dialogs.inventory.unknownItem}
                     </span>
                   </div>
                 );
@@ -16403,7 +16751,7 @@ export default function App(): JSX.Element {
             onClick={() => controller?.closeInventoryDialog()}
             type="button"
           >
-            Close
+            {commonStrings.close}
           </button>
         </div>
       </AnimatedDialog>
@@ -16578,14 +16926,16 @@ export default function App(): JSX.Element {
                 top: `${inventoryDropTypeMenuPosition.y}px`,
               }}
             >
-              <div className="nh3d-context-menu-title">Drop</div>
+              <div className="nh3d-context-menu-title">
+                {t.dialogs.inventoryDropMenu.title}
+              </div>
               <div className="nh3d-context-menu-actions">
                 <button
                   className="nh3d-context-menu-button"
                   onClick={() => runInventoryDropTypeCommand()}
                   type="button"
                 >
-                  Drop Type
+                  {t.dialogs.inventoryDropMenu.dropType}
                 </button>
                 <button
                   className="nh3d-context-menu-button"
@@ -16604,12 +16954,12 @@ export default function App(): JSX.Element {
                   }}
                   title={
                     inventoryContextSupportsDropAmount
-                      ? "Drop a specific amount"
-                      : "Only available for stacked items"
+                      ? t.dialogs.inventoryDropMenu.dropSpecificAmount
+                      : t.dialogs.inventoryDropMenu.onlyStackedItems
                   }
                   type="button"
                 >
-                  Drop Amount
+                  {t.dialogs.inventoryDropMenu.dropAmount}
                 </button>
               </div>
             </div>,
@@ -16652,18 +17002,20 @@ export default function App(): JSX.Element {
         {inventoryDropCountDialog ? (
           <>
             <div className="nh3d-question-text">
-              Drop how many from this stack?
+              {t.dialogs.inventoryDropCount.title}
             </div>
             <div className="nh3d-inventory-drop-count-description">
               {inventoryDropCountDialog.itemText}
             </div>
             <div className="nh3d-inventory-drop-count-hint">
-              Choose an amount from 1 to {inventoryDropCountMaxValue}.
+              {t.dialogs.inventoryDropCount.chooseAmount(
+                inventoryDropCountMaxValue,
+              )}
             </div>
             <div className="nh3d-inventory-drop-count-controls">
               <div className="nh3d-option-slider-control nh3d-inventory-drop-count-slider-control">
                 <input
-                  aria-label="Drop amount"
+                  aria-label={t.dialogs.inventoryDropCount.ariaLabel}
                   className="nh3d-option-slider"
                   max={inventoryDropCountMaxValue}
                   min={1}
@@ -16692,7 +17044,7 @@ export default function App(): JSX.Element {
               </div>
               <div className="nh3d-inventory-drop-count-step-actions">
                 <button
-                  aria-label="Set drop amount to minimum"
+                  aria-label={t.dialogs.inventoryDropCount.setMinimum}
                   className="nh3d-menu-action-button nh3d-inventory-drop-count-step-button"
                   disabled={inventoryDropCountValue <= 1}
                   onClick={() => {
@@ -16703,7 +17055,7 @@ export default function App(): JSX.Element {
                   {"<<"}
                 </button>
                 <button
-                  aria-label="Decrease drop amount by one"
+                  aria-label={t.dialogs.inventoryDropCount.decrease}
                   className="nh3d-menu-action-button nh3d-inventory-drop-count-step-button"
                   disabled={inventoryDropCountValue <= 1}
                   onClick={() => {
@@ -16714,7 +17066,7 @@ export default function App(): JSX.Element {
                   {"<"}
                 </button>
                 <button
-                  aria-label="Increase drop amount by one"
+                  aria-label={t.dialogs.inventoryDropCount.increase}
                   className="nh3d-menu-action-button nh3d-inventory-drop-count-step-button"
                   disabled={
                     inventoryDropCountValue >= inventoryDropCountMaxValue
@@ -16727,7 +17079,7 @@ export default function App(): JSX.Element {
                   {">"}
                 </button>
                 <button
-                  aria-label="Set drop amount to maximum"
+                  aria-label={t.dialogs.inventoryDropCount.setMaximum}
                   className="nh3d-menu-action-button nh3d-inventory-drop-count-step-button"
                   disabled={
                     inventoryDropCountValue >= inventoryDropCountMaxValue
@@ -16747,14 +17099,14 @@ export default function App(): JSX.Element {
                 onClick={submitInventoryDropCount}
                 type="button"
               >
-                Drop
+                {t.dialogs.inventoryDropMenu.title}
               </button>
               <button
                 className="nh3d-menu-action-button nh3d-menu-action-cancel"
                 onClick={closeInventoryDropCountModal}
                 type="button"
               >
-                Cancel
+                {commonStrings.cancel}
               </button>
             </div>
           </>
@@ -16882,7 +17234,7 @@ export default function App(): JSX.Element {
           <Fragment>
             <div className="nh3d-controller-action-wheel-title-row">
               <div className="nh3d-controller-action-wheel-title">
-                Extended Commands
+                {t.dialogs.mobileActions.extendedCommands}
               </div>
             </div>
             <div className="nh3d-overflow-glow-frame nh3d-controller-action-wheel-extended-shell">
@@ -16894,7 +17246,7 @@ export default function App(): JSX.Element {
                 {mobileCommonExtendedCommandNames.length > 0 ? (
                   <div className="nh3d-mobile-actions-section">
                     <div className="nh3d-mobile-actions-subheader">
-                      Common commands
+                      {t.dialogs.mobileActions.commonCommands}
                     </div>
                     <div className="nh3d-mobile-actions-grid is-extended">
                       {mobileCommonExtendedCommandNames.map((command) => (
@@ -16914,7 +17266,7 @@ export default function App(): JSX.Element {
                 ) : null}
                 <div className="nh3d-mobile-actions-section">
                   <div className="nh3d-mobile-actions-subheader">
-                    All commands
+                    {t.dialogs.mobileActions.allCommands}
                   </div>
                   <div className="nh3d-mobile-actions-grid is-extended">
                     {mobileExtendedCommandNames.map((command) => (
@@ -16942,8 +17294,8 @@ export default function App(): JSX.Element {
           <div className="nh3d-mobile-actions-title-row">
             <div className="nh3d-mobile-actions-title">
               {mobileActionSheetMode === "quick"
-                ? "Actions"
-                : "Extended Commands"}
+                ? t.dialogs.mobileActions.actions
+                : t.dialogs.mobileActions.extendedCommands}
             </div>
             <div className="nh3d-mobile-actions-controls">
               {mobileActionSheetMode === "extended" ? (
@@ -16952,7 +17304,7 @@ export default function App(): JSX.Element {
                   onClick={() => setMobileActionSheetMode("quick")}
                   type="button"
                 >
-                  Back
+                  {commonStrings.back}
                 </button>
               ) : null}
 
@@ -16969,7 +17321,7 @@ export default function App(): JSX.Element {
                 }}
                 type="button"
               >
-                Menu
+                {t.dialogs.mobileActions.menu}
               </button>
 
               <button
@@ -16980,7 +17332,7 @@ export default function App(): JSX.Element {
                 }}
                 type="button"
               >
-                Close
+                {t.dialogs.mobileActions.close}
               </button>
             </div>
           </div>
@@ -17026,7 +17378,7 @@ export default function App(): JSX.Element {
                 {mobileCommonExtendedCommandNames.length > 0 ? (
                   <div className="nh3d-mobile-actions-section">
                     <div className="nh3d-mobile-actions-subheader">
-                      Common commands
+                      {t.dialogs.mobileActions.commonCommands}
                     </div>
                     <div className="nh3d-mobile-actions-grid is-extended">
                       {mobileCommonExtendedCommandNames.map((command) => (
@@ -17049,7 +17401,7 @@ export default function App(): JSX.Element {
                 ) : null}
                 <div className="nh3d-mobile-actions-section">
                   <div className="nh3d-mobile-actions-subheader">
-                    All commands
+                    {t.dialogs.mobileActions.allCommands}
                   </div>
                   <div className="nh3d-mobile-actions-grid is-extended">
                     {mobileExtendedCommandNames.map((command) => (
@@ -17085,14 +17437,16 @@ export default function App(): JSX.Element {
           ref={wizardCommandsSheetRef}
         >
           <div className="nh3d-mobile-actions-title-row">
-            <div className="nh3d-mobile-actions-title">Wizard Commands</div>
+            <div className="nh3d-mobile-actions-title">
+              {t.dialogs.mobileActions.wizardCommands}
+            </div>
             <div className="nh3d-mobile-actions-controls">
               <button
                 className="nh3d-mobile-actions-close"
                 onClick={closeWizardCommands}
                 type="button"
               >
-                Close
+                {t.dialogs.mobileActions.close}
               </button>
             </div>
           </div>
@@ -17130,7 +17484,7 @@ export default function App(): JSX.Element {
           ref={wizardCommandsButtonRef}
           type="button"
         >
-          Wizard
+          {t.dialogs.mobileActions.wizard}
         </button>
       ) : null}
 
@@ -17143,7 +17497,7 @@ export default function App(): JSX.Element {
           }}
           type="button"
         >
-          Repeat
+          {t.dialogs.mobileActions.repeat}
         </button>
       ) : null}
 
@@ -17158,7 +17512,7 @@ export default function App(): JSX.Element {
               ref={wizardCommandsButtonRef}
               type="button"
             >
-              Wizard
+              {t.dialogs.mobileActions.wizard}
             </button>
           ) : null}
           <button
@@ -17168,7 +17522,7 @@ export default function App(): JSX.Element {
             onClick={openCharacterDialog}
             type="button"
           >
-            Character
+            {t.dialogs.mobileActions.character}
           </button>
           <button
             className={`nh3d-desktop-bottom-button${
@@ -17181,7 +17535,7 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Inventory
+            {t.dialogs.mobileActions.inventory}
           </button>
         </div>
       ) : null}
@@ -17195,7 +17549,7 @@ export default function App(): JSX.Element {
             onClick={openCharacterDialog}
             type="button"
           >
-            Character
+            {t.dialogs.mobileActions.character}
           </button>
           <button
             className={`nh3d-mobile-bottom-button${
@@ -17208,7 +17562,7 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Inventory
+            {t.dialogs.mobileActions.inventory}
           </button>
           <button
             className="nh3d-mobile-bottom-button"
@@ -17230,7 +17584,7 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Log
+            {t.dialogs.mobileActions.log}
           </button>
           <button
             className="nh3d-mobile-bottom-button"
@@ -17240,7 +17594,7 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Pick Up
+            {t.dialogs.mobileActions.pickUp}
           </button>
           <button
             className="nh3d-mobile-bottom-button"
@@ -17250,7 +17604,7 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Search
+            {t.dialogs.mobileActions.search}
           </button>
           <button
             className={`nh3d-mobile-bottom-button${
@@ -17270,7 +17624,7 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
-            Actions
+            {t.dialogs.mobileActions.actions}
           </button>
         </div>
       ) : null}
@@ -17286,7 +17640,7 @@ export default function App(): JSX.Element {
         >
           {isMobileViewport && positionRequest ? (
             <button
-              aria-label="Close position prompt"
+              aria-label={t.dialogs.positionPrompt.closeLabel}
               className="nh3d-position-dialog-close"
               onClick={() => {
                 controller?.cancelActivePrompt();
@@ -17307,7 +17661,7 @@ export default function App(): JSX.Element {
         id="nh3d-controller-support-dialog"
       >
         <div className="nh3d-question-text">
-          Controller detected. Enable controller support?
+          {t.dialogs.controllerSupport.prompt}
         </div>
         <div className="nh3d-menu-actions">
           <button
@@ -17315,14 +17669,14 @@ export default function App(): JSX.Element {
             onClick={() => confirmControllerSupportPromptChoice(true)}
             type="button"
           >
-            Yes
+            {commonStrings.yes}
           </button>
           <button
             className="nh3d-menu-action-button nh3d-menu-action-cancel"
             onClick={() => confirmControllerSupportPromptChoice(false)}
             type="button"
           >
-            No
+            {commonStrings.no}
           </button>
         </div>
       </AnimatedDialog>

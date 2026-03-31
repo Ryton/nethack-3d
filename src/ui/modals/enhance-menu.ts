@@ -1,4 +1,5 @@
 import type { NethackMenuItem } from "../../game/ui-types";
+import { getTranslationStrings } from "../../i18n/core";
 
 export type EnhanceSkillAvailability =
   | "available_now"
@@ -40,6 +41,7 @@ const knownEnhanceCategoryTitles = new Set([
   "weapon skills",
   "spellcasting skills",
 ]);
+const enhanceMenuStrings = getTranslationStrings().enhanceMenu;
 
 const skillRankByValue: Record<number, string> = {
   1: "Unskilled",
@@ -128,14 +130,14 @@ function isMenuItemSelectable(item: NethackMenuItem): boolean {
 function resolveAvailabilityLabel(state: EnhanceSkillAvailability): string {
   switch (state) {
     case "available_now":
-      return "Available";
+      return enhanceMenuStrings.availability.available_now;
     case "needs_experience":
-      return "Exp/Slots";
+      return enhanceMenuStrings.availability.needs_experience;
     case "maxed_out":
-      return "Maxed";
+      return enhanceMenuStrings.availability.maxed_out;
     case "needs_practice":
     default:
-      return "Practice";
+      return enhanceMenuStrings.availability.needs_practice;
   }
 }
 
@@ -194,22 +196,23 @@ export function parseEnhanceMenu(
     return null;
   }
 
-  let currentCategoryTitle = "Skills";
+  let currentCategoryTitle: string = enhanceMenuStrings.defaultGroupTitle;
   const groupsByTitle = new Map<string, EnhanceSkillGroup>();
   const groupOrder: string[] = [];
   const legendLines: string[] = [];
 
   const ensureGroup = (title: string): EnhanceSkillGroup => {
-    const normalizedTitle = normalizeMenuLine(title) || "Skills";
-    if (!groupsByTitle.has(normalizedTitle)) {
-      groupsByTitle.set(normalizedTitle, {
-        id: slugify(normalizedTitle),
-        title: normalizedTitle,
+    const resolvedTitle =
+      normalizeMenuLine(title) || enhanceMenuStrings.defaultGroupTitle;
+    if (!groupsByTitle.has(resolvedTitle)) {
+      groupsByTitle.set(resolvedTitle, {
+        id: slugify(resolvedTitle),
+        title: resolvedTitle,
         entries: [],
       });
-      groupOrder.push(normalizedTitle);
+      groupOrder.push(resolvedTitle);
     }
-    return groupsByTitle.get(normalizedTitle)!;
+    return groupsByTitle.get(resolvedTitle)!;
   };
 
   for (let index = 0; index < menuItems.length; index += 1) {

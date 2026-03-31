@@ -55,4 +55,10 @@ export type RuntimeCommand =
 export type RuntimeWorkerEnvelope =
   | { type: "runtime_event"; event: RuntimeEvent }
   | { type: "runtime_ready" }
-  | { type: "runtime_error"; error: string };
+  | { type: "runtime_error"; error: string }
+  | {
+      type: "runtime_console";
+      level: "log" | "info" | "warn" | "error" | "debug" | "trace" | "assert";
+      source: string;
+      args: unknown[];
+    };

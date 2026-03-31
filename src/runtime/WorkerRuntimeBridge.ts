@@ -6,6 +6,7 @@ import type {
   RuntimeStartupOptions,
   RuntimeWorkerEnvelope,
 } from "./types";
+import { recordDebugSessionLogEvent } from "../debug-session-log";
 
 export default class WorkerRuntimeBridge implements RuntimeBridge {
   private readonly worker: Worker;
@@ -308,6 +309,13 @@ export default class WorkerRuntimeBridge implements RuntimeBridge {
         break;
       case "runtime_event":
         this.onEvent(message.event as RuntimeEvent);
+        break;
+      case "runtime_console":
+        recordDebugSessionLogEvent(
+          message.source || "runtime.worker.console",
+          Array.isArray(message.args) ? message.args : [message.args],
+          message.level,
+        );
         break;
       default:
         break;

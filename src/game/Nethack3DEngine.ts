@@ -1478,6 +1478,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lightingCenterCurrent = new THREE.Vector2();
   private lightingCenterTarget = new THREE.Vector2();
   private lightingCenterInitialized: boolean = false;
+  private readonly lightingVignetteMaxDarkAlpha: number = 0.82;
   private ambientLight: THREE.AmbientLight | null = null;
   private directionalLight: THREE.DirectionalLight | null = null;
   private fpsPlayerLight: THREE.PointLight | null = null;
@@ -1627,6 +1628,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    this.vignetteUniforms.uMaxDarkAlpha.value = this.clientOptions
+      .lightingEnabled
+      ? this.lightingVignetteMaxDarkAlpha
+      : 0;
+
+    if (!this.clientOptions.lightingEnabled) {
+      this.ambientLight.color.setHex(0xffffff);
+      this.ambientLight.intensity = 1;
+      this.directionalLight.intensity = 0;
+      if (this.fpsPlayerLight) {
+        this.fpsPlayerLight.visible = false;
+      }
+      return;
+    }
+
+    this.ambientLight.color.setHex(0x404040);
     if (this.isFpsMode()) {
       this.ambientLight.intensity = 0.72;
       this.directionalLight.intensity = 1.25;
@@ -1672,7 +1689,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     uLightingCenter: { value: new THREE.Vector3(0, 0, 0) },
     uLightingRadius: { value: 20.0 * TILE_SIZE },
     uFalloffPower: { value: 1.08 },
-    uMaxDarkAlpha: { value: 0.82 },
+    uMaxDarkAlpha: { value: this.lightingVignetteMaxDarkAlpha },
     uIsFpsMode: { value: false },
   };
 
@@ -4001,6 +4018,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isUsingVultureTiles = this.isVultureTilesActive(normalized);
     const playModeChanged = previous.fpsMode !== normalized.fpsMode;
     const fpsFovChanged = previous.fpsFov !== normalized.fpsFov;
+    const lightingEnabledChanged =
+      previous.lightingEnabled !== normalized.lightingEnabled;
     const fpsFlattenEntityBillboardsChanged =
       previous.fpsFlattenEntityBillboards !==
       normalized.fpsFlattenEntityBillboards;
@@ -4067,6 +4086,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (fpsFovChanged && this.playMode === "fps") {
       this.camera.fov = this.resolveFpsCameraFov();
       this.camera.updateProjectionMatrix();
+    }
+    if (lightingEnabledChanged) {
+      this.configureBaseLightingForPlayMode();
+      this.markLightingDirty();
     }
     if (minimapChanged) {
       this.updateMinimapVisibility();

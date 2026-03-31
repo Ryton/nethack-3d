@@ -1,4 +1,5 @@
 import type { NethackMenuItem } from "../../game/ui-types";
+import { getTranslationStrings } from "../../i18n/core";
 
 export type CastSpellEntry = {
   id: string;
@@ -34,6 +35,7 @@ type CastSpellMenuProps = {
 };
 
 const sortSpellsMenuPattern = /^\[\s*sort spells\s*]$/i;
+const castMenuStrings = getTranslationStrings().castMenu;
 
 function normalizeMenuLine(rawValue: unknown): string {
   return String(rawValue || "")
@@ -179,7 +181,7 @@ function resolveRetentionInfo(retentionText: string): {
   const normalizedRetention = normalizeMenuLine(retentionText);
   if (!normalizedRetention) {
     return {
-      label: "Unknown",
+      label: castMenuStrings.retention.unknown,
       band: "unknown",
       minPercent: null,
     };
@@ -187,7 +189,7 @@ function resolveRetentionInfo(retentionText: string): {
 
   if (/\(gone\)/i.test(normalizedRetention)) {
     return {
-      label: "Gone",
+      label: castMenuStrings.retention.gone,
       band: "gone",
       minPercent: 0,
     };
@@ -199,7 +201,7 @@ function resolveRetentionInfo(retentionText: string): {
     const maxPercent = Math.max(0, Math.min(100, Number.parseInt(rangeMatch[2], 10)));
     if (minPercent >= 100 && maxPercent >= 100) {
       return {
-        label: "100%",
+        label: castMenuStrings.retention.full,
         band: "full",
         minPercent,
       };
@@ -223,7 +225,7 @@ function resolveRetentionInfo(retentionText: string): {
     const percent = Math.max(0, Math.min(100, Number.parseInt(singleMatch[1], 10)));
     if (percent >= 100) {
       return {
-        label: "100%",
+        label: castMenuStrings.retention.full,
         band: "full",
         minPercent: percent,
       };
@@ -375,8 +377,10 @@ function renderSpellRowContent(entry: CastSpellEntry): JSX.Element {
         <span className="nh3d-cast-spell-name">{spellDisplayName}</span>
       </span>
       <span className="nh3d-cast-row-level">{entry.level}</span>
-      <span className="nh3d-cast-row-category">
-        <span className="nh3d-cast-row-category-label">School:</span>
+        <span className="nh3d-cast-row-category">
+        <span className="nh3d-cast-row-category-label">
+          {castMenuStrings.schoolLabel}
+        </span>
         <span className="nh3d-cast-row-category-value">{entry.category}</span>
       </span>
       <span className="nh3d-cast-chip-stack">
@@ -402,24 +406,23 @@ export function CastSpellMenu({
     <div className="nh3d-cast-menu">
       <div className="nh3d-cast-summary">
         <span className="nh3d-cast-summary-chip is-count">
-          {menuData.spellCount} known
+          {castMenuStrings.summary.known(menuData.spellCount)}
         </span>
         <span className="nh3d-cast-summary-chip is-ready">
-          {menuData.availableCount} castable
+          {castMenuStrings.summary.castable(menuData.availableCount)}
         </span>
         {typeof menuData.bestSuccessPercent === "number" ? (
           <span className="nh3d-cast-summary-chip is-success">
-            Best success {menuData.bestSuccessPercent}%
+            {castMenuStrings.summary.bestSuccess(menuData.bestSuccessPercent)}
           </span>
         ) : null}
         {typeof menuData.averageFailPercent === "number" ? (
           <span className="nh3d-cast-summary-chip is-fail">
-            Avg fail {menuData.averageFailPercent}%
+            {castMenuStrings.summary.averageFail(menuData.averageFailPercent)}
           </span>
         ) : null}
         <span className="nh3d-cast-summary-chip is-school">
-          {menuData.categoryCount} school
-          {menuData.categoryCount === 1 ? "" : "s"}
+          {castMenuStrings.summary.schoolCount(menuData.categoryCount)}
         </span>
       </div>
       <div className="nh3d-overflow-glow-frame">
@@ -429,11 +432,11 @@ export function CastSpellMenu({
           data-nh3d-overflow-glow-host="parent"
         >
           <div aria-hidden="true" className="nh3d-cast-table-head">
-            <span>Name</span>
-            <span>Level</span>
-            <span>Category</span>
-            <span>Fail</span>
-            <span>Retention</span>
+            <span>{castMenuStrings.headings.name}</span>
+            <span>{castMenuStrings.headings.level}</span>
+            <span>{castMenuStrings.headings.category}</span>
+            <span>{castMenuStrings.headings.fail}</span>
+            <span>{castMenuStrings.headings.retention}</span>
           </div>
           {menuData.entries.map((entry) => {
             const canChoose =

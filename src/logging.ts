@@ -1,8 +1,22 @@
 type NH3DGlobalScope = typeof globalThis & {
   __NH3D_LOGGING_ENABLED__?: boolean;
   __NH3D_ORIGINAL_CONSOLE_LOG__?: typeof console.log;
+  __NH3D_ORIGINAL_CONSOLE_INFO__?: typeof console.info;
+  __NH3D_ORIGINAL_CONSOLE_WARN__?: typeof console.warn;
+  __NH3D_ORIGINAL_CONSOLE_ERROR__?: typeof console.error;
+  __NH3D_ORIGINAL_CONSOLE_DEBUG__?: typeof console.debug;
+  __NH3D_ORIGINAL_CONSOLE_TRACE__?: typeof console.trace;
+  __NH3D_ORIGINAL_CONSOLE_ASSERT__?: typeof console.assert;
   __NH3D_DEBUG_SESSION_LOG_HOOK__?: (
-    level: "log" | "info" | "warn" | "error" | "event",
+    level:
+      | "log"
+      | "info"
+      | "warn"
+      | "error"
+      | "debug"
+      | "trace"
+      | "assert"
+      | "event",
     args: unknown[],
     source?: string,
   ) => void;
@@ -15,6 +29,24 @@ const noopLog: typeof console.log = (..._args: unknown[]): void => {};
 if (!globalScope.__NH3D_ORIGINAL_CONSOLE_LOG__) {
   globalScope.__NH3D_ORIGINAL_CONSOLE_LOG__ = console.log.bind(console);
 }
+if (!globalScope.__NH3D_ORIGINAL_CONSOLE_INFO__) {
+  globalScope.__NH3D_ORIGINAL_CONSOLE_INFO__ = console.info.bind(console);
+}
+if (!globalScope.__NH3D_ORIGINAL_CONSOLE_WARN__) {
+  globalScope.__NH3D_ORIGINAL_CONSOLE_WARN__ = console.warn.bind(console);
+}
+if (!globalScope.__NH3D_ORIGINAL_CONSOLE_ERROR__) {
+  globalScope.__NH3D_ORIGINAL_CONSOLE_ERROR__ = console.error.bind(console);
+}
+if (!globalScope.__NH3D_ORIGINAL_CONSOLE_DEBUG__) {
+  globalScope.__NH3D_ORIGINAL_CONSOLE_DEBUG__ = console.debug.bind(console);
+}
+if (!globalScope.__NH3D_ORIGINAL_CONSOLE_TRACE__) {
+  globalScope.__NH3D_ORIGINAL_CONSOLE_TRACE__ = console.trace.bind(console);
+}
+if (!globalScope.__NH3D_ORIGINAL_CONSOLE_ASSERT__) {
+  globalScope.__NH3D_ORIGINAL_CONSOLE_ASSERT__ = console.assert.bind(console);
+}
 
 if (typeof globalScope.__NH3D_LOGGING_ENABLED__ !== "boolean") {
   // import.meta.env.DEV is a Vite feature that is true when running in development mode
@@ -25,7 +57,25 @@ if (typeof globalScope.__NH3D_LOGGING_ENABLED__ !== "boolean") {
 function applyConsoleLogState(): void {
   const originalLog =
     globalScope.__NH3D_ORIGINAL_CONSOLE_LOG__ || console.log.bind(console);
+  const originalInfo =
+    globalScope.__NH3D_ORIGINAL_CONSOLE_INFO__ || console.info.bind(console);
+  const originalDebug =
+    globalScope.__NH3D_ORIGINAL_CONSOLE_DEBUG__ || console.debug.bind(console);
+  const originalTrace =
+    globalScope.__NH3D_ORIGINAL_CONSOLE_TRACE__ || console.trace.bind(console);
+  const originalAssert =
+    globalScope.__NH3D_ORIGINAL_CONSOLE_ASSERT__ || console.assert.bind(console);
   console.log = globalScope.__NH3D_LOGGING_ENABLED__ ? originalLog : noopLog;
+  console.info = globalScope.__NH3D_LOGGING_ENABLED__ ? originalInfo : noopLog;
+  console.debug = globalScope.__NH3D_LOGGING_ENABLED__ ? originalDebug : noopLog;
+  console.trace = globalScope.__NH3D_LOGGING_ENABLED__ ? originalTrace : noopLog;
+  console.assert = globalScope.__NH3D_LOGGING_ENABLED__
+    ? originalAssert
+    : ((condition?: boolean, ..._args: unknown[]) => {
+        if (condition) {
+          return;
+        }
+      });
 }
 
 export function isLoggingEnabled(): boolean {
