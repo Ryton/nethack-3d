@@ -72,6 +72,7 @@ const tilesetAtlasTileColumnsPresetByPath: Readonly<Record<string, number>> = {
 const tilesetBackgroundRemovalModePresetByPath: Readonly<
   Record<string, Nh3dTilesetBackgroundRemovalMode>
 > = {
+  "assets/slashem/Absurd.png": "none",
   "assets/3.7/Nevanda (3.7).png": "solid",
   "assets/3.7/Vanilla NetHack Tiles (3.7).png": "solid",
   "assets/3.6/Nevanda.png": "solid",

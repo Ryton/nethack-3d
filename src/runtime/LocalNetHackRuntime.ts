@@ -5485,14 +5485,23 @@ class LocalNetHackRuntime {
     return lines.slice(lines.length - normalizedMax);
   }
 
-  classifyInventoryWindowMenu(menuItems) {
+  hasSelectableInventoryWindowEntries(menuItems) {
     const items = Array.isArray(menuItems) ? menuItems : [];
-    const nonCategoryItems = items.filter((item) => !item.isCategory);
-    const hasSelectableEntries = nonCategoryItems.some(
+    const nonCategoryItems = items.filter((item) => item && !item.isCategory);
+    return nonCategoryItems.some(
       (item) =>
         this.isPrintableAccelerator(item.originalAccelerator) ||
         (typeof item.identifier === "number" && item.identifier !== 0),
     );
+  }
+
+  classifyInventoryWindowMenu(menuItems, menuQuestion = "") {
+    const items = Array.isArray(menuItems) ? menuItems : [];
+    const nonCategoryItems = items.filter((item) => !item.isCategory);
+    const hasSelectableEntries =
+      this.hasSelectableInventoryWindowEntries(menuItems);
+    const normalizedMenuQuestion =
+      typeof menuQuestion === "string" ? menuQuestion.trim() : "";
 
     if (items.length === 0) {
       return { kind: "inventory", lines: [] };
@@ -5532,6 +5541,14 @@ class LocalNetHackRuntime {
       .filter((item) => item && item.isCategory)
       .map((item) => String(item.text || "").trim())
       .filter((text) => text.length > 0);
+
+    if (normalizedMenuQuestion) {
+      return {
+        kind: "info_menu",
+        title: normalizedMenuQuestion,
+        lines: orderedLines,
+      };
+    }
 
     // NetHack 3.7 routes reports like Ctrl+O dungeon overview through WIN_INVEN
     // even though none of the rows are actually selectable. Preserve category
@@ -9808,6 +9825,7 @@ class LocalNetHackRuntime {
         if (isInventoryWindow && !hasMenuQuestion) {
           const classification = this.classifyInventoryWindowMenu(
             this.currentMenuItems,
+            normalizedMenuQuestion,
           );
           this.lastEndedInventoryMenuKind = classification.kind;
           if (classification.kind === "inventory") {
@@ -9865,6 +9883,42 @@ class LocalNetHackRuntime {
         }
         // Special handling for inventory window WITH questions (like drop, wear, etc.)
         if (isInventoryWindow && hasMenuQuestion) {
+          const classification = this.classifyInventoryWindowMenu(
+            this.currentMenuItems,
+            normalizedMenuQuestion,
+          );
+          if (classification.kind === "info_menu") {
+            this.lastEndedInventoryMenuKind = classification.kind;
+            console.log(
+              `WIN_INVEN question menu classified as ${classification.kind} (${this.currentMenuItems.length} items, title="${normalizedMenuQuestion}")`,
+            );
+            if (this.eventHandler) {
+              const infoLines = classification.lines;
+              const explicitInfoTitle =
+                typeof classification.title === "string" &&
+                classification.title.trim().length > 0
+                  ? classification.title.trim()
+                  : "";
+              const infoTitle = explicitInfoTitle
+                ? explicitInfoTitle
+                : infoLines.length > 0
+                  ? infoLines[0]
+                  : "NetHack Information";
+              const infoBody = explicitInfoTitle
+                ? infoLines
+                : infoLines.length > 1
+                  ? infoLines.slice(1)
+                  : infoLines;
+              this.emit({
+                type: "info_menu",
+                title: infoTitle,
+                lines: infoBody,
+                window: endMenuWinid,
+              });
+            }
+            return 0;
+          }
+
           if (
             this.shouldAutoPickFirstRuntime37TileContextAction(
               menuQuestion,

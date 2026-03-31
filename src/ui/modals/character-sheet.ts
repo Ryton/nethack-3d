@@ -1,4 +1,5 @@
 import type { InfoMenuState } from "../../game/ui-types";
+import type { NethackRuntimeVersion } from "../../runtime/types";
 import { getTranslationStrings } from "../../i18n/core";
 
 export type CharacterSheetSectionId =
@@ -32,6 +33,7 @@ export type CharacterSheetStat = {
 };
 
 export type CharacterSheetData = {
+  variant: "default" | "slashem_base_attributes";
   title: string;
   sections: CharacterSheetSection[];
   extraSections: CharacterSheetSection[];
@@ -40,6 +42,7 @@ export type CharacterSheetData = {
   characteristicsLines: string[];
   statusLines: string[];
   attributeLines: string[];
+  deityLines: string[];
   identityLine: string | null;
   alignmentLine: string | null;
   locationLine: string | null;
@@ -232,6 +235,163 @@ function extractCharacterStat(
   };
 }
 
+function createEmptyCharacterStatEntries(): CharacterSheetStat[] {
+  return [
+    {
+      id: "strength",
+      label: characterSheetStrings.statLabels.strength,
+      rawValue: null,
+      currentValue: null,
+      limitValue: null,
+    },
+    {
+      id: "dexterity",
+      label: characterSheetStrings.statLabels.dexterity,
+      rawValue: null,
+      currentValue: null,
+      limitValue: null,
+    },
+    {
+      id: "constitution",
+      label: characterSheetStrings.statLabels.constitution,
+      rawValue: null,
+      currentValue: null,
+      limitValue: null,
+    },
+    {
+      id: "intelligence",
+      label: characterSheetStrings.statLabels.intelligence,
+      rawValue: null,
+      currentValue: null,
+      limitValue: null,
+    },
+    {
+      id: "wisdom",
+      label: characterSheetStrings.statLabels.wisdom,
+      rawValue: null,
+      currentValue: null,
+      limitValue: null,
+    },
+    {
+      id: "charisma",
+      label: characterSheetStrings.statLabels.charisma,
+      rawValue: null,
+      currentValue: null,
+      limitValue: null,
+    },
+  ];
+}
+
+function formatLegacyBaseAttributesLine(line: string): string {
+  const normalized = normalizeInfoLine(line);
+  if (!normalized) {
+    return "";
+  }
+  const fieldMatch = normalized.match(/^([^:]+?)\s*:\s*(.+)$/);
+  if (!fieldMatch) {
+    return normalized;
+  }
+  const rawLabel = fieldMatch[1]?.trim() || "";
+  const value = fieldMatch[2]?.trim() || "";
+  if (!rawLabel || !value) {
+    return normalized;
+  }
+  const label = `${rawLabel.charAt(0).toUpperCase()}${rawLabel.slice(1)}`;
+  return `${label}: ${value}`;
+}
+
+function parseLegacyBaseAttributesInfoMenu(
+  infoMenu: InfoMenuState,
+  normalizedTitle: string,
+  normalizedLines: string[],
+): CharacterSheetData | null {
+  if (!normalizedTitle.includes("base attributes")) {
+    return null;
+  }
+
+  const sections: Array<{ title: string; lines: string[] }> = [];
+  let currentSection: { title: string; lines: string[] } | null = null;
+
+  for (const line of normalizedLines) {
+    if (/^(starting|current|deities)$/i.test(line)) {
+      currentSection = {
+        title: line,
+        lines: [],
+      };
+      sections.push(currentSection);
+      continue;
+    }
+    if (!currentSection) {
+      continue;
+    }
+    const formattedLine = formatLegacyBaseAttributesLine(line);
+    if (formattedLine) {
+      currentSection.lines.push(formattedLine);
+    }
+  }
+
+  if (!sections.some((section) => section.lines.length > 0)) {
+    return null;
+  }
+
+  const startingLines =
+    sections.find((section) => section.title.toLowerCase() === "starting")
+      ?.lines ?? [];
+  const currentLines =
+    sections.find((section) => section.title.toLowerCase() === "current")
+      ?.lines ?? [];
+  const deityLines =
+    sections.find((section) => section.title.toLowerCase() === "deities")
+      ?.lines ?? [];
+  const startingAlignmentLine =
+    findFirstLine(startingLines, (line) => /^Alignment:/i.test(line)) || null;
+  const currentAlignmentLine =
+    findFirstLine(currentLines, (line) => /^Alignment:/i.test(line)) || null;
+
+  const primarySections: CharacterSheetSection[] = [];
+  if (startingLines.length > 0) {
+    primarySections.push({
+      id: "background",
+      title: sectionTitleById.background,
+      lines: startingLines,
+    });
+  }
+  if (currentLines.length > 0) {
+    primarySections.push({
+      id: "characteristics",
+      title: sectionTitleById.characteristics,
+      lines: currentLines,
+    });
+  }
+
+  return {
+    variant: "slashem_base_attributes",
+    title:
+      normalizeInfoLine(infoMenu.title) || characterSheetStrings.titleFallback,
+    sections: primarySections,
+    extraSections: [],
+    backgroundLines: startingLines,
+    basicsLines: [],
+    characteristicsLines: currentLines,
+    statusLines: [],
+    attributeLines: [],
+    deityLines,
+    identityLine: startingLines[0] || null,
+    alignmentLine: currentAlignmentLine || startingAlignmentLine,
+    locationLine: null,
+    timelineLine: null,
+    worldStateLine: null,
+    experienceLine: null,
+    scoreLine: null,
+    hitPointsLine: null,
+    energyLine: null,
+    armorClassLine: null,
+    walletLine: null,
+    autopickupLine: null,
+    statEntries: createEmptyCharacterStatEntries(),
+  };
+}
+
 export function parseCharacterSheetInfoMenu(
   infoMenu: InfoMenuState | null,
 ): CharacterSheetData | null {
@@ -246,6 +406,15 @@ export function parseCharacterSheetInfoMenu(
 
   if (normalizedLines.length === 0) {
     return null;
+  }
+
+  const legacyBaseAttributesSheet = parseLegacyBaseAttributesInfoMenu(
+    infoMenu,
+    normalizedTitle,
+    normalizedLines,
+  );
+  if (legacyBaseAttributesSheet) {
+    return legacyBaseAttributesSheet;
   }
 
   const allText = normalizedLines.join("\n").toLowerCase();
@@ -379,6 +548,7 @@ export function parseCharacterSheetInfoMenu(
   );
 
   return {
+    variant: "default",
     title:
       normalizeInfoLine(infoMenu.title) || characterSheetStrings.titleFallback,
     sections: primarySections,
@@ -388,6 +558,7 @@ export function parseCharacterSheetInfoMenu(
     characteristicsLines,
     statusLines,
     attributeLines,
+    deityLines: [],
     identityLine,
     alignmentLine,
     locationLine,
@@ -458,6 +629,7 @@ const characterCommandCatalog: readonly CharacterCommandAction[] = [
 
 export function resolveCharacterCommandActions(
   availableExtendedCommands: readonly string[],
+  runtimeVersion: NethackRuntimeVersion,
 ): CharacterCommandAction[] {
   const available = new Set<string>();
   for (const command of availableExtendedCommands) {
@@ -469,7 +641,22 @@ export function resolveCharacterCommandActions(
     }
   }
 
-  return characterCommandCatalog.filter((entry) =>
-    available.has(entry.command),
-  );
+  if (runtimeVersion === "slashem") {
+    for (const command of [
+      "enhance",
+      "conduct",
+      "known",
+      "pray",
+      "spells",
+    ]) {
+      available.add(command);
+    }
+  }
+
+  return characterCommandCatalog.filter((entry) => {
+    if (runtimeVersion === "slashem" && entry.command === "seespells") {
+      return false;
+    }
+    return available.has(entry.command);
+  });
 }

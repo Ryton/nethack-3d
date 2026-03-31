@@ -10249,12 +10249,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
     switch (normalizedCommandText) {
       case "apply":
         return { kind: "input", input: "a" };
+      case "attributes":
+        return this.resolveRuntimeVersion() === "slashem"
+          ? { kind: "input", input: `${this.ctrlInputPrefix}x` }
+          : null;
       case "call":
         return { kind: "input", input: "C" };
       case "cast":
         return { kind: "input", input: "Z" };
       case "close":
         return { kind: "input", input: "c" };
+      case "known":
+        return this.resolveRuntimeVersion() === "slashem"
+          ? { kind: "input", input: "\\" }
+          : null;
       case "dip":
         return { kind: "input", input: `${this.metaInputPrefix}d` };
       case "drop":
@@ -10301,6 +10309,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return { kind: "input", input: `${this.metaInputPrefix}r` };
       case "search":
         return { kind: "input", input: "s" };
+      case "seespells":
+        return this.resolveRuntimeVersion() === "slashem"
+          ? { kind: "sequence", inputs: ["I", "+"] }
+          : null;
+      case "spells":
+        return this.resolveRuntimeVersion() === "slashem"
+          ? { kind: "input", input: "Z" }
+          : null;
       case "takeoff":
         return { kind: "input", input: "T" };
       case "throw":

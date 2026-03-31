@@ -26,6 +26,7 @@ export type CastSpellMenuData = {
   bestSuccessPercent: number | null;
   averageFailPercent: number | null;
   categoryCount: number;
+  hasRetentionData: boolean;
 };
 
 type CastSpellMenuProps = {
@@ -91,13 +92,12 @@ function isSpellCastPrompt(questionText: string): boolean {
 
 function isSpellHeaderLine(line: string): boolean {
   const normalizedLine = normalizeToken(line);
-  return (
+  const hasCoreColumns =
     normalizedLine.includes("name") &&
     normalizedLine.includes("level") &&
     normalizedLine.includes("category") &&
-    normalizedLine.includes("fail") &&
-    normalizedLine.includes("retention")
-  );
+    normalizedLine.includes("fail");
+  return hasCoreColumns;
 }
 
 type ParsedSpellRow = {
@@ -105,8 +105,18 @@ type ParsedSpellRow = {
   level: number;
   category: string;
   failPercent: number;
-  retention: string;
+  retention: string | null;
 };
+
+function parseSpellLevelToken(rawValue: string): number | null {
+  const normalized = normalizeMenuLine(rawValue);
+  const match = normalized.match(/^(\d+)(?:\*)?$/);
+  if (!match || !match[1]) {
+    return null;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function parseSpellRow(menuText: string): ParsedSpellRow | null {
   const rawLine = String(menuText || "");
@@ -121,45 +131,84 @@ function parseSpellRow(menuText: string): ParsedSpellRow | null {
     .filter((column) => column.length > 0);
   if (
     tabColumns.length >= 5 &&
-    /^\d+$/.test(tabColumns[1]) &&
+    parseSpellLevelToken(tabColumns[1]) !== null &&
     /^-?\d+%$/.test(tabColumns[3])
   ) {
     return {
       name: tabColumns[0],
-      level: Number.parseInt(tabColumns[1], 10),
+      level: parseSpellLevelToken(tabColumns[1]) ?? 0,
       category: tabColumns[2],
       failPercent: Number.parseInt(tabColumns[3], 10),
       retention: tabColumns[4],
     };
   }
 
+  if (
+    tabColumns.length >= 4 &&
+    parseSpellLevelToken(tabColumns[1]) !== null &&
+    /^-?\d+%$/.test(tabColumns[3])
+  ) {
+    return {
+      name: tabColumns[0],
+      level: parseSpellLevelToken(tabColumns[1]) ?? 0,
+      category: tabColumns[2],
+      failPercent: Number.parseInt(tabColumns[3], 10),
+      retention: null,
+    };
+  }
+
   const fixedColumnMatch = rawLine.match(
-    /^\s*(.+?)\s+(\d+)\s+([a-zA-Z][a-zA-Z_-]*)\s+(\d+)%\s+(.+?)\s*$/,
+    /^\s*(.+?)\s+(\d+\*?)\s+([a-zA-Z][a-zA-Z_-]*)\s+(\d+)%\s+(.+?)\s*$/,
   );
-  if (!fixedColumnMatch) {
+  if (fixedColumnMatch) {
+    const name = normalizeMenuLine(fixedColumnMatch[1]);
+    const parsedLevel = parseSpellLevelToken(fixedColumnMatch[2] || "");
+    const category = normalizeMenuLine(fixedColumnMatch[3]);
+    const failPercent = Number.parseInt(fixedColumnMatch[4], 10);
+    const retention = normalizeMenuLine(fixedColumnMatch[5]);
+    if (
+      !name ||
+      !category ||
+      !retention ||
+      parsedLevel === null ||
+      !Number.isFinite(failPercent)
+    ) {
+      return null;
+    }
+    return {
+      name,
+      level: parsedLevel,
+      category,
+      failPercent,
+      retention,
+    };
+  }
+
+  const legacyFixedColumnMatch = rawLine.match(
+    /^\s*(.+?)\s+(\d+\*?)\s+([a-zA-Z][a-zA-Z_-]*)\s+(\d+)%\s*$/,
+  );
+  if (!legacyFixedColumnMatch) {
     return null;
   }
 
-  const name = normalizeMenuLine(fixedColumnMatch[1]);
-  const level = Number.parseInt(fixedColumnMatch[2], 10);
-  const category = normalizeMenuLine(fixedColumnMatch[3]);
-  const failPercent = Number.parseInt(fixedColumnMatch[4], 10);
-  const retention = normalizeMenuLine(fixedColumnMatch[5]);
+  const name = normalizeMenuLine(legacyFixedColumnMatch[1]);
+  const parsedLevel = parseSpellLevelToken(legacyFixedColumnMatch[2] || "");
+  const category = normalizeMenuLine(legacyFixedColumnMatch[3]);
+  const failPercent = Number.parseInt(legacyFixedColumnMatch[4], 10);
   if (
     !name ||
     !category ||
-    !retention ||
-    !Number.isFinite(level) ||
+    parsedLevel === null ||
     !Number.isFinite(failPercent)
   ) {
     return null;
   }
   return {
     name,
-    level,
+    level: parsedLevel,
     category,
     failPercent,
-    retention,
+    retention: null,
   };
 }
 
@@ -261,6 +310,7 @@ export function parseCastSpellMenu(
   }
 
   let hasSpellTableHeader = false;
+  let hasRetentionData = false;
   let selectableRowCount = 0;
   let parseableSelectableRowCount = 0;
   const entries: CastSpellEntry[] = [];
@@ -295,7 +345,11 @@ export function parseCastSpellMenu(
       parseableSelectableRowCount += 1;
     }
 
-    const retentionInfo = resolveRetentionInfo(parsedRow.retention);
+    const retentionInfo = resolveRetentionInfo(parsedRow.retention ?? "");
+    hasRetentionData =
+      hasRetentionData ||
+      (typeof parsedRow.retention === "string" &&
+        parsedRow.retention.trim().length > 0);
     const normalizedFailPercent = Math.max(0, Math.min(100, parsedRow.failPercent));
     const successPercent = Math.max(0, 100 - normalizedFailPercent);
     const accelerator =
@@ -363,13 +417,18 @@ export function parseCastSpellMenu(
     bestSuccessPercent,
     averageFailPercent,
     categoryCount,
+    hasRetentionData,
   };
 }
 
-function renderSpellRowContent(entry: CastSpellEntry): JSX.Element {
+function renderSpellRowContent(
+  entry: CastSpellEntry,
+  options: { showRetentionColumn: boolean },
+): JSX.Element {
   const spellDisplayName = entry.accelerator
     ? `${entry.accelerator}) ${entry.name}`
     : entry.name;
+  const showRetentionColumn = options.showRetentionColumn;
 
   return (
     <>
@@ -387,11 +446,13 @@ function renderSpellRowContent(entry: CastSpellEntry): JSX.Element {
         <span className={`nh3d-cast-chip nh3d-cast-chip-fail is-${entry.failBand}`}>
           {entry.failPercent}%
         </span>
-        <span
-          className={`nh3d-cast-chip nh3d-cast-chip-retention is-${entry.retentionBand}`}
-        >
-          {entry.retentionLabel}
-        </span>
+        {showRetentionColumn ? (
+          <span
+            className={`nh3d-cast-chip nh3d-cast-chip-retention is-${entry.retentionBand}`}
+          >
+            {entry.retentionLabel}
+          </span>
+        ) : null}
       </span>
     </>
   );
@@ -402,6 +463,7 @@ export function CastSpellMenu({
   activeSelectionInput,
   onChooseSpell,
 }: CastSpellMenuProps): JSX.Element {
+  const showRetentionColumn = menuData.hasRetentionData;
   return (
     <div className="nh3d-cast-menu">
       <div className="nh3d-cast-summary">
@@ -427,7 +489,9 @@ export function CastSpellMenu({
       </div>
       <div className="nh3d-overflow-glow-frame">
         <div
-          className="nh3d-cast-table"
+          className={`nh3d-cast-table${
+            showRetentionColumn ? "" : " is-no-retention"
+          }`}
           data-nh3d-overflow-glow
           data-nh3d-overflow-glow-host="parent"
         >
@@ -436,7 +500,9 @@ export function CastSpellMenu({
             <span>{castMenuStrings.headings.level}</span>
             <span>{castMenuStrings.headings.category}</span>
             <span>{castMenuStrings.headings.fail}</span>
-            <span>{castMenuStrings.headings.retention}</span>
+            {showRetentionColumn ? (
+              <span>{castMenuStrings.headings.retention}</span>
+            ) : null}
           </div>
           {menuData.entries.map((entry) => {
             const canChoose =
@@ -455,11 +521,11 @@ export function CastSpellMenu({
                 onClick={() => onChooseSpell(entry.selectionInput)}
                 type="button"
               >
-                {renderSpellRowContent(entry)}
+                {renderSpellRowContent(entry, { showRetentionColumn })}
               </button>
             ) : (
               <div className={rowClassName} key={entry.id}>
-                {renderSpellRowContent(entry)}
+                {renderSpellRowContent(entry, { showRetentionColumn })}
               </div>
             );
           })}

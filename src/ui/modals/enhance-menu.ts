@@ -59,6 +59,8 @@ const skillRankValueByName: Record<string, number> = Object.entries(
   return acc;
 }, {});
 
+type EnhanceMenuSourceRow = NethackMenuItem | string;
+
 function normalizeToken(rawValue: unknown): string {
   return String(rawValue || "")
     .trim()
@@ -183,9 +185,21 @@ function resolveSlotCostForNextRank(
   return rankValue;
 }
 
+function coerceEnhanceMenuItem(source: EnhanceMenuSourceRow): NethackMenuItem {
+  if (typeof source === "string") {
+    const normalizedText = normalizeMenuLine(source);
+    return {
+      text: source,
+      isCategory: knownEnhanceCategoryTitles.has(normalizeToken(normalizedText)),
+      isSelectable: false,
+    };
+  }
+  return source ?? {};
+}
+
 export function parseEnhanceMenu(
   questionText: string,
-  menuItems: NethackMenuItem[],
+  menuItems: readonly EnhanceMenuSourceRow[],
 ): EnhanceMenuData | null {
   const prompt = normalizeMenuLine(questionText);
   const normalizedPrompt = normalizeToken(prompt);
@@ -216,7 +230,7 @@ export function parseEnhanceMenu(
   };
 
   for (let index = 0; index < menuItems.length; index += 1) {
-    const menuItem = menuItems[index];
+    const menuItem = coerceEnhanceMenuItem(menuItems[index]);
     const line = normalizeMenuLine(menuItem?.text);
     if (!line) {
       continue;

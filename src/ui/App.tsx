@@ -138,7 +138,10 @@ import {
   parseCharacterSheetInfoMenu,
   resolveCharacterCommandActions,
 } from "./modals/character-sheet";
-import { parseEnhanceMenu } from "./modals/enhance-menu";
+import {
+  parseEnhanceMenu,
+  type EnhanceMenuData,
+} from "./modals/enhance-menu";
 import {
   getCurrentLocale,
   getSupportedLocaleOptions,
@@ -488,6 +491,279 @@ function formatCharacterNumber(value: number): string {
     return "0";
   }
   return Math.max(0, Math.trunc(value)).toLocaleString("en-US");
+}
+
+type CharacterSheetFieldRow = {
+  label: string;
+  value: string;
+  badges: string[];
+};
+
+type CharacterSheetFieldRenderOptions = {
+  showBadges?: boolean;
+  highlightCurrent?: boolean;
+};
+
+function normalizeCharacterSheetFieldBadges(note: string): string[] {
+  const normalized = String(note || "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+
+  if (/^[sc](\s*,\s*[sc])*$/.test(normalized)) {
+    return normalized
+      .split(",")
+      .map((token) => token.trim())
+      .filter((token, index, array) => array.indexOf(token) === index)
+      .map((token) =>
+        token === "s"
+          ? "Starting"
+          : token === "c"
+            ? "Current"
+            : token,
+      );
+  }
+
+  return [note.trim()];
+}
+
+function parseCharacterSheetFieldRow(line: string): CharacterSheetFieldRow | null {
+  const normalized = String(line || "").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return null;
+  }
+  const match = normalized.match(/^([^:]+):\s*(.+)$/);
+  if (!match || !match[1] || !match[2]) {
+    return null;
+  }
+
+  let value = match[2].trim();
+  let badges: string[] = [];
+  const noteMatch = value.match(/^(.*?)(?:\s+\(([^()]+)\))$/);
+  if (noteMatch && noteMatch[1]) {
+    value = noteMatch[1].trim();
+    badges = normalizeCharacterSheetFieldBadges(noteMatch[2] || "");
+  }
+
+  return {
+    label: match[1].trim(),
+    value,
+    badges,
+  };
+}
+
+function renderCharacterSheetFieldRows(
+  lines: string[],
+  keyPrefix: string,
+  options: CharacterSheetFieldRenderOptions = {},
+): JSX.Element {
+  const showBadges = options.showBadges === true;
+  const highlightCurrent = options.highlightCurrent === true;
+  return (
+    <div className="nh3d-character-field-list">
+      {lines.map((line, index) => {
+        const parsed = parseCharacterSheetFieldRow(line);
+        if (!parsed) {
+          return (
+            <div className="nh3d-character-line" key={`${keyPrefix}-${index}`}>
+              {line}
+            </div>
+          );
+        }
+        const isCurrent = highlightCurrent && parsed.badges.includes("Current");
+        return (
+          <div
+            className={`nh3d-character-field-row${
+              isCurrent ? " is-current" : ""
+            }`}
+            key={`${keyPrefix}-${index}`}
+          >
+            <div className="nh3d-character-field-label">{parsed.label}</div>
+            <div className="nh3d-character-field-value-group">
+              <span className="nh3d-character-field-value">{parsed.value}</span>
+              {showBadges
+                ? parsed.badges.map((badge) => (
+                    <span
+                      className="nh3d-character-field-badge"
+                      key={`${keyPrefix}-${index}-${badge}`}
+                    >
+                      {badge}
+                    </span>
+                  ))
+                : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function getLegacyCharacterStatValue(
+  id: CharacterSheetStatKey,
+  stats: PlayerStatsSnapshot,
+): string | null {
+  const valueById: Record<CharacterSheetStatKey, unknown> = {
+    strength: stats.strength,
+    dexterity: stats.dexterity,
+    constitution: stats.constitution,
+    intelligence: stats.intelligence,
+    wisdom: stats.wisdom,
+    charisma: stats.charisma,
+  };
+  const rawValue = valueById[id];
+  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+    return String(Math.trunc(rawValue));
+  }
+  const normalized = String(rawValue ?? "").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function renderEnhanceMenuContent(
+  enhanceMenuData: EnhanceMenuData,
+  options: {
+    activeMenuSelectionInput?: string | null;
+    onChooseSelectionInput?: ((selectionInput: string) => void) | null;
+  } = {},
+): JSX.Element {
+  const activeMenuSelectionInput = options.activeMenuSelectionInput ?? null;
+  const onChooseSelectionInput = options.onChooseSelectionInput ?? null;
+  return (
+    <div className="nh3d-enhance-menu">
+      <div className="nh3d-enhance-summary">
+        <span className="nh3d-enhance-summary-chip is-available">
+          {translationStrings.enhanceMenu.summary.available(
+            enhanceMenuData.availableCount,
+          )}
+        </span>
+        <span className="nh3d-enhance-summary-chip is-gated">
+          {translationStrings.enhanceMenu.summary.gated(
+            enhanceMenuData.needsExperienceCount,
+          )}
+        </span>
+        <span className="nh3d-enhance-summary-chip is-practice">
+          {translationStrings.enhanceMenu.summary.practice(
+            enhanceMenuData.needsPracticeCount,
+          )}
+        </span>
+        <span className="nh3d-enhance-summary-chip is-maxed">
+          {translationStrings.enhanceMenu.summary.maxed(
+            enhanceMenuData.maxedOutCount,
+          )}
+        </span>
+      </div>
+      {enhanceMenuData.legendLines.length > 0 ? (
+        <div className="nh3d-enhance-legend">
+          {enhanceMenuData.legendLines.map((line, index) => (
+            <div className="nh3d-enhance-legend-line" key={`enhance-legend-${index}`}>
+              {line}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {enhanceMenuData.groups.map((group) => (
+        <section className="nh3d-enhance-group" key={`enhance-group-${group.id}`}>
+          <div className="nh3d-menu-category nh3d-enhance-group-title">
+            {group.title}
+          </div>
+          <div className="nh3d-enhance-skill-grid">
+            {group.entries.map((entry) => {
+              const selectionInput = getMenuSelectionInput(entry.menuItem);
+              const isSelectable =
+                typeof onChooseSelectionInput === "function" &&
+                isSelectableQuestionMenuItem(entry.menuItem);
+              const isActive = activeMenuSelectionInput === selectionInput;
+              const acceleratorLabel =
+                typeof entry.menuItem.accelerator === "string" &&
+                entry.menuItem.accelerator.trim().length > 0
+                  ? `${entry.menuItem.accelerator})`
+                  : "";
+              return isSelectable ? (
+                <button
+                  className={`nh3d-enhance-skill-card is-${entry.availability}${
+                    isActive ? " nh3d-menu-button-active" : ""
+                  }`}
+                  key={`enhance-skill-${entry.id}`}
+                  onClick={() => onChooseSelectionInput(selectionInput)}
+                  type="button"
+                >
+                  <div className="nh3d-enhance-skill-head">
+                    <span className="nh3d-enhance-skill-name">{entry.name}</span>
+                    <span className="nh3d-enhance-skill-badges">
+                      {acceleratorLabel ? (
+                        <span className="nh3d-enhance-key">
+                          {acceleratorLabel}
+                        </span>
+                      ) : null}
+                      <span className="nh3d-enhance-state-chip">
+                        {entry.availabilityLabel}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="nh3d-enhance-rank-row">
+                    <span>{entry.currentRank}</span>
+                    {entry.nextRank ? (
+                      <>
+                        <span className="nh3d-enhance-rank-arrow">{"->"}</span>
+                        <span>{entry.nextRank}</span>
+                      </>
+                    ) : (
+                      <span className="nh3d-enhance-rank-max">
+                        {translationStrings.enhanceMenu.maxLabel}
+                      </span>
+                    )}
+                  </div>
+                  {enhanceMenuData.showSlotCost && entry.slotCostForNextRank ? (
+                    <div className="nh3d-enhance-slot-cost">
+                      {translationStrings.enhanceMenu.slotCount(
+                        entry.slotCostForNextRank,
+                      )}
+                    </div>
+                  ) : null}
+                </button>
+              ) : (
+                <div
+                  className={`nh3d-enhance-skill-card is-${entry.availability} is-disabled${
+                    isActive ? " nh3d-menu-button-active" : ""
+                  }`}
+                  key={`enhance-skill-${entry.id}`}
+                >
+                  <div className="nh3d-enhance-skill-head">
+                    <span className="nh3d-enhance-skill-name">{entry.name}</span>
+                    <span className="nh3d-enhance-state-chip">
+                      {entry.availabilityLabel}
+                    </span>
+                  </div>
+                  <div className="nh3d-enhance-rank-row">
+                    <span>{entry.currentRank}</span>
+                    {entry.nextRank ? (
+                      <>
+                        <span className="nh3d-enhance-rank-arrow">{"->"}</span>
+                        <span>{entry.nextRank}</span>
+                      </>
+                    ) : (
+                      <span className="nh3d-enhance-rank-max">
+                        {translationStrings.enhanceMenu.maxLabel}
+                      </span>
+                    )}
+                  </div>
+                  {enhanceMenuData.showSlotCost && entry.slotCostForNextRank ? (
+                    <div className="nh3d-enhance-slot-cost">
+                      {translationStrings.enhanceMenu.slotCount(
+                        entry.slotCostForNextRank,
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 const getCoreStatValuesFromSnapshot = (
@@ -5469,16 +5745,41 @@ export default function App(): JSX.Element {
     () => parseCharacterSheetInfoMenu(infoMenu),
     [infoMenu],
   );
+  const isLegacySlashEmBaseAttributesSheet =
+    activeRuntimeVersion === "slashem" &&
+    characterSheet?.variant === "slashem_base_attributes";
+  const displayedCharacterStatEntries = useMemo(() => {
+    if (!characterSheet) {
+      return [];
+    }
+    if (!isLegacySlashEmBaseAttributesSheet) {
+      return characterSheet.statEntries;
+    }
+    return characterSheet.statEntries.map((entry) => {
+      const currentValue = getLegacyCharacterStatValue(entry.id, playerStats);
+      return {
+        ...entry,
+        rawValue: currentValue,
+        currentValue,
+        limitValue: null,
+      };
+    });
+  }, [characterSheet, isLegacySlashEmBaseAttributesSheet, playerStats]);
   const isCharacterSheetVisible = Boolean(
     infoMenu && characterSheet && characterSheetInterceptionArmed,
   );
   const hasCharacterStatValues = Boolean(
-    characterSheet?.statEntries.some((entry) =>
+    displayedCharacterStatEntries.some((entry) =>
       Boolean(entry.currentValue || entry.rawValue || entry.limitValue),
     ),
   );
   const hasCharacterStatLimits = Boolean(
-    characterSheet?.statEntries.some((entry) => Boolean(entry.limitValue)),
+    displayedCharacterStatEntries.some((entry) => Boolean(entry.limitValue)),
+  );
+  const showLegacySlashEmDeitiesPanel = Boolean(
+    isLegacySlashEmBaseAttributesSheet &&
+      characterSheet?.deityLines &&
+      characterSheet.deityLines.length > 0,
   );
   const characterExperienceProgress = useMemo(() => {
     const level = Number.isFinite(playerStats.level)
@@ -8720,6 +9021,18 @@ export default function App(): JSX.Element {
   );
   const isYesNoQuestionChoices = isYesNoChoicePrompt(visibleQuestionChoices);
   const useInventoryChoiceLabels = !isYesNoQuestionChoices;
+  const normalizedVisibleQuestionChoiceSignature = visibleQuestionChoices
+    .map((choice) =>
+      String(choice || "")
+        .trim()
+        .toLowerCase(),
+    )
+    .filter((choice) => choice.length > 0)
+    .join("");
+  const suppressQuestionCancelButton =
+    normalizedVisibleQuestionChoiceSignature === "yn" ||
+    normalizedVisibleQuestionChoiceSignature === "ynq" ||
+    normalizedVisibleQuestionChoiceSignature === "ynaq";
   const showLegacyInventoryQuestionCancelButton =
     isLegacyInventoryQuestionChoicePrompt(
       visibleQuestionChoices,
@@ -8728,6 +9041,7 @@ export default function App(): JSX.Element {
     );
   const showQuestionCancelButton =
     Boolean(question) &&
+    !suppressQuestionCancelButton &&
     ((question?.menuItems.length ?? 0) === 0 ||
       showLegacyInventoryQuestionCancelButton);
   const displayedQuestionText =
@@ -8740,6 +9054,10 @@ export default function App(): JSX.Element {
     () =>
       question ? parseEnhanceMenu(question.text, question.menuItems) : null,
     [question],
+  );
+  const infoEnhanceMenuData = useMemo(
+    () => (infoMenu ? parseEnhanceMenu(infoMenu.title, infoMenu.lines) : null),
+    [infoMenu],
   );
   const castMenuData = useMemo(
     () =>
@@ -8972,8 +9290,12 @@ export default function App(): JSX.Element {
     [],
   );
   const characterCommandActions = useMemo(
-    () => resolveCharacterCommandActions(mobileExtendedCommandNames),
-    [mobileExtendedCommandNames],
+    () =>
+      resolveCharacterCommandActions(
+        mobileExtendedCommandNames,
+        activeRuntimeVersion,
+      ),
+    [activeRuntimeVersion, mobileExtendedCommandNames],
   );
   const closeControllerActionWheel = useCallback((): void => {
     setIsControllerActionWheelVisible(false);
@@ -15679,162 +16001,11 @@ export default function App(): JSX.Element {
                 </>
               ) : enhanceMenuData ? (
                 <>
-                  <div className="nh3d-enhance-menu">
-                    <div className="nh3d-enhance-summary">
-                      <span className="nh3d-enhance-summary-chip is-available">
-                        {translationStrings.enhanceMenu.summary.available(
-                          enhanceMenuData.availableCount,
-                        )}
-                      </span>
-                      <span className="nh3d-enhance-summary-chip is-gated">
-                        {translationStrings.enhanceMenu.summary.gated(
-                          enhanceMenuData.needsExperienceCount,
-                        )}
-                      </span>
-                      <span className="nh3d-enhance-summary-chip is-practice">
-                        {translationStrings.enhanceMenu.summary.practice(
-                          enhanceMenuData.needsPracticeCount,
-                        )}
-                      </span>
-                      <span className="nh3d-enhance-summary-chip is-maxed">
-                        {translationStrings.enhanceMenu.summary.maxed(
-                          enhanceMenuData.maxedOutCount,
-                        )}
-                      </span>
-                    </div>
-                    {enhanceMenuData.legendLines.length > 0 ? (
-                      <div className="nh3d-enhance-legend">
-                        {enhanceMenuData.legendLines.map((line, index) => (
-                          <div
-                            className="nh3d-enhance-legend-line"
-                            key={`enhance-legend-${index}`}
-                          >
-                            {line}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {enhanceMenuData.groups.map((group) => (
-                      <section
-                        className="nh3d-enhance-group"
-                        key={`enhance-group-${group.id}`}
-                      >
-                        <div className="nh3d-menu-category nh3d-enhance-group-title">
-                          {group.title}
-                        </div>
-                        <div className="nh3d-enhance-skill-grid">
-                          {group.entries.map((entry) => {
-                            const selectionInput = getMenuSelectionInput(
-                              entry.menuItem,
-                            );
-                            const isSelectable = isSelectableQuestionMenuItem(
-                              entry.menuItem,
-                            );
-                            const isActive =
-                              question.activeMenuSelectionInput ===
-                              selectionInput;
-                            const acceleratorLabel =
-                              typeof entry.menuItem.accelerator === "string" &&
-                              entry.menuItem.accelerator.trim().length > 0
-                                ? `${entry.menuItem.accelerator})`
-                                : "";
-                            return isSelectable ? (
-                              <button
-                                className={`nh3d-enhance-skill-card is-${entry.availability}${
-                                  isActive ? " nh3d-menu-button-active" : ""
-                                }`}
-                                key={`enhance-skill-${entry.id}`}
-                                onClick={() =>
-                                  controller?.chooseQuestionChoice(
-                                    selectionInput,
-                                  )
-                                }
-                                type="button"
-                              >
-                                <div className="nh3d-enhance-skill-head">
-                                  <span className="nh3d-enhance-skill-name">
-                                    {entry.name}
-                                  </span>
-                                  <span className="nh3d-enhance-skill-badges">
-                                    {acceleratorLabel ? (
-                                      <span className="nh3d-enhance-key">
-                                        {acceleratorLabel}
-                                      </span>
-                                    ) : null}
-                                    <span className="nh3d-enhance-state-chip">
-                                      {entry.availabilityLabel}
-                                    </span>
-                                  </span>
-                                </div>
-                                <div className="nh3d-enhance-rank-row">
-                                  <span>{entry.currentRank}</span>
-                                  {entry.nextRank ? (
-                                    <>
-                                      <span className="nh3d-enhance-rank-arrow">
-                                        {"->"}
-                                      </span>
-                                      <span>{entry.nextRank}</span>
-                                    </>
-                                  ) : (
-                                    <span className="nh3d-enhance-rank-max">
-                                      {translationStrings.enhanceMenu.maxLabel}
-                                    </span>
-                                  )}
-                                </div>
-                                {enhanceMenuData.showSlotCost &&
-                                entry.slotCostForNextRank ? (
-                                  <div className="nh3d-enhance-slot-cost">
-                                    {translationStrings.enhanceMenu.slotCount(
-                                      entry.slotCostForNextRank,
-                                    )}
-                                  </div>
-                                ) : null}
-                              </button>
-                            ) : (
-                              <div
-                                className={`nh3d-enhance-skill-card is-${entry.availability} is-disabled${
-                                  isActive ? " nh3d-menu-button-active" : ""
-                                }`}
-                                key={`enhance-skill-${entry.id}`}
-                              >
-                                <div className="nh3d-enhance-skill-head">
-                                  <span className="nh3d-enhance-skill-name">
-                                    {entry.name}
-                                  </span>
-                                  <span className="nh3d-enhance-state-chip">
-                                    {entry.availabilityLabel}
-                                  </span>
-                                </div>
-                                <div className="nh3d-enhance-rank-row">
-                                  <span>{entry.currentRank}</span>
-                                  {entry.nextRank ? (
-                                    <>
-                                      <span className="nh3d-enhance-rank-arrow">
-                                        {"->"}
-                                      </span>
-                                      <span>{entry.nextRank}</span>
-                                    </>
-                                  ) : (
-                                    <span className="nh3d-enhance-rank-max">
-                                      {translationStrings.enhanceMenu.maxLabel}
-                                    </span>
-                                  )}
-                                </div>
-                                {enhanceMenuData.showSlotCost &&
-                                entry.slotCostForNextRank ? (
-                                  <div className="nh3d-enhance-slot-cost">
-                                    {translationStrings.enhanceMenu.slotCount(
-                                      entry.slotCostForNextRank,
-                                    )}
-                                  </div>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
+                  {renderEnhanceMenuContent(enhanceMenuData, {
+                    activeMenuSelectionInput: question.activeMenuSelectionInput,
+                    onChooseSelectionInput: (selectionInput) =>
+                      controller?.chooseQuestionChoice(selectionInput),
+                  })}
                   <div className="nh3d-menu-actions">
                     <button
                       className={`nh3d-menu-action-button nh3d-menu-action-cancel${
@@ -16209,7 +16380,7 @@ export default function App(): JSX.Element {
       <AnimatedDialog
         className={`nh3d-dialog ${
           isCharacterSheetVisible ? "nh3d-dialog-character" : "nh3d-dialog-info"
-        } nh3d-dialog-fixed-actions nh3d-dialog-has-mobile-close nh3d-overflow-glow-frame`}
+        }${infoEnhanceMenuData ? " nh3d-dialog-info-enhance" : ""} nh3d-dialog-fixed-actions nh3d-dialog-has-mobile-close nh3d-overflow-glow-frame`}
         open={Boolean(infoMenu)}
         id={isCharacterSheetVisible ? "character-dialog" : "info-menu-dialog"}
         onKeyDown={handleInfoMenuDialogKeyDown}
@@ -16276,251 +16447,403 @@ export default function App(): JSX.Element {
                     </div>
                   </div>
                   <div className="nh3d-character-grid">
-                    <section className="nh3d-character-panel">
-                      <div className="nh3d-character-panel-title">
-                        {
-                          translationStrings.characterSheet.sectionTitles
-                            .background
-                        }
-                      </div>
-                      <div className="nh3d-character-line-stack">
-                        {characterSheet.backgroundLines.length > 0 ? (
-                          characterSheet.backgroundLines.map((line, index) => (
-                            <div
-                              className="nh3d-character-line"
-                              key={`character-bg-${index}`}
-                            >
-                              {line}
+                    {isLegacySlashEmBaseAttributesSheet ? (
+                      <>
+                        <div className="nh3d-character-legacy-summary-row">
+                          <section className="nh3d-character-panel nh3d-character-panel-legacy-summary">
+                            <div className="nh3d-character-panel-title">
+                              Starting
                             </div>
-                          ))
-                        ) : characterSheet.identityLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.identityLine}
-                          </div>
-                        ) : null}
-                      </div>
-                    </section>
+                            {renderCharacterSheetFieldRows(
+                              characterSheet.backgroundLines,
+                              "character-legacy-starting",
+                              { showBadges: false },
+                            )}
+                          </section>
 
-                    <section className="nh3d-character-panel">
-                      <div className="nh3d-character-panel-title">
-                        {t.dialogs.info.vitals}
-                      </div>
-                      <div className="nh3d-character-line-stack">
-                        {characterSheet.hitPointsLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.hitPointsLine}
-                          </div>
-                        ) : null}
-                        {characterSheet.energyLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.energyLine}
-                          </div>
-                        ) : null}
-                        {characterSheet.armorClassLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.armorClassLine}
-                          </div>
-                        ) : null}
-                        {characterSheet.experienceLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.experienceLine}
-                          </div>
-                        ) : null}
-                        {characterSheet.scoreLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.scoreLine}
-                          </div>
-                        ) : null}
-                        {characterSheet.walletLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.walletLine}
-                          </div>
-                        ) : null}
-                        {characterSheet.autopickupLine ? (
-                          <div className="nh3d-character-line">
-                            {characterSheet.autopickupLine}
-                          </div>
-                        ) : null}
-                      </div>
-                    </section>
+                          <section className="nh3d-character-panel nh3d-character-panel-legacy-summary">
+                            <div className="nh3d-character-panel-title">
+                              Current
+                            </div>
+                            {renderCharacterSheetFieldRows(
+                              characterSheet.characteristicsLines,
+                              "character-legacy-current",
+                              { showBadges: false },
+                            )}
+                          </section>
 
-                    <section className="nh3d-character-panel nh3d-character-panel-characteristics">
-                      <div className="nh3d-character-panel-title">
-                        {t.dialogs.info.characteristics}
-                      </div>
-                      {hasCharacterStatValues ? (
-                        <div className="nh3d-character-stat-grid">
+                          {showLegacySlashEmDeitiesPanel ? (
+                            <section className="nh3d-character-panel nh3d-character-panel-legacy-summary nh3d-character-panel-legacy-deities">
+                              <div className="nh3d-character-panel-title">
+                                Deities
+                              </div>
+                              {renderCharacterSheetFieldRows(
+                                characterSheet.deityLines,
+                                "character-legacy-deities",
+                                {
+                                  showBadges: false,
+                                  highlightCurrent: true,
+                                },
+                              )}
+                            </section>
+                          ) : null}
+                        </div>
+
+                        <section className="nh3d-character-panel nh3d-character-panel-characteristics">
+                          <div className="nh3d-character-panel-title">
+                            {t.dialogs.info.characteristics}
+                          </div>
+                          <div className="nh3d-character-stat-grid">
+                            {displayedCharacterStatEntries.map((entry) => (
+                              <div
+                                className="nh3d-character-stat"
+                                key={`character-legacy-stat-${entry.id}`}
+                              >
+                                <div className="nh3d-character-stat-label">
+                                  {entry.label}
+                                </div>
+                                <div className="nh3d-character-stat-value">
+                                  <span className="nh3d-character-stat-current">
+                                    {entry.currentValue || entry.rawValue || "--"}
+                                  </span>
+                                </div>
+                                <div className="nh3d-character-stat-description">
+                                  {characterStatDescriptionById[entry.id]}
+                                </div>
+                              </div>
+                            ))}
+                            <div className="nh3d-character-stat">
+                              <div className="nh3d-character-stat-label">
+                                {t.dialogs.info.armorClass}
+                              </div>
+                              <div className="nh3d-character-stat-value">
+                                <span className="nh3d-character-stat-current">
+                                  {playerStats.armor}
+                                </span>
+                              </div>
+                              <div className="nh3d-character-stat-description">
+                                {armorClassDescription}
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="nh3d-character-panel nh3d-character-panel-actions">
+                          <div className="nh3d-character-panel-title">
+                            {t.dialogs.info.characterActions}
+                          </div>
+                          <div className="nh3d-character-actions-grid">
+                            <button
+                              className="nh3d-character-action-button"
+                              onClick={() => controller?.toggleInventoryDialog()}
+                              type="button"
+                            >
+                              <span className="nh3d-character-action-label">
+                                {t.dialogs.info.inventory}
+                              </span>
+                              <span className="nh3d-character-action-detail">
+                                {t.dialogs.info.inventoryDetail}
+                              </span>
+                            </button>
+                            {characterCommandActions.map((action) => (
+                              <button
+                                className="nh3d-character-action-button"
+                                key={`character-action-${action.id}`}
+                                onClick={() =>
+                                  runCharacterExtendedCommand(action.command)
+                                }
+                                type="button"
+                              >
+                                <span className="nh3d-character-action-label">
+                                  {action.label}
+                                </span>
+                                <span className="nh3d-character-action-detail">
+                                  {action.detail}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      </>
+                    ) : (
+                      <>
+                        <section className="nh3d-character-panel">
+                          <div className="nh3d-character-panel-title">
+                            {
+                              translationStrings.characterSheet.sectionTitles
+                                .background
+                            }
+                          </div>
+                          <div className="nh3d-character-line-stack">
+                            {characterSheet.backgroundLines.length > 0 ? (
+                              characterSheet.backgroundLines.map(
+                                (line, index) => (
+                                  <div
+                                    className="nh3d-character-line"
+                                    key={`character-bg-${index}`}
+                                  >
+                                    {line}
+                                  </div>
+                                ),
+                              )
+                            ) : characterSheet.identityLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.identityLine}
+                              </div>
+                            ) : null}
+                          </div>
+                        </section>
+
+                        <section className="nh3d-character-panel">
+                          <div className="nh3d-character-panel-title">
+                            {t.dialogs.info.vitals}
+                          </div>
+                          <div className="nh3d-character-line-stack">
+                            {characterSheet.hitPointsLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.hitPointsLine}
+                              </div>
+                            ) : null}
+                            {characterSheet.energyLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.energyLine}
+                              </div>
+                            ) : null}
+                            {characterSheet.armorClassLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.armorClassLine}
+                              </div>
+                            ) : null}
+                            {characterSheet.experienceLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.experienceLine}
+                              </div>
+                            ) : null}
+                            {characterSheet.scoreLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.scoreLine}
+                              </div>
+                            ) : null}
+                            {characterSheet.walletLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.walletLine}
+                              </div>
+                            ) : null}
+                            {characterSheet.autopickupLine ? (
+                              <div className="nh3d-character-line">
+                                {characterSheet.autopickupLine}
+                              </div>
+                            ) : null}
+                          </div>
+                        </section>
+
+                        <section className="nh3d-character-panel nh3d-character-panel-characteristics">
+                          <div className="nh3d-character-panel-title">
+                            {t.dialogs.info.characteristics}
+                          </div>
+                          {hasCharacterStatValues ? (
+                            <div className="nh3d-character-stat-grid">
                           {hasCharacterStatLimits ? (
                             <div className="nh3d-character-stat-grid-hint">
                               {t.dialogs.info.currentLimit}
                             </div>
                           ) : null}
-                          {characterSheet.statEntries.map((entry) => (
-                            <div
-                              className="nh3d-character-stat"
-                              key={`character-stat-${entry.id}`}
-                            >
-                              <div className="nh3d-character-stat-label">
-                                {entry.label}
-                              </div>
-                              <div className="nh3d-character-stat-value">
-                                <span className="nh3d-character-stat-current">
-                                  {entry.currentValue || entry.rawValue || "--"}
-                                </span>
-                                {entry.limitValue ? (
-                                  <>
-                                    <span className="nh3d-character-stat-divider">
-                                      /
+                              {displayedCharacterStatEntries.map((entry) => (
+                                <div
+                                  className="nh3d-character-stat"
+                                  key={`character-stat-${entry.id}`}
+                                >
+                                  <div className="nh3d-character-stat-label">
+                                    {entry.label}
+                                  </div>
+                                  <div className="nh3d-character-stat-value">
+                                    <span className="nh3d-character-stat-current">
+                                      {entry.currentValue ||
+                                        entry.rawValue ||
+                                        "--"}
                                     </span>
-                                    <span className="nh3d-character-stat-limit">
-                                      {entry.limitValue}
-                                    </span>
-                                  </>
-                                ) : null}
+                                    {entry.limitValue ? (
+                                      <>
+                                        <span className="nh3d-character-stat-divider">
+                                          /
+                                        </span>
+                                        <span className="nh3d-character-stat-limit">
+                                          {entry.limitValue}
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                  <div className="nh3d-character-stat-description">
+                                    {characterStatDescriptionById[entry.id]}
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="nh3d-character-stat">
+                                <div className="nh3d-character-stat-label">
+                                  {t.dialogs.info.armorClass}
+                                </div>
+                                <div className="nh3d-character-stat-value">
+                                  <span className="nh3d-character-stat-current">
+                                    {playerStats.armor}
+                                  </span>
+                                </div>
+                                <div className="nh3d-character-stat-description">
+                                  {armorClassDescription}
+                                </div>
                               </div>
-                              <div className="nh3d-character-stat-description">
-                                {characterStatDescriptionById[entry.id]}
-                              </div>
                             </div>
-                          ))}
-                          <div className="nh3d-character-stat">
-                            <div className="nh3d-character-stat-label">
-                              {t.dialogs.info.armorClass}
+                          ) : (
+                            <div className="nh3d-character-line-stack">
+                              {characterSheet.characteristicsLines.map(
+                                (line, index) => (
+                                  <div
+                                    className="nh3d-character-line"
+                                    key={`character-characteristics-${index}`}
+                                  >
+                                    {line}
+                                  </div>
+                                ),
+                              )}
                             </div>
-                            <div className="nh3d-character-stat-value">
-                              <span className="nh3d-character-stat-current">
-                                {playerStats.armor}
-                              </span>
-                            </div>
-                            <div className="nh3d-character-stat-description">
-                              {armorClassDescription}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="nh3d-character-line-stack">
-                          {characterSheet.characteristicsLines.map(
-                            (line, index) => (
-                              <div
-                                className="nh3d-character-line"
-                                key={`character-characteristics-${index}`}
-                              >
-                                {line}
-                              </div>
-                            ),
                           )}
-                        </div>
-                      )}
-                    </section>
+                        </section>
 
-                    <section className="nh3d-character-panel">
-                      <div className="nh3d-character-panel-title">
-                        {t.dialogs.info.currentStatus}
-                      </div>
-                      <div className="nh3d-character-chip-list">
-                        {characterSheet.statusLines.length > 0 ? (
-                          characterSheet.statusLines.map((line, index) => (
-                            <div
-                              className="nh3d-character-chip"
-                              key={`character-status-${index}`}
-                            >
-                              {line}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="nh3d-character-line">
-                            {t.dialogs.info.noActiveStatus}
-                          </div>
-                        )}
-                      </div>
-                    </section>
-
-                    <section className="nh3d-character-panel">
-                      <div className="nh3d-character-panel-title">
-                        {t.dialogs.info.currentAttributes}
-                      </div>
-                      <div className="nh3d-character-chip-list">
-                        {characterSheet.attributeLines.length > 0 ? (
-                          characterSheet.attributeLines.map((line, index) => (
-                            <div
-                              className="nh3d-character-chip"
-                              key={`character-attributes-${index}`}
-                            >
-                              {line}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="nh3d-character-line">
-                            {t.dialogs.info.noTemporaryAttributes}
-                          </div>
-                        )}
-                      </div>
-                    </section>
-
-                    <section className="nh3d-character-panel nh3d-character-panel-actions">
-                      <div className="nh3d-character-panel-title">
-                        {t.dialogs.info.characterActions}
-                      </div>
-                      <div className="nh3d-character-actions-grid">
-                        <button
-                          className="nh3d-character-action-button"
-                          onClick={() => controller?.toggleInventoryDialog()}
-                          type="button"
-                        >
-                          <span className="nh3d-character-action-label">
-                            {t.dialogs.info.inventory}
-                          </span>
-                          <span className="nh3d-character-action-detail">
-                            {t.dialogs.info.inventoryDetail}
-                          </span>
-                        </button>
-                        {characterCommandActions.map((action) => (
-                          <button
-                            className="nh3d-character-action-button"
-                            key={`character-action-${action.id}`}
-                            onClick={() =>
-                              runCharacterExtendedCommand(action.command)
-                            }
-                            type="button"
-                          >
-                            <span className="nh3d-character-action-label">
-                              {action.label}
-                            </span>
-                            <span className="nh3d-character-action-detail">
-                              {action.detail}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-
-                    {characterSheet.extraSections.map(
-                      (section, sectionIndex) => (
-                        <section
-                          className="nh3d-character-panel"
-                          key={`character-extra-${section.title}-${sectionIndex}`}
-                        >
+                        <section className="nh3d-character-panel">
                           <div className="nh3d-character-panel-title">
-                            {section.title}
+                            {t.dialogs.info.currentStatus}
                           </div>
-                          <div className="nh3d-character-line-stack">
-                            {section.lines.map((line, lineIndex) => (
-                              <div
-                                className="nh3d-character-line"
-                                key={`character-extra-line-${sectionIndex}-${lineIndex}`}
-                              >
-                                {line}
+                          <div className="nh3d-character-chip-list">
+                            {characterSheet.statusLines.length > 0 ? (
+                              characterSheet.statusLines.map((line, index) => (
+                                <div
+                                  className="nh3d-character-chip"
+                                  key={`character-status-${index}`}
+                                >
+                                  {line}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="nh3d-character-line">
+                                {t.dialogs.info.noActiveStatus}
                               </div>
+                            )}
+                          </div>
+                        </section>
+
+                        <section className="nh3d-character-panel">
+                          <div className="nh3d-character-panel-title">
+                            {t.dialogs.info.currentAttributes}
+                          </div>
+                          <div className="nh3d-character-chip-list">
+                            {characterSheet.attributeLines.length > 0 ? (
+                              characterSheet.attributeLines.map(
+                                (line, index) => (
+                                  <div
+                                    className="nh3d-character-chip"
+                                    key={`character-attributes-${index}`}
+                                  >
+                                    {line}
+                                  </div>
+                                ),
+                              )
+                            ) : (
+                              <div className="nh3d-character-line">
+                                {t.dialogs.info.noTemporaryAttributes}
+                              </div>
+                            )}
+                          </div>
+                        </section>
+
+                        <section className="nh3d-character-panel nh3d-character-panel-actions">
+                          <div className="nh3d-character-panel-title">
+                            {t.dialogs.info.characterActions}
+                          </div>
+                          <div className="nh3d-character-actions-grid">
+                            <button
+                              className="nh3d-character-action-button"
+                              onClick={() => controller?.toggleInventoryDialog()}
+                              type="button"
+                            >
+                              <span className="nh3d-character-action-label">
+                                {t.dialogs.info.inventory}
+                              </span>
+                              <span className="nh3d-character-action-detail">
+                                {t.dialogs.info.inventoryDetail}
+                              </span>
+                            </button>
+                            {characterCommandActions.map((action) => (
+                              <button
+                                className="nh3d-character-action-button"
+                                key={`character-action-${action.id}`}
+                                onClick={() =>
+                                  runCharacterExtendedCommand(action.command)
+                                }
+                                type="button"
+                              >
+                                <span className="nh3d-character-action-label">
+                                  {action.label}
+                                </span>
+                                <span className="nh3d-character-action-detail">
+                                  {action.detail}
+                                </span>
+                              </button>
                             ))}
                           </div>
                         </section>
-                      ),
+
+                        {characterSheet.extraSections.map(
+                          (section, sectionIndex) => (
+                            <section
+                              className="nh3d-character-panel"
+                              key={`character-extra-${section.title}-${sectionIndex}`}
+                            >
+                              <div className="nh3d-character-panel-title">
+                                {section.title}
+                              </div>
+                              <div className="nh3d-character-line-stack">
+                                {section.lines.map((line, lineIndex) => (
+                                  <div
+                                    className="nh3d-character-line"
+                                    key={`character-extra-line-${sectionIndex}-${lineIndex}`}
+                                  >
+                                    {line}
+                                  </div>
+                                ))}
+                              </div>
+                            </section>
+                          ),
+                        )}
+                      </>
                     )}
                   </div>
 
                   <div className="nh3d-info-hint">
                     {t.dialogs.info.closeHint}
                   </div>
+                </div>
+                <div className="nh3d-menu-actions">
+                  <button
+                    className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                    onClick={closeInfoMenuDialog}
+                    type="button"
+                  >
+                    {commonStrings.close}
+                  </button>
+                </div>
+              </>
+            ) : infoEnhanceMenuData ? (
+              <>
+                <div
+                  className="nh3d-dialog-info-scroll"
+                  data-nh3d-overflow-glow
+                  data-nh3d-overflow-glow-host="parent"
+                >
+                  <div className="nh3d-question-text">
+                    {infoEnhanceMenuData.prompt ||
+                      infoMenu.title ||
+                      t.dialogs.info.infoTitleFallback}
+                  </div>
+                  {renderEnhanceMenuContent(infoEnhanceMenuData)}
                 </div>
                 <div className="nh3d-menu-actions">
                   <button
