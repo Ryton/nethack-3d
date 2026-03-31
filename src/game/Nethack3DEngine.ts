@@ -8413,7 +8413,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private resolveTransparentOpenDoorwayFloorTileIndex(): number {
-    if (this.loadedTilesetTileLayoutVersion === "3.4.3") {
+    if (
+      this.loadedTilesetTileLayoutVersion === "slashem" ||
+      this.loadedTilesetTileLayoutVersion === "3.4.3"
+    ) {
       return 1187;
     }
     if (this.loadedTilesetTileLayoutVersion === "3.7") {

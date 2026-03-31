@@ -6,6 +6,7 @@ import type { NethackRuntimeVersion } from "../runtime/types";
 
 export type Nh3dTilesetSource = "builtin" | "user" | "vulture";
 export type Nh3dTilesetTileLayoutVersion =
+  | "slashem"
   | "3.4.3"
   | "3.6.7"
   | "3.7"
@@ -92,6 +93,9 @@ function normalizeTilesetPresetLookupLabel(label: string): string {
 function normalizeGeneratedTileLayoutVersion(
   tileLayoutVersion: GeneratedTilesetManifestEntry["tileLayoutVersion"],
 ): Nh3dTilesetTileLayoutVersion {
+  if (tileLayoutVersion === "slashem") {
+    return "slashem";
+  }
   if (tileLayoutVersion === "3.7") {
     return "3.7";
   }
@@ -104,6 +108,9 @@ function normalizeGeneratedTileLayoutVersion(
 function normalizeUserTilesetTileLayoutVersion(
   tileLayoutVersion: Nh3dTilesetTileLayoutVersion | undefined,
 ): Nh3dTilesetTileLayoutVersion {
+  if (tileLayoutVersion === "slashem") {
+    return "slashem";
+  }
   if (tileLayoutVersion === "3.7") {
     return "3.7";
   }
@@ -122,6 +129,9 @@ export function isNh3dTilesetLayoutCompatibleWithRuntime(
 ): boolean {
   if (tileLayoutVersion === "unknown") {
     return true;
+  }
+  if (tileLayoutVersion === "slashem") {
+    return runtimeVersion === "slashem";
   }
   if (tileLayoutVersion === "3.4.3") {
     return runtimeVersion === "slashem";

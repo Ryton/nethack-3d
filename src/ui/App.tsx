@@ -184,6 +184,8 @@ function resolveTilesetLayoutShortLabel(
   tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
 ): string {
   switch (tileLayoutVersion) {
+    case "slashem":
+      return "Slash'EM";
     case "3.4.3":
       return "3.4.3";
     case "3.7":
@@ -199,8 +201,10 @@ function resolveTilesetLayoutDisplayLabel(
   tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
 ): string {
   switch (tileLayoutVersion) {
+    case "slashem":
+      return "Slash'EM layout";
     case "3.4.3":
-      return "Slash'EM / NetHack 3.4.3 layout";
+      return "NetHack 3.4.3 layout";
     case "3.7":
       return t.dialogs.tilesetManager.layout37;
     case "3.6.7":
@@ -10483,7 +10487,7 @@ export default function App(): JSX.Element {
     setTilesetManagerName("");
     setTilesetManagerTileLayoutVersion(
       activeRuntimeVersion === "slashem"
-        ? "3.4.3"
+        ? "slashem"
         : defaultUserTilesetTileLayoutVersion,
     );
     setTilesetManagerAtlasState(createDefaultTileAtlasState());
@@ -10515,6 +10519,8 @@ export default function App(): JSX.Element {
     setTilesetManagerTileLayoutVersion(
       userRecord
         ? userRecord.tileLayoutVersion
+        : tilesetEntry.tileLayoutVersion === "slashem"
+          ? "slashem"
         : tilesetEntry.tileLayoutVersion === "3.4.3"
           ? "3.4.3"
         : tilesetEntry.tileLayoutVersion === "3.7"
@@ -15427,7 +15433,9 @@ export default function App(): JSX.Element {
                       id="nh3d-tileset-version"
                       onChange={(event) =>
                         setTilesetManagerTileLayoutVersion(
-                          event.target.value === "3.7"
+                          event.target.value === "slashem"
+                            ? "slashem"
+                            : event.target.value === "3.7"
                             ? "3.7"
                             : event.target.value === "3.4.3"
                               ? "3.4.3"
@@ -15436,7 +15444,8 @@ export default function App(): JSX.Element {
                       }
                       value={tilesetManagerTileLayoutVersion}
                     >
-                      <option value="3.4.3">Slash&apos;EM / NetHack 3.4.3 layout</option>
+                      <option value="slashem">Slash&apos;EM layout</option>
+                      <option value="3.4.3">NetHack 3.4.3 layout</option>
                       <option value="3.6.7">{t.dialogs.tilesetManager.layout367}</option>
                       <option value="3.7">{t.dialogs.tilesetManager.layout37}</option>
                     </select>

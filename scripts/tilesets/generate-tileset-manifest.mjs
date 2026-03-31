@@ -9,7 +9,7 @@ const TILESET_MANIFEST_SOURCES = [
   {
     sourceDir: resolve(PROJECT_ROOT, "public/assets/slashem"),
     assetPrefix: "assets/slashem",
-    tileLayoutVersion: "3.4.3",
+    tileLayoutVersion: "slashem",
   },
   {
     sourceDir: resolve(PROJECT_ROOT, "public/assets/3.6"),
@@ -40,6 +40,11 @@ const supportedImageExtensions = new Set([
   ".webp",
 ]);
 
+const tilesetAtlasTileColumnsPresetByPath = {
+  "assets/slashem/Abigaba.bmp": 38,
+  "assets/slashem/Absurd.png": 38,
+};
+
 function inferTileSizeFromFileName(fileName) {
   const name = parse(fileName).name;
   const numericTokens = name.match(/\d{1,3}/g) ?? [];
@@ -50,6 +55,144 @@ function inferTileSizeFromFileName(fileName) {
     }
   }
   return 32;
+}
+
+function getPngImageSize(bytes) {
+  if (bytes.length < 24) {
+    return null;
+  }
+  const pngSignature = "89504e470d0a1a0a";
+  if (bytes.subarray(0, 8).toString("hex") !== pngSignature) {
+    return null;
+  }
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+}
+
+function getBmpImageSize(bytes) {
+  if (bytes.length < 26 || bytes.toString("ascii", 0, 2) !== "BM") {
+    return null;
+  }
+  return {
+    width: Math.abs(bytes.readInt32LE(18)),
+    height: Math.abs(bytes.readInt32LE(22)),
+  };
+}
+
+function getGifImageSize(bytes) {
+  if (
+    bytes.length < 10 ||
+    (bytes.toString("ascii", 0, 6) !== "GIF87a" &&
+      bytes.toString("ascii", 0, 6) !== "GIF89a")
+  ) {
+    return null;
+  }
+  return {
+    width: bytes.readUInt16LE(6),
+    height: bytes.readUInt16LE(8),
+  };
+}
+
+function getJpegImageSize(bytes) {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
+    return null;
+  }
+  let offset = 2;
+  while (offset + 9 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = bytes[offset + 1];
+    if (marker === 0xd9 || marker === 0xda) {
+      break;
+    }
+    if (offset + 4 > bytes.length) {
+      break;
+    }
+    const segmentLength = bytes.readUInt16BE(offset + 2);
+    if (segmentLength < 2) {
+      break;
+    }
+    const isStartOfFrame =
+      (marker >= 0xc0 && marker <= 0xc3) ||
+      (marker >= 0xc5 && marker <= 0xc7) ||
+      (marker >= 0xc9 && marker <= 0xcb) ||
+      (marker >= 0xcd && marker <= 0xcf);
+    if (isStartOfFrame && offset + 9 < bytes.length) {
+      return {
+        width: bytes.readUInt16BE(offset + 7),
+        height: bytes.readUInt16BE(offset + 5),
+      };
+    }
+    offset += 2 + segmentLength;
+  }
+  return null;
+}
+
+function getWebpImageSize(bytes) {
+  if (
+    bytes.length < 30 ||
+    bytes.toString("ascii", 0, 4) !== "RIFF" ||
+    bytes.toString("ascii", 8, 12) !== "WEBP"
+  ) {
+    return null;
+  }
+  const chunkType = bytes.toString("ascii", 12, 16);
+  if (chunkType === "VP8 ") {
+    if (bytes.length < 30) {
+      return null;
+    }
+    return {
+      width: bytes.readUInt16LE(26) & 0x3fff,
+      height: bytes.readUInt16LE(28) & 0x3fff,
+    };
+  }
+  if (chunkType === "VP8L") {
+    if (bytes.length < 25) {
+      return null;
+    }
+    const bits = bytes.readUInt32LE(21);
+    return {
+      width: (bits & 0x3fff) + 1,
+      height: ((bits >> 14) & 0x3fff) + 1,
+    };
+  }
+  if (chunkType === "VP8X") {
+    if (bytes.length < 30) {
+      return null;
+    }
+    return {
+      width: 1 + bytes.readUIntLE(24, 3),
+      height: 1 + bytes.readUIntLE(27, 3),
+    };
+  }
+  return null;
+}
+
+function readImageSize(filePath) {
+  const bytes = readFileSync(filePath);
+  return (
+    getPngImageSize(bytes) ??
+    getBmpImageSize(bytes) ??
+    getGifImageSize(bytes) ??
+    getJpegImageSize(bytes) ??
+    getWebpImageSize(bytes)
+  );
+}
+
+function inferTileSizeFromFile(filePath, assetPath) {
+  const imageSize = readImageSize(filePath);
+  const columns = tilesetAtlasTileColumnsPresetByPath[assetPath] ?? 40;
+  if (imageSize?.width && imageSize.width >= columns) {
+    const inferred = Math.trunc(imageSize.width / columns);
+    if (Number.isFinite(inferred) && inferred >= 8 && inferred <= 512) {
+      return inferred;
+    }
+  }
+  return inferTileSizeFromFileName(parse(filePath).base);
 }
 
 function toDisplayLabel(fileName) {
@@ -74,12 +217,16 @@ function listTilesetFiles(sourceDir) {
 
 function buildManifestSource() {
   const entries = TILESET_MANIFEST_SOURCES.flatMap((source) =>
-    listTilesetFiles(source.sourceDir).map((fileName) => ({
-      label: toDisplayLabel(fileName),
-      path: join(source.assetPrefix, fileName).replace(/\\/g, "/"),
-      tileSize: inferTileSizeFromFileName(fileName),
-      tileLayoutVersion: source.tileLayoutVersion,
-    })),
+    listTilesetFiles(source.sourceDir).map((fileName) => {
+      const assetPath = join(source.assetPrefix, fileName).replace(/\\/g, "/");
+      const filePath = join(source.sourceDir, fileName);
+      return {
+        label: toDisplayLabel(fileName),
+        path: assetPath,
+        tileSize: inferTileSizeFromFile(filePath, assetPath),
+        tileLayoutVersion: source.tileLayoutVersion,
+      };
+    }),
   );
 
   const serializedEntries = JSON.stringify(entries, null, 2);
@@ -92,7 +239,7 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
-  readonly tileLayoutVersion: "3.4.3" | "3.6.7" | "3.7";
+  readonly tileLayoutVersion: "slashem" | "3.4.3" | "3.6.7" | "3.7";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =

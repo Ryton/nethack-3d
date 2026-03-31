@@ -7,7 +7,7 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
-  readonly tileLayoutVersion: "3.4.3" | "3.6.7" | "3.7";
+  readonly tileLayoutVersion: "slashem" | "3.4.3" | "3.6.7" | "3.7";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =
@@ -15,19 +15,19 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
   {
     "label": "Abigaba",
     "path": "assets/slashem/Abigaba.bmp",
-    "tileSize": 32,
-    "tileLayoutVersion": "3.4.3"
+    "tileSize": 24,
+    "tileLayoutVersion": "slashem"
   },
   {
     "label": "Absurd",
     "path": "assets/slashem/Absurd.png",
-    "tileSize": 32,
-    "tileLayoutVersion": "3.4.3"
+    "tileSize": 128,
+    "tileLayoutVersion": "slashem"
   },
   {
     "label": "Absurdly Evil",
     "path": "assets/3.6/Absurdly Evil.png",
-    "tileSize": 32,
+    "tileSize": 64,
     "tileLayoutVersion": "3.6.7"
   },
   {
@@ -39,7 +39,7 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
   {
     "label": "NetHack Modern",
     "path": "assets/3.6/NetHack Modern.bmp",
-    "tileSize": 32,
+    "tileSize": 64,
     "tileLayoutVersion": "3.6.7"
   },
   {
@@ -57,7 +57,7 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
   {
     "label": "Vanilla NetHack Tiles",
     "path": "assets/3.6/Vanilla NetHack Tiles.png",
-    "tileSize": 32,
+    "tileSize": 16,
     "tileLayoutVersion": "3.6.7"
   },
   {
@@ -69,7 +69,7 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
   {
     "label": "Vanilla NetHack Tiles (3.7)",
     "path": "assets/3.7/Vanilla NetHack Tiles (3.7).png",
-    "tileSize": 32,
+    "tileSize": 16,
     "tileLayoutVersion": "3.7"
   }
 ] as const;
