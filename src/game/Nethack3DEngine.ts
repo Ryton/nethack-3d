@@ -680,8 +680,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     new Map();
   private readonly movementUnlockWindowMs: number = 5000;
   private statusConditionMask: number = 0;
-  // NetHack BL_MASK_BLIND from botl.h
-  private readonly statusConditionBlindMask: number = 0x00000020;
   private statusDebugHistory: any[] = [];
   private latestRuntimeGlobalsSnapshot: unknown = null;
   private runtimeObjectTileIndexByObjectId: number[] | null = null;
@@ -22556,7 +22554,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private isPlayerBlindForDarkCorridorInference(): boolean {
-    return (this.statusConditionMask & this.statusConditionBlindMask) !== 0;
+    return (
+      (this.statusConditionMask & this.resolveStatusConditionBlindMask()) !== 0
+    );
+  }
+
+  private resolveStatusConditionBlindMask(): number {
+    const runtimeVersion = this.resolveRuntimeVersion();
+    if (runtimeVersion === "3.7") {
+      return 0x00000002;
+    }
+    if (runtimeVersion === "slashem") {
+      return 0x00000010;
+    }
+    return 0x00000020;
   }
 
   private isCorePlayerStatField(field: string): field is CorePlayerStatField {
@@ -23644,7 +23655,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
       return [];
     }
-    if (selectableCount <= 1) {
+    if (selectableCount <= 0) {
       return [];
     }
     return ["cancel"];

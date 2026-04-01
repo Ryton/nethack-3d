@@ -1281,6 +1281,28 @@ class LocalNetHackRuntime {
       }
     }
 
+    const slashEmConditionDefinitions = [
+      { mask: 0x00000001, pattern: /\bLev\b/i },
+      { mask: 0x00000002, pattern: /\b(?:Conf|Cnf)\b/i },
+      { mask: 0x00000004, pattern: /\b(?:FoodPois|FPs)\b/i },
+      { mask: 0x00000008, pattern: /\bIll\b/i },
+      { mask: 0x00000010, pattern: /\b(?:Blind|Bnd)\b/i },
+      { mask: 0x00000020, pattern: /\b(?:Stun|Stn)\b/i },
+      { mask: 0x00000040, pattern: /\b(?:Hallu|Hal)\b/i },
+      { mask: 0x00000080, pattern: /\b(?:Slime|Slm)\b/i },
+    ];
+    let slashEmConditionMask = 0;
+    for (const condition of slashEmConditionDefinitions) {
+      if (condition.pattern.test(normalizedLine)) {
+        slashEmConditionMask |= condition.mask;
+      }
+    }
+    this.pushLegacyStatusUpdate(
+      updates,
+      "BL_CONDITION",
+      slashEmConditionMask >>> 0,
+    );
+
     return updates;
   }
 

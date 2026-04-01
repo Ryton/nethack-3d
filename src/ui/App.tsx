@@ -392,6 +392,37 @@ const playerConditionStatusDefinitions37: ReadonlyArray<{
   { mask: 0x20000000, label: t.statusEffects.holding, severity: "warning" },
 ];
 
+const playerConditionStatusDefinitionsSlashEm: ReadonlyArray<{
+  mask: number;
+  label: string;
+  severity: StatusSeverity;
+}> = [
+  {
+    mask: 0x00000001,
+    label: t.statusEffects.levitating,
+    severity: "good",
+  },
+  { mask: 0x00000002, label: t.statusEffects.confused, severity: "warning" },
+  {
+    mask: 0x00000004,
+    label: t.statusEffects.foodPoisoning,
+    severity: "danger",
+  },
+  {
+    mask: 0x00000008,
+    label: t.statusEffects.terminallyIll,
+    severity: "danger",
+  },
+  { mask: 0x00000010, label: t.statusEffects.blind, severity: "warning" },
+  { mask: 0x00000020, label: t.statusEffects.stunned, severity: "warning" },
+  {
+    mask: 0x00000040,
+    label: t.statusEffects.hallucinating,
+    severity: "warning",
+  },
+  { mask: 0x00000080, label: t.statusEffects.slimed, severity: "danger" },
+];
+
 function resolveHungerStatusBadge(
   rawHunger: unknown,
 ): PlayerStatusBadge | null {
@@ -458,7 +489,9 @@ function resolveConditionStatusBadges(
   const definitions =
     runtimeVersion === "3.7"
       ? playerConditionStatusDefinitions37
-      : playerConditionStatusDefinitions367;
+      : runtimeVersion === "slashem"
+        ? playerConditionStatusDefinitionsSlashEm
+        : playerConditionStatusDefinitions367;
   return definitions
     .filter((entry) => (conditionMask & entry.mask) !== 0)
     .map((entry) => ({
@@ -9223,10 +9256,7 @@ export default function App(): JSX.Element {
     !suppressQuestionCancelButton &&
     ((question?.menuItems.length ?? 0) === 0 ||
       showLegacyInventoryQuestionCancelButton);
-  const displayedQuestionText =
-    question && isYesNoQuestionChoices
-      ? capitalizeFirstLetter(question.text)
-      : question?.text ?? "";
+  const displayedQuestionText = capitalizeFirstLetter(question?.text ?? "");
   const questionMenuPageIndex = question?.menuPageIndex ?? 0;
   const questionMenuPageCount = Math.max(1, question?.menuPageCount ?? 1);
   const enhanceMenuData = useMemo(
@@ -16340,7 +16370,7 @@ export default function App(): JSX.Element {
                       </button>
                     );
                   })}
-                  {questionSelectableMenuItemCount > 1 ? (
+                  {questionSelectableMenuItemCount > 0 ? (
                     <div className="nh3d-menu-actions">
                       <button
                         className={`nh3d-menu-action-button nh3d-menu-action-cancel${
