@@ -164,6 +164,51 @@ Menu selection state is isolated from the general broker path:
 - `recordPlayerMovement` keeps the engine movement-dependent UX aligned with the runtime consume model.
 - `positionInputModeActive` on the engine controls whether movement keys are routed as player movement or position selection.
 
+## Under-Player Loot Flow
+
+- This flow is shared between runtime input handling, runtime callback handling, and engine under-player rendering.
+- The runtime-side pending state is:
+  - `pendingPostActionPlayerTileRefreshReason`
+  - `pendingPostActionPlayerTileRefreshTarget`
+  - `pendingPostActionPlayerTileRefreshSnapshot`
+- The engine-side render state is:
+  - `authoritativeUnderPlayerItemSnapshots`
+  - `flatFeatureUnderPlayerCache`
+  - `fpsAuthoritativeUnderPlayerFallbackSuppressedKeys`
+
+### Move Onto Loot
+
+- Mouse left-click on a remote tile and keyboard movement both try to arm `move-onto-lootlike-tile` before the input is consumed.
+- That arm stores:
+  - the destination tile as `pendingPostActionPlayerTileRefreshTarget`
+  - a loot snapshot from the runtime map as `pendingPostActionPlayerTileRefreshSnapshot`
+- This is required for multi-step travel. If the player clicks loot two or more tiles away, intermediate `cliparound` / `nh_poskey` callbacks must not refresh the old current tile.
+- `maybeRefreshPendingPostActionPlayerTile(...)` waits until the player actually reaches the armed target.
+- Once the player reaches the target:
+  - if the loot was not picked up, the runtime replays the stored snapshot with `under_player_item_glyph`
+  - if pickup already succeeded, the runtime should have emitted a clear instead
+
+### Pick Up Loot On Current Tile
+
+- Clicking the current player tile or pressing `,` arms `pickup-current-player-tile`.
+- If helper queries are available, the runtime confirms that the current top item is loot-like before arming.
+- If helpers are temporarily unavailable during `nh_poskey`, the runtime still arms optimistically. This is required for current-tile pickup from mouse input.
+- If a later remote movement target is chosen, stale `pickup-current-player-tile` state must be cleared so it does not leak into travel decisions.
+
+### Pickup Success And Autopickup
+
+- Pickup success is not inferred only from movement. The runtime also looks for authoritative pickup-success text.
+- Modern inventory-assignment raw prints such as `f - a tripe ration.` and `$ - 7 gold pieces.` mean the item is gone and should clear the pending target/current player tile immediately.
+- Slash'EM also needs a runtime-specific bare-gold case like `28 gold pieces.` because that runtime does not always emit the assignment format for autopickup.
+- After a pickup-success clear, the pending under-player refresh state should be cleared instead of re-arming a later recheck.
+
+### Engine Expectations
+
+- `under_player_item_glyph` is authoritative when the runtime says an item should still be visible under the player.
+- `under_player_item_glyph_cleared` is authoritative when the runtime says it is gone.
+- Generic loot from `flatFeatureUnderPlayerCache` may still be shown under the player in normal cases, but must not override an explicit clear for the same key.
+- Player movement prunes stale `authoritativeUnderPlayerItemSnapshots` so only the current tile can keep an authoritative under-player item snapshot.
+
 ## Camera Follow Behavior
 
 Camera behavior is unchanged:
@@ -180,10 +225,13 @@ Camera behavior is unchanged:
 - Do not reintroduce cooldown or latest-input replay logic.
 - Keep menu waiters isolated from non-menu input waiters.
 - Keep far-look state transitions deterministic and observable.
-- Keep under-player top-item refresh wired after inventory mutations:
-  - action-specific path via `pendingPostActionPlayerTileRefreshReason`
-  - fallback path via `shim_update_inventory`
+- Keep under-player loot flow aligned across runtime and engine:
+  - move-intent arming for remote loot tiles
+  - current-tile pickup arming for mouse-on-player-tile and `,`
+  - target-gated refresh for multi-step travel
+  - pickup-success raw-print clearing
   - runtime events `under_player_item_glyph` / `under_player_item_glyph_cleared`
+  - engine suppression of stale generic loot fallback after an explicit clear
 
 ## Manual Validation Checklist
 
@@ -197,4 +245,10 @@ Camera behavior is unchanged:
 8. Inventory and single-select question flows.
 9. Meta, Alt, and extended command entry.
 10. Escape across menus, questions, and position mode.
-11. Pickup, drop, eat, and autopickup updating the item shown under the player.
+11. Single-step move onto non-autopicked loot still showing that loot under the player.
+12. Multi-step move onto non-autopicked loot still showing that loot under the player only after the player reaches the target tile.
+13. Clicking the current player tile to pick up loot clears the loot under the player.
+14. Pressing `,` to pick up loot clears the loot under the player.
+15. Autopickup gold/items clearing the under-player loot in 3.6.7-style runtimes.
+16. Slash'EM bare-gold autopickup text also clearing the under-player loot.
+17. Pickup, drop, eat, and other inventory mutations keeping the item shown under the player in sync in both FPS and overhead views.

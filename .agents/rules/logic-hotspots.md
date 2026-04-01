@@ -27,72 +27,112 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - Add or update event payloads in runtime and engine in one commit.
 - Keep `src/runtime/types.ts` in sync when the command or envelope surface changes.
 
-### Under-Player Top-Item Refresh Is A Hot Path
+### Under-Player Loot / Flat-Feature Refresh Is A Hot Path
 
-- The "item shown under the player" is not just a render concern. It is a runtime-to-engine contract between:
-  - `LocalNetHackRuntime.ts`
-  - `Nethack3DEngine.ts`
+- The "item shown under the player" is a runtime-to-engine contract between:
+  - `src/runtime/LocalNetHackRuntime.ts`
+  - `src/game/Nethack3DEngine.ts`
   - the WASM helper functions `topItemGlyphUnderPlayer` and `topItemTileIndexUnderPlayer`
 - The runtime emits:
   - `under_player_item_glyph`
   - `under_player_item_glyph_cleared`
 - The engine consumes those in `handleRuntimeEvent` and updates:
+  - `authoritativeUnderPlayerItemSnapshots`
   - `flatFeatureUnderPlayerCache`
   - `fpsAuthoritativeUnderPlayerFallbackSuppressedKeys`
   - the affected tile via `refreshTileVisualFromStateCache(...)`
 
-### How It Is Supposed To Work
+### Runtime Model
 
-- There are two refresh paths, and both matter:
-  - Specific post-action refresh:
-    - Runtime arms `pendingPostActionPlayerTileRefreshReason`
-    - Later callbacks like `shim_nh_poskey` or `shim_update_inventory` call `maybeRefreshPendingPostActionPlayerTile(...)`
-  - General inventory mutation fallback:
-    - `shim_update_inventory` should still re-check the top item under the player even if no pending reason was armed
-- This exists because actions like pickup, drop, eat, autopickup, and some menu-confirmed inventory mutations can change the top-of-pile item on the player tile without a clean terrain redraw.
+- The runtime now tracks three pieces of pending state:
+  - `pendingPostActionPlayerTileRefreshReason`
+  - `pendingPostActionPlayerTileRefreshTarget`
+  - `pendingPostActionPlayerTileRefreshSnapshot`
+- The reason is priority-based. High-confidence pickup/loot intents should not be stomped by lower-priority fallbacks like `monster-like-vacated-tile`.
+- The target matters for multi-step travel. If the player has not reached the armed tile yet, `maybeRefreshPendingPostActionPlayerTile(...)` must wait instead of refreshing the current tile.
+- The snapshot matters for "moved onto loot but did not pick it up" cases. The runtime can replay the remembered loot glyph from the clicked target tile even when helper queries would now see only `@`.
 
-### Common Break Pattern
+### How It Currently Works
 
-- Symptom:
-  - An item under the player does not disappear after pickup/eat/use.
-  - A new top item under the player does not appear after drop/autopickup/menu-confirmed changes.
-- Most common cause:
-  - The runtime armed no `pendingPostActionPlayerTileRefreshReason`, so the later callback had nothing to consume.
-  - Or the engine received no `under_player_item_glyph` / cleared event, so `flatFeatureUnderPlayerCache` stayed stale.
-- Less common cause:
-  - The runtime helper lookup failed, so the runtime never emitted the top-item event.
-  - The engine classified the returned glyph as something that should not be cached under the player and cleared it immediately.
+- Intent arming happens before NetHack finishes the action:
+  - Mouse left-click on a remote loot-like tile arms `move-onto-lootlike-tile`.
+  - Keyboard movement onto an adjacent loot-like tile arms `move-onto-lootlike-tile`.
+  - Clicking the current player tile or pressing `,` arms `pickup-current-player-tile`.
+  - Menu/question-driven inventory mutations still arm the older action-specific reasons.
+- Consume points are:
+  - `handleShimNhPoskey`
+  - `shim_update_inventory`
+- `maybeRefreshPendingPostActionPlayerTile(...)` behaves differently by reason:
+  - `move-onto-lootlike-tile` with a stored snapshot replays that snapshot once the player reaches the armed target.
+  - Other reasons query helpers and emit the real current top item or a clear event.
+- Successful pickup/autopickup uses raw text as an authoritative success signal:
+  - Modern/3.4.3-style inventory assignment text like `f - a tripe ration.` or `$ - 7 gold pieces.` clears the pending target/current tile immediately.
+  - Slash'EM also needs a runtime-specific bare-gold case like `28 gold pieces.` because it does not always use the inventory-assignment format.
+- This split is intentional:
+  - intent arming decides when we should care about a tile
+  - raw-print pickup success decides when the loot is definitely gone
+  - helper queries/snapshots decide what should remain visible under the player
+
+### Engine Model
+
+- The engine keeps three distinct layers of state:
+  - `authoritativeUnderPlayerItemSnapshots`: runtime-confirmed item-under-player state
+  - `flatFeatureUnderPlayerCache`: generic cached under-player flat features and loot-like visuals
+  - `lastKnownTerrain`: remembered terrain/floor state
+- `fpsAuthoritativeUnderPlayerFallbackSuppressedKeys` prevents generic loot fallback from resurrecting stale loot after the runtime has explicitly cleared it.
+- `getFpsPlayerTileUnderlaySnapshotFromCache(...)` now prefers:
+  - authoritative under-player item
+  - generic under-player flat feature cache, unless suppressed
+  - runtime floor underlay / remembered terrain
+- Player position updates prune `authoritativeUnderPlayerItemSnapshots` to the current tile so stale authoritative loot does not leak across movement.
+
+### Common Break Patterns
+
+- Multi-step travel onto loot hides the loot under the player:
+  - The runtime armed no target/snapshot for `move-onto-lootlike-tile`, or consumed it before the player reached the target.
+- Clicking the current player tile or pressing `,` does not clear picked-up loot:
+  - `pickup-current-player-tile` was never armed, often because helpers were unavailable during an active `nh_poskey`.
+- Pickup succeeds but the loot reappears immediately:
+  - A raw-print pickup-success message was treated like a later recheck instead of an authoritative clear.
+  - Or the engine kept using `flatFeatureUnderPlayerCache` because suppression was not set.
+- A stale current-tile pickup arm affects later travel:
+  - `pickup-current-player-tile` was not cleared when a new remote target was chosen.
 
 ### First Places To Check
 
-- Runtime arm points in `src/runtime/LocalNetHackRuntime.ts`:
-  - `getPostActionPlayerTileRefreshReasonForMenuItem`
-  - `getPostActionPlayerTileRefreshReasonForQuestion`
-  - `getPostActionPlayerTileRefreshReasonForAnsweredYnQuestion`
+- Runtime arm/clear points in `src/runtime/LocalNetHackRuntime.ts`:
   - `armPendingPostActionPlayerTileRefreshByReason`
-- Runtime consume points in `src/runtime/LocalNetHackRuntime.ts`:
+  - `clearPendingPostActionPlayerTileRefreshByReason`
+  - `clearPendingPostActionPlayerTileRefresh`
+  - `clearPendingCurrentPlayerPickupRefreshIfTargetDiffers`
+  - `maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget`
+  - `maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot`
+- Runtime consume / result points in `src/runtime/LocalNetHackRuntime.ts`:
   - `maybeRefreshPendingPostActionPlayerTile`
-  - `maybeRefreshUnderPlayerTopItemAfterInventoryUpdate`
   - `handleShimNhPoskey`
   - `shim_update_inventory`
-- Runtime helper decode/emission in `src/runtime/LocalNetHackRuntime.ts`:
+  - `armPendingPostActionPlayerTileRefreshForAutopickupRawPrint`
+  - `isAutopickupInventoryAssignmentRawPrint`
+  - `emitUnderPlayerItemGlyphFromPendingSnapshot`
   - `emitUnderPlayerItemGlyphIfAvailableAt`
 - Engine receive/cache/render in `src/game/Nethack3DEngine.ts`:
   - `applyUnderPlayerItemGlyphEvent`
   - `clearUnderPlayerItemGlyphEvent`
-  - `shouldRenderFlatFeatureUnderPlayer`
+  - `getAuthoritativeUnderPlayerItemSnapshot`
   - `getFpsPlayerTileUnderlaySnapshotFromCache`
-  - `resolveFpsFloorUnderlayBehaviorFromCache`
+  - `shouldRenderFlatFeatureUnderPlayer`
+  - `updateTile`
   - `refreshTileVisualFromStateCache`
 
 ### Rules To Preserve
 
-- Do not rely only on action-specific arming. Keep an inventory-update fallback recheck in the runtime.
-- If you add a new inventory mutation flow, either:
-  - arm `pendingPostActionPlayerTileRefreshReason`, or
-  - ensure `shim_update_inventory` or an equivalent later callback will still force a top-item recheck.
-- If you change `shouldRenderFlatFeatureUnderPlayer`, verify pickup/drop/eat/use on the player tile in both FPS and overhead tiles modes.
-- If you change event names or payload shape for under-player item refresh, update runtime emitters and engine consumers in the same commit.
+- Keep intent arming and pickup-success handling separate. Do not try to infer every pickup from raw text alone.
+- If you add a new way to move onto loot, arm `move-onto-lootlike-tile` with both target and snapshot.
+- If you add a new way to pick up loot on the current tile, arm `pickup-current-player-tile` even when helpers are temporarily unavailable.
+- If you add a new pickup success text variant, teach `isAutopickupInventoryAssignmentRawPrint(...)` about it only for the runtime that needs it.
+- Do not let generic `flatFeatureUnderPlayerCache` reintroduce loot after a runtime clear. Preserve the suppression-key behavior.
+- If you change under-player event names or payloads, update runtime emitters and engine consumers in the same commit.
+- If you change `shouldRenderFlatFeatureUnderPlayer`, verify pickup/drop/eat/use/autopickup on the player tile in both FPS and overhead tiles modes.
 
 ## If You Need To Change Input Or Menus
 
