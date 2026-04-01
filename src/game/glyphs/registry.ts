@@ -118,6 +118,34 @@ function normalizeRuntimeTileIndex(
   return normalized >= 0 ? normalized : null;
 }
 
+function normalizeRuntimeKind(
+  runtimeKind?: GlyphKind | string | null,
+): GlyphKind | null {
+  if (typeof runtimeKind !== "string" || runtimeKind.length === 0) {
+    return null;
+  }
+  switch (runtimeKind) {
+    case "mon":
+    case "pet":
+    case "invis":
+    case "detect":
+    case "body":
+    case "ridden":
+    case "obj":
+    case "cmap":
+    case "explode":
+    case "zap":
+    case "swallow":
+    case "warning":
+    case "statue":
+    case "unexplored":
+    case "nothing":
+      return runtimeKind;
+    default:
+      return null;
+  }
+}
+
 function codePointToChar(codePoint: number): string | null {
   if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
     return null;
@@ -151,16 +179,18 @@ export function resolveGlyph(
   runtimeChar?: string | null,
   runtimeColor?: number | null,
   runtimeTileIndex?: number | null,
+  runtimeKind?: GlyphKind | null,
 ): ResolvedGlyph {
   const entry = getGlyphCatalogEntry(glyph);
   const normalizedRuntimeChar = normalizeRuntimeChar(runtimeChar);
   const normalizedRuntimeColor = normalizeRuntimeColor(runtimeColor);
   const normalizedRuntimeTileIndex = normalizeRuntimeTileIndex(runtimeTileIndex);
+  const normalizedRuntimeKind = normalizeRuntimeKind(runtimeKind);
 
   if (!entry) {
     return {
       glyph,
-      kind: "unknown",
+      kind: normalizedRuntimeKind ?? "unknown",
       char: normalizedRuntimeChar,
       color: normalizedRuntimeColor,
       special: null,
@@ -172,7 +202,7 @@ export function resolveGlyph(
   const catalogChar = codePointToChar(entry.ch);
   return {
     glyph,
-    kind: entry.kind,
+    kind: normalizedRuntimeKind ?? entry.kind,
     char: normalizedRuntimeChar ?? catalogChar,
     color:
       normalizedRuntimeColor ??

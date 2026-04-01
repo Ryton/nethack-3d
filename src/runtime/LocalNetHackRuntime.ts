@@ -3539,6 +3539,7 @@ class LocalNetHackRuntime {
       let decodedColor = null;
       let decodedTileIndex = null;
       let decodedSymidx = null;
+      let decodedGlyphFlags = null;
 
       if (topItemTileIndexUnderPlayer) {
         try {
@@ -3576,6 +3577,7 @@ class LocalNetHackRuntime {
               }
             }
             decodedSymidx = this.extractGlyphInfoSymidx(glyphInfo);
+            decodedGlyphFlags = this.extractGlyphInfoGlyphFlags(glyphInfo);
           }
         } catch (error) {
           console.log("[WARN] Error decoding under-player item glyph:", error);
@@ -3594,6 +3596,8 @@ class LocalNetHackRuntime {
         color: decodedColor,
         tileIndex: decodedTileIndex,
         symidx: decodedSymidx,
+        glyphFlags: decodedGlyphFlags,
+        kind: "obj",
       });
       return true;
     } catch (error) {

@@ -8,6 +8,7 @@ import {
 } from "./registry";
 import type {
   GlyphDisposition,
+  GlyphKind,
   ResolvedGlyph,
   TileBehaviorResult,
   TileEffectKind,
@@ -623,6 +624,7 @@ function classifyByKind(
 
 export function classifyTileBehavior(input: {
   glyph: number;
+  runtimeKind?: GlyphKind | null;
   runtimeChar?: string | null;
   runtimeColor?: number | null;
   runtimeTileIndex?: number | null;
@@ -633,12 +635,20 @@ export function classifyTileBehavior(input: {
     typeof input.runtimeChar === "string" && input.runtimeChar.length > 0
       ? input.runtimeChar.charAt(0)
       : null;
+  const runtimeKind =
+    input.runtimeKind ??
+    (input.priorTerrain &&
+    input.priorTerrain.glyph === input.glyph &&
+    typeof input.priorTerrain.kind === "string"
+      ? input.priorTerrain.kind
+      : null);
 
   const resolved = resolveGlyph(
     input.glyph,
     runtimeChar,
     input.runtimeColor,
     input.runtimeTileIndex,
+    runtimeKind,
   );
   const runtimeCmapIndexForInputGlyph = getPreferredRuntimeCmapIndex(
     input.glyph,
@@ -682,6 +692,7 @@ export function classifyTileBehavior(input: {
         input.priorTerrain.char ?? null,
         input.priorTerrain.color ?? null,
         input.priorTerrain.tileIndex ?? null,
+        input.priorTerrain.kind ?? null,
       );
     }
     darkenFactor = darkOverlayIndex === 21 ? 0.45 : 0.6;

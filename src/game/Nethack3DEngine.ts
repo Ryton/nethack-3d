@@ -40,6 +40,7 @@ import {
   setActiveGlyphCatalog,
 } from "./glyphs/registry";
 import type {
+  GlyphKind,
   TileBehaviorResult,
   TileEffectKind,
   TileMaterialKind,
@@ -10038,6 +10039,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
       data.symidx >= 0
         ? Math.trunc(data.symidx)
         : null;
+    const runtimeKind =
+      typeof data.kind === "string" &&
+      [
+        "mon",
+        "pet",
+        "invis",
+        "detect",
+        "body",
+        "ridden",
+        "obj",
+        "cmap",
+        "explode",
+        "zap",
+        "swallow",
+        "warning",
+        "statue",
+        "unexplored",
+        "nothing",
+      ].includes(data.kind)
+        ? (data.kind as GlyphKind)
+        : null;
+    const runtimeGlyphFlags =
+      typeof data.glyphFlags === "number" && Number.isFinite(data.glyphFlags)
+        ? Math.trunc(data.glyphFlags)
+        : null;
     const rememberedUnderPlayerFeature =
       this.getAuthoritativeUnderPlayerItemSnapshot(key);
     const resolvedRuntimeTileIndex =
@@ -10074,9 +10100,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(rememberedUnderPlayerFeature.color)
         ? Math.trunc(rememberedUnderPlayerFeature.color)
         : null);
+    const resolvedRuntimeKind =
+      runtimeKind ??
+      (rememberedUnderPlayerFeature &&
+      rememberedUnderPlayerFeature.glyph === normalizedGlyph &&
+      typeof rememberedUnderPlayerFeature.kind === "string"
+        ? rememberedUnderPlayerFeature.kind
+        : null);
+    const resolvedRuntimeGlyphFlags =
+      runtimeGlyphFlags ??
+      (rememberedUnderPlayerFeature &&
+      rememberedUnderPlayerFeature.glyph === normalizedGlyph &&
+      typeof rememberedUnderPlayerFeature.glyphFlags === "number" &&
+      Number.isFinite(rememberedUnderPlayerFeature.glyphFlags)
+        ? Math.trunc(rememberedUnderPlayerFeature.glyphFlags)
+        : null);
 
     const behavior = classifyTileBehavior({
       glyph: normalizedGlyph,
+      runtimeKind: resolvedRuntimeKind,
       runtimeChar: resolvedRuntimeChar,
       runtimeColor: resolvedRuntimeColor,
       runtimeTileIndex: resolvedRuntimeTileIndex,
@@ -10096,10 +10138,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.delete(key);
     this.authoritativeUnderPlayerItemSnapshots.set(key, {
       glyph: normalizedGlyph,
+      kind: resolvedRuntimeKind ?? undefined,
       char: resolvedRuntimeChar ?? undefined,
       color: resolvedRuntimeColor ?? undefined,
       tileIndex: resolvedRuntimeTileIndex ?? undefined,
       symidx: resolvedRuntimeSymidx ?? undefined,
+      glyphFlags: resolvedRuntimeGlyphFlags ?? undefined,
     });
     this.refreshTileVisualFromStateCache(tileX, tileY);
   }

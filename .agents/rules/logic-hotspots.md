@@ -14,6 +14,9 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - `src/game/glyphs/behavior.ts`
   - `src/game/glyphs/glyph-catalog.367.generated.ts` (generated fallback/reference; not authoritative for all variant item tiles)
   - `src/game/glyphs/glyph-catalog.37.generated.ts` (generated fallback/reference; not authoritative for all variant item tiles)
+- Generated glyph catalogs are fallback references, not the final source of truth.
+  If live runtime payloads disagree with the catalog, especially for item-like
+  top-of-pile results, prefer the runtime payload.
 - Tileset selection and asset resolution live in `src/game/tilesets.ts`.
 - User tileset persistence lives in `src/game/user-tileset-storage.ts`.
 - Vulture projection helpers live in `src/game/vulture/translation.ts`.
@@ -39,6 +42,10 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - The runtime emits:
   - `under_player_item_glyph`
   - `under_player_item_glyph_cleared`
+- For authoritative under-player item events, the runtime now also carries
+  live item-classification hints such as runtime `kind` and `glyphFlags`.
+  The engine should preserve and reuse those hints instead of re-deriving kind
+  solely from the generated glyph catalog.
 - The engine consumes those in `handleRuntimeEvent` and updates:
   - `authoritativeUnderPlayerItemSnapshots`
   - `flatFeatureUnderPlayerCache`
@@ -94,6 +101,11 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - `authoritativeUnderPlayerItemSnapshots`: runtime-confirmed item-under-player state
   - `flatFeatureUnderPlayerCache`: generic cached under-player flat features and loot-like visuals
   - `lastKnownTerrain`: remembered terrain/floor state
+- `authoritativeUnderPlayerItemSnapshots` may now carry runtime-side item-kind
+  hints (`kind`, `glyphFlags`) in addition to `glyph`, `char`, `color`,
+  `tileIndex`, and `symidx`.
+- `classifyTileBehavior(...)` / `resolveGlyph(...)` should treat those runtime
+  hints as authoritative when present, especially for under-player item events.
 - `fpsAuthoritativeUnderPlayerFallbackSuppressedKeys` prevents generic loot fallback from resurrecting stale loot after the runtime has explicitly cleared it.
 - `getFpsPlayerTileUnderlaySnapshotFromCache(...)` now prefers:
   - authoritative under-player item
@@ -114,11 +126,15 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   the pile entirely:
   - the runtime reused a stale snapshot instead of re-querying `topItemGlyphUnderPlayer`
   - or the helper result was unavailable in the loaded runtime artifact
+  - or the engine reclassified a live runtime item result through the generated
+    glyph catalog and treated it as a non-item
 - Dropping onto the current tile does not show the new top item until the player
   moves away:
   - the drop action never armed a post-action refresh
   - or a legacy questionless inventory menu lost its question context and failed
     to classify as `drop-question`
+  - or a live top-of-pile item result was decoded from runtime tile metadata
+    but then downgraded by static catalog classification
 - A stale current-tile pickup arm affects later travel:
   - `pickup-current-player-tile` was not cleared when a new remote target was chosen.
 - 3.6.7 helper behavior seems impossible or inconsistent with source:
@@ -157,6 +173,13 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - `shouldRenderFlatFeatureUnderPlayer`
   - `updateTile`
   - `refreshTileVisualFromStateCache`
+- Shared glyph resolution/classification:
+  - `resolveGlyph`
+  - `classifyTileBehavior`
+- Runtime event decode helpers in `src/runtime/LocalNetHackRuntime.ts`:
+  - `extractGlyphInfoTileIndex`
+  - `extractGlyphInfoSymidx`
+  - `extractGlyphInfoGlyphFlags`
 
 ### Rules To Preserve
 
@@ -166,6 +189,9 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - After any successful stack mutation on the current tile, prefer the authoritative
   helper result over the old snapshot. This includes partial pickup, drop, eat,
   and any other player action that can mutate the visible pile.
+- When the runtime provides authoritative item metadata for an under-player item
+  event, do not let the generated glyph catalog override it back to a non-item
+  kind. The catalog is a fallback, not the arbiter, in that path.
 - If you add a new pickup success text variant, teach `isAutopickupInventoryAssignmentRawPrint(...)` about it only for the runtime that needs it.
 - If a legacy runtime shows a questionless inventory menu immediately after a Y/N
   prompt, preserve the prompt context by falling back to `lastQuestionText` when

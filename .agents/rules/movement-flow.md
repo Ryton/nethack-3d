@@ -178,6 +178,9 @@ Menu selection state is isolated from the general broker path:
 - The authoritative source of "what is visibly on top of the pile under the
   player right now" is the WASM helper `topItemGlyphUnderPlayer`
   (and `topItemTileIndexUnderPlayer` when available for tile decode).
+- In that path, the generated glyph catalog is only a fallback. If the runtime
+  provides authoritative item metadata for the current top-of-pile result, that
+  runtime metadata should win over static catalog classification.
 
 ### Move Onto Loot
 
@@ -247,6 +250,9 @@ Menu selection state is isolated from the general broker path:
 
 - `under_player_item_glyph` is authoritative when the runtime says an item should still be visible under the player.
 - `under_player_item_glyph_cleared` is authoritative when the runtime says it is gone.
+- `under_player_item_glyph` may now include runtime-side item hints such as
+  `kind` and `glyphFlags`. Preserve those through the under-player snapshot path
+  so later re-renders do not depend solely on the generated glyph catalog.
 - Generic loot from `flatFeatureUnderPlayerCache` may still be shown under the player in normal cases, but must not override an explicit clear for the same key.
 - Player movement prunes stale `authoritativeUnderPlayerItemSnapshots` so only the current tile can keep an authoritative under-player item snapshot.
 
@@ -273,6 +279,8 @@ Camera behavior is unchanged:
   - pickup-success raw-print clearing
   - runtime events `under_player_item_glyph` / `under_player_item_glyph_cleared`
   - engine suppression of stale generic loot fallback after an explicit clear
+  - runtime item-kind hints surviving snapshot storage and later tile
+    classification, rather than being overwritten by static catalog entries
 
 ## Manual Validation Checklist
 
@@ -296,3 +304,6 @@ Camera behavior is unchanged:
 18. Dropping an item onto the current tile immediately shows the dropped item or new top-of-pile item under the player.
 19. Slash'EM `drop` through legacy `yn_function` plus `*` still updates the under-player top item without requiring movement.
 20. Pickup, drop, eat, and other inventory mutations keep the item shown under the player in sync in both FPS and overhead views.
+21. In runtimes that return odd high glyph numbers for top-of-pile items, the
+    under-player item still renders correctly when the runtime tile metadata says
+    it is an item.
