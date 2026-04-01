@@ -9434,6 +9434,7 @@ class LocalNetHackRuntime {
       // NetHack parses NETHACKOPTIONS right-to-left, so put windowtype last
       // to ensure it is applied first.
       runtimeOptions.push("windowtype:shim");
+      const checkpointStartupOptionEnabled = runtimeOptions.includes("checkpoint");
       if (runtimeOptions.includes("checkpoint")) {
         console.log("Checkpoint startup option is enabled.");
       }
@@ -9637,77 +9638,82 @@ class LocalNetHackRuntime {
                 }
               }
 
-              // NetHack checkpointing writes level snapshots as "<lockname>.<level>"
-              // in the current working directory. Redirect those files into IDBFS.
-              const remapCheckpointLevelPath = (rawPath) => {
-                if (typeof rawPath !== "string" || !rawPath) {
-                  return rawPath;
-                }
-
-                const slashNormalized = rawPath.replace(/\\/g, "/").trim();
-                if (!slashNormalized) {
-                  return rawPath;
-                }
-                const withoutDotPrefix = slashNormalized.startsWith("./")
-                  ? slashNormalized.slice(2)
-                  : slashNormalized;
-
-                const lastSlashIndex = withoutDotPrefix.lastIndexOf("/");
-                const baseName =
-                  lastSlashIndex >= 0
-                    ? withoutDotPrefix.slice(lastSlashIndex + 1)
-                    : withoutDotPrefix;
-                if (!checkpointLevelFilePattern.test(baseName)) {
-                  return rawPath;
-                }
-
-                if (withoutDotPrefix.startsWith(`${normalizedSaveDir}/`)) {
-                  return rawPath;
-                }
-
-                let shouldRemap = false;
-                if (lastSlashIndex < 0) {
-                  shouldRemap = true;
-                } else {
-                  const parentPath =
-                    withoutDotPrefix.slice(0, lastSlashIndex) || "/";
-                  if (
-                    parentPath === "/" ||
-                    parentPath === normalizedCwd ||
-                    parentPath === "."
-                  ) {
-                    shouldRemap = true;
+              let scheduleCheckpointSync = () => {};
+              if (checkpointStartupOptionEnabled) {
+                // NetHack checkpointing writes level snapshots as
+                // "<lockname>.<level>" in the current working directory.
+                // Redirect those files into IDBFS only for runtimes that
+                // explicitly opted into checkpoint mode.
+                const remapCheckpointLevelPath = (rawPath) => {
+                  if (typeof rawPath !== "string" || !rawPath) {
+                    return rawPath;
                   }
-                }
 
-                if (!shouldRemap) {
-                  return rawPath;
-                }
+                  const slashNormalized = rawPath.replace(/\\/g, "/").trim();
+                  if (!slashNormalized) {
+                    return rawPath;
+                  }
+                  const withoutDotPrefix = slashNormalized.startsWith("./")
+                    ? slashNormalized.slice(2)
+                    : slashNormalized;
 
-                const remappedPath = `${normalizedSaveDir}/${baseName}`;
-                if (remappedPath !== rawPath) {
-                  console.log(
-                    `Remapping checkpoint level file path: ${rawPath} -> ${remappedPath}`,
-                  );
-                }
-                return remappedPath;
-              };
+                  const lastSlashIndex = withoutDotPrefix.lastIndexOf("/");
+                  const baseName =
+                    lastSlashIndex >= 0
+                      ? withoutDotPrefix.slice(lastSlashIndex + 1)
+                      : withoutDotPrefix;
+                  if (!checkpointLevelFilePattern.test(baseName)) {
+                    return rawPath;
+                  }
 
-              const wrapFsPathMethod = (methodName) => {
-                const originalMethod = mod.FS[methodName];
-                if (typeof originalMethod !== "function") {
-                  return;
-                }
-                mod.FS[methodName] = function (path, ...args) {
-                  return originalMethod.call(
-                    this,
-                    remapCheckpointLevelPath(path),
-                    ...args,
-                  );
+                  if (withoutDotPrefix.startsWith(`${normalizedSaveDir}/`)) {
+                    return rawPath;
+                  }
+
+                  let shouldRemap = false;
+                  if (lastSlashIndex < 0) {
+                    shouldRemap = true;
+                  } else {
+                    const parentPath =
+                      withoutDotPrefix.slice(0, lastSlashIndex) || "/";
+                    if (
+                      parentPath === "/" ||
+                      parentPath === normalizedCwd ||
+                      parentPath === "."
+                    ) {
+                      shouldRemap = true;
+                    }
+                  }
+
+                  if (!shouldRemap) {
+                    return rawPath;
+                  }
+
+                  const remappedPath = `${normalizedSaveDir}/${baseName}`;
+                  if (remappedPath !== rawPath) {
+                    console.log(
+                      `Remapping checkpoint level file path: ${rawPath} -> ${remappedPath}`,
+                    );
+                  }
+                  return remappedPath;
                 };
-              };
-              wrapFsPathMethod("open");
-              wrapFsPathMethod("unlink");
+
+                const wrapFsPathMethod = (methodName) => {
+                  const originalMethod = mod.FS[methodName];
+                  if (typeof originalMethod !== "function") {
+                    return;
+                  }
+                  mod.FS[methodName] = function (path, ...args) {
+                    return originalMethod.call(
+                      this,
+                      remapCheckpointLevelPath(path),
+                      ...args,
+                    );
+                  };
+                };
+                wrapFsPathMethod("open");
+                wrapFsPathMethod("unlink");
+              }
 
               const originalSyncfs =
                 typeof mod.FS.syncfs === "function"
@@ -9756,53 +9762,55 @@ class LocalNetHackRuntime {
                 };
               }
 
-              let checkpointSyncInFlight = false;
-              let checkpointSyncQueued = false;
-              let checkpointSyncTimer = 0;
-              const checkpointSyncDebounceMs = 150;
-              const flushCheckpointSync = () => {
-                if (checkpointSyncInFlight) {
-                  checkpointSyncQueued = true;
-                  return;
-                }
-                checkpointSyncInFlight = true;
-                mod.FS.syncfs(false, (err) => {
-                  if (err) {
-                    console.warn("IDBFS checkpoint sync error:", err);
+              if (checkpointStartupOptionEnabled) {
+                let checkpointSyncInFlight = false;
+                let checkpointSyncQueued = false;
+                let checkpointSyncTimer = 0;
+                const checkpointSyncDebounceMs = 150;
+                const flushCheckpointSync = () => {
+                  if (checkpointSyncInFlight) {
+                    checkpointSyncQueued = true;
+                    return;
                   }
-                  checkpointSyncInFlight = false;
-                  if (checkpointSyncQueued) {
-                    checkpointSyncQueued = false;
-                    flushCheckpointSync();
-                  }
-                });
-              };
-              const scheduleCheckpointSync = () => {
-                if (checkpointSyncTimer) {
-                  clearTimeout(checkpointSyncTimer);
-                }
-                checkpointSyncTimer = globalThis.setTimeout(() => {
-                  checkpointSyncTimer = 0;
-                  flushCheckpointSync();
-                }, checkpointSyncDebounceMs);
-              };
-
-              const originalClose = mod.FS.close;
-              if (typeof originalClose === "function") {
-                mod.FS.close = function (stream, ...args) {
-                  const streamPath =
-                    stream && typeof stream.path === "string"
-                      ? stream.path
-                      : "";
-                  const shouldSyncCheckpoint =
-                    streamPath.startsWith(`${normalizedSaveDir}/`) &&
-                    /\/[^/]+\.\d+$/.test(streamPath);
-                  const result = originalClose.call(this, stream, ...args);
-                  if (shouldSyncCheckpoint) {
-                    scheduleCheckpointSync();
-                  }
-                  return result;
+                  checkpointSyncInFlight = true;
+                  mod.FS.syncfs(false, (err) => {
+                    if (err) {
+                      console.warn("IDBFS checkpoint sync error:", err);
+                    }
+                    checkpointSyncInFlight = false;
+                    if (checkpointSyncQueued) {
+                      checkpointSyncQueued = false;
+                      flushCheckpointSync();
+                    }
+                  });
                 };
+                scheduleCheckpointSync = () => {
+                  if (checkpointSyncTimer) {
+                    clearTimeout(checkpointSyncTimer);
+                  }
+                  checkpointSyncTimer = globalThis.setTimeout(() => {
+                    checkpointSyncTimer = 0;
+                    flushCheckpointSync();
+                  }, checkpointSyncDebounceMs);
+                };
+
+                const originalClose = mod.FS.close;
+                if (typeof originalClose === "function") {
+                  mod.FS.close = function (stream, ...args) {
+                    const streamPath =
+                      stream && typeof stream.path === "string"
+                        ? stream.path
+                        : "";
+                    const shouldSyncCheckpoint =
+                      streamPath.startsWith(`${normalizedSaveDir}/`) &&
+                      /\/[^/]+\.\d+$/.test(streamPath);
+                    const result = originalClose.call(this, stream, ...args);
+                    if (shouldSyncCheckpoint) {
+                      scheduleCheckpointSync();
+                    }
+                    return result;
+                  };
+                }
               }
 
               try {

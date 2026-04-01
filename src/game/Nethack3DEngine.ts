@@ -11,6 +11,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { TAARenderPass } from "three/examples/jsm/postprocessing/TAARenderPass.js";
 import { WorkerRuntimeBridge } from "../runtime";
 import type { RuntimeBridge, RuntimeEvent } from "../runtime";
+import type { NethackRuntimeVersion } from "../runtime/types";
 import { FmodRuntime } from "../audio";
 import type { FmodRuntimeOptions, FmodThreadingDiagnostics } from "../audio";
 import { recordDebugSessionLogEvent } from "../debug-session-log";
@@ -110,7 +111,6 @@ import DirectionPromptOverlay, {
   type DirectionPromptOverlayButtonId,
 } from "./DirectionPromptOverlay";
 import { sanitizeStartupInitOptionTokens } from "../runtime/startup-init-options";
-import type { NethackRuntimeVersion } from "../runtime/types";
 
 type PendingCharacterDamage = {
   amount: number;
@@ -1148,6 +1148,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly vultureRoomDecorReconcileMaxPerFrame = 96;
   private vultureTilesetTranslator: VultureTilesetTranslator | null = null;
   private vultureTilesetDataRootUrl = "";
+  private vultureTilesetTranslatorRuntimeVersion: NethackRuntimeVersion | null =
+    null;
   private vulturePrebakedProjectionManifest: VulturePrebakedProjectionManifest | null =
     null;
   private vulturePrebakedProjectionManifestUrl = "";
@@ -4395,6 +4397,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.vultureTilesetTranslator?.dispose();
     this.vultureTilesetTranslator = null;
     this.vultureTilesetDataRootUrl = "";
+    this.vultureTilesetTranslatorRuntimeVersion = null;
     this.pendingVultureRoomDecorReconcileKeys.clear();
     this.vultureRoomDecorReconcileScheduled = false;
     this.disposeVulturePrebakedProjectionManifest();
@@ -4595,13 +4598,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const normalizedDataRootUrl = String(dataRootUrl || "")
       .trim()
       .replace(/\/+$/, "");
+    const runtimeVersion = this.resolveRuntimeVersion();
     if (!normalizedDataRootUrl) {
       this.disposeVultureTilesetTranslator();
       return;
     }
     if (
       this.vultureTilesetTranslator &&
-      this.vultureTilesetDataRootUrl === normalizedDataRootUrl
+      this.vultureTilesetDataRootUrl === normalizedDataRootUrl &&
+      this.vultureTilesetTranslatorRuntimeVersion === runtimeVersion
     ) {
       return;
     }
@@ -4609,12 +4614,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.vultureTilesetTranslator = new VultureTilesetTranslator({
       dataRootUrl: normalizedDataRootUrl,
       onAssetReady: this.handleVultureTilesetAssetReady,
+      runtimeVersion,
     });
     this.vultureTilesetTranslator.setRuntimeObjectTileIndexByObjectId(
       this.runtimeObjectTileIndexByObjectId,
     );
     this.vultureTilesetTranslator.ensureAssetLoadingStarted();
     this.vultureTilesetDataRootUrl = normalizedDataRootUrl;
+    this.vultureTilesetTranslatorRuntimeVersion = runtimeVersion;
     this.ensureVulturePrebakedProjectionManifest(normalizedDataRootUrl);
   }
 
@@ -8532,6 +8539,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private isBoulderLikeBehavior(behavior: TileBehaviorResult): boolean {
     if (behavior.effective.kind !== "obj") {
       return false;
+    }
+    const chars = [
+      behavior.glyphChar,
+      behavior.effective.char,
+      behavior.resolved.char,
+    ];
+    if (chars.some((value) => typeof value === "string" && value.trim() === "`")) {
+      return true;
     }
     if (
       this.isBoulderGlyphByCatalog(behavior.effective.glyph) ||
@@ -23061,7 +23076,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       32,
       Math.min(112, Math.trunc(this.tileSourceSize) || 112),
     );
-    const cacheKey = `${this.clientOptions.tilesetPath}|g:${glyphForLookup}|ti:${
+    const cacheKey = `${this.clientOptions.tilesetPath}|rv:${this.resolveRuntimeVersion()}|g:${glyphForLookup}|ti:${
       tileIndex === null ? "n" : tileIndex
     }|s:${previewSize}`;
     const cached = this.menuTilePreviewDataUrlCache.get(cacheKey);
@@ -23089,6 +23104,47 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return null;
     }
 
+    const drawAtlasPreview = (runtimeTileIndex: number | null): boolean => {
+      if (runtimeTileIndex === null) {
+        return false;
+      }
+      const atlasImage = this.resolveTilesetAtlasImageSource();
+      if (!atlasImage) {
+        return false;
+      }
+      const sourceTileSize = Math.max(1, Math.trunc(this.tileSourceSize) || 1);
+      const tilesPerRow = Math.floor(atlasImage.width / sourceTileSize);
+      const tileRows = Math.floor(atlasImage.height / sourceTileSize);
+      const tileCount =
+        tilesPerRow > 0 && tileRows > 0 ? tilesPerRow * tileRows : 0;
+      if (tilesPerRow <= 0 || tileCount <= 0) {
+        return false;
+      }
+      const atlasTileIndex = this.resolveAtlasTileIndexForRuntime(
+        runtimeTileIndex,
+        tileCount,
+      );
+      if (atlasTileIndex < 0 || atlasTileIndex >= tileCount) {
+        return false;
+      }
+      const sx = (atlasTileIndex % tilesPerRow) * sourceTileSize;
+      const sy = Math.floor(atlasTileIndex / tilesPerRow) * sourceTileSize;
+      context.clearRect(0, 0, previewSize, previewSize);
+      context.imageSmoothingEnabled = false;
+      context.drawImage(
+        atlasImage,
+        sx,
+        sy,
+        sourceTileSize,
+        sourceTileSize,
+        0,
+        0,
+        previewSize,
+        previewSize,
+      );
+      return true;
+    };
+
     context.clearRect(0, 0, previewSize, previewSize);
     const lookup = this.vultureTilesetTranslator.resolveLookupForTile({
       glyph: glyphForLookup,
@@ -23097,22 +23153,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
       forBillboard: true,
     });
     if (!lookup) {
-      return null;
-    }
-    const drewTile =
-      this.vultureTilesetTranslator.drawLookupSourcePreview({
-        context,
-        size: previewSize,
-        lookup,
-      }) ||
-      this.vultureTilesetTranslator.drawLookupTile({
-        context,
-        size: previewSize,
-        lookup,
-        forBillboard: true,
-      });
-    if (!drewTile) {
-      return null;
+      if (!drawAtlasPreview(tileIndex)) {
+        return null;
+      }
+    } else {
+      const drewTile =
+        this.vultureTilesetTranslator.drawLookupSourcePreview({
+          context,
+          size: previewSize,
+          lookup,
+        }) ||
+        this.vultureTilesetTranslator.drawLookupTile({
+          context,
+          size: previewSize,
+          lookup,
+          forBillboard: true,
+        });
+      if (!drewTile && !drawAtlasPreview(tileIndex)) {
+        return null;
+      }
     }
     const dataUrl = previewCanvas.toDataURL("image/png");
     if (dataUrl) {

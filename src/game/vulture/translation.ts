@@ -1,5 +1,7 @@
 import type { TileMaterialKind } from "../glyphs";
+import type { GlyphKind } from "../glyphs/types";
 import { getGlyphCatalogEntry, getGlyphCatalogRanges } from "../glyphs/registry";
+import type { NethackRuntimeVersion } from "../../runtime/types";
 import { VULTURE_MONSTER_KEYS_367 } from "./vulture-monster-keys.367.generated";
 import { NETHACK_367_OBJECT_TOKENS } from "./nethack-object-tokens";
 
@@ -424,16 +426,48 @@ export class VultureTilesetTranslator {
 
   public readonly nominalTileSize = 112;
 
+  private readonly runtimeVersion: NethackRuntimeVersion;
+
   public constructor(options: {
     dataRootUrl: string;
     onAssetReady?: () => void;
+    runtimeVersion?: NethackRuntimeVersion;
   }) {
     const normalizedDataRootUrl = trimSlashes(String(options.dataRootUrl || ""));
     this.dataRootUrl = normalizedDataRootUrl;
     this.configUrl = `${normalizedDataRootUrl}/config/vulture_tiles.conf`;
     this.onAssetReady =
       typeof options.onAssetReady === "function" ? options.onAssetReady : null;
+    this.runtimeVersion = options.runtimeVersion ?? "3.6.7";
     this.initializeLookupTables();
+  }
+
+  private shouldAvoidCatalogIdentityFallbackForRuntimeTile(
+    kind: GlyphKind | null,
+    tileIndex: number | null,
+  ): boolean {
+    if (this.runtimeVersion !== "slashem") {
+      return false;
+    }
+    if (
+      typeof tileIndex !== "number" ||
+      !Number.isFinite(tileIndex) ||
+      tileIndex < 0
+    ) {
+      return false;
+    }
+    switch (kind) {
+      case "mon":
+      case "pet":
+      case "detect":
+      case "ridden":
+      case "statue":
+      case "obj":
+      case "body":
+        return true;
+      default:
+        return false;
+    }
   }
 
   private initializeLookupTables(): void {
@@ -657,8 +691,8 @@ export class VultureTilesetTranslator {
     if (this.tileLookupDecisionCache.has(lookupCacheKey)) {
       return this.tileLookupDecisionCache.get(lookupCacheKey) ?? null;
     }
-    const resolvedLookup =
-      (normalizedTileIndex !== null && normalizedTileIndex >= 0
+    const resolvedTileIndexLookup =
+      normalizedTileIndex !== null && normalizedTileIndex >= 0
         ? this.resolveTileLookupForTileIndex(
             normalizedTileIndex,
             params.materialKind,
@@ -666,15 +700,28 @@ export class VultureTilesetTranslator {
             normalizedTileX,
             normalizedTileY,
           )
-        : null) ??
-      this.resolveTileLookupForGlyph(
-        normalizedGlyph,
+        : null;
+    const catalogFallbackKind = (() => {
+      const entry = getGlyphCatalogEntry(normalizedGlyph);
+      return entry?.kind ?? null;
+    })();
+    const allowCatalogFallback =
+      !this.shouldAvoidCatalogIdentityFallbackForRuntimeTile(
+        catalogFallbackKind,
         normalizedTileIndex,
-        params.materialKind,
-        params.forBillboard,
-        normalizedTileX,
-        normalizedTileY,
       );
+    const resolvedLookup =
+      resolvedTileIndexLookup ??
+      (allowCatalogFallback
+        ? this.resolveTileLookupForGlyph(
+            normalizedGlyph,
+            normalizedTileIndex,
+            params.materialKind,
+            params.forBillboard,
+            normalizedTileX,
+            normalizedTileY,
+          )
+        : null);
     return this.cacheTileLookupDecision(lookupCacheKey, resolvedLookup);
   }
 
@@ -1075,6 +1122,9 @@ export class VultureTilesetTranslator {
   ): void {
     this.clearLookupDecisionCaches();
     this.objectTokenByTileIndex.clear();
+    if (this.runtimeVersion === "slashem") {
+      return;
+    }
     if (!Array.isArray(tileIndexByObjectId) || tileIndexByObjectId.length <= 0) {
       return;
     }
