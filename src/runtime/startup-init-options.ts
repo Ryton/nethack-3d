@@ -87,6 +87,7 @@ const automaticRuntimeInitOptionTokensByVersion: Readonly<
     "statushilites",
     "force_invmenu",
     "boulder:0",
+    "!bones",
   ],
   slashem: [
     "number_pad:1",
@@ -103,7 +104,7 @@ const requiredStartupInitOptionTokensByVersion: Readonly<
   Record<NethackRuntimeVersion, readonly string[]>
 > = {
   "3.6.7": ["checkpoint"],
-  "3.7": ["checkpoint"],
+  "3.7": [],
   slashem: [],
 };
 
