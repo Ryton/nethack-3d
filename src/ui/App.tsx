@@ -228,6 +228,114 @@ function resolveRuntimeVersionDisplayLabel(
   }
 }
 
+const startupMenuRainAlphabet = [
+  "@",
+  "#",
+  "$",
+  "%",
+  "&",
+  "*",
+  "+",
+  "!",
+  "?",
+  "/",
+  "\\",
+  "[",
+  "]",
+  "{",
+  "}",
+  "<",
+  ">",
+  "|",
+  "_",
+  "~",
+  "=",
+  ":",
+  ";",
+  ".",
+  ",",
+  ")",
+  "(",
+  "d",
+  "D",
+  "g",
+  "h",
+  "k",
+  "m",
+  "o",
+  "r",
+  "s",
+  "u",
+  "w",
+  "x",
+  "y",
+  "z",
+  "B",
+  "E",
+  "F",
+  "H",
+  "K",
+  "L",
+  "N",
+  "P",
+  "R",
+  "S",
+  "T",
+  "V",
+] as const;
+
+type StartupMenuRainGlyphFrame = {
+  char: string;
+  delayMs: number;
+  durationMs: number;
+};
+
+type StartupMenuRainParticle = {
+  blurPx: number;
+  delayMs: number;
+  durationMs: number;
+  fontSizePx: number;
+  glyphFrames: readonly StartupMenuRainGlyphFrame[];
+  leftPercent: number;
+  opacity: number;
+};
+
+function createStartupMenuRainParticles(): readonly StartupMenuRainParticle[] {
+  let seed = 0x3d6b4f21;
+  const next = (): number => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+
+  return Array.from({ length: 72 }, () => {
+    const durationMs = 14000 + Math.round(next() * 12000);
+    const glyphFrameCount = 4;
+    const glyphChangeIntervalMs = 5000 + Math.round(next() * 2200);
+    const glyphCycleDurationMs = glyphChangeIntervalMs * glyphFrameCount;
+    const glyphPhaseOffsetMs = -Math.round(next() * glyphCycleDurationMs);
+    const glyphFrames = Array.from({ length: glyphFrameCount }, (_, index) => ({
+      char:
+        startupMenuRainAlphabet[
+          Math.floor(next() * startupMenuRainAlphabet.length)
+        ],
+      delayMs: glyphPhaseOffsetMs + index * glyphChangeIntervalMs,
+      durationMs: glyphCycleDurationMs,
+    }));
+
+    return {
+      blurPx: next() > 0.76 ? Number((0.5 + next() * 0.9).toFixed(2)) : 0,
+      delayMs: -Math.round(next() * durationMs),
+      durationMs,
+      fontSizePx: (13 + Math.round(next() * 8)) * 2.5,
+      glyphFrames,
+      leftPercent: Number((-4 + next() * 108).toFixed(3)),
+      opacity: Number((0.18 + next() * 0.36).toFixed(3)),
+    };
+  });
+}
+
+const startupMenuRainParticles = createStartupMenuRainParticles();
+
 function RuntimeVersionBadge({
   label,
   startup = false,
@@ -13624,6 +13732,40 @@ export default function App(): JSX.Element {
       {renderPauseMenu()}
       {startupMenuVisible ? (
         <>
+          <div aria-hidden="true" className="nh3d-startup-background-rain">
+            <div className="nh3d-startup-background-rain-field">
+              {startupMenuRainParticles.map((particle, index) => (
+                <span
+                  className="nh3d-startup-background-rain-glyph"
+                  key={index}
+                  style={{
+                    left: `${particle.leftPercent}%`,
+                    opacity: particle.opacity,
+                    fontSize: `${particle.fontSizePx}px`,
+                    filter:
+                      particle.blurPx > 0
+                        ? `blur(${particle.blurPx}px)`
+                        : undefined,
+                    animationDelay: `${particle.delayMs}ms`,
+                    animationDuration: `${particle.durationMs}ms`,
+                  }}
+                >
+                  {particle.glyphFrames.map((glyphFrame, glyphIndex) => (
+                    <span
+                      className="nh3d-startup-background-rain-glyph-frame"
+                      key={glyphIndex}
+                      style={{
+                        animationDelay: `${glyphFrame.delayMs}ms`,
+                        animationDuration: `${glyphFrame.durationMs}ms`,
+                      }}
+                    >
+                      {glyphFrame.char}
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </div>
+          </div>
           <button
             aria-label={t.debugLogs.buildLabelAria(
               nh3dBuildLabel,
@@ -14765,12 +14907,6 @@ export default function App(): JSX.Element {
           requestCloseClientOptionsDialog,
           t.dialogs.clientOptions.closeLabel,
         )}
-        {startupSelectedRuntimeVersionLabel ? (
-          <RuntimeVersionBadge
-            label={startupSelectedRuntimeVersionLabel}
-            startup
-          />
-        ) : null}
         <div className="nh3d-options-title">
           {t.dialogs.clientOptions.title}
         </div>
@@ -15434,12 +15570,6 @@ export default function App(): JSX.Element {
         open={isClientOptionsVisible && isResetClientOptionsConfirmationVisible}
         id="nh3d-reset-client-options-confirmation-dialog"
       >
-        {startupSelectedRuntimeVersionLabel ? (
-          <RuntimeVersionBadge
-            label={startupSelectedRuntimeVersionLabel}
-            startup
-          />
-        ) : null}
         <div className="nh3d-question-text">
           {t.dialogs.clientOptions.resetPrompt}
         </div>
@@ -15470,12 +15600,6 @@ export default function App(): JSX.Element {
           closeControllerRemapDialog,
           t.dialogs.clientOptions.controllerRemap.closeLabel,
         )}
-        {startupSelectedRuntimeVersionLabel ? (
-          <RuntimeVersionBadge
-            label={startupSelectedRuntimeVersionLabel}
-            startup
-          />
-        ) : null}
         <div className="nh3d-options-title">
           {t.dialogs.clientOptions.controllerRemap.title}
         </div>
@@ -15611,12 +15735,6 @@ export default function App(): JSX.Element {
           closeTilesetManager,
           t.dialogs.tilesetManager.closeLabel,
         )}
-        {startupSelectedRuntimeVersionLabel ? (
-          <RuntimeVersionBadge
-            label={startupSelectedRuntimeVersionLabel}
-            startup
-          />
-        ) : null}
         <div className="nh3d-options-title">
           {t.dialogs.tilesetManager.title}
         </div>

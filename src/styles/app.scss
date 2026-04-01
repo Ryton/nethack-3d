@@ -1249,6 +1249,7 @@ canvas {
 .logo-container {
   position: fixed;
   left: 50%;
+  z-index: 1999;
   opacity: 0;
   animation: nh3d-startup-fade-in 240ms ease-out 60ms forwards;
   will-change: opacity;
@@ -1269,7 +1270,6 @@ canvas {
     font-weight: 700;
     color: rgb(255, 0, 0);
     text-shadow: 0 0 8px rgba(255, 0, 119, 0.479);
-    z-index: 1999;
 
     @media (pointer: coarse) {
       font-size: nh3d-scale-font(5px);
@@ -1278,6 +1278,141 @@ canvas {
     @media (max-width: 515px) {
       font-size: nh3d-scale-font(5px);
     }
+  }
+}
+
+.nh3d-startup-background-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  animation: nh3d-startup-fade-in 240ms ease-out 60ms forwards;
+  will-change: opacity;
+
+  @media (prefers-reduced-motion: reduce) {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+.nh3d-startup-background-rain::before,
+.nh3d-startup-background-rain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.nh3d-startup-background-rain::before {
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(11, 24, 39, 0.08) 0%,
+      rgba(8, 18, 30, 0.28) 48%,
+      rgba(5, 11, 19, 0.54) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(4, 10, 18, 0.22) 0%,
+      rgba(4, 10, 18, 0.38) 100%
+    );
+}
+
+.nh3d-startup-background-rain::after {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 8, 14, 0.92) 0%,
+      rgba(3, 8, 14, 0.3) 16%,
+      rgba(3, 8, 14, 0.12) 40%,
+      rgba(3, 8, 14, 0.12) 64%,
+      rgba(3, 8, 14, 0.34) 84%,
+      rgba(3, 8, 14, 0.88) 100%
+    );
+  mask-image: radial-gradient(
+    ellipse 90% 76% at center,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.36) 58%,
+    rgba(0, 0, 0, 0.82) 100%
+  );
+}
+
+.nh3d-startup-background-rain-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.nh3d-startup-background-rain-glyph {
+  position: absolute;
+  top: 0;
+  width: 1.35em;
+  height: 1.35em;
+  color: rgba(141, 215, 255, 0.22);
+  font-family: "Courier New", monospace;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+  text-shadow:
+    0 0 8px rgba(102, 204, 255, 0.36),
+    0 0 18px rgba(102, 204, 255, 0.14);
+  transform: translate(-50%, -18vh);
+  animation: nh3d-startup-background-rain-fall linear infinite;
+  will-change: transform, opacity;
+}
+
+.nh3d-startup-background-rain-glyph:nth-child(2n) {
+  color: rgba(121, 202, 255, 0.18);
+}
+
+.nh3d-startup-background-rain-glyph:nth-child(3n) {
+  color: rgba(174, 233, 255, 0.24);
+}
+
+.nh3d-startup-background-rain-glyph:nth-child(4n) {
+  color: rgba(123, 207, 255, 0.16);
+}
+
+.nh3d-startup-background-rain-glyph-frame {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  animation: nh3d-startup-background-rain-glyph-cycle ease-in-out infinite;
+}
+
+.nh3d-startup-background-rain-glyph-frame:first-child {
+  opacity: 1;
+}
+
+.nh3d-dialog-context-label-startup {
+  display: flex;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: min(100%, 560px);
+  margin: 0 auto 14px;
+  padding: 10px 20px;
+  border: 1px solid rgba(141, 215, 255, 0.32);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(28, 46, 70, 0.9) 0%, rgba(12, 21, 34, 0.88) 100%),
+    rgba(8, 16, 28, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(102, 204, 255, 0.06),
+    0 14px 32px rgba(0, 0, 0, 0.34);
+  isolation: isolate;
+  overflow: hidden;
+
+  &::after {
+    display: none;
   }
 }
 
@@ -4408,44 +4543,19 @@ canvas {
   white-space: nowrap;
 }
 
-.nh3d-dialog-context-label-startup {
-  display: block;
-  width: fit-content;
-  max-width: min(100%, 560px);
-  margin: 0 auto 14px;
-  padding: 10px 20px 12px;
-  border: 1px solid rgba(141, 215, 255, 0.32);
-  border-radius: 14px;
-  background:
-    linear-gradient(180deg, rgba(28, 46, 70, 0.9) 0%, rgba(12, 21, 34, 0.88) 100%),
-    rgba(8, 16, 28, 0.9);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 0 0 1px rgba(102, 204, 255, 0.06),
-    0 14px 32px rgba(0, 0, 0, 0.34);
-
-  &::after {
-    display: none;
-  }
-}
-
 .nh3d-dialog-context-label-startup .nh3d-dialog-context-label-text {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-width: 100%;
   padding: 0;
   color: var(--nh3d-ui-accent-soft);
-  font-family:
-    "Segoe UI Variable Display",
-    "Segoe UI",
-    "SF Pro Display",
-    "SF Pro Text",
-    "Helvetica Neue",
-    Arial,
-    sans-serif;
+  font-family: "Courier New", monospace;
   font-size: nh3d-scale-font(clamp(24px, 3.2vw, 32px));
   font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.08;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: -5px;
   text-align: center;
   text-transform: none;
   text-shadow:
@@ -4455,6 +4565,58 @@ canvas {
     0 18px 36px rgba(0, 0, 0, 0.62),
     0 0 10px rgba(0, 0, 0, 0.42);
   white-space: normal;
+}
+
+@keyframes nh3d-startup-background-rain-fall {
+  0% {
+    transform: translate(-50%, -18vh);
+  }
+
+  100% {
+    transform: translate(-50%, 118vh);
+  }
+}
+
+@keyframes nh3d-startup-background-rain-glyph-cycle {
+  0% {
+    opacity: 0;
+  }
+
+  2% {
+    opacity: 0;
+  }
+
+  4% {
+    opacity: 1;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  22% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nh3d-startup-background-rain-glyph {
+    animation: none;
+    transform: translate(-50%, 24vh);
+  }
+
+  .nh3d-startup-background-rain-glyph-frame {
+    animation: none;
+    opacity: 0;
+  }
+
+  .nh3d-startup-background-rain-glyph-frame:first-child {
+    opacity: 0.72;
+  }
 }
 
 .nh3d-pause-menu-title {
