@@ -3403,23 +3403,56 @@ class LocalNetHackRuntime {
     if (!this.isAutopickupInventoryAssignmentRawPrint(text)) {
       return;
     }
-    const didClearPendingTarget = this.emitUnderPlayerItemGlyphClearedForPendingTarget(
-      `inventory-assignment:${text}`,
-    );
-    if (!didClearPendingTarget) {
-      const playerX = Number(this.playerPosition?.x);
-      const playerY = Number(this.playerPosition?.y);
-      if (Number.isFinite(playerX) && Number.isFinite(playerY)) {
-        this.emitUnderPlayerItemGlyphClearedForTarget(
-          playerX,
-          playerY,
-          `inventory-assignment:${text}:current-player`,
+
+    const pendingTarget =
+      this.pendingPostActionPlayerTileRefreshTarget &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.x) &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.y)
+        ? {
+            x: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.x)),
+            y: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.y)),
+          }
+        : null;
+    const playerX = Number(this.playerPosition?.x);
+    const playerY = Number(this.playerPosition?.y);
+    const currentPlayerTarget =
+      Number.isFinite(playerX) && Number.isFinite(playerY)
+        ? { x: Math.trunc(playerX), y: Math.trunc(playerY) }
+        : null;
+    const refreshTarget = pendingTarget ?? currentPlayerTarget;
+
+    if (
+      refreshTarget &&
+      currentPlayerTarget &&
+      refreshTarget.x === currentPlayerTarget.x &&
+      refreshTarget.y === currentPlayerTarget.y &&
+      this.canQueryWasmHelpers()
+    ) {
+      const didRefresh = this.emitUnderPlayerItemGlyphIfAvailableAt(
+        refreshTarget.x,
+        refreshTarget.y,
+        null,
+        null,
+        true,
+        `inventory-assignment:${text}`,
+      );
+      if (didRefresh) {
+        this.clearPendingPostActionPlayerTileRefresh(
+          `inventory-assignment raw_print "${text}" (immediate helper refresh)`,
         );
+        return;
       }
     }
-    this.clearPendingPostActionPlayerTileRefresh(
-      `inventory-assignment raw_print "${text}"`,
-    );
+
+    if (refreshTarget) {
+      this.armPendingPostActionPlayerTileRefreshByReason(
+        "autopickup-raw-print",
+        `for inventory-assignment raw_print "${text}"`,
+        refreshTarget,
+        null,
+      );
+      return;
+    }
   }
 
   emitUnderPlayerItemGlyphIfAvailableAt(

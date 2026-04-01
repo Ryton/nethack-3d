@@ -4,13 +4,21 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../..");
+const FORKED_NETH4CK_MONOREPO_PACKAGES_WSL_DIR =
+  "\\\\wsl.localhost\\Ubuntu\\home\\james\\Repos\\forked\\neth4ck-monorepo\\packages";
+const SLASHEM_WSL_BUILD_DIR =
+  "\\\\wsl.localhost\\Ubuntu\\home\\james\\Repos\\slashem-wasm\\build";
+
+function resolveRequiredBuildDir(...segments) {
+  return resolve(FORKED_NETH4CK_MONOREPO_PACKAGES_WSL_DIR, ...segments, "build");
+}
 
 const targets = [
   {
     id: "wasm-367",
     label: "NetHack 3.6.7",
-    sourceBuildDir:
-      "\\\\wsl.localhost\\Ubuntu\\home\\james\\Repos\\forked\\neth4ck-monorepo\\packages\\wasm-367\\build",
+    // Keep wasm-367 pinned to the forked WSL monorepo build output.
+    sourceBuildDir: resolveRequiredBuildDir("wasm-367"),
     sourceJsFileName: "nethack.js",
     sourceWasmFileName: "nethack.wasm",
     publicJsDest: resolve(PROJECT_ROOT, "public/nethack-367.js"),
@@ -19,8 +27,8 @@ const targets = [
   {
     id: "wasm-37",
     label: "NetHack 3.7",
-    sourceBuildDir:
-      "\\\\wsl.localhost\\Ubuntu\\home\\james\\Repos\\forked\\neth4ck-monorepo\\packages\\wasm-37\\build",
+    // Keep wasm-37 pinned to the forked WSL monorepo build output.
+    sourceBuildDir: resolveRequiredBuildDir("wasm-37"),
     sourceJsFileName: "nethack.js",
     sourceWasmFileName: "nethack.wasm",
     publicJsDest: resolve(PROJECT_ROOT, "public/nethack-37.js"),
@@ -29,8 +37,7 @@ const targets = [
   {
     id: "slashem",
     label: "Slash'EM",
-    sourceBuildDir:
-      "\\\\wsl.localhost\\Ubuntu\\home\\james\\Repos\\slashem-wasm\\build",
+    sourceBuildDir: SLASHEM_WSL_BUILD_DIR,
     sourceJsFileName: "slashem.js",
     sourceWasmFileName: "slashem.wasm",
     publicJsDest: resolve(PROJECT_ROOT, "public/slashem.js"),
