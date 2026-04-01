@@ -27,6 +27,73 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - Add or update event payloads in runtime and engine in one commit.
 - Keep `src/runtime/types.ts` in sync when the command or envelope surface changes.
 
+### Under-Player Top-Item Refresh Is A Hot Path
+
+- The "item shown under the player" is not just a render concern. It is a runtime-to-engine contract between:
+  - `LocalNetHackRuntime.ts`
+  - `Nethack3DEngine.ts`
+  - the WASM helper functions `topItemGlyphUnderPlayer` and `topItemTileIndexUnderPlayer`
+- The runtime emits:
+  - `under_player_item_glyph`
+  - `under_player_item_glyph_cleared`
+- The engine consumes those in `handleRuntimeEvent` and updates:
+  - `flatFeatureUnderPlayerCache`
+  - `fpsAuthoritativeUnderPlayerFallbackSuppressedKeys`
+  - the affected tile via `refreshTileVisualFromStateCache(...)`
+
+### How It Is Supposed To Work
+
+- There are two refresh paths, and both matter:
+  - Specific post-action refresh:
+    - Runtime arms `pendingPostActionPlayerTileRefreshReason`
+    - Later callbacks like `shim_nh_poskey` or `shim_update_inventory` call `maybeRefreshPendingPostActionPlayerTile(...)`
+  - General inventory mutation fallback:
+    - `shim_update_inventory` should still re-check the top item under the player even if no pending reason was armed
+- This exists because actions like pickup, drop, eat, autopickup, and some menu-confirmed inventory mutations can change the top-of-pile item on the player tile without a clean terrain redraw.
+
+### Common Break Pattern
+
+- Symptom:
+  - An item under the player does not disappear after pickup/eat/use.
+  - A new top item under the player does not appear after drop/autopickup/menu-confirmed changes.
+- Most common cause:
+  - The runtime armed no `pendingPostActionPlayerTileRefreshReason`, so the later callback had nothing to consume.
+  - Or the engine received no `under_player_item_glyph` / cleared event, so `flatFeatureUnderPlayerCache` stayed stale.
+- Less common cause:
+  - The runtime helper lookup failed, so the runtime never emitted the top-item event.
+  - The engine classified the returned glyph as something that should not be cached under the player and cleared it immediately.
+
+### First Places To Check
+
+- Runtime arm points in `src/runtime/LocalNetHackRuntime.ts`:
+  - `getPostActionPlayerTileRefreshReasonForMenuItem`
+  - `getPostActionPlayerTileRefreshReasonForQuestion`
+  - `getPostActionPlayerTileRefreshReasonForAnsweredYnQuestion`
+  - `armPendingPostActionPlayerTileRefreshByReason`
+- Runtime consume points in `src/runtime/LocalNetHackRuntime.ts`:
+  - `maybeRefreshPendingPostActionPlayerTile`
+  - `maybeRefreshUnderPlayerTopItemAfterInventoryUpdate`
+  - `handleShimNhPoskey`
+  - `shim_update_inventory`
+- Runtime helper decode/emission in `src/runtime/LocalNetHackRuntime.ts`:
+  - `emitUnderPlayerItemGlyphIfAvailableAt`
+- Engine receive/cache/render in `src/game/Nethack3DEngine.ts`:
+  - `applyUnderPlayerItemGlyphEvent`
+  - `clearUnderPlayerItemGlyphEvent`
+  - `shouldRenderFlatFeatureUnderPlayer`
+  - `getFpsPlayerTileUnderlaySnapshotFromCache`
+  - `resolveFpsFloorUnderlayBehaviorFromCache`
+  - `refreshTileVisualFromStateCache`
+
+### Rules To Preserve
+
+- Do not rely only on action-specific arming. Keep an inventory-update fallback recheck in the runtime.
+- If you add a new inventory mutation flow, either:
+  - arm `pendingPostActionPlayerTileRefreshReason`, or
+  - ensure `shim_update_inventory` or an equivalent later callback will still force a top-item recheck.
+- If you change `shouldRenderFlatFeatureUnderPlayer`, verify pickup/drop/eat/use on the player tile in both FPS and overhead tiles modes.
+- If you change event names or payload shape for under-player item refresh, update runtime emitters and engine consumers in the same commit.
+
 ## If You Need To Change Input Or Menus
 
 - Browser key mapping and dialog gating: `src/game/Nethack3DEngine.ts` (`handleKeyDown`).

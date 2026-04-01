@@ -104,6 +104,7 @@ class LocalNetHackRuntime {
     this.runtime37TileContextAutoPickFirstUntilMs = 0;
     this.runtime37TileContextAutoPickFirstWindowMs = 2000;
     this.pendingPostActionPlayerTileRefreshReason = null;
+    this.pendingPostActionPlayerTileRefreshTarget = null;
     this.pendingInventoryContextSelection = null;
     this.pendingTextRequest = null;
     this.deferredTileRefreshKeys = new Set();
@@ -2078,6 +2079,8 @@ class LocalNetHackRuntime {
     this.contextualLookInfoAutoFlowUntilMs = 0;
     this.legacyAutoHelpYnPromptSignature = "";
     this.legacyAutoHelpYnPromptUntilMs = 0;
+    this.pendingPostActionPlayerTileRefreshReason = null;
+    this.pendingPostActionPlayerTileRefreshTarget = null;
     this.setPositionInputActive(false);
     this.activeInputRequest = null;
     this.menuSelections.clear();
@@ -2202,6 +2205,14 @@ class LocalNetHackRuntime {
     }
     if (source === "user" && this.hasPendingInventoryContextSelection()) {
       this.clearPendingInventoryContextSelection("new user mouse input");
+    }
+
+    if (clickButton === 0) {
+      this.maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget(
+        tileX,
+        tileY,
+        `for mouse movement intent onto (${tileX}, ${tileY})`,
+      );
     }
 
     this.enqueueMouseInput(tileX, tileY, clickMod, source);
@@ -2593,6 +2604,17 @@ class LocalNetHackRuntime {
         normalizedInput,
       );
     }
+    if (this.isDirectionalMovementInput(normalizedInput)) {
+      const movementTarget =
+        this.resolveMovementTargetPositionFromInput(normalizedInput);
+      if (movementTarget) {
+        this.maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget(
+          movementTarget.x,
+          movementTarget.y,
+          `for keyboard movement intent "${normalizedInput}" onto (${movementTarget.x}, ${movementTarget.y})`,
+        );
+      }
+    }
 
     this.enqueueInputKeys([normalizedInput], source);
   }
@@ -2906,15 +2928,111 @@ class LocalNetHackRuntime {
     return null;
   }
 
-  armPendingPostActionPlayerTileRefreshByReason(refreshReason, sourceLabel) {
+  getPostActionPlayerTileRefreshReasonPriority(refreshReason) {
+    switch (String(refreshReason || "").trim()) {
+      case "move-onto-lootlike-tile":
+      case "autopickup-raw-print":
+        return 100;
+      case "pickup-question":
+      case "pickup-auto-menu":
+      case "eat-question":
+      case "eat-auto-menu":
+      case "eat-confirm-question":
+      case "drop-question":
+      case "drop-auto-menu":
+        return 80;
+      case "monster-like-vacated-tile":
+        return 20;
+      default:
+        return 50;
+    }
+  }
+
+  armPendingPostActionPlayerTileRefreshByReason(
+    refreshReason,
+    sourceLabel,
+    target = null,
+  ) {
     const normalizedReason =
       typeof refreshReason === "string" ? refreshReason.trim() : "";
     if (!normalizedReason) {
       return;
     }
+    const existingReason =
+      typeof this.pendingPostActionPlayerTileRefreshReason === "string"
+        ? this.pendingPostActionPlayerTileRefreshReason.trim()
+        : "";
+    if (existingReason) {
+      const existingPriority =
+        this.getPostActionPlayerTileRefreshReasonPriority(existingReason);
+      const nextPriority =
+        this.getPostActionPlayerTileRefreshReasonPriority(normalizedReason);
+      if (existingPriority > nextPriority) {
+        console.log(
+          `Keeping existing post-action top-item check (${existingReason}) instead of lower-priority (${normalizedReason}) ${sourceLabel}`,
+        );
+        return;
+      }
+    }
     this.pendingPostActionPlayerTileRefreshReason = normalizedReason;
+    this.pendingPostActionPlayerTileRefreshTarget =
+      target &&
+      Number.isFinite(target.x) &&
+      Number.isFinite(target.y)
+        ? { x: Math.trunc(Number(target.x)), y: Math.trunc(Number(target.y)) }
+        : null;
     console.log(
       `Armed post-action top-item check (${normalizedReason}) ${sourceLabel}`,
+      this.pendingPostActionPlayerTileRefreshTarget,
+    );
+  }
+
+  clearPendingPostActionPlayerTileRefreshByReason(refreshReason, sourceLabel) {
+    const normalizedReason =
+      typeof refreshReason === "string" ? refreshReason.trim() : "";
+    const existingReason =
+      typeof this.pendingPostActionPlayerTileRefreshReason === "string"
+        ? this.pendingPostActionPlayerTileRefreshReason.trim()
+        : "";
+    if (!normalizedReason || existingReason !== normalizedReason) {
+      return;
+    }
+    this.pendingPostActionPlayerTileRefreshReason = null;
+    this.pendingPostActionPlayerTileRefreshTarget = null;
+    console.log(
+      `Cleared post-action top-item check (${normalizedReason}) ${sourceLabel}`,
+    );
+  }
+
+  maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget(
+    targetX,
+    targetY,
+    sourceLabel,
+  ) {
+    if (
+      !Number.isFinite(targetX) ||
+      !Number.isFinite(targetY) ||
+      this.awaitingQuestionInput ||
+      this.positionInputActive ||
+      this.isFarLookPositionRequest() ||
+      this.activeInputRequest?.kind === "position"
+    ) {
+      return;
+    }
+    const tileX = Math.trunc(Number(targetX));
+    const tileY = Math.trunc(Number(targetY));
+    const destinationTileData = this.gameMap.get(`${tileX},${tileY}`);
+    if (!this.isLootLikeRuntimeMapTile(destinationTileData)) {
+      this.clearPendingPostActionPlayerTileRefreshByReason(
+        "move-onto-lootlike-tile",
+        `${sourceLabel} (target is not loot-like)`,
+      );
+      return;
+    }
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      "move-onto-lootlike-tile",
+      sourceLabel,
+      { x: tileX, y: tileY },
     );
   }
 
@@ -3155,11 +3273,31 @@ class LocalNetHackRuntime {
     if (!pendingReason) {
       return false;
     }
+    const pendingTarget =
+      this.pendingPostActionPlayerTileRefreshTarget &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.x) &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.y)
+        ? {
+            x: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.x)),
+            y: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.y)),
+          }
+        : null;
 
     const tileX = Number(this.playerPosition?.x);
     const tileY = Number(this.playerPosition?.y);
     if (!Number.isFinite(tileX) || !Number.isFinite(tileY)) {
-      this.pendingPostActionPlayerTileRefreshReason = null;
+      return false;
+    }
+
+    const normalizedTileX = Math.trunc(Number(tileX));
+    const normalizedTileY = Math.trunc(Number(tileY));
+    if (
+      pendingTarget &&
+      (normalizedTileX !== pendingTarget.x || normalizedTileY !== pendingTarget.y)
+    ) {
+      console.log(
+        `Waiting to refresh pending action (${pendingReason}) until player reaches (${pendingTarget.x}, ${pendingTarget.y}) [trigger=${trigger}, current=(${normalizedTileX}, ${normalizedTileY})]`,
+      );
       return false;
     }
 
@@ -3171,11 +3309,11 @@ class LocalNetHackRuntime {
     }
 
     console.log(
-      `Checking under-player top item after pending action (${pendingReason}) [trigger=${trigger}] at (${tileX}, ${tileY})`,
+      `Checking under-player top item after pending action (${pendingReason}) [trigger=${trigger}] at (${normalizedTileX}, ${normalizedTileY})`,
     );
     return this.emitUnderPlayerItemGlyphIfAvailableAt(
-      tileX,
-      tileY,
+      normalizedTileX,
+      normalizedTileY,
       null,
       null,
       true,
@@ -4248,6 +4386,39 @@ class LocalNetHackRuntime {
     return this.isMonsterLikeGlyph(glyph);
   }
 
+  isLootLikeGlyph(glyph) {
+    if (typeof glyph !== "number" || !Number.isFinite(glyph) || glyph < 0) {
+      return false;
+    }
+
+    const normalizedGlyph = Math.trunc(glyph);
+    const objGlyphOff = this.getGlyphConstantValue("GLYPH_OBJ_OFF");
+    const cmapGlyphOff = this.getGlyphConstantValue(
+      "GLYPH_CMAP_OFF",
+      "GLYPH_EXPLODE_OFF",
+      "GLYPH_WARNING_OFF",
+    );
+    if (objGlyphOff === null || cmapGlyphOff === null) {
+      return false;
+    }
+
+    return normalizedGlyph >= objGlyphOff && normalizedGlyph < cmapGlyphOff;
+  }
+
+  isLootLikeRuntimeMapTile(tileData) {
+    if (!tileData || typeof tileData !== "object") {
+      return false;
+    }
+    const glyph =
+      typeof tileData.glyph === "number" && Number.isFinite(tileData.glyph)
+        ? Math.trunc(tileData.glyph)
+        : null;
+    if (glyph === null) {
+      return false;
+    }
+    return this.isLootLikeGlyph(glyph);
+  }
+
   decodeFloorUnderlayAtPosition(
     x,
     y,
@@ -5002,6 +5173,87 @@ class LocalNetHackRuntime {
       input === "Numpad8" ||
       input === "Numpad9"
     );
+  }
+
+  resolveMovementTargetPositionFromInput(input) {
+    const normalized = this.normalizeInputKey(input);
+    const originX = Number(this.playerPosition?.x);
+    const originY = Number(this.playerPosition?.y);
+    if (!Number.isFinite(originX) || !Number.isFinite(originY)) {
+      return null;
+    }
+
+    let deltaX = 0;
+    let deltaY = 0;
+    switch (normalized) {
+      case "h":
+      case "H":
+      case "ArrowLeft":
+      case "Numpad4":
+      case "4":
+        deltaX = -1;
+        break;
+      case "l":
+      case "L":
+      case "ArrowRight":
+      case "Numpad6":
+      case "6":
+        deltaX = 1;
+        break;
+      case "k":
+      case "K":
+      case "ArrowUp":
+      case "Numpad8":
+      case "8":
+        deltaY = -1;
+        break;
+      case "j":
+      case "J":
+      case "ArrowDown":
+      case "Numpad2":
+      case "2":
+        deltaY = 1;
+        break;
+      case "y":
+      case "Y":
+      case "Home":
+      case "Numpad7":
+      case "7":
+        deltaX = -1;
+        deltaY = -1;
+        break;
+      case "u":
+      case "U":
+      case "PageUp":
+      case "Numpad9":
+      case "9":
+        deltaX = 1;
+        deltaY = -1;
+        break;
+      case "b":
+      case "B":
+      case "End":
+      case "Numpad1":
+      case "1":
+        deltaX = -1;
+        deltaY = 1;
+        break;
+      case "n":
+      case "N":
+      case "PageDown":
+      case "Numpad3":
+      case "3":
+        deltaX = 1;
+        deltaY = 1;
+        break;
+      default:
+        return null;
+    }
+
+    return {
+      x: Math.trunc(originX) + deltaX,
+      y: Math.trunc(originY) + deltaY,
+    };
   }
 
   isFarLookExitInput(input) {
@@ -9574,6 +9826,7 @@ class LocalNetHackRuntime {
     console.log("NetHack requesting position key");
     if (this.maybeRefreshPendingPostActionPlayerTile("nh_poskey")) {
       this.pendingPostActionPlayerTileRefreshReason = null;
+      this.pendingPostActionPlayerTileRefreshTarget = null;
     }
     if (this.contextualGlanceAutoCancelPositionUntilMs > 0) {
       const nowMs = Date.now();
@@ -10769,6 +11022,7 @@ class LocalNetHackRuntime {
         // We can use it to signal the UI to refresh its inventory display if needed.
         if (this.maybeRefreshPendingPostActionPlayerTile("inventory_update")) {
           this.pendingPostActionPlayerTileRefreshReason = null;
+          this.pendingPostActionPlayerTileRefreshTarget = null;
         }
         if (this.eventHandler) {
           this.emit({
@@ -11133,6 +11387,8 @@ class LocalNetHackRuntime {
         const destinationTileData = this.gameMap.get(`${clipX},${clipY}`);
         const movedOntoMonsterLikeOccupant =
           didMove && this.isMonsterLikeRuntimeMapTile(destinationTileData);
+        const movedOntoLootLikeTile =
+          didMove && this.isLootLikeRuntimeMapTile(destinationTileData);
         this.playerPosition = { x: clipX, y: clipY };
         if (didMove) {
           this.playerPositionMovementSerial += 1;
@@ -11145,6 +11401,16 @@ class LocalNetHackRuntime {
             x: clipX,
             y: clipY,
           });
+        }
+        if (movedOntoLootLikeTile) {
+          this.emitUnderPlayerItemGlyphIfAvailableAt(
+            clipX,
+            clipY,
+            null,
+            null,
+            true,
+            "cliparound-move-onto-loot",
+          );
         }
         if (movedOntoMonsterLikeOccupant) {
           this.armPendingPostActionPlayerTileRefreshByReason(

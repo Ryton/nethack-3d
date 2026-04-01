@@ -180,6 +180,10 @@ Camera behavior is unchanged:
 - Do not reintroduce cooldown or latest-input replay logic.
 - Keep menu waiters isolated from non-menu input waiters.
 - Keep far-look state transitions deterministic and observable.
+- Keep under-player top-item refresh wired after inventory mutations:
+  - action-specific path via `pendingPostActionPlayerTileRefreshReason`
+  - fallback path via `shim_update_inventory`
+  - runtime events `under_player_item_glyph` / `under_player_item_glyph_cleared`
 
 ## Manual Validation Checklist
 
@@ -193,3 +197,4 @@ Camera behavior is unchanged:
 8. Inventory and single-select question flows.
 9. Meta, Alt, and extended command entry.
 10. Escape across menus, questions, and position mode.
+11. Pickup, drop, eat, and autopickup updating the item shown under the player.
