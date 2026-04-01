@@ -6354,6 +6354,141 @@ class LocalNetHackRuntime {
     return "";
   }
 
+  getQuestionBracketChoiceSpec(question) {
+    const bracketMatch = String(question || "").match(/\[([^\]]+)\]/);
+    return typeof bracketMatch?.[1] === "string"
+      ? bracketMatch[1].trim().toLowerCase()
+      : "";
+  }
+
+  expandLegacyQuestionChoiceSpec(spec) {
+    const normalized = String(spec || "")
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/\s+or\s+/gi, " ")
+      .replace(/[,/|]/g, " ")
+      .replace(/\s+/g, "")
+      .replace(/[\[\]]/g, "");
+
+    if (!normalized) {
+      return [];
+    }
+
+    const expanded = [];
+    const seen = new Set();
+    const addChoice = (value) => {
+      if (!value || seen.has(value)) {
+        return;
+      }
+      seen.add(value);
+      expanded.push(value);
+    };
+
+    const canExpandRange = (start, end) => {
+      const isLower = (value) => value >= "a" && value <= "z";
+      const isUpper = (value) => value >= "A" && value <= "Z";
+      const isDigit = (value) => value >= "0" && value <= "9";
+      return (
+        (isLower(start) && isLower(end)) ||
+        (isUpper(start) && isUpper(end)) ||
+        (isDigit(start) && isDigit(end))
+      );
+    };
+
+    for (let i = 0; i < normalized.length; i += 1) {
+      const current = normalized[i];
+      const hasRangeEnd =
+        i + 2 < normalized.length && normalized[i + 1] === "-";
+
+      if (hasRangeEnd) {
+        const end = normalized[i + 2];
+        if (canExpandRange(current, end)) {
+          const startCode = current.charCodeAt(0);
+          const endCode = end.charCodeAt(0);
+          const step = startCode <= endCode ? 1 : -1;
+          for (
+            let code = startCode;
+            step > 0 ? code <= endCode : code >= endCode;
+            code += step
+          ) {
+            addChoice(String.fromCharCode(code));
+          }
+          i += 2;
+          continue;
+        }
+      }
+
+      if (current !== "-") {
+        addChoice(current);
+      }
+    }
+
+    return expanded;
+  }
+
+  buildLegacySlashEmInventoryQuestionMenuItems(question, choices) {
+    if (this.runtimeVersion !== "slashem") {
+      return [];
+    }
+
+    const inventoryItems = Array.isArray(this.latestInventoryItems)
+      ? this.latestInventoryItems
+      : [];
+    if (inventoryItems.length === 0) {
+      return [];
+    }
+
+    const bracketChoiceSpec = this.getQuestionBracketChoiceSpec(question);
+    const effectiveChoiceSpec = `${String(choices || "")} ${bracketChoiceSpec}`
+      .trim()
+      .toLowerCase();
+    if (
+      !effectiveChoiceSpec ||
+      (!effectiveChoiceSpec.includes("?") && !effectiveChoiceSpec.includes("*"))
+    ) {
+      return [];
+    }
+
+    const requestedChoices = this.expandLegacyQuestionChoiceSpec(
+      effectiveChoiceSpec,
+    ).filter((choice) => choice !== "?" && choice !== "*");
+    if (requestedChoices.length === 0) {
+      return [];
+    }
+
+    const requestedChoiceSet = new Set(requestedChoices);
+    const matchedChoices = new Set();
+    const filteredItems = [];
+    let pendingCategory = null;
+
+    for (const item of inventoryItems) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+      if (item.isCategory) {
+        pendingCategory = item;
+        continue;
+      }
+
+      const accelerator = String(item.accelerator || "").trim();
+      if (!accelerator || !requestedChoiceSet.has(accelerator)) {
+        continue;
+      }
+
+      if (pendingCategory) {
+        filteredItems.push({ ...pendingCategory });
+        pendingCategory = null;
+      }
+      filteredItems.push({ ...item });
+      matchedChoices.add(accelerator);
+    }
+
+    if (matchedChoices.size !== requestedChoiceSet.size) {
+      return [];
+    }
+
+    return filteredItems;
+  }
+
   resolveLegacyAutoHelpYnPromptAnswer(question, choices) {
     if (this.runtimeVersion !== "slashem") {
       return null;
@@ -10184,13 +10319,27 @@ class LocalNetHackRuntime {
       choices: normalizedChoices,
       defaultChoice: normalizedDefaultChoice,
     };
+    const legacySlashEmInventoryPromptMenuItems =
+      this.buildLegacySlashEmInventoryQuestionMenuItems(
+        question,
+        normalizedChoices,
+      );
+    if (legacySlashEmInventoryPromptMenuItems.length > 0) {
+      console.log(
+        `Routing legacy Slash'EM inventory yn prompt through menu dialog (${legacySlashEmInventoryPromptMenuItems.length} items)`,
+        {
+          question: String(question || ""),
+          choices: `${normalizedChoices} ${this.getQuestionBracketChoiceSpec(question)}`.trim(),
+        },
+      );
+    }
     if (this.eventHandler) {
       this.emit({
         type: "question",
         text: question,
         choices: choices,
         default: defaultChoice,
-        menuItems: [],
+        menuItems: legacySlashEmInventoryPromptMenuItems,
       });
     }
 

@@ -946,6 +946,13 @@ function parseQuestionChoices(question: string, choices: string): string[] {
   return merged;
 }
 
+function getQuestionBracketChoiceSpec(question: string): string {
+  const bracketMatch = String(question || "").match(/\[([^\]]+)\]/);
+  return typeof bracketMatch?.[1] === "string"
+    ? bracketMatch[1].trim().toLowerCase()
+    : "";
+}
+
 function isLegacyQuestionChoiceRuntime(
   runtimeVersion: NethackRuntimeVersion,
 ): boolean {
@@ -973,12 +980,22 @@ function orderQuestionChoicesForDisplay(
 }
 
 function isLegacyInventoryQuestionChoicePrompt(
+  questionText: string,
   parsedChoices: string[],
   runtimeVersion: NethackRuntimeVersion,
   isYesNoPrompt: boolean,
 ): boolean {
   if (isYesNoPrompt || !isLegacyQuestionChoiceRuntime(runtimeVersion)) {
     return false;
+  }
+  const bracketChoiceSpec = getQuestionBracketChoiceSpec(questionText);
+  if (
+    bracketChoiceSpec.includes(".") ||
+    bracketChoiceSpec.includes(",") ||
+    bracketChoiceSpec.includes("?") ||
+    bracketChoiceSpec.includes("*")
+  ) {
+    return true;
   }
   return parsedChoices.some((choice) => {
     const normalizedChoice = choice.trim();
@@ -989,6 +1006,35 @@ function isLegacyInventoryQuestionChoicePrompt(
       normalizedChoice === "*"
     );
   });
+}
+
+function shouldUseCompactQuestionChoiceLayout(
+  questionText: string,
+  parsedChoices: string[],
+  runtimeVersion: NethackRuntimeVersion,
+  isYesNoPrompt: boolean,
+): boolean {
+  if (
+    !Array.isArray(parsedChoices) ||
+    parsedChoices.length === 0 ||
+    !parsedChoices.every((choice) => choice.trim().length === 1)
+  ) {
+    return false;
+  }
+  if (isYesNoPrompt) {
+    return true;
+  }
+  if (
+    isLegacyInventoryQuestionChoicePrompt(
+      questionText,
+      parsedChoices,
+      runtimeVersion,
+      isYesNoPrompt,
+    )
+  ) {
+    return false;
+  }
+  return parsedChoices.length <= 4;
 }
 
 function isYesNoChoicePrompt(parsedChoices: string[]): boolean {
@@ -1180,6 +1226,53 @@ function getInventoryItemForQuestionChoice(
       );
     }) ?? null
   );
+}
+
+function buildLegacyInventoryQuestionMenuItems(
+  questionText: string,
+  parsedChoices: string[],
+  inventoryItems: NethackMenuItem[],
+  runtimeVersion: NethackRuntimeVersion,
+  isYesNoPrompt: boolean,
+): NethackMenuItem[] {
+  if (
+    !isLegacyInventoryQuestionChoicePrompt(
+      questionText,
+      parsedChoices,
+      runtimeVersion,
+      isYesNoPrompt,
+    )
+  ) {
+    return [];
+  }
+
+  const syntheticMenuItems: NethackMenuItem[] = [];
+  for (const choice of parsedChoices) {
+    const normalizedChoice = String(choice || "").trim();
+    if (normalizedChoice.length !== 1) {
+      return [];
+    }
+
+    const inventoryItem = getInventoryItemForQuestionChoice(
+      normalizedChoice,
+      inventoryItems,
+    );
+    if (!inventoryItem) {
+      return [];
+    }
+
+    syntheticMenuItems.push({
+      ...inventoryItem,
+      accelerator: normalizedChoice,
+      originalAccelerator:
+        inventoryItem.originalAccelerator ?? normalizedChoice,
+      selectionInput: normalizedChoice,
+      isSelectable: true,
+      isCategory: false,
+    });
+  }
+
+  return syntheticMenuItems;
 }
 
 function getQuestionChoiceLabel(
@@ -9114,10 +9207,17 @@ export default function App(): JSX.Element {
     normalizedVisibleQuestionChoiceSignature === "ynaq";
   const showLegacyInventoryQuestionCancelButton =
     isLegacyInventoryQuestionChoicePrompt(
+      question?.text ?? "",
       visibleQuestionChoices,
       activeRuntimeVersion,
       isYesNoQuestionChoices,
     );
+  const useCompactQuestionChoiceLayout = shouldUseCompactQuestionChoiceLayout(
+    question?.text ?? "",
+    orderedQuestionChoices,
+    activeRuntimeVersion,
+    isYesNoQuestionChoices,
+  );
   const showQuestionCancelButton =
     Boolean(question) &&
     !suppressQuestionCancelButton &&
@@ -9143,10 +9243,32 @@ export default function App(): JSX.Element {
       question ? parseCastSpellMenu(question.text, question.menuItems) : null,
     [question],
   );
-  const questionSelectableMenuItemCount = question
-    ? question.menuItems.filter((item) => isSelectableQuestionMenuItem(item))
-        .length
-    : 0;
+  const legacyInventoryQuestionMenuItems = useMemo(
+    () =>
+      question && question.menuItems.length === 0
+        ? buildLegacyInventoryQuestionMenuItems(
+            question.text,
+            orderedQuestionChoices,
+            inventory.items,
+            activeRuntimeVersion,
+            isYesNoQuestionChoices,
+          )
+        : [],
+    [
+      activeRuntimeVersion,
+      inventory.items,
+      isYesNoQuestionChoices,
+      orderedQuestionChoices,
+      question,
+    ],
+  );
+  const displayedQuestionMenuItems =
+    question && question.menuItems.length > 0
+      ? question.menuItems
+      : legacyInventoryQuestionMenuItems;
+  const questionSelectableMenuItemCount = displayedQuestionMenuItems.filter(
+    (item) => isSelectableQuestionMenuItem(item),
+  ).length;
   const showPickupActionButtons =
     Boolean(question?.isPickupDialog) &&
     (questionSelectableMenuItemCount > 0 || isMobileViewport);
@@ -15958,10 +16080,10 @@ export default function App(): JSX.Element {
               t.dialogs.question.cancelPrompt,
             )}
             <div className="nh3d-question-text">{displayedQuestionText}</div>
-            {question.menuItems.length > 0 ? (
+            {displayedQuestionMenuItems.length > 0 ? (
               question.isPickupDialog ? (
                 <>
-                  {question.menuItems.map((item, index) => {
+                  {displayedQuestionMenuItems.map((item, index) => {
                     if (!isSelectableQuestionMenuItem(item)) {
                       return (
                         <div
@@ -16133,7 +16255,7 @@ export default function App(): JSX.Element {
                 </>
               ) : (
                 <>
-                  {question.menuItems.map((item, index) => {
+                  {displayedQuestionMenuItems.map((item, index) => {
                     if (!isSelectableQuestionMenuItem(item)) {
                       if (
                         isReadOnlyQuestionOptionMenuItem(item, question.text)
@@ -16239,10 +16361,7 @@ export default function App(): JSX.Element {
               <div className="nh3d-overflow-glow-frame">
                 <div
                   className={`nh3d-choice-list${
-                    orderedQuestionChoices.length > 0 &&
-                    orderedQuestionChoices.every(
-                      (choice) => choice.trim().length === 1,
-                    )
+                    useCompactQuestionChoiceLayout
                       ? " is-compact"
                       : ""
                   }${isYesNoQuestionChoices ? " is-yes-no" : ""}`}
