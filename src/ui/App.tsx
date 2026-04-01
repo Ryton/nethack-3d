@@ -214,6 +214,38 @@ function resolveTilesetLayoutDisplayLabel(
   }
 }
 
+function resolveRuntimeVersionDisplayLabel(
+  runtimeVersion: NethackRuntimeVersion,
+): string {
+  switch (runtimeVersion) {
+    case "3.7":
+      return "NetHack 3.7";
+    case "slashem":
+      return "Slash'EM";
+    case "3.6.7":
+    default:
+      return "NetHack 3.6.7";
+  }
+}
+
+function RuntimeVersionBadge({
+  label,
+  startup = false,
+}: {
+  label: string;
+  startup?: boolean;
+}): JSX.Element {
+  return (
+    <div
+      className={`nh3d-dialog-context-label${
+        startup ? " nh3d-dialog-context-label-startup" : ""
+      }`}
+    >
+      <span className="nh3d-dialog-context-label-text">{label}</span>
+    </div>
+  );
+}
+
 function formatTilesetPickerOptionLabel(
   tileset: Nh3dTilesetEntry,
   showLayoutVersion: boolean,
@@ -5411,6 +5443,8 @@ export default function App(): JSX.Element {
     useState<NethackRuntimeVersion>("3.6.7");
   const activeRuntimeVersion =
     characterCreationConfig?.runtimeVersion ?? runtimeVersion;
+  const activeRuntimeVersionLabel =
+    resolveRuntimeVersionDisplayLabel(activeRuntimeVersion);
   const [createRole, setCreateRole] = useState(
     startupDefaultCharacterPreferences.createRole,
   );
@@ -8374,6 +8408,10 @@ export default function App(): JSX.Element {
       statusText.trim() ||
       t.update.runtimeStoppedBeforeStartup
     : "";
+  const startupSelectedRuntimeVersionLabel =
+    startupMenuVisible && startupFlowStep !== "variant"
+      ? resolveRuntimeVersionDisplayLabel(runtimeVersion)
+      : null;
   const startupUpdateDialogOpen =
     startupMenuVisible && isStartupUpdateDialogVisible;
   useEffect(() => {
@@ -13514,8 +13552,17 @@ export default function App(): JSX.Element {
           </>
         ) : (
           <>
-            <div className="nh3d-options-title">
-              {t.dialogs.pauseMenu.title}
+            <div className="nh3d-options-title nh3d-pause-menu-title">
+              <RuntimeVersionBadge label={activeRuntimeVersionLabel} />
+              <span
+                className="nh3d-pause-menu-title-separator"
+                aria-hidden="true"
+              >
+                {"\u2014"}
+              </span>
+              <span className="nh3d-pause-menu-title-text">
+                {t.dialogs.pauseMenu.title}
+              </span>
             </div>
             <div className="nh3d-overflow-glow-frame">
               <div
@@ -14033,6 +14080,12 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-question-text">
           {t.dialogs.startup.chooseSetup}
         </div>
@@ -14091,6 +14144,12 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-question-text">
           {t.dialogs.startup.selectSavedGame}
         </div>
@@ -14266,6 +14325,12 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-question-text">
           {t.dialogs.startup.enterRandomName}
         </div>
@@ -14339,6 +14404,12 @@ export default function App(): JSX.Element {
         onKeyDown={handleStartupMainMenuKeyDown}
         onPointerDownCapture={handleStartupMainMenuPointerDownCapture}
       >
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-question-text">
           {t.dialogs.startup.createCharacterPrompt}
         </div>
@@ -14694,6 +14765,12 @@ export default function App(): JSX.Element {
           requestCloseClientOptionsDialog,
           t.dialogs.clientOptions.closeLabel,
         )}
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-options-title">
           {t.dialogs.clientOptions.title}
         </div>
@@ -15357,6 +15434,12 @@ export default function App(): JSX.Element {
         open={isClientOptionsVisible && isResetClientOptionsConfirmationVisible}
         id="nh3d-reset-client-options-confirmation-dialog"
       >
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-question-text">
           {t.dialogs.clientOptions.resetPrompt}
         </div>
@@ -15387,6 +15470,12 @@ export default function App(): JSX.Element {
           closeControllerRemapDialog,
           t.dialogs.clientOptions.controllerRemap.closeLabel,
         )}
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-options-title">
           {t.dialogs.clientOptions.controllerRemap.title}
         </div>
@@ -15522,6 +15611,12 @@ export default function App(): JSX.Element {
           closeTilesetManager,
           t.dialogs.tilesetManager.closeLabel,
         )}
+        {startupSelectedRuntimeVersionLabel ? (
+          <RuntimeVersionBadge
+            label={startupSelectedRuntimeVersionLabel}
+            startup
+          />
+        ) : null}
         <div className="nh3d-options-title">
           {t.dialogs.tilesetManager.title}
         </div>
