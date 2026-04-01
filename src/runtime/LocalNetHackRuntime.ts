@@ -3390,6 +3390,12 @@ class LocalNetHackRuntime {
     if (normalizedText.length < 5) {
       return false;
     }
+    if (
+      this.runtimeVersion === "slashem" &&
+      /^(?:\d+|a|an)\s+gold piece(?:s)?\.$/i.test(normalizedText)
+    ) {
+      return true;
+    }
     return /^[^\s] - \S/.test(normalizedText);
   }
 
