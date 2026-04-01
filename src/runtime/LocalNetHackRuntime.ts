@@ -2457,7 +2457,9 @@ class LocalNetHackRuntime {
 
       if (this.awaitingQuestionInput) {
         this.armPendingPostActionPlayerTileRefreshForQuestion(
-          this.currentMenuQuestionText,
+          this.resolvePostActionPlayerTileRefreshQuestionContext(
+            this.currentMenuQuestionText,
+          ),
         );
         const wakeInput = this.getMenuSelectionWakeInput(selectedMenuItem);
         this.enqueueInputKeys([wakeInput], source, ["event"]);
@@ -2529,7 +2531,9 @@ class LocalNetHackRuntime {
             `Recorded single menu selection: ${normalizedInput} (${menuItem.text})`,
           );
           this.armPendingPostActionPlayerTileRefreshForQuestion(
-            this.currentMenuQuestionText,
+            this.resolvePostActionPlayerTileRefreshQuestionContext(
+              this.currentMenuQuestionText,
+            ),
           );
           if (this.isLookAtMapMenuSelection(menuItem)) {
             this.enqueueInputKeys([";"], source, ["event"]);
@@ -2591,7 +2595,9 @@ class LocalNetHackRuntime {
       );
       console.log("Confirming multi-pickup with selections:", selectedItems);
       this.armPendingPostActionPlayerTileRefreshForQuestion(
-        this.currentMenuQuestionText,
+        this.resolvePostActionPlayerTileRefreshQuestionContext(
+          this.currentMenuQuestionText,
+        ),
       );
       this.lastMenuInteractionCancelled = false;
       this.resolveMenuSelection(this.menuSelections.size);
@@ -6254,6 +6260,25 @@ class LocalNetHackRuntime {
       return "";
     }
     return question.trim().toLowerCase();
+  }
+
+  resolvePostActionPlayerTileRefreshQuestionContext(question = "") {
+    const explicitQuestion =
+      typeof question === "string" ? question.trim() : "";
+    if (explicitQuestion) {
+      return question;
+    }
+
+    if (
+      this.awaitingQuestionInput &&
+      this.activeYnPrompt &&
+      typeof this.lastQuestionText === "string" &&
+      this.lastQuestionText.trim().length > 0
+    ) {
+      return this.lastQuestionText;
+    }
+
+    return "";
   }
 
   clearContextualLookInfoAutoFlow(reason = "") {

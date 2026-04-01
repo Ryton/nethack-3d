@@ -33,6 +33,9 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - `src/runtime/LocalNetHackRuntime.ts`
   - `src/game/Nethack3DEngine.ts`
   - the WASM helper functions `topItemGlyphUnderPlayer` and `topItemTileIndexUnderPlayer`
+- Those helper functions are authoritative for the visible top-of-pile item on the
+  current player tile. After partial pickup, drop, or any other stack mutation,
+  the helper result wins over cached snapshots.
 - The runtime emits:
   - `under_player_item_glyph`
   - `under_player_item_glyph_cleared`
@@ -59,6 +62,14 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - Keyboard movement onto an adjacent loot-like tile arms `move-onto-lootlike-tile`.
   - Clicking the current player tile or pressing `,` arms `pickup-current-player-tile`.
   - Menu/question-driven inventory mutations still arm the older action-specific reasons.
+- Stack mutations on the current tile do not trust the old snapshot after success:
+  - partial pickup from a pile must re-query `topItemGlyphUnderPlayer` so the next
+    remaining item becomes visible under the player
+  - dropping onto the current tile must also re-query `topItemGlyphUnderPlayer`
+    so the newly dropped item can become the visible top item immediately
+  - eating or any other player action that can remove, add, or reorder the
+    current-tile stack should also end in an authoritative helper refresh rather
+    than trusting the stale snapshot
 - Consume points are:
   - `handleShimNhPoskey`
   - `shim_update_inventory`
@@ -68,6 +79,10 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - Successful pickup/autopickup uses raw text as an authoritative success signal:
   - Modern/3.4.3-style inventory assignment text like `f - a tripe ration.` or `$ - 7 gold pieces.` clears the pending target/current tile immediately.
   - Slash'EM also needs a runtime-specific bare-gold case like `28 gold pieces.` because it does not always use the inventory-assignment format.
+- Slash'EM legacy drop flows can route through a `yn_function` prompt followed by
+  a questionless `WIN_INVEN` menu after `*`. In that case, the runtime must use
+  the active Y/N prompt text (`lastQuestionText`) as the action context when
+  `currentMenuQuestionText` is empty, or the drop refresh will never arm.
 - This split is intentional:
   - intent arming decides when we should care about a tile
   - raw-print pickup success decides when the loot is definitely gone
@@ -95,8 +110,22 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - Pickup succeeds but the loot reappears immediately:
   - A raw-print pickup-success message was treated like a later recheck instead of an authoritative clear.
   - Or the engine kept using `flatFeatureUnderPlayerCache` because suppression was not set.
+- Partial pickup from a stack leaves the old top item under the player, or clears
+  the pile entirely:
+  - the runtime reused a stale snapshot instead of re-querying `topItemGlyphUnderPlayer`
+  - or the helper result was unavailable in the loaded runtime artifact
+- Dropping onto the current tile does not show the new top item until the player
+  moves away:
+  - the drop action never armed a post-action refresh
+  - or a legacy questionless inventory menu lost its question context and failed
+    to classify as `drop-question`
 - A stale current-tile pickup arm affects later travel:
   - `pickup-current-player-tile` was not cleared when a new remote target was chosen.
+- 3.6.7 helper behavior seems impossible or inconsistent with source:
+  - `copy-wasm` only copies `packages/wasm-367/build/nethack.js`; it does not
+    rebuild it
+  - if WSL source changed but the build artifact did not, the checked-in public
+    runtime can be stale and miss helper installs like `topItemGlyphUnderPlayer`
 
 ### First Places To Check
 
@@ -107,6 +136,7 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - `clearPendingCurrentPlayerPickupRefreshIfTargetDiffers`
   - `maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget`
   - `maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot`
+  - `resolvePostActionPlayerTileRefreshQuestionContext`
 - Runtime consume / result points in `src/runtime/LocalNetHackRuntime.ts`:
   - `maybeRefreshPendingPostActionPlayerTile`
   - `handleShimNhPoskey`
@@ -115,6 +145,10 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
   - `isAutopickupInventoryAssignmentRawPrint`
   - `emitUnderPlayerItemGlyphFromPendingSnapshot`
   - `emitUnderPlayerItemGlyphIfAvailableAt`
+- Runtime artifact/source-of-truth checks:
+  - `scripts/wasm/copy-wasm.mjs`
+  - `public/nethack-367.js`
+  - `\\wsl.localhost\Ubuntu\home\james\Repos\forked\neth4ck-monorepo\packages\wasm-367\build\nethack.js`
 - Engine receive/cache/render in `src/game/Nethack3DEngine.ts`:
   - `applyUnderPlayerItemGlyphEvent`
   - `clearUnderPlayerItemGlyphEvent`
@@ -129,7 +163,13 @@ Detailed movement and cursor flow reference: `.agents/rules/movement-flow.md`.
 - Keep intent arming and pickup-success handling separate. Do not try to infer every pickup from raw text alone.
 - If you add a new way to move onto loot, arm `move-onto-lootlike-tile` with both target and snapshot.
 - If you add a new way to pick up loot on the current tile, arm `pickup-current-player-tile` even when helpers are temporarily unavailable.
+- After any successful stack mutation on the current tile, prefer the authoritative
+  helper result over the old snapshot. This includes partial pickup, drop, eat,
+  and any other player action that can mutate the visible pile.
 - If you add a new pickup success text variant, teach `isAutopickupInventoryAssignmentRawPrint(...)` about it only for the runtime that needs it.
+- If a legacy runtime shows a questionless inventory menu immediately after a Y/N
+  prompt, preserve the prompt context by falling back to `lastQuestionText` when
+  arming the post-action refresh reason.
 - Do not let generic `flatFeatureUnderPlayerCache` reintroduce loot after a runtime clear. Preserve the suppression-key behavior.
 - If you change under-player event names or payloads, update runtime emitters and engine consumers in the same commit.
 - If you change `shouldRenderFlatFeatureUnderPlayer`, verify pickup/drop/eat/use/autopickup on the player tile in both FPS and overhead tiles modes.
