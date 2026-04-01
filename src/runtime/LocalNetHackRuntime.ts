@@ -23,6 +23,30 @@ const process =
     ? globalThis.process
     : { env: {} };
 
+const SLASHEM_META_EXTENDED_COMMAND_NAME_BY_KEY = Object.freeze({
+  a: "adjust",
+  b: "borrow",
+  c: "chat",
+  d: "dip",
+  e: "enhance",
+  f: "force",
+  i: "invoke",
+  j: "jump",
+  l: "loot",
+  m: "monster",
+  n: "name",
+  o: "offer",
+  p: "pray",
+  q: "quit",
+  r: "rub",
+  s: "sit",
+  t: "technique",
+  u: "untrap",
+  v: "version",
+  w: "wipe",
+  y: "youpoly",
+});
+
 class LocalNetHackRuntime {
   constructor(eventHandler, startupOptions = null) {
     this.runtimeVersion = "3.6.7";
@@ -8232,17 +8256,32 @@ class LocalNetHackRuntime {
       return null;
     }
 
+    const entries = this.getExtendedCommandEntries();
+    if (this.runtimeVersion === "slashem") {
+      // Slash'EM's extcmdlist does not store meta accelerators; those live in
+      // the regular command table. Prefer the source-defined Alt bindings when
+      // the corresponding extended command is available.
+      const slashEmCommandName =
+        SLASHEM_META_EXTENDED_COMMAND_NAME_BY_KEY[normalized];
+      if (
+        typeof slashEmCommandName === "string" &&
+        entries.some((entry) => entry.name === slashEmCommandName)
+      ) {
+        return slashEmCommandName;
+      }
+    }
+
     const metaKeyCode = normalized.charCodeAt(0) | 0x80;
-    const entries = this.getExtendedCommandEntries().filter(
+    const keyedEntries = entries.filter(
       (entry) => entry.keyCode === metaKeyCode,
     );
-    if (entries.length === 0) {
+    if (keyedEntries.length === 0) {
       return null;
     }
 
     const preferred =
-      entries.find((entry) => entry.name !== "#" && entry.name !== "?") ||
-      entries[0];
+      keyedEntries.find((entry) => entry.name !== "#" && entry.name !== "?") ||
+      keyedEntries[0];
     return preferred && typeof preferred.name === "string"
       ? preferred.name
       : null;

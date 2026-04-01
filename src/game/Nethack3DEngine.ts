@@ -10423,6 +10423,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return { kind: "input", input: "o" };
       case "pickup":
         return { kind: "input", input: "," };
+      case "pray":
+        return this.resolveRuntimeVersion() === "slashem"
+          ? { kind: "input", input: `${this.metaInputPrefix}p` }
+          : null;
       case "puton":
         return { kind: "input", input: "P" };
       case "quaff":
