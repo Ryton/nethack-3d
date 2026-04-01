@@ -105,6 +105,7 @@ class LocalNetHackRuntime {
     this.runtime37TileContextAutoPickFirstWindowMs = 2000;
     this.pendingPostActionPlayerTileRefreshReason = null;
     this.pendingPostActionPlayerTileRefreshTarget = null;
+    this.pendingPostActionPlayerTileRefreshSnapshot = null;
     this.pendingInventoryContextSelection = null;
     this.pendingTextRequest = null;
     this.deferredTileRefreshKeys = new Set();
@@ -2081,6 +2082,7 @@ class LocalNetHackRuntime {
     this.legacyAutoHelpYnPromptUntilMs = 0;
     this.pendingPostActionPlayerTileRefreshReason = null;
     this.pendingPostActionPlayerTileRefreshTarget = null;
+    this.pendingPostActionPlayerTileRefreshSnapshot = null;
     this.setPositionInputActive(false);
     this.activeInputRequest = null;
     this.menuSelections.clear();
@@ -2208,11 +2210,24 @@ class LocalNetHackRuntime {
     }
 
     if (clickButton === 0) {
-      this.maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget(
-        tileX,
-        tileY,
-        `for mouse movement intent onto (${tileX}, ${tileY})`,
-      );
+      const playerX = Number(this.playerPosition?.x);
+      const playerY = Number(this.playerPosition?.y);
+      const clickedCurrentPlayerTile =
+        Number.isFinite(playerX) &&
+        Number.isFinite(playerY) &&
+        tileX === Math.trunc(playerX) &&
+        tileY === Math.trunc(playerY);
+      if (clickedCurrentPlayerTile) {
+        this.maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot(
+          `for mouse pickup intent on current player tile (${tileX}, ${tileY})`,
+        );
+      } else {
+        this.maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget(
+          tileX,
+          tileY,
+          `for mouse movement intent onto (${tileX}, ${tileY})`,
+        );
+      }
     }
 
     this.enqueueMouseInput(tileX, tileY, clickMod, source);
@@ -2604,6 +2619,11 @@ class LocalNetHackRuntime {
         normalizedInput,
       );
     }
+    if (normalizedInput === ",") {
+      this.maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot(
+        'for explicit pickup input "," on current player tile',
+      );
+    }
     if (this.isDirectionalMovementInput(normalizedInput)) {
       const movementTarget =
         this.resolveMovementTargetPositionFromInput(normalizedInput);
@@ -2931,6 +2951,7 @@ class LocalNetHackRuntime {
   getPostActionPlayerTileRefreshReasonPriority(refreshReason) {
     switch (String(refreshReason || "").trim()) {
       case "move-onto-lootlike-tile":
+      case "pickup-current-player-tile":
       case "autopickup-raw-print":
         return 100;
       case "pickup-question":
@@ -2952,6 +2973,7 @@ class LocalNetHackRuntime {
     refreshReason,
     sourceLabel,
     target = null,
+    snapshot = null,
   ) {
     const normalizedReason =
       typeof refreshReason === "string" ? refreshReason.trim() : "";
@@ -2981,6 +3003,8 @@ class LocalNetHackRuntime {
       Number.isFinite(target.y)
         ? { x: Math.trunc(Number(target.x)), y: Math.trunc(Number(target.y)) }
         : null;
+    this.pendingPostActionPlayerTileRefreshSnapshot =
+      snapshot && typeof snapshot === "object" ? { ...snapshot } : null;
     console.log(
       `Armed post-action top-item check (${normalizedReason}) ${sourceLabel}`,
       this.pendingPostActionPlayerTileRefreshTarget,
@@ -2999,9 +3023,198 @@ class LocalNetHackRuntime {
     }
     this.pendingPostActionPlayerTileRefreshReason = null;
     this.pendingPostActionPlayerTileRefreshTarget = null;
+    this.pendingPostActionPlayerTileRefreshSnapshot = null;
     console.log(
       `Cleared post-action top-item check (${normalizedReason}) ${sourceLabel}`,
     );
+  }
+
+  clearPendingPostActionPlayerTileRefresh(sourceLabel) {
+    const existingReason =
+      typeof this.pendingPostActionPlayerTileRefreshReason === "string"
+        ? this.pendingPostActionPlayerTileRefreshReason.trim()
+        : "";
+    if (!existingReason) {
+      return;
+    }
+    this.pendingPostActionPlayerTileRefreshReason = null;
+    this.pendingPostActionPlayerTileRefreshTarget = null;
+    this.pendingPostActionPlayerTileRefreshSnapshot = null;
+    console.log(
+      `Cleared post-action top-item check (${existingReason}) ${sourceLabel}`,
+    );
+  }
+
+  clearPendingCurrentPlayerPickupRefreshIfTargetDiffers(
+    targetX,
+    targetY,
+    sourceLabel,
+  ) {
+    const pendingReason =
+      typeof this.pendingPostActionPlayerTileRefreshReason === "string"
+        ? this.pendingPostActionPlayerTileRefreshReason.trim()
+        : "";
+    if (pendingReason !== "pickup-current-player-tile") {
+      return;
+    }
+    const pendingTarget =
+      this.pendingPostActionPlayerTileRefreshTarget &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.x) &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.y)
+        ? {
+            x: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.x)),
+            y: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.y)),
+          }
+        : null;
+    if (!pendingTarget) {
+      this.clearPendingPostActionPlayerTileRefreshByReason(
+        "pickup-current-player-tile",
+        `${sourceLabel} (missing target)`,
+      );
+      return;
+    }
+    const normalizedTargetX = Math.trunc(Number(targetX));
+    const normalizedTargetY = Math.trunc(Number(targetY));
+    if (
+      normalizedTargetX === pendingTarget.x &&
+      normalizedTargetY === pendingTarget.y
+    ) {
+      return;
+    }
+    this.clearPendingPostActionPlayerTileRefreshByReason(
+      "pickup-current-player-tile",
+      `${sourceLabel} (new target ${normalizedTargetX},${normalizedTargetY} differs from ${pendingTarget.x},${pendingTarget.y})`,
+    );
+  }
+
+  buildUnderPlayerItemSnapshotFromRuntimeMapTile(tileData) {
+    if (!tileData || typeof tileData !== "object") {
+      return null;
+    }
+    const glyph =
+      typeof tileData.glyph === "number" && Number.isFinite(tileData.glyph)
+        ? Math.trunc(tileData.glyph)
+        : null;
+    if (glyph === null || !this.isLootLikeGlyph(glyph)) {
+      return null;
+    }
+    return {
+      glyph,
+      char:
+        typeof tileData.char === "string" && tileData.char.length > 0
+          ? tileData.char
+          : null,
+      color:
+        typeof tileData.color === "number" && Number.isFinite(tileData.color)
+          ? Math.trunc(tileData.color)
+          : null,
+      tileIndex:
+        typeof tileData.tileIndex === "number" && Number.isFinite(tileData.tileIndex)
+          ? Math.trunc(tileData.tileIndex)
+          : null,
+      symidx:
+        typeof tileData.symidx === "number" && Number.isFinite(tileData.symidx)
+          ? Math.trunc(tileData.symidx)
+          : null,
+    };
+  }
+
+  emitUnderPlayerItemGlyphFromPendingSnapshot(trigger = "unknown") {
+    if (!this.eventHandler) {
+      return false;
+    }
+    const target =
+      this.pendingPostActionPlayerTileRefreshTarget &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.x) &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.y)
+        ? {
+            x: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.x)),
+            y: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.y)),
+          }
+        : null;
+    const snapshot =
+      this.pendingPostActionPlayerTileRefreshSnapshot &&
+      typeof this.pendingPostActionPlayerTileRefreshSnapshot === "object"
+        ? this.pendingPostActionPlayerTileRefreshSnapshot
+        : null;
+    if (!target || !snapshot || !Number.isFinite(snapshot.glyph)) {
+      return false;
+    }
+    console.log(
+      `Applying pending under-player item snapshot at (${target.x}, ${target.y}) [trigger=${trigger}] glyph=${snapshot.glyph}`,
+    );
+    this.emit({
+      type: "under_player_item_glyph",
+      x: target.x,
+      y: target.y,
+      glyph: Math.trunc(Number(snapshot.glyph)),
+      char:
+        typeof snapshot.char === "string" && snapshot.char.length > 0
+          ? snapshot.char
+          : null,
+      color:
+        typeof snapshot.color === "number" && Number.isFinite(snapshot.color)
+          ? Math.trunc(snapshot.color)
+          : null,
+      tileIndex:
+        typeof snapshot.tileIndex === "number" &&
+        Number.isFinite(snapshot.tileIndex)
+          ? Math.trunc(snapshot.tileIndex)
+          : null,
+      symidx:
+        typeof snapshot.symidx === "number" && Number.isFinite(snapshot.symidx)
+          ? Math.trunc(snapshot.symidx)
+          : null,
+    });
+    return true;
+  }
+
+  emitUnderPlayerItemGlyphClearedForPendingTarget(trigger = "unknown") {
+    if (!this.eventHandler) {
+      return false;
+    }
+    const target =
+      this.pendingPostActionPlayerTileRefreshTarget &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.x) &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.y)
+        ? {
+            x: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.x)),
+            y: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.y)),
+          }
+        : null;
+    if (!target) {
+      return false;
+    }
+    console.log(
+      `Clearing pending under-player item target at (${target.x}, ${target.y}) [trigger=${trigger}]`,
+    );
+    this.emit({
+      type: "under_player_item_glyph_cleared",
+      x: target.x,
+      y: target.y,
+    });
+    return true;
+  }
+
+  emitUnderPlayerItemGlyphClearedForTarget(
+    x,
+    y,
+    trigger = "unknown",
+  ) {
+    if (!this.eventHandler || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return false;
+    }
+    const tileX = Math.trunc(Number(x));
+    const tileY = Math.trunc(Number(y));
+    console.log(
+      `Clearing under-player item target at (${tileX}, ${tileY}) [trigger=${trigger}]`,
+    );
+    this.emit({
+      type: "under_player_item_glyph_cleared",
+      x: tileX,
+      y: tileY,
+    });
+    return true;
   }
 
   maybeArmPendingPostActionPlayerTileRefreshForLootMoveTarget(
@@ -3014,14 +3227,20 @@ class LocalNetHackRuntime {
       !Number.isFinite(targetY) ||
       this.awaitingQuestionInput ||
       this.positionInputActive ||
-      this.isFarLookPositionRequest() ||
-      this.activeInputRequest?.kind === "position"
+      this.isFarLookPositionRequest()
     ) {
       return;
     }
     const tileX = Math.trunc(Number(targetX));
     const tileY = Math.trunc(Number(targetY));
+    this.clearPendingCurrentPlayerPickupRefreshIfTargetDiffers(
+      tileX,
+      tileY,
+      sourceLabel,
+    );
     const destinationTileData = this.gameMap.get(`${tileX},${tileY}`);
+    const destinationSnapshot =
+      this.buildUnderPlayerItemSnapshotFromRuntimeMapTile(destinationTileData);
     if (!this.isLootLikeRuntimeMapTile(destinationTileData)) {
       this.clearPendingPostActionPlayerTileRefreshByReason(
         "move-onto-lootlike-tile",
@@ -3033,6 +3252,68 @@ class LocalNetHackRuntime {
       "move-onto-lootlike-tile",
       sourceLabel,
       { x: tileX, y: tileY },
+      destinationSnapshot,
+    );
+  }
+
+  maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot(sourceLabel) {
+    const playerX = Number(this.playerPosition?.x);
+    const playerY = Number(this.playerPosition?.y);
+    if (
+      !Number.isFinite(playerX) ||
+      !Number.isFinite(playerY) ||
+      this.awaitingQuestionInput ||
+      this.positionInputActive ||
+      this.isFarLookPositionRequest()
+    ) {
+      return;
+    }
+
+    const normalizedPlayerX = Math.trunc(playerX);
+    const normalizedPlayerY = Math.trunc(playerY);
+
+    if (!this.canQueryWasmHelpers()) {
+      this.armPendingPostActionPlayerTileRefreshByReason(
+        "pickup-current-player-tile",
+        `${sourceLabel} (optimistic arm while helpers unavailable)`,
+        { x: normalizedPlayerX, y: normalizedPlayerY },
+      );
+      return;
+    }
+
+    const helpers =
+      globalThis.nethackGlobal && globalThis.nethackGlobal.helpers
+        ? globalThis.nethackGlobal.helpers
+        : null;
+    const topItemGlyphUnderPlayer =
+      helpers && typeof helpers.topItemGlyphUnderPlayer === "function"
+        ? helpers.topItemGlyphUnderPlayer
+        : null;
+    if (!topItemGlyphUnderPlayer) {
+      return;
+    }
+
+    try {
+      const topGlyph = Number(topItemGlyphUnderPlayer());
+      if (!Number.isFinite(topGlyph) || !this.isLootLikeGlyph(topGlyph)) {
+        this.clearPendingPostActionPlayerTileRefreshByReason(
+          "pickup-current-player-tile",
+          `${sourceLabel} (no loot-like top item under player)`,
+        );
+        return;
+      }
+    } catch (error) {
+      console.log(
+        "[WARN] maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot failed:",
+        error,
+      );
+      return;
+    }
+
+    this.armPendingPostActionPlayerTileRefreshByReason(
+      "pickup-current-player-tile",
+      sourceLabel,
+      { x: normalizedPlayerX, y: normalizedPlayerY },
     );
   }
 
@@ -3116,10 +3397,22 @@ class LocalNetHackRuntime {
     if (!this.isAutopickupInventoryAssignmentRawPrint(text)) {
       return;
     }
-    const refreshReason = "autopickup-raw-print";
-    this.armPendingPostActionPlayerTileRefreshByReason(
-      refreshReason,
-      `for raw_print "${text}"`,
+    const didClearPendingTarget = this.emitUnderPlayerItemGlyphClearedForPendingTarget(
+      `inventory-assignment:${text}`,
+    );
+    if (!didClearPendingTarget) {
+      const playerX = Number(this.playerPosition?.x);
+      const playerY = Number(this.playerPosition?.y);
+      if (Number.isFinite(playerX) && Number.isFinite(playerY)) {
+        this.emitUnderPlayerItemGlyphClearedForTarget(
+          playerX,
+          playerY,
+          `inventory-assignment:${text}:current-player`,
+        );
+      }
+    }
+    this.clearPendingPostActionPlayerTileRefresh(
+      `inventory-assignment raw_print "${text}"`,
     );
   }
 
@@ -3299,6 +3592,15 @@ class LocalNetHackRuntime {
         `Waiting to refresh pending action (${pendingReason}) until player reaches (${pendingTarget.x}, ${pendingTarget.y}) [trigger=${trigger}, current=(${normalizedTileX}, ${normalizedTileY})]`,
       );
       return false;
+    }
+
+    if (
+      pendingReason === "move-onto-lootlike-tile" &&
+      this.pendingPostActionPlayerTileRefreshSnapshot
+    ) {
+      return this.emitUnderPlayerItemGlyphFromPendingSnapshot(
+        `post-action:${pendingReason}:${trigger}`,
+      );
     }
 
     if (!this.canQueryWasmHelpers()) {
