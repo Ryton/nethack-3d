@@ -5819,9 +5819,14 @@ canvas {
 }
 
 .nh3d-context-menu-title {
+  display: block;
   color: var(--nh3d-ui-accent-soft);
   font-size: nh3d-scale-font(14px);
   font-weight: bold;
+  width: 0;
+  min-width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   margin-bottom: 8px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--nh3d-ui-border);
@@ -6064,7 +6069,8 @@ canvas {
   top: 50%;
   z-index: 1701;
   min-width: 0;
-  width: min(var(--nh3d-fps-context-width), calc(100vw - 16px));
+  width: fit-content;
+  min-width: min(var(--nh3d-fps-context-width), calc(100vw - 16px));
   max-width: calc(100vw - 16px);
 
   .nh3d-context-menu-actions {
@@ -6076,13 +6082,14 @@ canvas {
   .nh3d-context-menu-button {
     min-width: 0;
     text-align: center;
+    white-space: nowrap;
   }
 }
 
 .nh3d-tile-context-menu {
-  min-width: 132px;
-  width: min(170px, calc(100vw - 24px));
-  max-width: min(188px, calc(100vw - 24px));
+  min-width: min(170px, calc(100vw - 24px));
+  width: fit-content;
+  max-width: min(260px, calc(100vw - 24px));
   z-index: 1701;
 
   .nh3d-context-menu-actions {
@@ -6094,6 +6101,7 @@ canvas {
   .nh3d-context-menu-button {
     min-width: 0;
     text-align: center;
+    white-space: nowrap;
   }
 }
 
