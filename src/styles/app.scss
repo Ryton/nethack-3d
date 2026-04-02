@@ -5850,8 +5850,10 @@ canvas {
   width: max-content;
   gap: 28px;
   white-space: nowrap;
-  animation: nh3d-context-title-scroll
+  animation: nh3d-context-title-scroll-loop
     var(--nh3d-context-title-scroll-duration, 2s) linear infinite;
+  animation-delay: var(--nh3d-context-title-scroll-delay, 0s);
+  animation-fill-mode: backwards;
   will-change: transform;
 }
 
@@ -5860,7 +5862,7 @@ canvas {
   flex: 0 0 auto;
 }
 
-@keyframes nh3d-context-title-scroll {
+@keyframes nh3d-context-title-scroll-loop {
   from {
     transform: translateX(0);
   }

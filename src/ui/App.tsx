@@ -4647,8 +4647,12 @@ const tileContextMenuAnchorOffsetY = 30;
 const contextMenuTitleScrollGapPx = 28;
 const contextMenuTitleScrollOverflowThresholdPx = 1;
 const contextMenuTitleScrollPixelsPerSecond = 115;
+const contextMenuTitleScrollInitialDelaySec = 0.75;
 
-function useContextMenuTitleScroll(title: string, isActive: boolean) {
+function useContextMenuTitleScroll(
+  title: string,
+  isActive: boolean,
+) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const primaryTextRef = useRef<HTMLSpanElement | null>(null);
   const [scrollState, setScrollState] = useState<{
@@ -4741,6 +4745,7 @@ function useContextMenuTitleScroll(title: string, isActive: boolean) {
       ? ({
           "--nh3d-context-title-scroll-distance": `-${scrollState.distancePx}px`,
           "--nh3d-context-title-scroll-duration": `${scrollState.distancePx / contextMenuTitleScrollPixelsPerSecond}s`,
+          "--nh3d-context-title-scroll-delay": `${contextMenuTitleScrollInitialDelaySec}s`,
         } as CSSProperties)
       : undefined,
   };
@@ -6814,8 +6819,12 @@ export default function App(): JSX.Element {
       : inventoryFixedTileSizeMode === "large"
         ? 50
         : 35;
+  const [fpsContextTitleAnimationInstance, setFpsContextTitleAnimationInstance] =
+    useState(0);
   const [inventoryContextMenu, setInventoryContextMenu] =
     useState<InventoryContextMenuState | null>(null);
+  const [inventoryContextTitleAnimationInstance, setInventoryContextTitleAnimationInstance] =
+    useState(0);
   const [inventoryDropTypeMenuPosition, setInventoryDropTypeMenuPosition] =
     useState<{ x: number; y: number } | null>(null);
   const [inventoryDropCountDialog, setInventoryDropCountDialog] =
@@ -6828,6 +6837,12 @@ export default function App(): JSX.Element {
     }
   }, [fpsCrosshairContext]);
   useEffect(() => {
+    if (!fpsCrosshairContext) {
+      return;
+    }
+    setFpsContextTitleAnimationInstance((previous) => previous + 1);
+  }, [fpsCrosshairContext]);
+  useEffect(() => {
     if (tileContextMenuPosition) {
       tileContextMenuPositionLastVisibleRef.current = tileContextMenuPosition;
     }
@@ -6838,6 +6853,12 @@ export default function App(): JSX.Element {
       inventoryContextMenuLastVisibleRef.current = inventoryContextMenu;
     }
   }, [inventoryContextMenu]);
+  useEffect(() => {
+    if (!inventoryContextMenu) {
+      return;
+    }
+    setInventoryContextTitleAnimationInstance((previous) => previous + 1);
+  }, [inventoryContextMenu]);
   const fpsCrosshairContextRenderState =
     fpsCrosshairContext ?? fpsCrosshairContextLastVisibleRef.current;
   const tileContextMenuRenderPosition =
@@ -6845,6 +6866,8 @@ export default function App(): JSX.Element {
   const inventoryContextMenuRenderState =
     inventoryContextMenu ?? inventoryContextMenuLastVisibleRef.current;
   const fpsContextTitle = String(fpsCrosshairContextRenderState?.title || "");
+  const fpsContextTitleAnimationKey =
+    `fps-context-title-${fpsContextTitleAnimationInstance}`;
   const fpsContextTitleScroll = useContextMenuTitleScroll(
     fpsContextTitle,
     Boolean(fpsCrosshairContextRenderState),
@@ -6852,6 +6875,8 @@ export default function App(): JSX.Element {
   const inventoryContextTitle = inventoryContextMenuRenderState
     ? `${inventoryContextMenuRenderState.itemText} (${inventoryContextMenuRenderState.accelerator})`
     : "";
+  const inventoryContextTitleAnimationKey =
+    `inventory-context-title-${inventoryContextTitleAnimationInstance}`;
   const inventoryContextTitleScroll = useContextMenuTitleScroll(
     inventoryContextTitle,
     Boolean(inventoryContextMenuRenderState),
@@ -18120,7 +18145,10 @@ export default function App(): JSX.Element {
               style={inventoryContextTitleScroll.style}
             >
               {inventoryContextTitleScroll.shouldScroll ? (
-                <span className="nh3d-context-menu-title-scroll-track">
+                <span
+                  className="nh3d-context-menu-title-scroll-track"
+                  key={inventoryContextTitleAnimationKey}
+                >
                   <span ref={inventoryContextTitleScroll.primaryTextRef}>
                     {inventoryContextTitle}
                   </span>
@@ -18472,7 +18500,10 @@ export default function App(): JSX.Element {
               style={fpsContextTitleScroll.style}
             >
               {fpsContextTitleScroll.shouldScroll ? (
-                <span className="nh3d-context-menu-title-scroll-track">
+                <span
+                  className="nh3d-context-menu-title-scroll-track"
+                  key={fpsContextTitleAnimationKey}
+                >
                   <span ref={fpsContextTitleScroll.primaryTextRef}>
                     {fpsContextTitle}
                   </span>
