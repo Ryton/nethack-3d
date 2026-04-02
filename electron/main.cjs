@@ -1130,6 +1130,15 @@ function hasLaunchArgument(...switchNames) {
 }
 
 function resolveWindowMode() {
+  if (
+    hasLaunchArgument(
+      "fullscreen",
+      "full-screen",
+      "native-fullscreen",
+    )
+  ) {
+    return "fullscreen";
+  }
   if (process.platform === "win32") {
     if (hasLaunchArgument("windowed", "window")) {
       return "windowed";
@@ -1147,6 +1156,12 @@ function resolveWindowMode() {
     )
   ) {
     return "borderless";
+  }
+  if (process.platform === "darwin") {
+    // Native fullscreen enters a separate macOS Space and transitions
+    // asynchronously. Starting there immediately has proven fragile, so we
+    // launch windowed by default and only enter fullscreen if explicitly asked.
+    return "windowed";
   }
   return "fullscreen";
 }
@@ -1166,6 +1181,14 @@ function showMainWindowIfReady(mainWindow, state) {
   }
   state.shown = true;
   mainWindow.show();
+  if (state.enterNativeFullScreenAfterShow) {
+    state.enterNativeFullScreenAfterShow = false;
+    setImmediate(() => {
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.setFullScreen(true);
+      }
+    });
+  }
 }
 
 ipcMain.handle(quitIpcChannel, () => {
@@ -1277,6 +1300,8 @@ function createMainWindow() {
   const primaryBounds = primaryDisplay.bounds;
   const workAreaBounds = primaryDisplay.workArea;
   const windowMode = resolveWindowMode();
+  const enterNativeFullScreenAfterShow =
+    process.platform === "darwin" && windowMode === "fullscreen";
   const baseWindowOptions = {
     minWidth: 1024,
     minHeight: 700,
@@ -1297,6 +1322,16 @@ function createMainWindow() {
       ...baseWindowOptions,
       width: Math.max(1024, Math.min(workAreaBounds.width, 1280)),
       height: Math.max(700, Math.min(workAreaBounds.height, 800)),
+      center: true,
+      frame: true,
+      fullscreen: false,
+      fullscreenable: true,
+    };
+  } else if (enterNativeFullScreenAfterShow) {
+    mainWindowOptions = {
+      ...baseWindowOptions,
+      width: Math.max(1024, Math.min(workAreaBounds.width, 1440)),
+      height: Math.max(700, Math.min(workAreaBounds.height, 900)),
       center: true,
       frame: true,
       fullscreen: false,
@@ -1331,6 +1366,7 @@ function createMainWindow() {
     readyToShow: false,
     appRendered: false,
     didFinishLoad: false,
+    enterNativeFullScreenAfterShow,
     shown: false,
   };
   mainWindowStateById.set(mainWindow.id, state);
@@ -1345,12 +1381,67 @@ function createMainWindow() {
     showMainWindowIfReady(mainWindow, state);
   });
 
-  mainWindow.webContents.on("did-fail-load", () => {
-    state.shown = true;
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.show();
-    }
+  mainWindow.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame) {
+        console.error(
+          `Main window failed to load (errorCode=${errorCode}, errorDescription=${errorDescription}, url=${validatedURL})`,
+        );
+      }
+      state.shown = true;
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.show();
+      }
+    },
+  );
+
+  mainWindow.webContents.on("preload-error", (_event, preloadPath, error) => {
+    console.error(
+      `Preload script failed (${preloadPath}):`,
+      error,
+    );
   });
+
+  mainWindow.webContents.on(
+    "console-message",
+    (_event, detailsOrLevel, message, line, sourceId) => {
+      if (
+        detailsOrLevel &&
+        typeof detailsOrLevel === "object" &&
+        !Array.isArray(detailsOrLevel)
+      ) {
+        const level = String(detailsOrLevel.level || "info").toLowerCase();
+        if (level === "warning" || level === "error") {
+          console.error(
+            `Renderer console ${level}: ${detailsOrLevel.message} (${detailsOrLevel.sourceId || "unknown"}:${detailsOrLevel.lineNumber || 0})`,
+          );
+        }
+        return;
+      }
+      const numericLevel =
+        typeof detailsOrLevel === "number" ? detailsOrLevel : 0;
+      if (numericLevel >= 2) {
+        console.error(
+          `Renderer console message: ${message} (${sourceId || "unknown"}:${line || 0})`,
+        );
+      }
+    },
+  );
+
+  mainWindow.on("unresponsive", () => {
+    console.error("Main window became unresponsive.");
+  });
+
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(
+      `Main window renderer exited (reason=${details.reason}, exitCode=${details.exitCode ?? "n/a"})`,
+    );
+  });
+
+  if (hasLaunchArgument("devtools", "open-devtools")) {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
 
   mainWindow.on("closed", () => {
     mainWindowStateById.delete(mainWindow.id);
@@ -1370,13 +1461,20 @@ function createMainWindow() {
   });
 
   if (!app.isPackaged && devServerUrl) {
-    mainWindow.loadURL(devServerUrl);
+    mainWindow.loadURL(devServerUrl).catch((error) => {
+      console.error("Main window failed to load development URL:", error);
+    });
     mainWindow.webContents.openDevTools({ mode: "detach" });
     return;
   }
 
   const indexHtmlPath = resolveLaunchIndexHtmlPath();
-  mainWindow.loadFile(indexHtmlPath);
+  mainWindow.loadFile(indexHtmlPath).catch((error) => {
+    console.error(
+      `Main window failed to load index HTML (${indexHtmlPath}):`,
+      error,
+    );
+  });
 }
 
 app.whenReady().then(() => {

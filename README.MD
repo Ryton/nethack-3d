@@ -12,6 +12,8 @@ Play in browser: https://jamesiv4.github.io/nethack-3d/
 
 The macOS desktop build is packaged as an unsigned DMG from GitHub Actions.
 On first launch, macOS may ask you to right-click the app and choose `Open`.
+The macOS client now launches windowed by default for safer startup behavior.
+Use `--fullscreen` to enter native macOS fullscreen after the first paint, or `--windowed` to force a normal framed window.
 
 ## iOS App
 
