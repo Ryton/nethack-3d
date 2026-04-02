@@ -142,4 +142,4 @@ The workflow builds with Vite and deploys the `dist/` folder.
 
 - `.github/workflows/build-macos-electron.yml` builds the macOS Electron app on `macos-latest`.
 - Manual runs upload the generated DMG as a workflow artifact and will also publish it when a matching release tag already exists.
-- Tag pushes like `v1.2.2` also upload the macOS DMG to the matching GitHub Release.
+- Tag pushes like `1.2.2` also upload the macOS DMG to the matching GitHub Release.
