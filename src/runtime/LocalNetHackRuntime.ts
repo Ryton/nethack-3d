@@ -1260,11 +1260,16 @@ class LocalNetHackRuntime {
       "Fainted",
       "Starved",
     ];
+    let hungerStateFound = false;
     for (const hungerState of hungerStates) {
       if (new RegExp(`\\b${hungerState}\\b`, "i").test(normalizedLine)) {
         this.pushLegacyStatusUpdate(updates, "BL_HUNGER", hungerState);
+        hungerStateFound = true;
         break;
       }
+    }
+    if (!hungerStateFound) {
+      this.pushLegacyStatusUpdate(updates, "BL_HUNGER", "");
     }
 
     const encumbranceStates = [
@@ -1274,11 +1279,16 @@ class LocalNetHackRuntime {
       "Overtaxed",
       "Overloaded",
     ];
+    let encumbranceStateFound = false;
     for (const encumbranceState of encumbranceStates) {
       if (new RegExp(`\\b${encumbranceState}\\b`, "i").test(normalizedLine)) {
         this.pushLegacyStatusUpdate(updates, "BL_CAP", encumbranceState);
+        encumbranceStateFound = true;
         break;
       }
+    }
+    if (!encumbranceStateFound) {
+      this.pushLegacyStatusUpdate(updates, "BL_CAP", "");
     }
 
     const slashEmConditionDefinitions = [
