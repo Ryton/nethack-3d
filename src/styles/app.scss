@@ -2795,6 +2795,24 @@ canvas {
   border-radius: 999px;
   border: 1px solid rgba(118, 176, 214, 0.4);
   background: rgba(19, 53, 75, 0.52);
+
+  &.is-good {
+    color: #7ff19d;
+    border-color: rgba(127, 241, 157, 0.45);
+    background: rgba(47, 125, 69, 0.2);
+  }
+
+  &.is-warning {
+    color: #ffd66a;
+    border-color: rgba(255, 214, 106, 0.45);
+    background: rgba(140, 104, 20, 0.22);
+  }
+
+  &.is-danger {
+    color: #ff8f8f;
+    border-color: rgba(255, 143, 143, 0.5);
+    background: rgba(150, 36, 36, 0.22);
+  }
 }
 
 .nh3d-character-stat-grid {
