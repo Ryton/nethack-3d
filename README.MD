@@ -10,7 +10,7 @@ Play in browser: https://jamesiv4.github.io/nethack-3d/
 
 [Download the latest release](https://github.com/JamesIV4/nethack-3d/releases/latest)
 
-The macOS desktop build is packaged as an unsigned DMG/ZIP from GitHub Actions.
+The macOS desktop build is packaged as an unsigned DMG from GitHub Actions.
 On first launch, macOS may ask you to right-click the app and choose `Open`.
 
 ## iOS App
@@ -87,7 +87,7 @@ NetHack 3D lets you play classic NetHack in a fully interactive 3D dungeon, in y
 - `npm run preview` - Preview production build locally.
 - `npm run electron:dev` - Run Electron against the Vite dev server.
 - `npm run electron:pack:mac` - Build an unpacked macOS app bundle to `release/` for local testing.
-- `npm run electron:dist:mac` - Build macOS DMG + ZIP artifacts to `release/` (pass `-- --universal` to produce a universal macOS build).
+- `npm run electron:dist:mac` - Build a macOS DMG to `release/` (pass `-- --universal` to produce a universal macOS build).
 - `npm run electron:dist:win` - Build and package a Windows NSIS `.exe` installer (x64) to `release/`.
 - `npm run electron:dist:win:portable` - Build and package a portable Windows `.exe` (x64) to `release/`.
 - `npm run electron:dist:linux:appimage` - Build and package a Linux AppImage (x64) to `release/` (uses WSL automatically on Windows, stages Linux runtime deps, and includes Linux icon assets).
@@ -141,5 +141,5 @@ The workflow builds with Vite and deploys the `dist/` folder.
 ## GitHub Actions Desktop Builds
 
 - `.github/workflows/build-macos-electron.yml` builds the macOS Electron app on `macos-latest`.
-- Manual runs upload the generated DMG + ZIP as workflow artifacts.
-- Tag pushes like `v1.2.2` also upload the macOS build outputs to the matching GitHub Release.
+- Manual runs upload the generated DMG as a workflow artifact and will also publish it when a matching release tag already exists.
+- Tag pushes like `v1.2.2` also upload the macOS DMG to the matching GitHub Release.

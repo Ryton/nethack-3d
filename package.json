@@ -54,6 +54,8 @@
       "dist/**/*",
       "electron/**/*",
       "package.json",
+      "!dist/**/*.map",
+      "!dist/NetHack3D.icns",
       "!node_modules/@capacitor/core",
       "!node_modules/@capacitor/core/**",
       "!node_modules/@capacitor/android",
@@ -93,9 +95,11 @@
       "icon": "public/NetHack3D.icns",
       "category": "public.app-category.games",
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ]
+    },
+    "dmg": {
+      "artifactName": "NetHack 3D ${version} macOS.${ext}"
     },
     "win": {
       "icon": "public/NetHack3D.ico",

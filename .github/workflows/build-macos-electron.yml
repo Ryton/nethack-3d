@@ -2,6 +2,11 @@ name: Build macOS Electron
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional release tag to upload the DMG to. Defaults to v<package version>."
+        required: false
+        type: string
   push:
     tags:
       - "v*"
@@ -50,26 +55,58 @@ jobs:
           VITE_NH3D_BUILD_COMMIT_SHA: ${{ github.sha }}
         run: npm run electron:dist:mac -- --universal
 
+      - name: Resolve release target
+        id: release_target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          package_version="$(node -p "require('./package.json').version")"
+          package_tag="v${package_version}"
+          requested_tag="$(printf '%s' "${WORKFLOW_RELEASE_TAG:-}" | xargs)"
+          release_tag="${requested_tag:-$package_tag}"
+          should_publish=false
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            should_publish=true
+          elif gh release view "${release_tag}" >/dev/null 2>&1; then
+            should_publish=true
+          elif gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${release_tag}" >/dev/null 2>&1; then
+            should_publish=true
+          fi
+
+          {
+            echo "package_version=${package_version}"
+            echo "release_tag=${release_tag}"
+            echo "should_publish=${should_publish}"
+          } >> "${GITHUB_OUTPUT}"
+
+          if [[ "${should_publish}" == "true" ]]; then
+            echo "Will publish DMG to release tag ${release_tag}"
+          else
+            echo "No matching release tag found for ${release_tag}; DMG will only be uploaded as a workflow artifact."
+          fi
+
       - name: Upload macOS workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nethack-3d-macos-universal
+          name: nethack-3d-macos-dmg
           if-no-files-found: error
-          path: |
-            release/*.dmg
-            release/*.zip
-            release/*.yml
-            release/*.blockmap
+          path: release/*.dmg
 
       - name: Publish macOS release assets
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.release_target.outputs.should_publish == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
+          tag="${{ steps.release_target.outputs.release_tag }}"
           if ! gh release view "${tag}" >/dev/null 2>&1; then
             gh release create "${tag}" --generate-notes
           fi
-          gh release upload "${tag}" release/*.dmg release/*.zip release/*.yml release/*.blockmap --clobber
+          gh release upload "${tag}" release/*.dmg --clobber
