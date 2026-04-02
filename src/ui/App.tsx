@@ -2423,7 +2423,10 @@ type StartupFlowStep = "variant" | "choose" | "create" | "random" | "resume";
 const startupDefaultCharacterName = "Web_user";
 
 function createDefaultStartupCharacterPreferences(): StartupCharacterPreferences {
-  const defaultCreateSelection = normalizeStartupCreateCharacterSelection({});
+  const defaultCreateSelection = normalizeStartupCreateCharacterSelection(
+    {},
+    "3.6.7",
+  );
   return {
     randomName: startupDefaultCharacterName,
     createName: startupDefaultCharacterName,
@@ -5746,8 +5749,8 @@ export default function App(): JSX.Element {
         race: createRace,
         gender: createGender,
         align: createAlign,
-      }),
-    [createRole, createRace, createGender, createAlign],
+      }, runtimeVersion),
+    [createRole, createRace, createGender, createAlign, runtimeVersion],
   );
   const normalizedCreateCharacterSelection =
     startupCreateCharacterOptionSet.selection;
@@ -7867,7 +7870,7 @@ export default function App(): JSX.Element {
             race: persistedPreferences.createRace,
             gender: persistedPreferences.createGender,
             align: persistedPreferences.createAlign,
-          });
+          }, runtimeVersion);
         setCreateRole(normalizedPersistedCreateSelection.role);
         setCreateRace(normalizedPersistedCreateSelection.race);
         setCreateGender(normalizedPersistedCreateSelection.gender);
@@ -14607,8 +14610,11 @@ export default function App(): JSX.Element {
           <button
             className="nh3d-menu-action-button nh3d-menu-action-confirm"
             onClick={() => {
-              const randomRole = pickRandomStartupRole();
-              const randomGender = pickRandomStartupGenderForRole(randomRole);
+              const randomRole = pickRandomStartupRole(runtimeVersion);
+              const randomGender = pickRandomStartupGenderForRole(
+                randomRole,
+                runtimeVersion,
+              );
               handleStartNewGame({
                 mode: "random",
                 playMode: clientOptions.fpsMode ? "fps" : "normal",

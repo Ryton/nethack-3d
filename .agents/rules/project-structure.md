@@ -20,7 +20,8 @@ This is a living steering doc. Update it whenever architecture, file ownership, 
 - `src/game/controller-bindings.ts`: controller action schema, defaults, parsing, and normalization.
 - `src/game/tilesets.ts`: builtin, user, and Vulture tileset catalog and asset resolution.
 - `src/game/user-tileset-storage.ts`: persistence for imported user tilesets.
-- `src/game/helpers/startup-character-constraints.ts`: startup character selection helpers.
+- `src/game/helpers/startup-character-rulesets.ts`: runtime-specific startup role, race, gender, and alignment rulesets sourced from NetHack and Slash'EM reference tables.
+- `src/game/helpers/startup-character-constraints.ts`: runtime-aware startup character selection normalization and option resolution.
 - `src/game/glyphs/index.ts`: public glyph helper barrel.
 - `src/game/glyphs/registry.ts`: glyph catalog lookup and runtime-version selection.
 - `src/game/glyphs/behavior.ts`: tile classification and default terrain glyph helpers.

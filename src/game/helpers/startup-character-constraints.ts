@@ -1,35 +1,13 @@
-export const startupRoleOptions = [
-  "Archeologist",
-  "Barbarian",
-  "Caveman",
-  "Healer",
-  "Knight",
-  "Monk",
-  "Priest",
-  "Ranger",
-  "Rogue",
-  "Samurai",
-  "Tourist",
-  "Valkyrie",
-  "Wizard",
-] as const;
-
-export const startupRaceOptions = [
-  "human",
-  "elf",
-  "dwarf",
-  "gnome",
-  "orc",
-] as const;
-
-export const startupGenderOptions = ["male", "female"] as const;
-
-export const startupAlignOptions = ["lawful", "neutral", "chaotic"] as const;
-
-export type StartupRole = (typeof startupRoleOptions)[number];
-export type StartupRace = (typeof startupRaceOptions)[number];
-export type StartupGender = (typeof startupGenderOptions)[number];
-export type StartupAlign = (typeof startupAlignOptions)[number];
+import type { NethackRuntimeVersion } from "../../runtime/types";
+import {
+  getStartupCharacterRuleset,
+  startupAlignOptions,
+  startupGenderOptions,
+  type StartupAlign,
+  type StartupGender,
+  type StartupRace,
+  type StartupRole,
+} from "./startup-character-rulesets";
 
 export type StartupCreateCharacterSelection = {
   role: StartupRole;
@@ -44,98 +22,6 @@ export type StartupCreateCharacterOptionSet = {
   genderOptions: StartupGender[];
   alignOptions: StartupAlign[];
   selection: StartupCreateCharacterSelection;
-};
-
-type StartupRoleConstraint = {
-  races: readonly StartupRace[];
-  genders: readonly StartupGender[];
-  aligns: readonly StartupAlign[];
-};
-
-// Mirrors role and race allow-masks from NetHack role tables:
-// third_party/nethack-3.6.7/src/role.c (`roles[]` and `races[]`).
-const startupRoleConstraints: Record<StartupRole, StartupRoleConstraint> = {
-  Archeologist: {
-    races: ["human", "dwarf", "gnome"],
-    genders: ["male", "female"],
-    aligns: ["lawful", "neutral"],
-  },
-  Barbarian: {
-    races: ["human", "orc"],
-    genders: ["male", "female"],
-    aligns: ["neutral", "chaotic"],
-  },
-  Caveman: {
-    races: ["human", "dwarf", "gnome"],
-    genders: ["male", "female"],
-    aligns: ["lawful", "neutral"],
-  },
-  Healer: {
-    races: ["human", "gnome"],
-    genders: ["male", "female"],
-    aligns: ["neutral"],
-  },
-  Knight: {
-    races: ["human"],
-    genders: ["male", "female"],
-    aligns: ["lawful"],
-  },
-  Monk: {
-    races: ["human"],
-    genders: ["male", "female"],
-    aligns: ["lawful", "neutral", "chaotic"],
-  },
-  Priest: {
-    races: ["human", "elf"],
-    genders: ["male", "female"],
-    aligns: ["lawful", "neutral", "chaotic"],
-  },
-  Ranger: {
-    races: ["human", "orc"],
-    genders: ["male", "female"],
-    aligns: ["chaotic"],
-  },
-  Rogue: {
-    races: ["human", "elf", "gnome", "orc"],
-    genders: ["male", "female"],
-    aligns: ["neutral", "chaotic"],
-  },
-  Samurai: {
-    races: ["human"],
-    genders: ["male", "female"],
-    aligns: ["lawful"],
-  },
-  Tourist: {
-    races: ["human"],
-    genders: ["male", "female"],
-    aligns: ["neutral"],
-  },
-  Valkyrie: {
-    races: ["human", "dwarf"],
-    genders: ["female"],
-    aligns: ["lawful", "neutral"],
-  },
-  Wizard: {
-    races: ["human", "elf", "gnome", "orc"],
-    genders: ["male", "female"],
-    aligns: ["neutral", "chaotic"],
-  },
-};
-
-const startupRaceGenderConstraints: Record<StartupRace, readonly StartupGender[]> = {
-  human: ["male", "female"],
-  elf: ["male", "female"],
-  dwarf: ["male", "female"],
-  gnome: ["male", "female"],
-  orc: ["male", "female"],
-};
-
-const startupRaceAlignConstraints: Record<StartupRace, readonly StartupAlign[]> = {
-  human: ["lawful", "neutral", "chaotic"],
-  elf: ["chaotic"],
-  dwarf: ["lawful"],
-  gnome: ["neutral"],
-  orc: ["chaotic"],
 };
 
 function normalizeOption<T extends string>(
@@ -180,42 +66,46 @@ function pickRandomItem<T extends string>(
   return options[randomIndex] ?? fallback;
 }
 
-export function resolveStartupCreateCharacterOptionSet(rawSelection: {
-  role?: unknown;
-  race?: unknown;
-  gender?: unknown;
-  align?: unknown;
-}): StartupCreateCharacterOptionSet {
-  const defaultRole = startupRoleOptions[0] ?? "Archeologist";
-  const role = normalizeOption(rawSelection.role, startupRoleOptions, defaultRole);
-  const roleConstraint = startupRoleConstraints[role];
+export function resolveStartupCreateCharacterOptionSet(
+  rawSelection: {
+    role?: unknown;
+    race?: unknown;
+    gender?: unknown;
+    align?: unknown;
+  },
+  runtimeVersion: NethackRuntimeVersion = "3.6.7",
+): StartupCreateCharacterOptionSet {
+  const ruleset = getStartupCharacterRuleset(runtimeVersion);
+  const defaultRole = ruleset.roles[0] ?? "Archeologist";
+  const role = normalizeOption(rawSelection.role, ruleset.roles, defaultRole);
+  const roleConstraint =
+    ruleset.roleConstraints[role] ?? ruleset.roleConstraints[defaultRole];
 
-  const raceOptions = [...roleConstraint.races];
-  const defaultRace = raceOptions[0] ?? startupRaceOptions[0] ?? "human";
+  const raceOptions = roleConstraint?.races ? [...roleConstraint.races] : [];
+  const defaultRace = raceOptions[0] ?? ruleset.races[0] ?? "human";
   const race = normalizeOption(rawSelection.race, raceOptions, defaultRace);
 
-  const raceGenders =
-    startupRaceGenderConstraints[race] ?? startupGenderOptions;
+  const raceConstraint = ruleset.raceConstraints[race];
+  const raceGenders = raceConstraint?.genders ?? startupGenderOptions;
   const genderOptions = intersectAllowedValues(
     startupGenderOptions,
-    roleConstraint.genders,
+    roleConstraint?.genders ?? startupGenderOptions,
     raceGenders,
   );
   const defaultGender = genderOptions[0] ?? startupGenderOptions[0] ?? "male";
   const gender = normalizeOption(rawSelection.gender, genderOptions, defaultGender);
 
-  const raceAligns =
-    startupRaceAlignConstraints[race] ?? startupAlignOptions;
+  const raceAligns = raceConstraint?.aligns ?? startupAlignOptions;
   const alignOptions = intersectAllowedValues(
     startupAlignOptions,
-    roleConstraint.aligns,
+    roleConstraint?.aligns ?? startupAlignOptions,
     raceAligns,
   );
   const defaultAlign = alignOptions[0] ?? startupAlignOptions[0] ?? "lawful";
   const align = normalizeOption(rawSelection.align, alignOptions, defaultAlign);
 
   return {
-    roleOptions: startupRoleOptions,
+    roleOptions: ruleset.roles,
     raceOptions,
     genderOptions,
     alignOptions,
@@ -228,21 +118,33 @@ export function resolveStartupCreateCharacterOptionSet(rawSelection: {
   };
 }
 
-export function normalizeStartupCreateCharacterSelection(rawSelection: {
-  role?: unknown;
-  race?: unknown;
-  gender?: unknown;
-  align?: unknown;
-}): StartupCreateCharacterSelection {
-  return resolveStartupCreateCharacterOptionSet(rawSelection).selection;
+export function normalizeStartupCreateCharacterSelection(
+  rawSelection: {
+    role?: unknown;
+    race?: unknown;
+    gender?: unknown;
+    align?: unknown;
+  },
+  runtimeVersion: NethackRuntimeVersion = "3.6.7",
+): StartupCreateCharacterSelection {
+  return resolveStartupCreateCharacterOptionSet(rawSelection, runtimeVersion).selection;
 }
 
-export function pickRandomStartupRole(): StartupRole {
-  return pickRandomItem(startupRoleOptions, startupRoleOptions[0] ?? "Archeologist");
+export function pickRandomStartupRole(
+  runtimeVersion: NethackRuntimeVersion = "3.6.7",
+): StartupRole {
+  const ruleset = getStartupCharacterRuleset(runtimeVersion);
+  return pickRandomItem(ruleset.roles, ruleset.roles[0] ?? "Archeologist");
 }
 
-export function pickRandomStartupGenderForRole(role: unknown): StartupGender {
-  const optionSet = resolveStartupCreateCharacterOptionSet({ role });
+export function pickRandomStartupGenderForRole(
+  role: unknown,
+  runtimeVersion: NethackRuntimeVersion = "3.6.7",
+): StartupGender {
+  const optionSet = resolveStartupCreateCharacterOptionSet(
+    { role },
+    runtimeVersion,
+  );
   return pickRandomItem(
     optionSet.genderOptions,
     startupGenderOptions[0] ?? "male",
