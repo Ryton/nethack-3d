@@ -1321,16 +1321,15 @@ canvas {
 }
 
 .nh3d-startup-background-rain::after {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(3, 8, 14, 0.92) 0%,
-      rgba(3, 8, 14, 0.3) 16%,
-      rgba(3, 8, 14, 0.12) 40%,
-      rgba(3, 8, 14, 0.12) 64%,
-      rgba(3, 8, 14, 0.34) 84%,
-      rgba(3, 8, 14, 0.88) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(3, 8, 14, 0.92) 0%,
+    rgba(3, 8, 14, 0.3) 16%,
+    rgba(3, 8, 14, 0.12) 40%,
+    rgba(3, 8, 14, 0.12) 64%,
+    rgba(3, 8, 14, 0.34) 84%,
+    rgba(3, 8, 14, 0.88) 100%
+  );
   mask-image: radial-gradient(
     ellipse 90% 76% at center,
     rgba(0, 0, 0, 0) 0%,
@@ -1398,14 +1397,18 @@ canvas {
   justify-content: center;
   width: fit-content;
   max-width: min(100%, 560px);
-  min-height: clamp(44px, 5vw, 56px);
+  min-height: 0;
   margin: 0 auto 14px;
-  padding: 10px 20px;
+  padding: 8px 20px;
   box-sizing: border-box;
   border: 1px solid rgba(141, 215, 255, 0.32);
   border-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(28, 46, 70, 0.9) 0%, rgba(12, 21, 34, 0.88) 100%),
+    linear-gradient(
+      180deg,
+      rgba(28, 46, 70, 0.9) 0%,
+      rgba(12, 21, 34, 0.88) 100%
+    ),
     rgba(8, 16, 28, 0.9);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -1972,8 +1975,9 @@ canvas {
 
   @media (pointer: coarse) {
     width: calc(
-      100vw - var(--nh3d-modal-safe-left-inset) -
-        var(--nh3d-modal-safe-right-inset)
+      100vw - var(--nh3d-modal-safe-left-inset) - var(
+          --nh3d-modal-safe-right-inset
+        )
     );
   }
 }
@@ -1988,8 +1992,9 @@ canvas {
 
   @media (pointer: coarse) {
     width: calc(
-      100vw - var(--nh3d-modal-safe-left-inset) -
-        var(--nh3d-modal-safe-right-inset)
+      100vw - var(--nh3d-modal-safe-left-inset) - var(
+          --nh3d-modal-safe-right-inset
+        )
     );
   }
 }
@@ -2585,12 +2590,11 @@ canvas {
 }
 
 .nh3d-character-panel-legacy-summary {
-  background:
-    linear-gradient(
-      180deg,
-      rgba(18, 38, 61, 0.78) 0%,
-      rgba(7, 16, 29, 0.72) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(18, 38, 61, 0.78) 0%,
+    rgba(7, 16, 29, 0.72) 100%
+  );
   border-color: rgba(130, 184, 223, 0.44);
   box-shadow:
     inset 0 1px 0 rgba(216, 236, 255, 0.05),
@@ -2643,12 +2647,11 @@ canvas {
 }
 
 .nh3d-character-field-row.is-current {
-  background:
-    linear-gradient(
-      90deg,
-      rgba(73, 128, 173, 0.42) 0%,
-      rgba(44, 85, 119, 0.28) 100%
-    );
+  background: linear-gradient(
+    90deg,
+    rgba(73, 128, 173, 0.42) 0%,
+    rgba(44, 85, 119, 0.28) 100%
+  );
   border-color: rgba(152, 220, 255, 0.56);
   box-shadow:
     inset 0 0 0 1px rgba(196, 236, 255, 0.1),
@@ -4601,7 +4604,8 @@ canvas {
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1;
-  margin-bottom: -5px;
+  margin: 0;
+  transform: translateY(3px);
   text-align: center;
   text-transform: none;
   text-shadow:
@@ -5936,16 +5940,20 @@ canvas {
   width: min(
     260px,
     calc(
-      100vw - var(--nh3d-modal-safe-left-inset) -
-        var(--nh3d-modal-safe-right-inset) - 8px
+      100vw - var(--nh3d-modal-safe-left-inset) - var(
+          --nh3d-modal-safe-right-inset
+        ) -
+        8px
     )
   );
   min-width: 0;
   max-width: min(
     260px,
     calc(
-      100vw - var(--nh3d-modal-safe-left-inset) -
-        var(--nh3d-modal-safe-right-inset) - 8px
+      100vw - var(--nh3d-modal-safe-left-inset) - var(
+          --nh3d-modal-safe-right-inset
+        ) -
+        8px
     )
   );
   box-sizing: border-box;
