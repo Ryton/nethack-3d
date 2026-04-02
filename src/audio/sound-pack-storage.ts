@@ -25,6 +25,11 @@ export const nh3dSoundEffectDefinitions = [
     messageLogKeywords: [/\bmiss\b/i, /\bmisses\b/i],
   },
   {
+    key: "thrown-weapon",
+    label: soundEffectStrings["thrown-weapon"],
+    messageLogKeywords: [/\bthrow\b/i, /\bthrows\b/i],
+  },
+  {
     key: "door-opens",
     label: soundEffectStrings["door-opens"],
     messageLogKeywords: ["The door opens."],
@@ -95,7 +100,7 @@ export const nh3dSoundEffectDefinitions = [
   {
     key: "eating",
     label: soundEffectStrings.eating,
-    messageLogKeywords: ["you eat", "you finish eating", "tastes"],
+    messageLogKeywords: ["you eat", "you finish eating", "tastes", "delicious"],
   },
   {
     key: "drink",
@@ -500,7 +505,8 @@ export function resolveNh3dMessageLogSoundEffectKeys(
     return [];
   }
 
-  const normalizedLowerMessage = normalizeMessageLogSearchText(normalizedMessage);
+  const normalizedLowerMessage =
+    normalizeMessageLogSearchText(normalizedMessage);
   const matchedKeys: Nh3dSoundEffectKey[] = [];
   for (const definition of nh3dSoundEffectDefinitions) {
     const keywords =

@@ -366,6 +366,7 @@ export const en = {
       "monster-killed": "Monster killed (player)",
       "monster-killed-other": "Monster killed (other)",
       "missed-attack": "Missed attack",
+      "thrown-weapon": "Thrown weapon",
       "door-opens": "Door opens",
       "door-closes": "Door closes",
       "door-kick": "Door kick",

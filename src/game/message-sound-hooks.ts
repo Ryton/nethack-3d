@@ -77,6 +77,10 @@ export class MessageSoundHooks {
     void this.playSoundEffect("drink");
   }
 
+  public playThrownWeaponSound(): void {
+    void this.playSoundEffect("thrown-weapon");
+  }
+
   public playPickupGoldSound(): void {
     void this.playSoundEffect("pickup-gold");
   }

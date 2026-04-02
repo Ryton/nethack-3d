@@ -774,6 +774,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private repeatAutoDirectionPending: boolean = false;
   private repeatAutoDirectionArmedAtMs: number = 0;
   private readonly repeatAutoDirectionWindowMs: number = 1800;
+  private pendingThrownWeaponDirectionSound: boolean = false;
+  private pendingThrownWeaponDirectionSoundArmedAtMs: number = 0;
+  private readonly pendingThrownWeaponDirectionSoundWindowMs: number = 45000;
   private fpsContextAutoDirectionInput: string | null = null;
   private fpsContextAutoDirectionArmedAtMs: number = 0;
   private readonly fpsContextAutoDirectionWindowMs: number = 10000;
@@ -10531,6 +10534,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.clearRepeatDirectionCandidate();
     this.clearFpsContextAutoDirection();
+    this.clearPendingThrownWeaponDirectionSound();
     if (shouldArmRepeat && normalizedActionId === "look" && this.isFpsMode()) {
       this.skipNextMobileFpsClickLookPromptMessage = true;
     }
@@ -10655,6 +10659,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.clearRepeatDirectionCandidate();
     this.clearFpsContextAutoDirection();
+    if (
+      normalizedCommandText === "throw" ||
+      normalizedCommandText === "fire"
+    ) {
+      this.armPendingThrownWeaponDirectionSound();
+    } else {
+      this.clearPendingThrownWeaponDirectionSound();
+    }
     if (normalizedCommandText === "kick") {
       this.armFpsFireSuppression();
     }
@@ -10725,6 +10737,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearRepeatableAction();
     }
     this.clearRepeatDirectionCandidate();
+    if (commandKey === "t" || commandKey === "f") {
+      this.armPendingThrownWeaponDirectionSound();
+    } else {
+      this.clearPendingThrownWeaponDirectionSound();
+    }
     this.sendInput(commandKey);
     if (shouldArmRepeat) {
       this.queueRepeatDirectionCandidate({
@@ -10830,6 +10847,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.lastRepeatDirectionInput = normalized;
+    this.maybePlayThrownWeaponSoundForDirectionAnswer(normalized);
     this.sendInput(normalized);
     if (this.isFpsMode()) {
       this.requestDirectionalAnswerTileRefresh(normalized);
@@ -23466,6 +23484,58 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private clearPendingThrownWeaponDirectionSound(): void {
+    this.pendingThrownWeaponDirectionSound = false;
+    this.pendingThrownWeaponDirectionSoundArmedAtMs = 0;
+  }
+
+  private armPendingThrownWeaponDirectionSound(): void {
+    this.pendingThrownWeaponDirectionSound = true;
+    this.pendingThrownWeaponDirectionSoundArmedAtMs = Date.now();
+  }
+
+  private hasPendingThrownWeaponDirectionSound(): boolean {
+    if (!this.pendingThrownWeaponDirectionSound) {
+      return false;
+    }
+    if (
+      Date.now() - this.pendingThrownWeaponDirectionSoundArmedAtMs >
+      this.pendingThrownWeaponDirectionSoundWindowMs
+    ) {
+      this.clearPendingThrownWeaponDirectionSound();
+      return false;
+    }
+    return true;
+  }
+
+  private isSelfDirectionAnswerInput(input: string): boolean {
+    const normalized = String(input || "").trim();
+    if (!normalized) {
+      return false;
+    }
+    if (
+      normalized === "." ||
+      normalized === "5" ||
+      normalized === "Numpad5"
+    ) {
+      return true;
+    }
+    return normalized.toLowerCase() === "s";
+  }
+
+  private maybePlayThrownWeaponSoundForDirectionAnswer(
+    directionKey: string,
+  ): void {
+    if (!this.hasPendingThrownWeaponDirectionSound()) {
+      return;
+    }
+    this.clearPendingThrownWeaponDirectionSound();
+    if (this.isSelfDirectionAnswerInput(directionKey)) {
+      return;
+    }
+    this.messageSoundHooks.playThrownWeaponSound();
+  }
+
   private setNumberPadModeEnabled(enabled: boolean): void {
     const normalized = Boolean(enabled);
     if (this.numberPadModeEnabled === normalized) {
@@ -24177,6 +24247,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private hideDirectionQuestion(): void {
     this.isInDirectionQuestion = false;
     this.isInQuestion = false;
+    this.clearPendingThrownWeaponDirectionSound();
     this.clearControllerDirectionPromptPreview();
     this.clearDirectionPromptOverlayInteraction();
     this.syncDirectionPromptOverlayVisibility();
@@ -24843,6 +24914,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.submitTextInput("");
       return;
     }
+    this.clearPendingThrownWeaponDirectionSound();
     if (this.isInQuestion || this.isInDirectionQuestion) {
       this.sendInput("Escape");
     }
@@ -24885,6 +24957,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.clearRepeatableAction();
     this.clearRepeatDirectionCandidate();
     this.hideInventoryDialog();
+    if (normalizedActionId === "throw" || normalizedActionId === "fire") {
+      this.armPendingThrownWeaponDirectionSound();
+    } else {
+      this.clearPendingThrownWeaponDirectionSound();
+    }
     this.maybePlayDrinkSoundForInventoryItemAction(
       normalizedActionId,
       accelerator,
@@ -26664,6 +26741,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsAimLinePulseUntilMs = Date.now() + 220;
     // In FPS mode, fire should first ask for direction; the direction prompt
     // confirmation path (left-click/W/etc.) supplies the actual direction input.
+    this.armPendingThrownWeaponDirectionSound();
     this.sendInput("f");
   }
 
@@ -27972,6 +28050,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     // Send input to local runtime for normal gameplay
+    const normalizedGameplayKey = String(event.key || "").trim();
+    if (normalizedGameplayKey === "t" || normalizedGameplayKey === "f") {
+      this.armPendingThrownWeaponDirectionSound();
+    } else {
+      this.clearPendingThrownWeaponDirectionSound();
+    }
     this.sendInput(event.key);
   }
 
