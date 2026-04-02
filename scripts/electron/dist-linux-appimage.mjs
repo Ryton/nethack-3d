@@ -2,7 +2,10 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 
 const isDryRun = process.env.NH3D_APPIMAGE_DRY_RUN === "1";
+const isPrepareOnly = process.env.NH3D_APPIMAGE_PREPARE_ONLY === "1";
+const shouldSkipPrepare = process.env.NH3D_APPIMAGE_SKIP_PREPARE === "1";
 const shouldSkipElectronBuild = process.env.NH3D_SKIP_ELECTRON_BUILD === "1";
+const outputDirOverride = process.env.NH3D_ELECTRON_OUTPUT_DIR?.trim() || null;
 const stageLinuxRuntimeDepsCommand = [
   "mkdir -p build/linux-libs",
   "if [ -f /lib/x86_64-linux-gnu/libcups.so.2 ]; then cp -f /lib/x86_64-linux-gnu/libcups.so.2 build/linux-libs/libcups.so.2; " +
@@ -38,6 +41,14 @@ function bashQuote(value) {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+function getElectronBuilderArgs() {
+  const args = ["electron-builder", "--linux", "AppImage", "--x64"];
+  if (outputDirOverride) {
+    args.push(`-c.directories.output=${outputDirOverride}`);
+  }
+  return args;
+}
+
 function resolveWslShell() {
   const result = spawnSync(
     "wsl",
@@ -55,13 +66,16 @@ function resolveWslShell() {
 
 function runNative() {
   console.log("Using native Linux/macOS AppImage build flow.");
-  if (process.platform === "linux") {
+  if (!shouldSkipPrepare && process.platform === "linux") {
     runOrExit("bash", ["-lc", stageLinuxRuntimeDepsCommand]);
+  }
+  if (isPrepareOnly) {
+    return;
   }
   if (!shouldSkipElectronBuild) {
     runOrExit("npm", ["run", "build:electron"]);
   }
-  runOrExit("npx", ["electron-builder", "--linux", "AppImage", "--x64"]);
+  runOrExit("npx", getElectronBuilderArgs());
 }
 
 function runViaWsl() {
@@ -93,15 +107,16 @@ function runViaWsl() {
   }
 
   const wslShell = resolveWslShell();
+  const wslElectronBuilderCommand = `npx ${getElectronBuilderArgs().map(bashQuote).join(" ")}`;
   const wslInstallOptionalDepsCommand =
-    `cd ${bashQuote(wslCwd)} && npm install --include=optional --no-audit --no-fund`;
+    `cd ${bashQuote(wslCwd)} && npm install --include=optional --no-audit --no-fund --no-save --package-lock=false`;
   const wslStageLinuxRuntimeDepsCommand =
     `cd ${bashQuote(wslCwd)} && ${stageLinuxRuntimeDepsCommand}`;
   const wslRollupOptionalDepCheckCommand =
     `cd ${bashQuote(wslCwd)} && [ -f node_modules/@rollup/rollup-linux-x64-gnu/package.json ]`;
   const wslCommand = shouldSkipElectronBuild
-    ? `cd ${bashQuote(wslCwd)} && npx electron-builder --linux AppImage --x64`
-    : `cd ${bashQuote(wslCwd)} && npm run build:electron && npx electron-builder --linux AppImage --x64`;
+    ? `cd ${bashQuote(wslCwd)} && ${wslElectronBuilderCommand}`
+    : `cd ${bashQuote(wslCwd)} && npm run build:electron && ${wslElectronBuilderCommand}`;
 
   if (!isDryRun) {
     const wslNodeCheck = spawnSync(
@@ -117,22 +132,29 @@ function runViaWsl() {
       process.exit(1);
     }
 
-    const wslRollupOptionalDepCheck = spawnSync(
-      "wsl",
-      [wslShell, "-lic", wslRollupOptionalDepCheckCommand],
-      { shell: false },
-    );
-    if (wslRollupOptionalDepCheck.error || wslRollupOptionalDepCheck.status !== 0) {
-      console.log(
-        "Linux optional dependencies are missing in node_modules for the WSL build. Installing them in WSL...",
-      );
-      runOrExit("wsl", [wslShell, "-lic", wslInstallOptionalDepsCommand]);
-    }
+    if (!shouldSkipPrepare) {
+      if (!shouldSkipElectronBuild) {
+        const wslRollupOptionalDepCheck = spawnSync(
+          "wsl",
+          [wslShell, "-lic", wslRollupOptionalDepCheckCommand],
+          { shell: false },
+        );
+        if (wslRollupOptionalDepCheck.error || wslRollupOptionalDepCheck.status !== 0) {
+          console.log(
+            "Linux optional dependencies are missing in node_modules for the WSL build. Installing them in WSL...",
+          );
+          runOrExit("wsl", [wslShell, "-lic", wslInstallOptionalDepsCommand]);
+        }
+      }
 
-    runOrExit("wsl", [wslShell, "-lic", wslStageLinuxRuntimeDepsCommand]);
+      runOrExit("wsl", [wslShell, "-lic", wslStageLinuxRuntimeDepsCommand]);
+    }
   }
 
   console.log(`Using WSL AppImage build flow from: ${wslCwd} (shell: ${wslShell})`);
+  if (isPrepareOnly) {
+    return;
+  }
   runOrExit("wsl", [wslShell, "-lic", wslCommand]);
 }
 
