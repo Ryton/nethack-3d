@@ -590,6 +590,12 @@ const characterCommandCatalog: readonly CharacterCommandAction[] = [
     detail: characterSheetStrings.commands.enhance.detail,
   },
   {
+    id: "technique",
+    command: "technique",
+    label: characterSheetStrings.commands.technique.label,
+    detail: characterSheetStrings.commands.technique.detail,
+  },
+  {
     id: "conduct",
     command: "conduct",
     label: characterSheetStrings.commands.conduct.label,
@@ -648,6 +654,7 @@ export function resolveCharacterCommandActions(
       "known",
       "pray",
       "spells",
+      "technique",
     ]) {
       available.add(command);
     }

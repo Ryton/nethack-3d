@@ -450,6 +450,10 @@ export const fr = {
         label: "Livre de sorts",
         detail: "Lister l'inventaire des sorts",
       },
+      technique: {
+        label: "Technique",
+        detail: "Utiliser les capacites de role/race",
+      },
       known: {
         label: "Decouvertes",
         detail: "Liste des objets connus",

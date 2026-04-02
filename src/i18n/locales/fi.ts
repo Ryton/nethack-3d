@@ -447,6 +447,10 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         label: "Loitsukirja",
         detail: "Listaa loitsutavarasi",
       },
+      technique: {
+        label: "Technique",
+        detail: "Kayta rooli-/rotukykyja",
+      },
       known: {
         label: "Löydökset",
         detail: "Tunnettujen esineiden luettelo",

@@ -450,6 +450,10 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         label: "Zauberbuch",
         detail: "Zauberinventar auflisten",
       },
+      technique: {
+        label: "Technik",
+        detail: "Rollen-/Rassenfahigkeiten einsetzen",
+      },
       known: {
         label: "Entdeckungen",
         detail: "Liste bekannter Objekte",

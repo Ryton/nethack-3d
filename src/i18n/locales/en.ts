@@ -430,6 +430,10 @@ export const en = {
         label: "Spellbook",
         detail: "List spell inventory",
       },
+      technique: {
+        label: "Technique",
+        detail: "Use role/race abilities",
+      },
       known: {
         label: "Discoveries",
         detail: "Known object list",

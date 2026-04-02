@@ -447,6 +447,10 @@ export const ptBrOverrides = {
         label: "Livro de magias",
         detail: "Listar inventário de magias",
       },
+      technique: {
+        label: "Tecnica",
+        detail: "Usar habilidades de funcao/raca",
+      },
       known: {
         label: "Descobertas",
         detail: "Lista de objetos conhecidos",

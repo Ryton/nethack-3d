@@ -236,6 +236,7 @@ export const zhCnOverrides = {
       overview: { label: "概览", detail: "显示地牢进度" },
       spells: { label: "法术", detail: "查看已知法术" },
       seespells: { label: "法术书", detail: "列出法术库存" },
+      technique: { label: "技能", detail: "使用角色/种族能力" },
       known: { label: "已知发现", detail: "已知物品列表" },
       pray: { label: "祈祷", detail: "尝试祈祷" },
     },

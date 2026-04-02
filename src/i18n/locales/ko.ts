@@ -430,6 +430,10 @@ export const ko = {
         label: "주문서",
         detail: "주문 인벤토리 보기",
       },
+      technique: {
+        label: "Technique",
+        detail: "역할/종족 능력 사용",
+      },
       known: {
         label: "발견 목록",
         detail: "알려진 물체 목록",

@@ -420,6 +420,10 @@ export const esOverrides = {
                 label: "Libro de hechizos",
                 detail: "Listar inventario de hechizos",
             },
+            technique: {
+                label: "Tecnica",
+                detail: "Usar habilidades de rol/raza",
+            },
             known: {
                 label: "Descubrimientos",
                 detail: "Lista de objetos conocidos",

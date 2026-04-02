@@ -116,6 +116,7 @@ import SoundPackSettings, {
   type SoundPackDialogActions,
 } from "./SoundPackSettings";
 import { CastSpellMenu, parseCastSpellMenu } from "./modals/cast-menu";
+import { TechniqueMenu, parseTechniqueMenu } from "./modals/technique-menu";
 import { useConfirmationDialog } from "./modals/useConfirmationDialog";
 import StartupInitOptionsAccordion from "./componenets/StartupInitOptionsAccordion";
 import ConfirmationModal from "./modals/ConfirmationModal";
@@ -9496,6 +9497,11 @@ export default function App(): JSX.Element {
       question ? parseCastSpellMenu(question.text, question.menuItems) : null,
     [question],
   );
+  const techniqueMenuData = useMemo(
+    () =>
+      question ? parseTechniqueMenu(question.text, question.menuItems) : null,
+    [question],
+  );
   const legacyInventoryQuestionMenuItems = useMemo(
     () =>
       question && question.menuItems.length === 0
@@ -16412,6 +16418,7 @@ export default function App(): JSX.Element {
             : ""
         }${enhanceMenuData ? " nh3d-dialog-question-enhance" : ""}${
           castMenuData ? " nh3d-dialog-question-cast" : ""
+        }${techniqueMenuData ? " nh3d-dialog-question-technique" : ""
         }`}
         open={Boolean(question)}
         id="question-dialog"
@@ -16579,6 +16586,29 @@ export default function App(): JSX.Element {
                     activeSelectionInput={question.activeMenuSelectionInput}
                     menuData={castMenuData}
                     onChooseSpell={(selectionInput) =>
+                      controller?.chooseQuestionChoice(selectionInput)
+                    }
+                  />
+                  <div className="nh3d-menu-actions">
+                    <button
+                      className={`nh3d-menu-action-button nh3d-menu-action-cancel${
+                        question.activeActionButton === "cancel"
+                          ? " nh3d-action-button-active"
+                          : ""
+                      }`}
+                      onClick={() => controller?.cancelActivePrompt()}
+                      type="button"
+                    >
+                      {commonStrings.cancel}
+                    </button>
+                  </div>
+                </>
+              ) : techniqueMenuData ? (
+                <>
+                  <TechniqueMenu
+                    activeSelectionInput={question.activeMenuSelectionInput}
+                    menuData={techniqueMenuData}
+                    onChooseTechnique={(selectionInput) =>
                       controller?.chooseQuestionChoice(selectionInput)
                     }
                   />

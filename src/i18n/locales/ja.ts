@@ -419,6 +419,10 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         label: "呪文書",
         detail: "呪文インベントリを表示",
       },
+      technique: {
+        label: "Technique",
+        detail: "役割/種族の能力を使う",
+      },
       known: {
         label: "発見物",
         detail: "既知のオブジェクト一覧",
