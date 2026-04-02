@@ -28,9 +28,6 @@ type SaveUserTilesetInput = {
 const dbName = "nh3d-user-tilesets";
 const dbVersion = 1;
 const storeName = "tilesets";
-const idbOpenTimeoutMs = 4000;
-const idbRequestTimeoutMs = 4000;
-const idbTransactionTimeoutMs = 4000;
 
 function normalizeStoredTileLayoutVersion(
   rawValue: unknown,
@@ -53,49 +50,20 @@ function ensureIndexedDbAvailable(): void {
   }
 }
 
-function createIdbTimeoutError(operation: string): Error {
-  return new Error(`IndexedDB ${operation} timed out.`);
-}
-
 function idbRequestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timeoutHandle = globalThis.setTimeout(() => {
-      reject(createIdbTimeoutError("request"));
-    }, idbRequestTimeoutMs);
-    const cleanup = () => {
-      globalThis.clearTimeout(timeoutHandle);
-    };
-    request.onsuccess = () => {
-      cleanup();
-      resolve(request.result);
-    };
-    request.onerror = () => {
-      cleanup();
-      reject(request.error ?? new Error("IDB request failed."));
-    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("IDB request failed."));
   });
 }
 
 function idbTransactionDone(transaction: IDBTransaction): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const timeoutHandle = globalThis.setTimeout(() => {
-      reject(createIdbTimeoutError("transaction"));
-    }, idbTransactionTimeoutMs);
-    const cleanup = () => {
-      globalThis.clearTimeout(timeoutHandle);
-    };
-    transaction.oncomplete = () => {
-      cleanup();
-      resolve();
-    };
-    transaction.onerror = () => {
-      cleanup();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () =>
       reject(transaction.error ?? new Error("IDB transaction failed."));
-    };
-    transaction.onabort = () => {
-      cleanup();
+    transaction.onabort = () =>
       reject(transaction.error ?? new Error("IDB transaction aborted."));
-    };
   });
 }
 
@@ -103,30 +71,14 @@ function openDatabase(): Promise<IDBDatabase> {
   ensureIndexedDbAvailable();
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(dbName, dbVersion);
-    const timeoutHandle = globalThis.setTimeout(() => {
-      reject(createIdbTimeoutError("open"));
-    }, idbOpenTimeoutMs);
-    const cleanup = () => {
-      globalThis.clearTimeout(timeoutHandle);
-    };
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(storeName)) {
         db.createObjectStore(storeName, { keyPath: "id" });
       }
     };
-    request.onsuccess = () => {
-      cleanup();
-      resolve(request.result);
-    };
-    request.onerror = () => {
-      cleanup();
-      reject(request.error ?? new Error("Failed to open IndexedDB."));
-    };
-    request.onblocked = () => {
-      cleanup();
-      reject(new Error("IndexedDB open blocked by another connection."));
-    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB."));
   });
 }
 

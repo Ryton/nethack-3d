@@ -256,7 +256,7 @@ export default defineConfig({
     "import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_CHECKPOINT_RESUME_BRIDGE":
       JSON.stringify(slashemHasCheckpointResumeBridge),
   },
-  base: isGitHubActions ? "/nethack-3d/" : isElectronBuild ? "./" : "/",
+  base: isElectronBuild ? "./" : isGitHubActions ? "/nethack-3d/" : "/",
   server: {
     allowedHosts: true,
     ...(enableCrossOriginIsolation
