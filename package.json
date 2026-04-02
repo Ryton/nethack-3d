@@ -1,6 +1,6 @@
 {
   "name": "nethack3d",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "main": "electron/main.cjs",
   "scripts": {
     "ensure:rollup-native": "node scripts/electron/ensure-rollup-native.mjs",
@@ -17,6 +17,8 @@
     "electron:dev": "cross-env VITE_DEPLOY_TARGET=electron VITE_DEV_SERVER_URL=http://127.0.0.1:5173 concurrently -k \"npm run dev\" \"wait-on tcp:5173 && electron .\"",
     "electron:dev:isolated": "cross-env VITE_DEPLOY_TARGET=electron NH3D_ENABLE_CROSS_ORIGIN_ISOLATION=true VITE_DEV_SERVER_URL=http://127.0.0.1:5173 concurrently -k \"npm run dev:isolated\" \"wait-on tcp:5173 && electron .\"",
     "electron:start": "electron .",
+    "electron:pack:mac": "npm run build:electron && electron-builder --mac --dir",
+    "electron:dist:mac": "npm run build:electron && electron-builder --mac",
     "electron:pack:win": "npm run build:electron && electron-builder --win --x64 --dir",
     "electron:dist:win": "npm run build:electron && electron-builder --win nsis --x64",
     "electron:dist:win:portable": "npm run build:electron && electron-builder --win portable --x64",
@@ -86,6 +88,14 @@
     },
     "appImage": {
       "artifactName": "NetHack 3D ${version}.${ext}"
+    },
+    "mac": {
+      "icon": "public/NetHack3D.icns",
+      "category": "public.app-category.games",
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
       "icon": "public/NetHack3D.ico",
