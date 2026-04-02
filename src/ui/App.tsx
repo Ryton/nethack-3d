@@ -96,6 +96,7 @@ import {
   persistNh3dStartupCharacterPreferencesToIndexedDb,
   persistNh3dStartupInitOptionsToIndexedDb,
   type StartupCharacterPreferences,
+  type StartupCharacterPreferencesByRuntime,
 } from "../storage/client-options-storage";
 import { getGlyphCatalogEntriesForVersion } from "../game/glyphs/registry";
 import {
@@ -141,10 +142,7 @@ import {
   parseCharacterSheetInfoMenu,
   resolveCharacterCommandActions,
 } from "./modals/character-sheet";
-import {
-  parseEnhanceMenu,
-  type EnhanceMenuData,
-} from "./modals/enhance-menu";
+import { parseEnhanceMenu, type EnhanceMenuData } from "./modals/enhance-menu";
 import {
   getCurrentLocale,
   getSupportedLocaleOptions,
@@ -315,10 +313,9 @@ function createStartupMenuRainParticles(): readonly StartupMenuRainParticle[] {
     const glyphCycleDurationMs = glyphChangeIntervalMs * glyphFrameCount;
     const glyphPhaseOffsetMs = -Math.round(next() * glyphCycleDurationMs);
     const glyphFrames = Array.from({ length: glyphFrameCount }, (_, index) => ({
-      char:
-        startupMenuRainAlphabet[
-          Math.floor(next() * startupMenuRainAlphabet.length)
-        ],
+      char: startupMenuRainAlphabet[
+        Math.floor(next() * startupMenuRainAlphabet.length)
+      ],
       delayMs: glyphPhaseOffsetMs + index * glyphChangeIntervalMs,
       durationMs: glyphCycleDurationMs,
     }));
@@ -742,19 +739,19 @@ function normalizeCharacterSheetFieldBadges(note: string): string[] {
       .map((token) => token.trim())
       .filter((token, index, array) => array.indexOf(token) === index)
       .map((token) =>
-        token === "s"
-          ? "Starting"
-          : token === "c"
-            ? "Current"
-            : token,
+        token === "s" ? "Starting" : token === "c" ? "Current" : token,
       );
   }
 
   return [note.trim()];
 }
 
-function parseCharacterSheetFieldRow(line: string): CharacterSheetFieldRow | null {
-  const normalized = String(line || "").replace(/\s+/g, " ").trim();
+function parseCharacterSheetFieldRow(
+  line: string,
+): CharacterSheetFieldRow | null {
+  const normalized = String(line || "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) {
     return null;
   }
@@ -881,14 +878,20 @@ function renderEnhanceMenuContent(
       {enhanceMenuData.legendLines.length > 0 ? (
         <div className="nh3d-enhance-legend">
           {enhanceMenuData.legendLines.map((line, index) => (
-            <div className="nh3d-enhance-legend-line" key={`enhance-legend-${index}`}>
+            <div
+              className="nh3d-enhance-legend-line"
+              key={`enhance-legend-${index}`}
+            >
               {line}
             </div>
           ))}
         </div>
       ) : null}
       {enhanceMenuData.groups.map((group) => (
-        <section className="nh3d-enhance-group" key={`enhance-group-${group.id}`}>
+        <section
+          className="nh3d-enhance-group"
+          key={`enhance-group-${group.id}`}
+        >
           <div className="nh3d-menu-category nh3d-enhance-group-title">
             {group.title}
           </div>
@@ -914,7 +917,9 @@ function renderEnhanceMenuContent(
                   type="button"
                 >
                   <div className="nh3d-enhance-skill-head">
-                    <span className="nh3d-enhance-skill-name">{entry.name}</span>
+                    <span className="nh3d-enhance-skill-name">
+                      {entry.name}
+                    </span>
                     <span className="nh3d-enhance-skill-badges">
                       {acceleratorLabel ? (
                         <span className="nh3d-enhance-key">
@@ -955,7 +960,9 @@ function renderEnhanceMenuContent(
                   key={`enhance-skill-${entry.id}`}
                 >
                   <div className="nh3d-enhance-skill-head">
-                    <span className="nh3d-enhance-skill-name">{entry.name}</span>
+                    <span className="nh3d-enhance-skill-name">
+                      {entry.name}
+                    </span>
                     <span className="nh3d-enhance-state-chip">
                       {entry.availabilityLabel}
                     </span>
@@ -2422,10 +2429,12 @@ function resolvePreviewAtlasTileIdForRuntime(
 type StartupFlowStep = "variant" | "choose" | "create" | "random" | "resume";
 const startupDefaultCharacterName = "Web_user";
 
-function createDefaultStartupCharacterPreferences(): StartupCharacterPreferences {
+function createDefaultStartupCharacterPreferences(
+  runtimeVersion: NethackRuntimeVersion = "3.6.7",
+): StartupCharacterPreferences {
   const defaultCreateSelection = normalizeStartupCreateCharacterSelection(
     {},
-    "3.6.7",
+    runtimeVersion,
   );
   return {
     randomName: startupDefaultCharacterName,
@@ -2435,6 +2444,40 @@ function createDefaultStartupCharacterPreferences(): StartupCharacterPreferences
     createGender: defaultCreateSelection.gender,
     createAlign: defaultCreateSelection.align,
   };
+}
+
+function createDefaultStartupCharacterPreferencesByRuntime(): StartupCharacterPreferencesByRuntime {
+  return {
+    "3.6.7": createDefaultStartupCharacterPreferences("3.6.7"),
+    "3.7": createDefaultStartupCharacterPreferences("3.7"),
+    slashem: createDefaultStartupCharacterPreferences("slashem"),
+  };
+}
+
+function resolveStartupCharacterPreferencesForRuntime(
+  preferencesByRuntime: StartupCharacterPreferencesByRuntime,
+  defaultPreferencesByRuntime: StartupCharacterPreferencesByRuntime,
+  runtimeVersion: NethackRuntimeVersion,
+): StartupCharacterPreferences {
+  return (
+    preferencesByRuntime[runtimeVersion] ??
+    defaultPreferencesByRuntime[runtimeVersion] ??
+    createDefaultStartupCharacterPreferences(runtimeVersion)
+  );
+}
+
+function areStartupCharacterPreferencesEqual(
+  left: StartupCharacterPreferences | undefined,
+  right: StartupCharacterPreferences,
+): boolean {
+  return (
+    left?.randomName === right.randomName &&
+    left?.createName === right.createName &&
+    left?.createRole === right.createRole &&
+    left?.createRace === right.createRace &&
+    left?.createGender === right.createGender &&
+    left?.createAlign === right.createAlign
+  );
 }
 
 type MobileActionEntry = {
@@ -4601,6 +4644,107 @@ const clampTileContextMenuPosition = (
 };
 
 const tileContextMenuAnchorOffsetY = 30;
+const contextMenuTitleScrollGapPx = 28;
+const contextMenuTitleScrollOverflowThresholdPx = 1;
+const contextMenuTitleScrollPixelsPerSecond = 115;
+
+function useContextMenuTitleScroll(title: string, isActive: boolean) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const primaryTextRef = useRef<HTMLSpanElement | null>(null);
+  const [scrollState, setScrollState] = useState<{
+    shouldScroll: boolean;
+    distancePx: number;
+  }>({
+    shouldScroll: false,
+    distancePx: 0,
+  });
+
+  useLayoutEffect(() => {
+    if (!isActive || !title) {
+      setScrollState((previous) =>
+        previous.shouldScroll || previous.distancePx !== 0
+          ? {
+              shouldScroll: false,
+              distancePx: 0,
+            }
+          : previous,
+      );
+      return;
+    }
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let animationFrameId: number | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const measure = (): void => {
+      animationFrameId = null;
+      const container = containerRef.current;
+      const primaryText = primaryTextRef.current;
+      if (!container || !primaryText) {
+        return;
+      }
+      const textWidth = Math.ceil(primaryText.scrollWidth);
+      const containerWidth = Math.floor(container.clientWidth);
+      const shouldScroll =
+        textWidth - containerWidth > contextMenuTitleScrollOverflowThresholdPx;
+      const distancePx = shouldScroll
+        ? textWidth + contextMenuTitleScrollGapPx
+        : 0;
+      setScrollState((previous) =>
+        previous.shouldScroll === shouldScroll &&
+        previous.distancePx === distancePx
+          ? previous
+          : {
+              shouldScroll,
+              distancePx,
+            },
+      );
+    };
+
+    const scheduleMeasure = (): void => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+      animationFrameId = window.requestAnimationFrame(measure);
+    };
+
+    scheduleMeasure();
+    window.addEventListener("resize", scheduleMeasure);
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleMeasure();
+      });
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
+      if (primaryTextRef.current) {
+        resizeObserver.observe(primaryTextRef.current);
+      }
+    }
+
+    return () => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+      window.removeEventListener("resize", scheduleMeasure);
+      resizeObserver?.disconnect();
+    };
+  }, [isActive, scrollState.shouldScroll, title]);
+
+  return {
+    containerRef,
+    primaryTextRef,
+    shouldScroll: scrollState.shouldScroll,
+    style: scrollState.shouldScroll
+      ? ({
+          "--nh3d-context-title-scroll-distance": `-${scrollState.distancePx}px`,
+          "--nh3d-context-title-scroll-duration": `${scrollState.distancePx / contextMenuTitleScrollPixelsPerSecond}s`,
+        } as CSSProperties)
+      : undefined,
+  };
+}
 
 const mobileActions: MobileActionEntry[] = [
   { id: "wait", label: t.mobileActions.wait, kind: "quick", value: "wait" },
@@ -5055,7 +5199,9 @@ async function inferTilesetTileSizeFromBlob(blob: Blob): Promise<number> {
     const size = await new Promise<number>((resolve, reject) => {
       const image = new window.Image();
       image.onload = () =>
-        resolve(inferNh3dTilesetTileSizeFromAtlasWidthForPath(image.naturalWidth));
+        resolve(
+          inferNh3dTilesetTileSizeFromAtlasWidthForPath(image.naturalWidth),
+        );
       image.onerror = () => reject(new Error(t.tilesets.failedToReadImage));
       image.src = objectUrl;
     });
@@ -5571,10 +5717,15 @@ async function requestGameQuit(): Promise<void> {
 }
 
 export default function App(): JSX.Element {
-  const startupDefaultCharacterPreferences = useMemo(
-    () => createDefaultStartupCharacterPreferences(),
+  const startupDefaultCharacterPreferencesByRuntime = useMemo(
+    () => createDefaultStartupCharacterPreferencesByRuntime(),
     [],
   );
+  const startupDefaultCharacterPreferences =
+    startupDefaultCharacterPreferencesByRuntime["3.6.7"] ??
+    createDefaultStartupCharacterPreferences("3.6.7");
+  const startupCharacterPreferencesStateRuntimeRef =
+    useRef<NethackRuntimeVersion | null>("3.6.7");
   const [hasShownStartupMenu, setHasShownStartupMenu] = useState(false);
   const canvasRootRef = useRef<HTMLDivElement | null>(null);
   const textInputRef = useRef<HTMLInputElement | null>(null);
@@ -5607,6 +5758,12 @@ export default function App(): JSX.Element {
   const [createCharacterName, setCreateCharacterName] = useState(
     startupDefaultCharacterPreferences.createName,
   );
+  const [
+    startupCharacterPreferencesByRuntime,
+    setStartupCharacterPreferencesByRuntime,
+  ] = useState<StartupCharacterPreferencesByRuntime>(() => ({
+    ...startupDefaultCharacterPreferencesByRuntime,
+  }));
   const [
     hasHydratedStartupCharacterPreferences,
     setHasHydratedStartupCharacterPreferences,
@@ -5744,12 +5901,15 @@ export default function App(): JSX.Element {
   );
   const startupCreateCharacterOptionSet = useMemo(
     () =>
-      resolveStartupCreateCharacterOptionSet({
-        role: createRole,
-        race: createRace,
-        gender: createGender,
-        align: createAlign,
-      }, runtimeVersion),
+      resolveStartupCreateCharacterOptionSet(
+        {
+          role: createRole,
+          race: createRace,
+          gender: createGender,
+          align: createAlign,
+        },
+        runtimeVersion,
+      ),
     [createRole, createRace, createGender, createAlign, runtimeVersion],
   );
   const normalizedCreateCharacterSelection =
@@ -5869,7 +6029,8 @@ export default function App(): JSX.Element {
     setStartupInitOptionValues(createDefaultStartupInitOptionValues());
   }, []);
   const startupInitOptionTokens = useMemo(
-    () => serializeStartupInitOptionTokens(startupInitOptionValues, runtimeVersion),
+    () =>
+      serializeStartupInitOptionTokens(startupInitOptionValues, runtimeVersion),
     [runtimeVersion, startupInitOptionValues],
   );
   const startupCharacterPreferences = useMemo<StartupCharacterPreferences>(
@@ -5912,6 +6073,74 @@ export default function App(): JSX.Element {
     normalizedCreateCharacterSelection.race,
     normalizedCreateCharacterSelection.gender,
     normalizedCreateCharacterSelection.align,
+  ]);
+  useEffect(() => {
+    if (!hasHydratedStartupCharacterPreferences) {
+      return;
+    }
+    if (startupCharacterPreferencesStateRuntimeRef.current !== runtimeVersion) {
+      return;
+    }
+    setStartupCharacterPreferencesByRuntime((previous) => {
+      if (
+        areStartupCharacterPreferencesEqual(
+          previous[runtimeVersion],
+          startupCharacterPreferences,
+        )
+      ) {
+        return previous;
+      }
+      return {
+        ...previous,
+        [runtimeVersion]: startupCharacterPreferences,
+      };
+    });
+  }, [
+    hasHydratedStartupCharacterPreferences,
+    runtimeVersion,
+    startupCharacterPreferences,
+  ]);
+  useEffect(() => {
+    if (!hasHydratedStartupCharacterPreferences) {
+      return;
+    }
+    if (startupCharacterPreferencesStateRuntimeRef.current === runtimeVersion) {
+      return;
+    }
+
+    const runtimePreferences = resolveStartupCharacterPreferencesForRuntime(
+      startupCharacterPreferencesByRuntime,
+      startupDefaultCharacterPreferencesByRuntime,
+      runtimeVersion,
+    );
+    const defaultRuntimePreferences =
+      startupDefaultCharacterPreferencesByRuntime[runtimeVersion] ??
+      createDefaultStartupCharacterPreferences(runtimeVersion);
+    setRandomCharacterName(
+      runtimePreferences.randomName || defaultRuntimePreferences.randomName,
+    );
+    setCreateCharacterName(
+      runtimePreferences.createName || defaultRuntimePreferences.createName,
+    );
+    const normalizedRuntimeSelection = normalizeStartupCreateCharacterSelection(
+      {
+        role: runtimePreferences.createRole,
+        race: runtimePreferences.createRace,
+        gender: runtimePreferences.createGender,
+        align: runtimePreferences.createAlign,
+      },
+      runtimeVersion,
+    );
+    setCreateRole(normalizedRuntimeSelection.role);
+    setCreateRace(normalizedRuntimeSelection.race);
+    setCreateGender(normalizedRuntimeSelection.gender);
+    setCreateAlign(normalizedRuntimeSelection.align);
+    startupCharacterPreferencesStateRuntimeRef.current = runtimeVersion;
+  }, [
+    hasHydratedStartupCharacterPreferences,
+    runtimeVersion,
+    startupCharacterPreferencesByRuntime,
+    startupDefaultCharacterPreferencesByRuntime,
   ]);
 
   const initialPersistedClientOptionsRef =
@@ -6132,8 +6361,8 @@ export default function App(): JSX.Element {
   );
   const showLegacySlashEmDeitiesPanel = Boolean(
     isLegacySlashEmBaseAttributesSheet &&
-      characterSheet?.deityLines &&
-      characterSheet.deityLines.length > 0,
+    characterSheet?.deityLines &&
+    characterSheet.deityLines.length > 0,
   );
   const characterExperienceProgress = useMemo(() => {
     const level = Number.isFinite(playerStats.level)
@@ -6448,11 +6677,14 @@ export default function App(): JSX.Element {
     [hasAnyTilesets, showTilesetLayoutInDropdown, tilesetCatalog],
   );
   useEffect(() => {
-    const currentClientTilesetPath = String(clientOptions.tilesetPath || "").trim();
-    const compatibleClientTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
-      currentClientTilesetPath,
-      activeRuntimeVersion,
-    );
+    const currentClientTilesetPath = String(
+      clientOptions.tilesetPath || "",
+    ).trim();
+    const compatibleClientTilesetPath =
+      resolveNh3dCompatibleTilesetPathForRuntime(
+        currentClientTilesetPath,
+        activeRuntimeVersion,
+      );
     if (
       compatibleClientTilesetPath &&
       compatibleClientTilesetPath !== currentClientTilesetPath
@@ -6468,10 +6700,11 @@ export default function App(): JSX.Element {
     const currentDraftTilesetPath = String(
       clientOptionsDraft.tilesetPath || "",
     ).trim();
-    const compatibleDraftTilesetPath = resolveNh3dCompatibleTilesetPathForRuntime(
-      currentDraftTilesetPath,
-      activeRuntimeVersion,
-    );
+    const compatibleDraftTilesetPath =
+      resolveNh3dCompatibleTilesetPathForRuntime(
+        currentDraftTilesetPath,
+        activeRuntimeVersion,
+      );
     if (
       compatibleDraftTilesetPath &&
       compatibleDraftTilesetPath !== currentDraftTilesetPath
@@ -6519,18 +6752,6 @@ export default function App(): JSX.Element {
     [isControllerRemapVisible, controllerRemapListening],
   );
   const isFpsPlayMode = clientOptions.fpsMode;
-  const fpsContextTitle = String(fpsCrosshairContext?.title || "");
-  const shouldScrollFpsContextTitle = fpsContextTitle.length > 0;
-  const fpsContextTitleDurationSec = Math.max(
-    6,
-    Math.min(20, fpsContextTitle.length * 0.14),
-  );
-  const fpsContextTitleStyle: CSSProperties | undefined =
-    shouldScrollFpsContextTitle
-      ? ({
-          "--nh3d-context-title-scroll-duration": `${fpsContextTitleDurationSec}s`,
-        } as CSSProperties)
-      : undefined;
   const fpsCrosshairContextMenuRef = useRef<HTMLDivElement | null>(null);
   const fpsCrosshairContextLastVisibleRef =
     useRef<FpsCrosshairContextState | null>(null);
@@ -6623,20 +6844,18 @@ export default function App(): JSX.Element {
     tileContextMenuPosition ?? tileContextMenuPositionLastVisibleRef.current;
   const inventoryContextMenuRenderState =
     inventoryContextMenu ?? inventoryContextMenuLastVisibleRef.current;
-  const inventoryContextTitle = inventoryContextMenu
-    ? `${inventoryContextMenu.itemText} (${inventoryContextMenu.accelerator})`
-    : "";
-  const shouldScrollInventoryContextTitle = inventoryContextTitle.length > 36;
-  const inventoryContextTitleDurationSec = Math.max(
-    6,
-    Math.min(20, inventoryContextTitle.length * 0.14),
+  const fpsContextTitle = String(fpsCrosshairContextRenderState?.title || "");
+  const fpsContextTitleScroll = useContextMenuTitleScroll(
+    fpsContextTitle,
+    Boolean(fpsCrosshairContextRenderState),
   );
-  const inventoryContextTitleStyle: CSSProperties | undefined =
-    shouldScrollInventoryContextTitle
-      ? ({
-          "--nh3d-context-title-scroll-duration": `${inventoryContextTitleDurationSec}s`,
-        } as CSSProperties)
-      : undefined;
+  const inventoryContextTitle = inventoryContextMenuRenderState
+    ? `${inventoryContextMenuRenderState.itemText} (${inventoryContextMenuRenderState.accelerator})`
+    : "";
+  const inventoryContextTitleScroll = useContextMenuTitleScroll(
+    inventoryContextTitle,
+    Boolean(inventoryContextMenuRenderState),
+  );
   const inventoryItemCategoryByAccelerator = useMemo(() => {
     const categoryByAccelerator = new Map<string, string>();
     let currentCategory = "";
@@ -7507,14 +7726,14 @@ export default function App(): JSX.Element {
     tileAtlasState.loaded,
     tileAtlasState.tileCount,
   ]);
-  const tilePickerStatusText = !selectedTilesetEntry ||
-    !selectedTileAtlasLoadRequested
-    ? t.tilePicker.noAtlasAvailable
-    : tileAtlasState.failed
-      ? t.tilePicker.unableToLoadAtlas
-      : tileAtlasState.loaded
-        ? t.tilePicker.atlasLoaded
-        : t.tilePicker.loadingAtlas;
+  const tilePickerStatusText =
+    !selectedTilesetEntry || !selectedTileAtlasLoadRequested
+      ? t.tilePicker.noAtlasAvailable
+      : tileAtlasState.failed
+        ? t.tilePicker.unableToLoadAtlas
+        : tileAtlasState.loaded
+          ? t.tilePicker.atlasLoaded
+          : t.tilePicker.loadingAtlas;
   const tilePreviewDataUrlByIdRaw = useMemo(() => {
     const previewByTileId = new Map<number, string>();
     if (
@@ -7850,31 +8069,53 @@ export default function App(): JSX.Element {
   }, [clientOptions, hasHydratedUserTilesets]);
 
   useEffect(() => {
+    if (hasHydratedStartupCharacterPreferences) {
+      return;
+    }
     let disposed = false;
     loadPersistedNh3dStartupCharacterPreferences()
-      .then((persistedPreferences) => {
-        if (disposed || !persistedPreferences) {
+      .then((persistedPreferencesByRuntime) => {
+        if (disposed) {
           return;
         }
+        const mergedPreferencesByRuntime: StartupCharacterPreferencesByRuntime =
+          {
+            ...startupDefaultCharacterPreferencesByRuntime,
+            ...(persistedPreferencesByRuntime ?? {}),
+          };
+        setStartupCharacterPreferencesByRuntime(mergedPreferencesByRuntime);
+        const hydratedRuntimePreferences =
+          resolveStartupCharacterPreferencesForRuntime(
+            mergedPreferencesByRuntime,
+            startupDefaultCharacterPreferencesByRuntime,
+            runtimeVersion,
+          );
+        const defaultRuntimePreferences =
+          startupDefaultCharacterPreferencesByRuntime[runtimeVersion] ??
+          createDefaultStartupCharacterPreferences(runtimeVersion);
         setRandomCharacterName(
-          persistedPreferences.randomName ||
-            startupDefaultCharacterPreferences.randomName,
+          hydratedRuntimePreferences.randomName ||
+            defaultRuntimePreferences.randomName,
         );
         setCreateCharacterName(
-          persistedPreferences.createName ||
-            startupDefaultCharacterPreferences.createName,
+          hydratedRuntimePreferences.createName ||
+            defaultRuntimePreferences.createName,
         );
         const normalizedPersistedCreateSelection =
-          normalizeStartupCreateCharacterSelection({
-            role: persistedPreferences.createRole,
-            race: persistedPreferences.createRace,
-            gender: persistedPreferences.createGender,
-            align: persistedPreferences.createAlign,
-          }, runtimeVersion);
+          normalizeStartupCreateCharacterSelection(
+            {
+              role: hydratedRuntimePreferences.createRole,
+              race: hydratedRuntimePreferences.createRace,
+              gender: hydratedRuntimePreferences.createGender,
+              align: hydratedRuntimePreferences.createAlign,
+            },
+            runtimeVersion,
+          );
         setCreateRole(normalizedPersistedCreateSelection.role);
         setCreateRace(normalizedPersistedCreateSelection.race);
         setCreateGender(normalizedPersistedCreateSelection.gender);
         setCreateAlign(normalizedPersistedCreateSelection.align);
+        startupCharacterPreferencesStateRuntimeRef.current = runtimeVersion;
       })
       .catch((error) => {
         if (disposed) {
@@ -7895,21 +8136,28 @@ export default function App(): JSX.Element {
     return () => {
       disposed = true;
     };
-  }, [startupDefaultCharacterPreferences]);
+  }, [
+    hasHydratedStartupCharacterPreferences,
+    runtimeVersion,
+    startupDefaultCharacterPreferencesByRuntime,
+  ]);
 
   useEffect(() => {
     if (!hasHydratedStartupCharacterPreferences) {
       return;
     }
     persistNh3dStartupCharacterPreferencesToIndexedDb(
-      startupCharacterPreferences,
+      startupCharacterPreferencesByRuntime,
     ).catch((error) => {
       console.warn(
         "Failed to persist startup character preferences to IndexedDB:",
         error,
       );
     });
-  }, [hasHydratedStartupCharacterPreferences, startupCharacterPreferences]);
+  }, [
+    hasHydratedStartupCharacterPreferences,
+    startupCharacterPreferencesByRuntime,
+  ]);
 
   useEffect(() => {
     let disposed = false;
@@ -7975,11 +8223,10 @@ export default function App(): JSX.Element {
         return;
       }
       const naturalWidth = Math.max(0, Math.trunc(atlasImage.naturalWidth));
-      const tileSourceSize =
-        inferNh3dTilesetTileSizeFromAtlasWidthForPath(
-          naturalWidth,
-          selectedTilesetEntry.path,
-        );
+      const tileSourceSize = inferNh3dTilesetTileSizeFromAtlasWidthForPath(
+        naturalWidth,
+        selectedTilesetEntry.path,
+      );
       const height = Math.max(0, Math.trunc(atlasImage.naturalHeight));
       const columns = getNh3dTilesetAtlasTileColumns(selectedTilesetEntry.path);
       const rows = Math.max(0, Math.floor(height / tileSourceSize));
@@ -8048,11 +8295,10 @@ export default function App(): JSX.Element {
         return;
       }
       const naturalWidth = Math.max(0, Math.trunc(atlasImage.naturalWidth));
-      const tileSourceSize =
-        inferNh3dTilesetTileSizeFromAtlasWidthForPath(
-          naturalWidth,
-          selectedTilesetManagerEditEntry.path,
-        );
+      const tileSourceSize = inferNh3dTilesetTileSizeFromAtlasWidthForPath(
+        naturalWidth,
+        selectedTilesetManagerEditEntry.path,
+      );
       const height = Math.max(0, Math.trunc(atlasImage.naturalHeight));
       const columns = getNh3dTilesetAtlasTileColumns(
         selectedTilesetManagerEditEntry.path,
@@ -9440,13 +9686,12 @@ export default function App(): JSX.Element {
   const hideLegacySlashEmInventoryShortcuts =
     activeRuntimeVersion === "slashem" &&
     parsedQuestionChoices.some((choice) => choice.trim() === "*");
-  const visibleQuestionChoices =
-    hideLegacySlashEmInventoryShortcuts
-      ? parsedQuestionChoices.filter((choice) => {
-          const normalizedChoice = choice.trim();
-          return normalizedChoice !== "*" && normalizedChoice !== "?";
-        })
-      : parsedQuestionChoices;
+  const visibleQuestionChoices = hideLegacySlashEmInventoryShortcuts
+    ? parsedQuestionChoices.filter((choice) => {
+        const normalizedChoice = choice.trim();
+        return normalizedChoice !== "*" && normalizedChoice !== "?";
+      })
+    : parsedQuestionChoices;
   const orderedQuestionChoices = orderQuestionChoicesForDisplay(
     visibleQuestionChoices,
     activeRuntimeVersion,
@@ -10905,11 +11150,11 @@ export default function App(): JSX.Element {
         ? userRecord.tileLayoutVersion
         : tilesetEntry.tileLayoutVersion === "slashem"
           ? "slashem"
-        : tilesetEntry.tileLayoutVersion === "3.4.3"
-          ? "3.4.3"
-        : tilesetEntry.tileLayoutVersion === "3.7"
-          ? "3.7"
-          : "3.6.7",
+          : tilesetEntry.tileLayoutVersion === "3.4.3"
+            ? "3.4.3"
+            : tilesetEntry.tileLayoutVersion === "3.7"
+              ? "3.7"
+              : "3.6.7",
     );
     if (tilesetPath !== currentEditPath) {
       setTilesetManagerAtlasState(createDefaultTileAtlasState());
@@ -12467,10 +12712,12 @@ export default function App(): JSX.Element {
     );
 
     if (anchorRect) {
-      const anchorRectLeft =
-        Number.isFinite(anchorRect.left) ? anchorRect.left : null;
-      const anchorRectRight =
-        Number.isFinite(anchorRect.right) ? anchorRect.right : null;
+      const anchorRectLeft = Number.isFinite(anchorRect.left)
+        ? anchorRect.left
+        : null;
+      const anchorRectRight = Number.isFinite(anchorRect.right)
+        ? anchorRect.right
+        : null;
       if (anchorRectLeft !== null && anchorRectRight !== null) {
         anchorCenterX = Math.min(
           Math.max(clientX, anchorRectLeft),
@@ -15509,10 +15756,7 @@ export default function App(): JSX.Element {
                                 const nextValue =
                                   resolveSupportedLocale(event.target.value) ??
                                   clientOptionsDraft.locale;
-                                updateClientOptionDraft(
-                                  option.key,
-                                  nextValue,
-                                );
+                                updateClientOptionDraft(option.key, nextValue);
                                 return;
                               }
                               if (option.key === "tilesetMode") {
@@ -15913,18 +16157,22 @@ export default function App(): JSX.Element {
                           event.target.value === "slashem"
                             ? "slashem"
                             : event.target.value === "3.7"
-                            ? "3.7"
-                            : event.target.value === "3.4.3"
-                              ? "3.4.3"
-                              : "3.6.7",
+                              ? "3.7"
+                              : event.target.value === "3.4.3"
+                                ? "3.4.3"
+                                : "3.6.7",
                         )
                       }
                       value={tilesetManagerTileLayoutVersion}
                     >
                       <option value="slashem">Slash&apos;EM layout</option>
                       <option value="3.4.3">NetHack 3.4.3 layout</option>
-                      <option value="3.6.7">{t.dialogs.tilesetManager.layout367}</option>
-                      <option value="3.7">{t.dialogs.tilesetManager.layout37}</option>
+                      <option value="3.6.7">
+                        {t.dialogs.tilesetManager.layout367}
+                      </option>
+                      <option value="3.7">
+                        {t.dialogs.tilesetManager.layout37}
+                      </option>
                     </select>
                     <div className="nh3d-option-description">
                       {t.dialogs.tilesetManager.tileLayoutDescription}
@@ -16424,8 +16672,7 @@ export default function App(): JSX.Element {
             : ""
         }${enhanceMenuData ? " nh3d-dialog-question-enhance" : ""}${
           castMenuData ? " nh3d-dialog-question-cast" : ""
-        }${techniqueMenuData ? " nh3d-dialog-question-technique" : ""
-        }`}
+        }${techniqueMenuData ? " nh3d-dialog-question-technique" : ""}`}
         open={Boolean(question)}
         id="question-dialog"
       >
@@ -16740,9 +16987,7 @@ export default function App(): JSX.Element {
               <div className="nh3d-overflow-glow-frame">
                 <div
                   className={`nh3d-choice-list${
-                    useCompactQuestionChoiceLayout
-                      ? " is-compact"
-                      : ""
+                    useCompactQuestionChoiceLayout ? " is-compact" : ""
                   }${isYesNoQuestionChoices ? " is-yes-no" : ""}`}
                   data-nh3d-overflow-glow
                   data-nh3d-overflow-glow-host="parent"
@@ -17090,7 +17335,9 @@ export default function App(): JSX.Element {
                                 </div>
                                 <div className="nh3d-character-stat-value">
                                   <span className="nh3d-character-stat-current">
-                                    {entry.currentValue || entry.rawValue || "--"}
+                                    {entry.currentValue ||
+                                      entry.rawValue ||
+                                      "--"}
                                   </span>
                                 </div>
                                 <div className="nh3d-character-stat-description">
@@ -17121,7 +17368,9 @@ export default function App(): JSX.Element {
                           <div className="nh3d-character-actions-grid">
                             <button
                               className="nh3d-character-action-button"
-                              onClick={() => controller?.toggleInventoryDialog()}
+                              onClick={() =>
+                                controller?.toggleInventoryDialog()
+                              }
                               type="button"
                             >
                               <span className="nh3d-character-action-label">
@@ -17229,11 +17478,11 @@ export default function App(): JSX.Element {
                           </div>
                           {hasCharacterStatValues ? (
                             <div className="nh3d-character-stat-grid">
-                          {hasCharacterStatLimits ? (
-                            <div className="nh3d-character-stat-grid-hint">
-                              {t.dialogs.info.currentLimit}
-                            </div>
-                          ) : null}
+                              {hasCharacterStatLimits ? (
+                                <div className="nh3d-character-stat-grid-hint">
+                                  {t.dialogs.info.currentLimit}
+                                </div>
+                              ) : null}
                               {displayedCharacterStatEntries.map((entry) => (
                                 <div
                                   className="nh3d-character-stat"
@@ -17347,7 +17596,9 @@ export default function App(): JSX.Element {
                           <div className="nh3d-character-actions-grid">
                             <button
                               className="nh3d-character-action-button"
-                              onClick={() => controller?.toggleInventoryDialog()}
+                              onClick={() =>
+                                controller?.toggleInventoryDialog()
+                              }
                               type="button"
                             >
                               <span className="nh3d-character-action-label">
@@ -17861,19 +18112,27 @@ export default function App(): JSX.Element {
           >
             <div
               className={`nh3d-context-menu-title${
-                shouldScrollInventoryContextTitle
+                inventoryContextTitleScroll.shouldScroll
                   ? " nh3d-context-menu-title-scroll"
                   : ""
               }`}
-              style={inventoryContextTitleStyle}
+              ref={inventoryContextTitleScroll.containerRef}
+              style={inventoryContextTitleScroll.style}
             >
-              {shouldScrollInventoryContextTitle ? (
+              {inventoryContextTitleScroll.shouldScroll ? (
                 <span className="nh3d-context-menu-title-scroll-track">
-                  <span>{inventoryContextTitle}</span>
+                  <span ref={inventoryContextTitleScroll.primaryTextRef}>
+                    {inventoryContextTitle}
+                  </span>
                   <span aria-hidden="true">{inventoryContextTitle}</span>
                 </span>
               ) : (
-                inventoryContextTitle
+                <span
+                  className="nh3d-context-menu-title-text"
+                  ref={inventoryContextTitleScroll.primaryTextRef}
+                >
+                  {inventoryContextTitle}
+                </span>
               )}
             </div>
             <div className="nh3d-context-menu-actions nh3d-context-menu-actions-inventory">
@@ -18205,19 +18464,27 @@ export default function App(): JSX.Element {
           <>
             <div
               className={`nh3d-context-menu-title${
-                shouldScrollFpsContextTitle
+                fpsContextTitleScroll.shouldScroll
                   ? " nh3d-context-menu-title-scroll"
                   : ""
               }`}
-              style={fpsContextTitleStyle}
+              ref={fpsContextTitleScroll.containerRef}
+              style={fpsContextTitleScroll.style}
             >
-              {shouldScrollFpsContextTitle ? (
+              {fpsContextTitleScroll.shouldScroll ? (
                 <span className="nh3d-context-menu-title-scroll-track">
-                  <span>{fpsContextTitle}</span>
+                  <span ref={fpsContextTitleScroll.primaryTextRef}>
+                    {fpsContextTitle}
+                  </span>
                   <span aria-hidden="true">{fpsContextTitle}</span>
                 </span>
               ) : (
-                fpsContextTitle
+                <span
+                  className="nh3d-context-menu-title-text"
+                  ref={fpsContextTitleScroll.primaryTextRef}
+                >
+                  {fpsContextTitle}
+                </span>
               )}
             </div>
             <div className="nh3d-context-menu-actions">

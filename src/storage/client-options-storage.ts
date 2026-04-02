@@ -1,4 +1,5 @@
 import type { Nh3dClientOptions } from "../game/ui-types";
+import type { NethackRuntimeVersion } from "../runtime/types";
 import {
   normalizeStartupInitOptionValues,
   type StartupInitOptionValues,
@@ -32,11 +33,18 @@ export type StartupCharacterPreferences = {
   createAlign: string;
 };
 
+export type StartupCharacterPreferencesByRuntime = Partial<
+  Record<NethackRuntimeVersion, StartupCharacterPreferences>
+>;
+
 type StartupCharacterPreferencesStoredRecord = {
   id: string;
-  value: StartupCharacterPreferences;
+  value: StartupCharacterPreferences | { byRuntime: StartupCharacterPreferencesByRuntime };
   updatedAt: number;
 };
+
+const startupCharacterPreferenceRuntimeVersions: readonly NethackRuntimeVersion[] =
+  ["3.6.7", "3.7", "slashem"];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -199,7 +207,40 @@ function normalizePersistedStartupCharacterPreferences(
   };
 }
 
-async function readStartupCharacterPreferencesFromIndexedDb(): Promise<StartupCharacterPreferences | null> {
+function normalizePersistedStartupCharacterPreferencesByRuntime(
+  rawValue: unknown,
+): StartupCharacterPreferencesByRuntime | null {
+  if (!isPlainObject(rawValue)) {
+    return null;
+  }
+
+  if (isPlainObject(rawValue.byRuntime)) {
+    const byRuntime = rawValue.byRuntime as Record<string, unknown>;
+    const normalized: StartupCharacterPreferencesByRuntime = {};
+    for (const runtimeVersion of startupCharacterPreferenceRuntimeVersions) {
+      const runtimePreferences =
+        normalizePersistedStartupCharacterPreferences(byRuntime[runtimeVersion]);
+      if (runtimePreferences) {
+        normalized[runtimeVersion] = runtimePreferences;
+      }
+    }
+    return normalized;
+  }
+
+  const legacyPreferences =
+    normalizePersistedStartupCharacterPreferences(rawValue);
+  if (!legacyPreferences) {
+    return null;
+  }
+
+  const normalized: StartupCharacterPreferencesByRuntime = {};
+  for (const runtimeVersion of startupCharacterPreferenceRuntimeVersions) {
+    normalized[runtimeVersion] = { ...legacyPreferences };
+  }
+  return normalized;
+}
+
+async function readStartupCharacterPreferencesFromIndexedDb(): Promise<StartupCharacterPreferencesByRuntime | null> {
   const db = await openDatabase();
   try {
     const transaction = db.transaction(storeName, "readonly");
@@ -211,7 +252,7 @@ async function readStartupCharacterPreferencesFromIndexedDb(): Promise<StartupCh
     if (!isPlainObject(rawRecord)) {
       return null;
     }
-    return normalizePersistedStartupCharacterPreferences(
+    return normalizePersistedStartupCharacterPreferencesByRuntime(
       (rawRecord as Partial<StartupCharacterPreferencesStoredRecord>).value,
     );
   } finally {
@@ -220,24 +261,19 @@ async function readStartupCharacterPreferencesFromIndexedDb(): Promise<StartupCh
 }
 
 async function writeStartupCharacterPreferencesToIndexedDb(
-  preferences: StartupCharacterPreferences,
+  preferencesByRuntime: StartupCharacterPreferencesByRuntime,
 ): Promise<void> {
-  const normalized =
-    normalizePersistedStartupCharacterPreferences(preferences) ?? {
-      randomName: "",
-      createName: "",
-      createRole: "",
-      createRace: "",
-      createGender: "",
-      createAlign: "",
-    };
+  const normalized: StartupCharacterPreferencesByRuntime =
+    normalizePersistedStartupCharacterPreferencesByRuntime({
+      byRuntime: preferencesByRuntime,
+    }) ?? {};
   const db = await openDatabase();
   try {
     const transaction = db.transaction(storeName, "readwrite");
     const store = transaction.objectStore(storeName);
     const record: StartupCharacterPreferencesStoredRecord = {
       id: startupCharacterPreferencesRecordId,
-      value: normalized,
+      value: { byRuntime: normalized },
       updatedAt: Date.now(),
     };
     await idbRequestToPromise(store.put(record));
@@ -319,12 +355,12 @@ export async function persistNh3dStartupInitOptionsToIndexedDb(
   await writeStartupInitOptionsToIndexedDb(options);
 }
 
-export async function loadPersistedNh3dStartupCharacterPreferences(): Promise<StartupCharacterPreferences | null> {
+export async function loadPersistedNh3dStartupCharacterPreferences(): Promise<StartupCharacterPreferencesByRuntime | null> {
   return readStartupCharacterPreferencesFromIndexedDb();
 }
 
 export async function persistNh3dStartupCharacterPreferencesToIndexedDb(
-  preferences: StartupCharacterPreferences,
+  preferencesByRuntime: StartupCharacterPreferencesByRuntime,
 ): Promise<void> {
-  await writeStartupCharacterPreferencesToIndexedDb(preferences);
+  await writeStartupCharacterPreferencesToIndexedDb(preferencesByRuntime);
 }

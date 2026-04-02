@@ -29280,9 +29280,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const actions: FpsContextAction[] = [];
     const finalizeActions = (
       options: {
+        includeCast?: boolean;
         includeTechnique?: boolean;
       } = {},
     ): FpsContextAction[] => {
+      if (options.includeCast) {
+        addExtendedAction("cast", "Cast");
+      }
       if (options.includeTechnique) {
         addExtendedAction("technique", "Technique");
       }
@@ -29453,6 +29457,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isStairsUp = materialKind === "stairs_up";
     const isStairsDown = materialKind === "stairs_down";
     const supportsTipContextAction = this.resolveRuntimeVersion() !== "slashem";
+    const supportsCastContextAction = isTargetPlayerTile || isMonster;
     const supportsTechniqueContextAction =
       this.resolveRuntimeVersion() === "slashem" &&
       (isTargetPlayerTile || isMonster);
@@ -29486,6 +29491,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (isMonster) {
       addQuickAction("search", "Search");
       return finalizeActions({
+        includeCast: supportsCastContextAction,
         includeTechnique: supportsTechniqueContextAction,
       });
     }
@@ -29497,6 +29503,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         addQuickAction("eat", "Eat");
       }
       return finalizeActions({
+        includeCast: supportsCastContextAction,
         includeTechnique: supportsTechniqueContextAction,
       });
     }
@@ -29507,6 +29514,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       addExtendedAction("kick", "Kick");
       addQuickAction("search", "Search");
       return finalizeActions({
+        includeCast: supportsCastContextAction,
         includeTechnique: supportsTechniqueContextAction,
       });
     }
@@ -29517,6 +29525,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         addQuickAction("pickup", "Pick Up");
       }
       return finalizeActions({
+        includeCast: supportsCastContextAction,
         includeTechnique: supportsTechniqueContextAction,
       });
     }
@@ -29534,6 +29543,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       addQuickAction("search", "Search");
       addQuickAction("pickup", "Pick Up");
       return finalizeActions({
+        includeCast: supportsCastContextAction,
         includeTechnique: supportsTechniqueContextAction,
       });
     }
@@ -29541,6 +29551,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (isWall) {
       addQuickAction("search", "Search");
       return finalizeActions({
+        includeCast: supportsCastContextAction,
         includeTechnique: supportsTechniqueContextAction,
       });
     }
@@ -29557,6 +29568,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
     }
     return finalizeActions({
+      includeCast: supportsCastContextAction,
       includeTechnique: supportsTechniqueContextAction,
     });
   }

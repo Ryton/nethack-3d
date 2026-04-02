@@ -5839,14 +5839,19 @@ canvas {
   text-overflow: clip;
 }
 
+.nh3d-context-menu-title-text {
+  display: inline-block;
+  min-width: 0;
+}
+
 .nh3d-context-menu-title-scroll-track {
   display: inline-flex;
   align-items: center;
-  min-width: 100%;
+  width: max-content;
   gap: 28px;
   white-space: nowrap;
   animation: nh3d-context-title-scroll
-    var(--nh3d-context-title-scroll-duration, 10s) linear infinite;
+    var(--nh3d-context-title-scroll-duration, 2s) linear infinite;
   will-change: transform;
 }
 
@@ -5860,7 +5865,7 @@ canvas {
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(-50% - 14px));
+    transform: translateX(var(--nh3d-context-title-scroll-distance, 0px));
   }
 }
 
