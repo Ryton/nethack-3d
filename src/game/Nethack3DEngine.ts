@@ -8325,6 +8325,40 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private resolveLegacyHereChoicePreviewTileIndex(): number | null {
+    const playerTileKey = `${this.playerPos.x},${this.playerPos.y}`;
+    const playerTileMesh = this.tileMap.get(playerTileKey) ?? null;
+    const floorTileIndex =
+      typeof playerTileMesh?.userData?.floorUnderlayTileIndex === "number" &&
+      Number.isFinite(playerTileMesh.userData.floorUnderlayTileIndex)
+        ? Math.trunc(playerTileMesh.userData.floorUnderlayTileIndex)
+        : typeof playerTileMesh?.userData?.tileIndex === "number" &&
+            Number.isFinite(playerTileMesh.userData.tileIndex)
+          ? Math.trunc(playerTileMesh.userData.tileIndex)
+          : null;
+    const sharedSpaceBillboard = this.monsterBillboards.get(playerTileKey) ?? null;
+    const sharedSpaceBillboardTileIndex =
+      typeof sharedSpaceBillboard?.userData?.tileIndex === "number" &&
+      Number.isFinite(sharedSpaceBillboard.userData.tileIndex)
+        ? Math.trunc(sharedSpaceBillboard.userData.tileIndex)
+        : null;
+    const flattenedFeatureBillboard =
+      this.monsterBillboards.get(
+        this.getPlayerUnderlayBillboardKey(playerTileKey),
+      ) ?? null;
+    const flattenedFeatureBillboardTileIndex =
+      typeof flattenedFeatureBillboard?.userData?.tileIndex === "number" &&
+      Number.isFinite(flattenedFeatureBillboard.userData.tileIndex)
+        ? Math.trunc(flattenedFeatureBillboard.userData.tileIndex)
+        : null;
+
+    if (this.clientOptions.fpsFlattenEntityBillboards) {
+      return flattenedFeatureBillboardTileIndex ?? floorTileIndex;
+    }
+
+    return sharedSpaceBillboardTileIndex ?? floorTileIndex;
+  }
+
   private getFpsPlayerTileBillboardBehaviorFromCache(
     key: string,
     currentBehavior: TileBehaviorResult | null = null,
@@ -24750,6 +24784,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.maybePlayDrinkSoundForQuestionAnswer(resolvedChoice);
     this.sendInput(resolvedChoice);
     this.hideQuestion();
+  }
+
+  public resolveLegacyQuestionChoicePreviewTileIndex(
+    choice: string,
+  ): number | null {
+    const normalizedChoice = String(choice || "").trim();
+    if (normalizedChoice !== ".") {
+      return null;
+    }
+    return this.resolveLegacyHereChoicePreviewTileIndex();
   }
 
   public confirmQuestionMenuChoice(): void {

@@ -9797,6 +9797,18 @@ export default function App(): JSX.Element {
     question && question.menuItems.length > 0
       ? question.menuItems
       : legacyInventoryQuestionMenuItems;
+  const useSlashEmLegacyShortcutChoiceDialog =
+    activeRuntimeVersion === "slashem" &&
+    Boolean(question) &&
+    showLegacyInventoryQuestionCancelButton &&
+    !question?.isPickupDialog;
+  const questionChoiceSourceItems =
+    displayedQuestionMenuItems.length > 0
+      ? displayedQuestionMenuItems
+      : inventory.items;
+  const shouldRenderQuestionMenuItems =
+    displayedQuestionMenuItems.length > 0 &&
+    !useSlashEmLegacyShortcutChoiceDialog;
   const questionSelectableMenuItemCount = displayedQuestionMenuItems.filter(
     (item) => isSelectableQuestionMenuItem(item),
   ).length;
@@ -16697,6 +16709,10 @@ export default function App(): JSX.Element {
             : ""
         }${enhanceMenuData ? " nh3d-dialog-question-enhance" : ""}${
           castMenuData ? " nh3d-dialog-question-cast" : ""
+        }${
+          useSlashEmLegacyShortcutChoiceDialog
+            ? " nh3d-dialog-question-legacy-shortcuts"
+            : ""
         }${techniqueMenuData ? " nh3d-dialog-question-technique" : ""}`}
         open={Boolean(question)}
         id="question-dialog"
@@ -16708,7 +16724,7 @@ export default function App(): JSX.Element {
               t.dialogs.question.cancelPrompt,
             )}
             <div className="nh3d-question-text">{displayedQuestionText}</div>
-            {displayedQuestionMenuItems.length > 0 ? (
+            {shouldRenderQuestionMenuItems ? (
               question.isPickupDialog ? (
                 <>
                   {displayedQuestionMenuItems.map((item, index) => {
@@ -17009,79 +17025,102 @@ export default function App(): JSX.Element {
                 </>
               )
             ) : (
-              <div className="nh3d-overflow-glow-frame">
-                <div
-                  className={`nh3d-choice-list${
-                    useCompactQuestionChoiceLayout ? " is-compact" : ""
-                  }${isYesNoQuestionChoices ? " is-yes-no" : ""}`}
-                  data-nh3d-overflow-glow
-                  data-nh3d-overflow-glow-host="parent"
-                >
-                  {orderedQuestionChoices.map((choice) => {
-                    const inventoryChoiceItem = useInventoryChoiceLabels
-                      ? getInventoryItemForQuestionChoice(
-                          choice,
-                          inventory.items,
-                        )
-                      : null;
-                    const tileApplicable =
-                      tilesUiEnabled &&
-                      Boolean(inventoryChoiceItem) &&
-                      isMenuItemTileApplicable(inventoryChoiceItem);
-                    const tileIndex =
-                      tileApplicable && inventoryChoiceItem
-                        ? resolveMenuItemTileIndex(inventoryChoiceItem)
+              <>
+                <div className="nh3d-overflow-glow-frame">
+                  <div
+                    className={`nh3d-choice-list${
+                      useCompactQuestionChoiceLayout ? " is-compact" : ""
+                    }${isYesNoQuestionChoices ? " is-yes-no" : ""}${
+                      useSlashEmLegacyShortcutChoiceDialog
+                        ? " nh3d-choice-list-legacy-shortcuts"
+                        : ""
+                    }`}
+                    data-nh3d-overflow-glow
+                    data-nh3d-overflow-glow-host="parent"
+                  >
+                    {orderedQuestionChoices.map((choice) => {
+                      const normalizedChoice = choice.trim();
+                      const choiceSourceItem = useInventoryChoiceLabels
+                        ? getInventoryItemForQuestionChoice(
+                            normalizedChoice,
+                            questionChoiceSourceItems,
+                          )
                         : null;
-                    const tilePreview = renderMenuItemTilePreview(
-                      inventoryChoiceItem,
-                      tileIndex,
-                    );
-                    const fallbackGlyph = resolveMenuItemFallbackGlyph(
-                      inventoryChoiceItem,
-                      choice.trim().charAt(0) || "?",
-                    );
-                    return (
-                      <button
-                        className={`nh3d-choice-button${
-                          choice === question.defaultChoice
-                            ? " nh3d-choice-button-default"
-                            : ""
-                        }${
-                          tileApplicable ? " nh3d-choice-button-with-tile" : ""
-                        }`}
-                        data-nh3d-choice-value={choice}
-                        key={choice}
-                        onClick={() => controller?.chooseQuestionChoice(choice)}
-                        type="button"
-                      >
-                        {tileApplicable ? (
-                          <span
-                            className="nh3d-question-item-icon-shell"
-                            aria-hidden="true"
-                          >
-                            {tilePreview ? (
-                              <span className="nh3d-question-item-icon-art">
-                                {tilePreview}
-                              </span>
-                            ) : (
-                              <span className="nh3d-question-item-icon-fallback">
-                                {fallbackGlyph}
-                              </span>
+                      const choiceSourceItemTileApplicable =
+                        Boolean(choiceSourceItem) &&
+                        isMenuItemTileApplicable(choiceSourceItem);
+                      const legacyChoicePreviewTileIndex =
+                        useSlashEmLegacyShortcutChoiceDialog &&
+                        normalizedChoice === "."
+                          ? controller?.resolveLegacyQuestionChoicePreviewTileIndex(
+                              normalizedChoice,
+                            ) ?? null
+                          : null;
+                      const resolvedChoiceTileIndex =
+                        legacyChoicePreviewTileIndex ??
+                        (choiceSourceItemTileApplicable && choiceSourceItem
+                          ? resolveMenuItemTileIndex(choiceSourceItem)
+                          : null);
+                      const tileApplicable =
+                        tilesUiEnabled &&
+                        (choiceSourceItemTileApplicable ||
+                          legacyChoicePreviewTileIndex !== null);
+                      const tileIndex = tileApplicable
+                        ? resolvedChoiceTileIndex
+                        : null;
+                      const tilePreview = renderMenuItemTilePreview(
+                        choiceSourceItem,
+                        tileIndex,
+                      );
+                      const fallbackGlyph = resolveMenuItemFallbackGlyph(
+                        choiceSourceItem,
+                        normalizedChoice.charAt(0) || "?",
+                      );
+                      return (
+                        <button
+                          className={`nh3d-choice-button${
+                            choice === question.defaultChoice
+                              ? " nh3d-choice-button-default"
+                              : ""
+                          }${
+                            tileApplicable ? " nh3d-choice-button-with-tile" : ""
+                          }`}
+                          data-nh3d-choice-value={choice}
+                          key={choice}
+                          onClick={() =>
+                            controller?.chooseQuestionChoice(choice)
+                          }
+                          type="button"
+                        >
+                          {tileApplicable ? (
+                            <span
+                              className="nh3d-question-item-icon-shell"
+                              aria-hidden="true"
+                            >
+                              {tilePreview ? (
+                                <span className="nh3d-question-item-icon-art">
+                                  {tilePreview}
+                                </span>
+                              ) : (
+                                <span className="nh3d-question-item-icon-fallback">
+                                  {fallbackGlyph}
+                                </span>
+                              )}
+                            </span>
+                          ) : null}
+                          <span className="nh3d-choice-button-item-label">
+                            {getQuestionChoiceLabel(
+                              question.text,
+                              normalizedChoice,
+                              questionChoiceSourceItems,
+                              activeRuntimeVersion,
+                              useInventoryChoiceLabels,
                             )}
                           </span>
-                        ) : null}
-                        <span className="nh3d-choice-button-item-label">
-                          {getQuestionChoiceLabel(
-                            question.text,
-                            choice,
-                            inventory.items,
-                            activeRuntimeVersion,
-                            useInventoryChoiceLabels,
-                          )}
-                        </span>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 {showQuestionCancelButton ? (
                   <div className="nh3d-menu-actions">
@@ -17098,7 +17137,7 @@ export default function App(): JSX.Element {
                     </button>
                   </div>
                 ) : null}
-              </div>
+              </>
             )}
             {question.menuItems.length > 0 && questionMenuPageCount > 1 ? (
               <div className="nh3d-question-pagination">

@@ -1999,6 +1999,30 @@ canvas {
   }
 }
 
+.nh3d-dialog-question.nh3d-dialog-question-legacy-shortcuts {
+  .nh3d-choice-list-legacy-shortcuts {
+    align-items: stretch;
+    width: min(420px, 100%);
+    max-width: 100%;
+  }
+
+  .nh3d-choice-button {
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .nh3d-choice-button-with-tile {
+    display: flex;
+  }
+
+  @media (pointer: coarse) {
+    .nh3d-choice-list-legacy-shortcuts {
+      width: 100%;
+    }
+  }
+}
+
 .nh3d-dialog-new-game {
   top: 65%;
 

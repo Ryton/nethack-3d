@@ -1005,6 +1005,7 @@ export interface Nethack3DEngineController {
   sendInput(input: string): void;
   chooseDirection(directionKey: string): void;
   chooseQuestionChoice(choice: string): void;
+  resolveLegacyQuestionChoicePreviewTileIndex(choice: string): number | null;
   confirmQuestionMenuChoice(): void;
   togglePickupChoice(accelerator: string): void;
   toggleAllPickupChoices(): void;
