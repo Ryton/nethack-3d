@@ -77,6 +77,10 @@ export class MessageSoundHooks {
     void this.playSoundEffect("drink");
   }
 
+  public playPickupGoldSound(): void {
+    void this.playSoundEffect("pickup-gold");
+  }
+
   public playMessageLogSoundEffects(messageLike: unknown): void {
     const soundKeys = resolveNh3dMessageLogSoundEffectKeys(messageLike);
     for (const soundKey of soundKeys) {

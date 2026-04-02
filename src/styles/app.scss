@@ -2996,6 +2996,15 @@ canvas {
   border-radius: 12px;
 }
 
+.nh3d-options-nav-shell.nh3d-overflow-glow-frame,
+.nh3d-options-panel-shell.nh3d-overflow-glow-frame,
+.nh3d-options-nav-shell.nh3d-overflow-glow-frame.nh3d-overflow-glow::after,
+.nh3d-options-panel-shell.nh3d-overflow-glow-frame.nh3d-overflow-glow::after {
+  background: transparent !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
 .nh3d-options-nav {
   display: flex;
   flex-direction: column;

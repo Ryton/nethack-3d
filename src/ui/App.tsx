@@ -6506,7 +6506,13 @@ export default function App(): JSX.Element {
     x: number;
     y: number;
   } | null>(null);
-  const inventoryItemActions = inventoryContextActions;
+  const inventoryItemActions = useMemo(
+    () =>
+      activeRuntimeVersion === "slashem"
+        ? inventoryContextActions.filter((action) => action.id !== "tip")
+        : inventoryContextActions,
+    [activeRuntimeVersion],
+  );
   const inventoryContextMenuRef = useRef<HTMLDivElement | null>(null);
   const inventoryDropTypeMenuRef = useRef<HTMLDivElement | null>(null);
   const inventoryDropActionButtonRef = useRef<HTMLButtonElement | null>(null);

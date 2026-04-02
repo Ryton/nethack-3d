@@ -22804,6 +22804,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     let playerHealingGained: number | null = null;
     let playerExperienceDelta: number | null = null;
     let playerLevelUpTo: number | null = null;
+    let playerGoldIncreased = false;
     let playerCoreStatDeltaLabel: string | null = null;
     let playerCoreStatDeltaImproved: boolean | null = null;
     if (mappedField === "hp" && typeof parsedValue === "number") {
@@ -22854,6 +22855,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
         parsedValue > previousLevel
       ) {
         playerLevelUpTo = parsedValue;
+      }
+    }
+    if (mappedField === "gold" && typeof parsedValue === "number") {
+      const previousGold = this.playerStats.gold;
+      if (Number.isFinite(previousGold) && parsedValue > previousGold) {
+        playerGoldIncreased = true;
       }
     }
 
@@ -22997,6 +23004,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
           fillStyle: "#f2d06f",
         },
       );
+    }
+    if (playerGoldIncreased) {
+      this.messageSoundHooks.playPickupGoldSound();
     }
 
     this.refreshOverviewStyleLocationLabel();
@@ -29424,6 +29434,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const isStairsUp = materialKind === "stairs_up";
     const isStairsDown = materialKind === "stairs_down";
+    const supportsTipContextAction = this.resolveRuntimeVersion() !== "slashem";
 
     if (glanceSuggestCorpse) {
       addQuickAction("pickup", "Pick Up");
@@ -29431,7 +29442,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (glanceSuggestsContainerLoot) {
-      addExtendedAction("tip", "Tip");
+      if (supportsTipContextAction) {
+        addExtendedAction("tip", "Tip");
+      }
       addExtendedAction("force", "Force");
       addExtendedAction("apply", "Apply");
     }
@@ -29503,7 +29516,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (isTargetPlayerTile) {
       addQuickAction("pickup", "Pick Up");
       addQuickAction("loot", "Loot");
-      if (glanceSuggestsContainerLoot) {
+      if (glanceSuggestsContainerLoot && supportsTipContextAction) {
         addExtendedAction("tip", "Tip");
       }
       if (glanceSuggestsEdibleLoot) {
