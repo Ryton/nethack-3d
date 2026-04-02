@@ -133,8 +133,7 @@ import {
 } from "../debug-session-log";
 import {
   normalizeStartupCreateCharacterSelection,
-  pickRandomStartupGenderForRole,
-  pickRandomStartupRole,
+  pickRandomStartupCreateCharacterSelection,
   resolveStartupCreateCharacterOptionSet,
 } from "../game/helpers/startup-character-constraints";
 import {
@@ -14882,18 +14881,19 @@ export default function App(): JSX.Element {
           <button
             className="nh3d-menu-action-button nh3d-menu-action-confirm"
             onClick={() => {
-              const randomRole = pickRandomStartupRole(runtimeVersion);
-              const randomGender = pickRandomStartupGenderForRole(
-                randomRole,
-                runtimeVersion,
-              );
+              const randomSelection =
+                pickRandomStartupCreateCharacterSelection(
+                  runtimeVersion,
+                );
               handleStartNewGame({
                 mode: "random",
                 playMode: clientOptions.fpsMode ? "fps" : "normal",
                 runtimeVersion,
                 name: normalizeStartupCharacterName(randomCharacterName),
-                role: randomRole,
-                gender: randomGender,
+                role: randomSelection.role,
+                race: randomSelection.race,
+                gender: randomSelection.gender,
+                align: randomSelection.align,
                 initOptions: startupInitOptionTokens,
               });
             }}

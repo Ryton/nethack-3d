@@ -55,7 +55,7 @@ function intersectAllowedValues<T extends string>(
   );
 }
 
-function pickRandomItem<T extends string>(
+function pickRandomItem<T>(
   options: readonly T[],
   fallback: T,
 ): T {
@@ -148,5 +148,44 @@ export function pickRandomStartupGenderForRole(
   return pickRandomItem(
     optionSet.genderOptions,
     startupGenderOptions[0] ?? "male",
+  );
+}
+
+export function pickRandomStartupCreateCharacterSelection(
+  runtimeVersion: NethackRuntimeVersion = "3.6.7",
+): StartupCreateCharacterSelection {
+  const defaultSelection = normalizeStartupCreateCharacterSelection(
+    {},
+    runtimeVersion,
+  );
+  const role = pickRandomStartupRole(runtimeVersion);
+  const roleOptionSet = resolveStartupCreateCharacterOptionSet(
+    { role },
+    runtimeVersion,
+  );
+  const race = pickRandomItem(
+    roleOptionSet.raceOptions,
+    roleOptionSet.selection.race,
+  );
+  const raceOptionSet = resolveStartupCreateCharacterOptionSet(
+    { role, race },
+    runtimeVersion,
+  );
+  const gender = pickRandomItem(
+    raceOptionSet.genderOptions,
+    raceOptionSet.selection.gender,
+  );
+  const align = pickRandomItem(
+    raceOptionSet.alignOptions,
+    raceOptionSet.selection.align,
+  );
+  return normalizeStartupCreateCharacterSelection(
+    {
+      role: role || defaultSelection.role,
+      race: race || defaultSelection.race,
+      gender: gender || defaultSelection.gender,
+      align: align || defaultSelection.align,
+    },
+    runtimeVersion,
   );
 }
