@@ -2459,8 +2459,11 @@ type InventoryContextMenuState = {
   itemText: string;
   x: number;
   y: number;
+  anchorCenterX?: number;
+  anchorLeftX?: number;
   anchorBottomY?: number;
   anchorRightX?: number;
+  anchorTopY?: number;
 };
 type InventoryDropCountDialogState = {
   accelerator: string;
@@ -4450,57 +4453,86 @@ const resolveInventoryContextMenuPosition = (
   height: number,
   scrollRegionRect?: DOMRect | null,
 ): { x: number; y: number } => {
+  const rootStyle = getComputedStyle(document.documentElement);
+  const safeLeft =
+    parseCssPixelValue(
+      rootStyle.getPropertyValue("--nh3d-modal-safe-left-inset"),
+      8,
+    ) + 4;
+  const safeRight =
+    parseCssPixelValue(
+      rootStyle.getPropertyValue("--nh3d-modal-safe-right-inset"),
+      8,
+    ) + 4;
+  const safeTop =
+    parseCssPixelValue(
+      rootStyle.getPropertyValue("--nh3d-modal-safe-top-inset"),
+      8,
+    ) + 4;
+  const safeBottom =
+    parseCssPixelValue(
+      rootStyle.getPropertyValue("--nh3d-modal-safe-bottom-inset"),
+      8,
+    ) + 4;
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : 220;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : 260;
+  let minX = safeLeft;
+  let maxX = Math.max(safeLeft, window.innerWidth - safeRight - safeWidth);
+  let minY = safeTop;
+  let maxY = Math.max(safeTop, window.innerHeight - safeBottom - safeHeight);
   const anchorRightX =
     typeof state.anchorRightX === "number" &&
     Number.isFinite(state.anchorRightX)
       ? state.anchorRightX
       : state.x;
+  const anchorCenterX =
+    typeof state.anchorCenterX === "number" &&
+    Number.isFinite(state.anchorCenterX)
+      ? state.anchorCenterX
+      : anchorRightX - safeWidth * 0.5;
   const anchorBottomY =
     typeof state.anchorBottomY === "number" &&
     Number.isFinite(state.anchorBottomY)
       ? state.anchorBottomY
       : state.y;
-  const clampedToViewport = clampInventoryContextMenuPosition(
-    anchorRightX,
-    anchorBottomY,
-    width,
-    height,
-  );
   const regionLeft = scrollRegionRect?.left;
   const regionRight = scrollRegionRect?.right;
   const regionTop = scrollRegionRect?.top;
   const regionBottom = scrollRegionRect?.bottom;
-  if (
-    typeof regionLeft !== "number" ||
-    !Number.isFinite(regionLeft) ||
-    typeof regionRight !== "number" ||
-    !Number.isFinite(regionRight) ||
-    typeof regionTop !== "number" ||
-    !Number.isFinite(regionTop) ||
-    typeof regionBottom !== "number" ||
-    !Number.isFinite(regionBottom)
-  ) {
-    return clampedToViewport;
+  const hasRegionBounds =
+    typeof regionLeft === "number" &&
+    Number.isFinite(regionLeft) &&
+    typeof regionRight === "number" &&
+    Number.isFinite(regionRight) &&
+    typeof regionTop === "number" &&
+    Number.isFinite(regionTop) &&
+    typeof regionBottom === "number" &&
+    Number.isFinite(regionBottom);
+  if (hasRegionBounds) {
+    const regionMinX = regionLeft + inventoryContextMenuScrollRegionPaddingPx;
+    const regionMaxX =
+      regionRight - safeWidth - inventoryContextMenuScrollRegionPaddingPx;
+    const regionMinY = regionTop + inventoryContextMenuScrollRegionPaddingPx;
+    const regionMaxY =
+      regionBottom - safeHeight - inventoryContextMenuScrollRegionPaddingPx;
+    const boundedMinX = Math.max(minX, regionMinX);
+    const boundedMaxX = Math.min(maxX, regionMaxX);
+    const boundedMinY = Math.max(minY, regionMinY);
+    const boundedMaxY = Math.min(maxY, regionMaxY);
+    if (boundedMaxX >= boundedMinX) {
+      minX = boundedMinX;
+      maxX = boundedMaxX;
+    }
+    if (boundedMaxY >= boundedMinY) {
+      minY = boundedMinY;
+      maxY = boundedMaxY;
+    }
   }
-  const minX = regionLeft + inventoryContextMenuScrollRegionPaddingPx;
-  const maxX = regionRight - width - inventoryContextMenuScrollRegionPaddingPx;
-  const minY = regionTop + inventoryContextMenuScrollRegionPaddingPx;
-  const maxY =
-    regionBottom - height - inventoryContextMenuScrollRegionPaddingPx;
-  const canClampX =
-    Number.isFinite(minX) && Number.isFinite(maxX) && maxX >= minX;
-  const canClampY =
-    Number.isFinite(minY) && Number.isFinite(maxY) && maxY >= minY;
-  if (!canClampX && !canClampY) {
-    return clampedToViewport;
-  }
+  const preferredX = anchorCenterX - safeWidth * 0.5;
+  const preferredY = anchorBottomY;
   return {
-    x: canClampX
-      ? Math.min(Math.max(clampedToViewport.x, minX), maxX)
-      : clampedToViewport.x,
-    y: canClampY
-      ? Math.min(Math.max(clampedToViewport.y, minY), maxY)
-      : clampedToViewport.y,
+    x: Math.min(Math.max(preferredX, minX), maxX),
+    y: Math.min(Math.max(preferredY, minY), maxY),
   };
 };
 
@@ -6516,6 +6548,7 @@ export default function App(): JSX.Element {
   const inventoryContextMenuRef = useRef<HTMLDivElement | null>(null);
   const inventoryDropTypeMenuRef = useRef<HTMLDivElement | null>(null);
   const inventoryDropActionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const inventoryDialogRef = useRef<HTMLDivElement | null>(null);
   const inventoryItemsContainerRef = useRef<HTMLDivElement | null>(null);
   const inventoryRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const inventoryContextMenuStateRef = useRef<InventoryContextMenuState | null>(
@@ -6685,6 +6718,20 @@ export default function App(): JSX.Element {
     inventoryContextMenu?.itemText,
     inventoryItemActions,
   ]);
+  const getInventoryContextMenuClampRegion = useCallback((): DOMRect | null => {
+    const inventoryDialogRect =
+      inventoryDialogRef.current?.getBoundingClientRect() ?? null;
+    const inventoryItemsRect =
+      inventoryItemsContainerRef.current?.getBoundingClientRect() ?? null;
+    if (
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches
+    ) {
+      return inventoryDialogRect ?? inventoryItemsRect;
+    }
+    return inventoryItemsRect ?? inventoryDialogRect;
+  }, []);
   const applyInventoryRowProximity = useCallback((): void => {
     inventoryRowProximityAnimationFrameRef.current = null;
     const rows = inventoryRowRefs.current;
@@ -6799,6 +6846,12 @@ export default function App(): JSX.Element {
         pinnedActiveRowRect.right + inventoryContextMenuAnchorGapPx;
       const anchorBottomY =
         pinnedActiveRowRect.bottom + inventoryContextMenuAnchorBottomGapPx;
+      const anchorCenterX =
+        pinnedActiveRowRect.left + pinnedActiveRowRect.width * 0.5;
+      const anchorLeftX =
+        pinnedActiveRowRect.left - inventoryContextMenuAnchorGapPx;
+      const anchorTopY =
+        pinnedActiveRowRect.top - inventoryContextMenuAnchorBottomGapPx;
       setInventoryContextMenu((previous) => {
         if (!previous) {
           return previous;
@@ -6806,12 +6859,15 @@ export default function App(): JSX.Element {
         const next = resolveInventoryContextMenuPosition(
           {
             ...previous,
+            anchorCenterX,
+            anchorLeftX,
             anchorBottomY,
             anchorRightX,
+            anchorTopY,
           },
           menuWidth,
           menuHeight,
-          inventoryItemsRect,
+          getInventoryContextMenuClampRegion(),
         );
         const previousAnchorBottomY =
           typeof previous.anchorBottomY === "number" &&
@@ -6823,20 +6879,35 @@ export default function App(): JSX.Element {
           Number.isFinite(previous.anchorRightX)
             ? previous.anchorRightX
             : previous.x;
+        const previousAnchorCenterX =
+          typeof previous.anchorCenterX === "number" &&
+          Number.isFinite(previous.anchorCenterX)
+            ? previous.anchorCenterX
+            : previous.x;
+        const previousAnchorLeftX =
+          typeof previous.anchorLeftX === "number" &&
+          Number.isFinite(previous.anchorLeftX)
+            ? previous.anchorLeftX
+            : previous.x;
         if (
           Math.abs(next.x - previous.x) < 0.02 &&
           Math.abs(next.y - previous.y) < 0.02 &&
           Math.abs(anchorBottomY - previousAnchorBottomY) < 0.02 &&
-          Math.abs(anchorRightX - previousAnchorRightX) < 0.02
+          Math.abs(anchorCenterX - previousAnchorCenterX) < 0.02 &&
+          Math.abs(anchorRightX - previousAnchorRightX) < 0.02 &&
+          Math.abs(anchorLeftX - previousAnchorLeftX) < 0.02
         ) {
           return previous;
         }
         return {
           ...previous,
+          anchorCenterX,
+          anchorLeftX,
           x: next.x,
           y: next.y,
           anchorBottomY,
           anchorRightX,
+          anchorTopY,
         };
       });
     }
@@ -6847,7 +6918,7 @@ export default function App(): JSX.Element {
           applyInventoryRowProximity();
         });
     }
-  }, [inventoryReducedMotionEnabled]);
+  }, [getInventoryContextMenuClampRegion, inventoryReducedMotionEnabled]);
   const scheduleInventoryRowProximityUpdate = useCallback((): void => {
     if (typeof window === "undefined") {
       return;
@@ -12373,8 +12444,11 @@ export default function App(): JSX.Element {
     const estimatedMenuWidthPx = 220;
     const estimatedMenuHeightPx = 260;
     const pointerOffsetPx = 8;
+    let anchorCenterX: number | undefined;
+    let anchorLeftX: number | undefined;
     let anchorBottomY: number | undefined;
     let anchorRightX: number | undefined;
+    let anchorTopY: number | undefined;
 
     let initial = clampInventoryContextMenuPosition(
       clientX + pointerOffsetPx,
@@ -12384,8 +12458,24 @@ export default function App(): JSX.Element {
     );
 
     if (anchorRect) {
+      const anchorRectLeft =
+        Number.isFinite(anchorRect.left) ? anchorRect.left : null;
+      const anchorRectRight =
+        Number.isFinite(anchorRect.right) ? anchorRect.right : null;
+      if (anchorRectLeft !== null && anchorRectRight !== null) {
+        anchorCenterX = Math.min(
+          Math.max(clientX, anchorRectLeft),
+          anchorRectRight,
+        );
+      }
+      if (Number.isFinite(anchorRect.left)) {
+        anchorLeftX = anchorRect.left - inventoryContextMenuAnchorGapPx;
+      }
       if (Number.isFinite(anchorRect.right)) {
         anchorRightX = anchorRect.right + inventoryContextMenuAnchorGapPx;
+      }
+      if (Number.isFinite(anchorRect.top)) {
+        anchorTopY = anchorRect.top - inventoryContextMenuAnchorBottomGapPx;
       }
       if (Number.isFinite(anchorRect.bottom)) {
         anchorBottomY =
@@ -12399,30 +12489,34 @@ export default function App(): JSX.Element {
         typeof anchorBottomY === "number" && Number.isFinite(anchorBottomY)
           ? anchorBottomY
           : clientY + pointerOffsetPx;
-      const rightCandidate = clampInventoryContextMenuPosition(
-        preferredRightX,
+      const preferredLeftX =
+        typeof anchorCenterX === "number" && Number.isFinite(anchorCenterX)
+          ? anchorCenterX - estimatedMenuWidthPx * 0.5
+          : preferredRightX;
+      const belowCandidate = clampInventoryContextMenuPosition(
+        preferredLeftX,
         preferredRightY,
         estimatedMenuWidthPx,
         estimatedMenuHeightPx,
       );
 
-      // Always start as far right as possible.
-      initial = rightCandidate;
+      initial = belowCandidate;
     }
-    const inventoryItemsRect =
-      inventoryItemsContainerRef.current?.getBoundingClientRect() ?? null;
     const initialWithRegionClamp = resolveInventoryContextMenuPosition(
       {
         accelerator: itemAccelerator,
         itemText: String(item.text || t.dialogs.inventory.unknownItem),
         x: initial.x,
         y: initial.y,
+        anchorCenterX,
+        anchorLeftX,
         anchorBottomY,
         anchorRightX,
+        anchorTopY,
       },
       estimatedMenuWidthPx,
       estimatedMenuHeightPx,
-      inventoryItemsRect,
+      getInventoryContextMenuClampRegion(),
     );
 
     setInventoryContextMenu({
@@ -12430,8 +12524,11 @@ export default function App(): JSX.Element {
       itemText: String(item.text || t.dialogs.inventory.unknownItem),
       x: initialWithRegionClamp.x,
       y: initialWithRegionClamp.y,
+      anchorCenterX,
+      anchorLeftX,
       anchorBottomY,
       anchorRightX,
+      anchorTopY,
     });
   };
 
@@ -12825,13 +12922,11 @@ export default function App(): JSX.Element {
         }
         const menuElement = inventoryContextMenuRef.current;
         const rect = menuElement?.getBoundingClientRect();
-        const inventoryItemsRect =
-          inventoryItemsContainerRef.current?.getBoundingClientRect() ?? null;
         const clamped = resolveInventoryContextMenuPosition(
           previous,
           rect?.width ?? 220,
           rect?.height ?? 260,
-          inventoryItemsRect,
+          getInventoryContextMenuClampRegion(),
         );
         if (clamped.x === previous.x && clamped.y === previous.y) {
           return previous;
@@ -12858,6 +12953,7 @@ export default function App(): JSX.Element {
     cancelInventoryDropTypeHold,
     closeInventoryContextMenu,
     closeInventoryDropTypeMenu,
+    getInventoryContextMenuClampRegion,
     inventoryContextMenu,
     inventoryDropTypeMenuPosition,
     loadingOverlayVisible,
@@ -12874,13 +12970,11 @@ export default function App(): JSX.Element {
     }
 
     const rect = menuElement.getBoundingClientRect();
-    const inventoryItemsRect =
-      inventoryItemsContainerRef.current?.getBoundingClientRect() ?? null;
     const clamped = resolveInventoryContextMenuPosition(
       inventoryContextMenu,
       rect.width,
       rect.height,
-      inventoryItemsRect,
+      getInventoryContextMenuClampRegion(),
     );
     if (
       clamped.x === inventoryContextMenu.x &&
@@ -12899,7 +12993,7 @@ export default function App(): JSX.Element {
         y: clamped.y,
       };
     });
-  }, [inventoryContextMenu]);
+  }, [getInventoryContextMenuClampRegion, inventoryContextMenu]);
 
   useLayoutEffect(() => {
     if (!inventoryDropTypeMenuPosition) {
@@ -17357,6 +17451,7 @@ export default function App(): JSX.Element {
         }`}
         open={inventory.visible}
         id="inventory-dialog"
+        ref={inventoryDialogRef}
       >
         {renderMobileDialogCloseButton(
           () => controller?.closeInventoryDialog(),
