@@ -29278,6 +29278,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
     glanceText: string | null = null,
   ): FpsContextAction[] {
     const actions: FpsContextAction[] = [];
+    const finalizeActions = (
+      options: {
+        includeTechnique?: boolean;
+      } = {},
+    ): FpsContextAction[] => {
+      if (options.includeTechnique) {
+        addExtendedAction("technique", "Technique");
+      }
+      addContextualAction("info", "Info");
+      const infoIndex = actions.findIndex(
+        (action) => action.kind === "contextual" && action.id === "info",
+      );
+      if (infoIndex >= 0 && infoIndex !== actions.length - 1) {
+        const [infoAction] = actions.splice(infoIndex, 1);
+        if (infoAction) {
+          actions.push(infoAction);
+        }
+      }
+      return actions;
+    };
     const addQuickAction = (id: string, label: string, value: string = id) => {
       if (
         actions.some((action) => action.id === id && action.kind === "quick")
@@ -29327,8 +29347,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
         value,
       });
     };
-
-    addContextualAction("info", "Info");
 
     let isMonster =
       Boolean(mesh.userData?.isMonsterLikeCharacter) ||
@@ -29435,6 +29453,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isStairsUp = materialKind === "stairs_up";
     const isStairsDown = materialKind === "stairs_down";
     const supportsTipContextAction = this.resolveRuntimeVersion() !== "slashem";
+    const supportsTechniqueContextAction =
+      this.resolveRuntimeVersion() === "slashem" &&
+      (isTargetPlayerTile || isMonster);
 
     if (glanceSuggestCorpse) {
       addQuickAction("pickup", "Pick Up");
@@ -29464,7 +29485,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     if (isMonster) {
       addQuickAction("search", "Search");
-      return actions;
+      return finalizeActions({
+        includeTechnique: supportsTechniqueContextAction,
+      });
     }
 
     if (isLoot) {
@@ -29473,7 +29496,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         addQuickAction("loot", "Loot");
         addQuickAction("eat", "Eat");
       }
-      return actions;
+      return finalizeActions({
+        includeTechnique: supportsTechniqueContextAction,
+      });
     }
 
     if (materialKind === "door") {
@@ -29481,7 +29506,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       addQuickAction("close", "Close");
       addExtendedAction("kick", "Kick");
       addQuickAction("search", "Search");
-      return actions;
+      return finalizeActions({
+        includeTechnique: supportsTechniqueContextAction,
+      });
     }
 
     if (isStairsUp || isStairsDown) {
@@ -29489,7 +29516,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (isTargetPlayerTile) {
         addQuickAction("pickup", "Pick Up");
       }
-      return actions;
+      return finalizeActions({
+        includeTechnique: supportsTechniqueContextAction,
+      });
     }
 
     if (materialKind === "water" || materialKind === "fountain") {
@@ -29504,12 +29533,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       addQuickAction("search", "Search");
       addQuickAction("pickup", "Pick Up");
-      return actions;
+      return finalizeActions({
+        includeTechnique: supportsTechniqueContextAction,
+      });
     }
 
     if (isWall) {
       addQuickAction("search", "Search");
-      return actions;
+      return finalizeActions({
+        includeTechnique: supportsTechniqueContextAction,
+      });
     }
 
     addQuickAction("search", "Search");
@@ -29523,7 +29556,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         addQuickAction("eat", "Eat");
       }
     }
-    return actions;
+    return finalizeActions({
+      includeTechnique: supportsTechniqueContextAction,
+    });
   }
 
   private getFpsCrosshairTitle(
