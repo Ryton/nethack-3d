@@ -366,6 +366,7 @@ export const ko = {
       "monster-killed": "몬스터 처치(플레이어)",
       "monster-killed-other": "몬스터 처치(기타)",
       "missed-attack": "공격 빗나감",
+      "thrown-weapon": "던진 무기",
       "door-opens": "문 열림",
       "door-closes": "문 닫힘",
       "door-kick": "문 발차기",

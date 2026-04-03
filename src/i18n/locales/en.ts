@@ -1297,4 +1297,22 @@ export const en = {
   },
 } as const;
 
-export type TranslationDictionary = typeof en;
+type WidenTranslationLiterals<T> = T extends (...args: any[]) => any
+  ? T
+  : T extends string
+    ? string
+    : T extends number
+      ? number
+      : T extends boolean
+        ? boolean
+        : T extends bigint
+          ? bigint
+          : T extends symbol
+            ? symbol
+            : T extends readonly (infer U)[]
+              ? readonly WidenTranslationLiterals<U>[]
+              : T extends object
+                ? { readonly [K in keyof T]: WidenTranslationLiterals<T[K]> }
+                : T;
+
+export type TranslationDictionary = WidenTranslationLiterals<typeof en>;

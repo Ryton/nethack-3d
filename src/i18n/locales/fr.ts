@@ -386,6 +386,7 @@ export const fr = {
       "monster-killed": "Monstre tue (joueur)",
       "monster-killed-other": "Monstre tue (autre)",
       "missed-attack": "Attaque ratee",
+      "thrown-weapon": "Arme lancee",
       "door-opens": "Porte qui s'ouvre",
       "door-closes": "Porte qui se ferme",
       "door-kick": "Coup de pied dans la porte",

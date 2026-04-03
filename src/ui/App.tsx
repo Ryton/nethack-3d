@@ -36,10 +36,12 @@ import {
   createButtonBinding,
   defaultNh3dControllerBindings,
   formatNh3dControllerBindingLabel,
+  nh3dControllerActionGroupLabels,
   nh3dControllerActionSpecsByGroup,
   normalizeNh3dControllerBindings,
   parseNh3dControllerBinding,
   type Nh3dControllerActionId,
+  type Nh3dControllerActionGroupId,
   type Nh3dControllerBinding,
   type Nh3dControllerBindings,
 } from "../game/controller-bindings";
@@ -3462,9 +3464,13 @@ const startupControllerScrollSpeedPxPerSec = 1150;
 const startupControllerCursorDeadzone = 0.2;
 const startupControllerCursorSpeedPxPerSec = 820;
 const startupControllerSliderFastStepsPerSec = 13;
-const controllerActionGroupOrder: Array<
-  keyof typeof nh3dControllerActionSpecsByGroup
-> = ["Movement", "Look And Camera", "Actions", "Dialogs", "System"];
+const controllerActionGroupOrder: Nh3dControllerActionGroupId[] = [
+  "movement",
+  "lookAndCamera",
+  "actions",
+  "dialogs",
+  "system",
+];
 const startupControllerNavActionIds: readonly Nh3dControllerActionId[] = [
   "dpad_up",
   "dpad_down",
@@ -16364,7 +16370,9 @@ export default function App(): JSX.Element {
                 className="nh3d-controller-remap-group"
                 key={`controller-remap-group-${group}`}
               >
-                <div className="nh3d-controller-remap-group-title">{group}</div>
+                <div className="nh3d-controller-remap-group-title">
+                  {nh3dControllerActionGroupLabels[group]}
+                </div>
                 {nh3dControllerActionSpecsByGroup[group].map((spec) => {
                   const slots = clientOptionsDraft.controllerBindings[
                     spec.id
