@@ -21309,23 +21309,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
   ): Uint8Array {
     const splitMask = new Uint8Array(gridWidth * gridHeight);
     const targetCount = Math.max(
-      4,
+      1,
       Number.isFinite(targetCountOverride)
-        ? Math.trunc(targetCountOverride ?? 4)
-        : 8,
+        ? Math.trunc(targetCountOverride ?? 1)
+        : THREE.MathUtils.randInt(5, 8),
     );
-    const targets: { x: number; y: number }[] = [
-      { x: 0, y: THREE.MathUtils.randInt(0, gridHeight - 1) },
-      {
-        x: gridWidth - 1,
-        y: THREE.MathUtils.randInt(0, gridHeight - 1),
-      },
-      { x: THREE.MathUtils.randInt(0, gridWidth - 1), y: 0 },
-      {
-        x: THREE.MathUtils.randInt(0, gridWidth - 1),
-        y: gridHeight - 1,
-      },
-    ];
+    const targets: { x: number; y: number }[] = [];
     const uniqueTargetKeys = new Set(
       targets.map((target) => `${target.x},${target.y}`),
     );
