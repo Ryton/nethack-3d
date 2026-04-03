@@ -9059,7 +9059,10 @@ export default function App(): JSX.Element {
       : t.update.loading.runtime;
   const startupInitialLoadingVisible =
     !hasShownStartupMenu && loadingOverlayVisible;
-  const startupLogoVisible = startupUiVisible && !startupInitialLoadingVisible;
+  const startupLogoVisible =
+    startupUiVisible &&
+    !startupInitialLoadingVisible &&
+    !runtimeLoadingVisible;
   const newGameDialogVisible = newGamePrompt.visible && !infoMenu && !question;
   const gameOverTombstoneLines = Array.isArray(gameOver.tombstoneLines)
     ? gameOver.tombstoneLines

@@ -243,9 +243,9 @@ export type Nh3dClientOptions = {
 
 export const nh3dFpsLookSensitivityMin = 0.4;
 export const nh3dFpsLookSensitivityMax = 2.6;
-export const defaultNh3dBloodColorLightHex = "#841814";
-export const defaultNh3dBloodColorDarkHex = "#480a0b";
-export const defaultNh3dBloodMistColorHex = "#d21616";
+export const defaultNh3dBloodColorLightHex = "#c70700";
+export const defaultNh3dBloodColorDarkHex = "#b30000";
+export const defaultNh3dBloodMistColorHex = "#ff3333";
 export const nh3dOpenCharacterSheetEventName = "nh3d:open-character-sheet";
 export const nh3dToggleControllerActionWheelEventName =
   "nh3d:toggle-controller-action-wheel";
@@ -304,11 +304,11 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   displayXpGainsAbovePlayer: true,
   tileShakeOnHit: true,
   blood: true,
-  bloodStrength: 2.5,
+  bloodStrength: 1.5,
   bloodColorLightHex: defaultNh3dBloodColorLightHex,
   bloodColorDarkHex: defaultNh3dBloodColorDarkHex,
   bloodMistColorHex: defaultNh3dBloodMistColorHex,
-  bloodDetail: "medium",
+  bloodDetail: "high",
   monsterShatter: true,
   monsterShatterBloodBorders: true,
   liveMessageLog: true,
