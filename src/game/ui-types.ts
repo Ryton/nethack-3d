@@ -276,16 +276,20 @@ function resolveDefaultNh3dBloodDetail(): Nh3dBloodDetailMode {
     return "medium";
   }
 
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    return "veryLow";
+  }
+
   const globalWithCapacitor = window as Window & {
     Capacitor?: { isNativePlatform?: () => boolean };
   };
   if (globalWithCapacitor.Capacitor?.isNativePlatform?.() === true) {
-    return "low";
+    return "veryLow";
   }
 
   const protocol = window.location.protocol.toLowerCase();
   if (protocol === "capacitor:" || protocol === "ionic:") {
-    return "low";
+    return "veryLow";
   }
 
   const userAgent = navigator.userAgent || "";
@@ -295,7 +299,7 @@ function resolveDefaultNh3dBloodDetail(): Nh3dBloodDetailMode {
   const isIosBrowser =
     /\b(iPad|iPhone|iPod)\b/i.test(userAgent) ||
     (/Mac/i.test(platform) && maxTouchPoints > 1);
-  return isIosBrowser ? "low" : "medium";
+  return isIosBrowser ? "veryLow" : "medium";
 }
 
 const isMobilePortrait = window.matchMedia(
