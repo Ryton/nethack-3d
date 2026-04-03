@@ -1404,7 +1404,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodGroundOverlayZ: number = 0.012;
   private readonly bloodGroundCacheVersion: number = 2;
   private readonly bloodGroundMaxDensity: number = 2048;
-  private readonly bloodGroundOpacityStrength: number = 1.55;
+  private readonly bloodGroundOpacityStrength: number = 2.5;
   private readonly bloodGroundPixelsPerWorldUnit: number =
     BLOOD_GROUND_PIXELS_PER_TILE / TILE_SIZE;
   private readonly bloodGroundWorldToPixelX: number =
@@ -2590,28 +2590,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clientOptions.blood && this.bloodGroundHasVisibleData;
   }
 
-  private packBloodGroundRgba(r: number, g: number, b: number, a: number): number {
+  private packBloodGroundRgba(
+    r: number,
+    g: number,
+    b: number,
+    a: number,
+  ): number {
     if (this.bloodGroundColorLutIsLittleEndian) {
       return (
-        (r & 0xff) |
-        ((g & 0xff) << 8) |
-        ((b & 0xff) << 16) |
-        ((a & 0xff) << 24)
-      ) >>> 0;
+        ((r & 0xff) |
+          ((g & 0xff) << 8) |
+          ((b & 0xff) << 16) |
+          ((a & 0xff) << 24)) >>>
+        0
+      );
     }
 
     return (
-      ((a & 0xff) << 24) |
-      ((b & 0xff) << 16) |
-      ((g & 0xff) << 8) |
-      (r & 0xff)
-    ) >>> 0;
+      (((a & 0xff) << 24) |
+        ((b & 0xff) << 16) |
+        ((g & 0xff) << 8) |
+        (r & 0xff)) >>>
+      0
+    );
   }
 
   private ensureBloodGroundLookupTables(): void {
     if (!this.bloodGroundColorLut) {
       const lut = new Uint32Array(this.bloodGroundMaxDensity + 1);
-      for (let density = 0; density <= this.bloodGroundMaxDensity; density += 1) {
+      for (
+        let density = 0;
+        density <= this.bloodGroundMaxDensity;
+        density += 1
+      ) {
         if (density === 0) {
           lut[density] = 0;
           continue;
@@ -2977,7 +2988,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    const requiresFullUpload = forceFull || this.bloodGroundTextureRequiresFullUpload;
+    const requiresFullUpload =
+      forceFull || this.bloodGroundTextureRequiresFullUpload;
     const dirtyRect = requiresFullUpload
       ? {
           minX: 0,
@@ -3155,8 +3167,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
       let tertiaryX = 0;
       let tertiaryY = 0;
       if (pattern) {
-        primaryX = minX * pattern.primary.xx + py * pattern.primary.xy + pattern.primary.xb;
-        primaryY = minX * pattern.primary.yx + py * pattern.primary.yy + pattern.primary.yb;
+        primaryX =
+          minX * pattern.primary.xx +
+          py * pattern.primary.xy +
+          pattern.primary.xb;
+        primaryY =
+          minX * pattern.primary.yx +
+          py * pattern.primary.yy +
+          pattern.primary.yb;
         secondaryX =
           minX * pattern.secondary.xx +
           py * pattern.secondary.xy +
@@ -3229,7 +3247,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
             primaryNoise * 0.5 + ridge * 0.3 + tertiaryNoise * 0.2;
           patternNoise = Math.max(
             0,
-            Math.min(1, (combined - pattern.threshold) * pattern.contrast + 0.5),
+            Math.min(
+              1,
+              (combined - pattern.threshold) * pattern.contrast + 0.5,
+            ),
           );
           depositScale = 0.18 + 1.18 * patternNoise;
         }
