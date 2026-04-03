@@ -386,6 +386,7 @@ type RuntimeLevelIdentity = {
 };
 
 type BloodGroundCacheSnapshot = {
+  version: number;
   width: number;
   height: number;
   density: Uint16Array;
@@ -398,16 +399,19 @@ type BloodGroundDirtyRect = {
   maxY: number;
 };
 
+type BloodGroundPatternLayer = {
+  xx: number;
+  xy: number;
+  xb: number;
+  yx: number;
+  yy: number;
+  yb: number;
+};
+
 type BloodGroundPatternParams = {
-  primarySeed: number;
-  secondarySeed: number;
-  primaryScale: number;
-  secondaryScale: number;
-  tertiaryScale: number;
-  offsetX: number;
-  offsetY: number;
-  rotationSin: number;
-  rotationCos: number;
+  primary: BloodGroundPatternLayer;
+  secondary: BloodGroundPatternLayer;
+  tertiary: BloodGroundPatternLayer;
   threshold: number;
   contrast: number;
 };
@@ -641,13 +645,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
     THREE.MeshBasicMaterial
   > | null = null;
   private bloodGroundOverlayMaterial: THREE.MeshBasicMaterial | null = null;
-  private bloodGroundOverlayTexture: THREE.CanvasTexture | null = null;
-  private bloodGroundCanvas: HTMLCanvasElement | null = null;
-  private bloodGroundCanvasContext: CanvasRenderingContext2D | null = null;
-  private bloodGroundImageData: ImageData | null = null;
+  private bloodGroundOverlayTexture: THREE.DataTexture | null = null;
+  private bloodGroundPixelData: Uint8Array | null = null;
+  private bloodGroundPixelData32: Uint32Array | null = null;
   private bloodGroundDensity: Uint16Array | null = null;
   private bloodGroundDirtyRect: BloodGroundDirtyRect | null = null;
+  private bloodGroundDirtyRowMin: Int32Array | null = null;
+  private bloodGroundDirtyRowMax: Int32Array | null = null;
+  private bloodGroundDirtyRowRangeStart: number = BLOOD_GROUND_HEIGHT_PX;
+  private bloodGroundDirtyRowRangeEnd: number = -1;
   private bloodGroundHasVisibleData: boolean = false;
+  private bloodGroundTextureRequiresFullUpload: boolean = false;
+  private bloodGroundColorLut: Uint32Array | null = null;
+  private bloodGroundNoiseAtlasA: Float32Array | null = null;
+  private bloodGroundNoiseAtlasB: Float32Array | null = null;
+  private bloodGroundNoiseAtlasC: Float32Array | null = null;
+  private readonly bloodGroundFeatherLutCache: Map<number, Float32Array> =
+    new Map();
   private activeLevelCacheRef: { levelName: string; entryId: string } | null =
     null;
   private currentLevelCacheName: string | null = null;
@@ -1388,8 +1402,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodGroundDirectionScratch = new THREE.Vector2();
   private readonly bloodGroundPerpendicularScratch = new THREE.Vector2();
   private readonly bloodGroundOverlayZ: number = 0.012;
+  private readonly bloodGroundCacheVersion: number = 2;
   private readonly bloodGroundMaxDensity: number = 2048;
   private readonly bloodGroundOpacityStrength: number = 1.55;
+  private readonly bloodGroundPixelsPerWorldUnit: number =
+    BLOOD_GROUND_PIXELS_PER_TILE / TILE_SIZE;
+  private readonly bloodGroundWorldToPixelX: number =
+    (BLOOD_GROUND_WIDTH_PX - 1) / (MINIMAP_WIDTH_TILES * TILE_SIZE);
+  private readonly bloodGroundWorldToPixelY: number =
+    (BLOOD_GROUND_HEIGHT_PX - 1) / (MINIMAP_HEIGHT_TILES * TILE_SIZE);
+  private readonly bloodGroundTexturePartialUploadAreaRatio: number = 0.34;
+  private readonly bloodGroundTrailSegmentSpacingPx: number = 3.5;
+  private readonly bloodGroundNoiseAtlasSize: number = 256;
+  private readonly bloodGroundNoiseAtlasMask: number =
+    this.bloodGroundNoiseAtlasSize - 1;
+  private readonly bloodGroundNoiseAtlasShift: number = 8;
+  private readonly bloodGroundColorLutIsLittleEndian: boolean = (() => {
+    const buffer = new Uint32Array([0x11223344]).buffer;
+    return new Uint8Array(buffer)[0] === 0x44;
+  })();
   private readonly damageParticleFloorZ: number = 0.02;
   private readonly damageParticleWallBounce: number = 0.46;
   private minimapContainer: HTMLDivElement | null = null;
@@ -2533,6 +2564,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   ): BloodGroundCacheSnapshot | null {
     if (
       !source ||
+      source.version !== this.bloodGroundCacheVersion ||
       source.width !== BLOOD_GROUND_WIDTH_PX ||
       source.height !== BLOOD_GROUND_HEIGHT_PX ||
       !(source.density instanceof Uint16Array) ||
@@ -2542,6 +2574,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     return {
+      version: source.version,
       width: source.width,
       height: source.height,
       density: new Uint16Array(source.density),
@@ -2557,41 +2590,146 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clientOptions.blood && this.bloodGroundHasVisibleData;
   }
 
+  private packBloodGroundRgba(r: number, g: number, b: number, a: number): number {
+    if (this.bloodGroundColorLutIsLittleEndian) {
+      return (
+        (r & 0xff) |
+        ((g & 0xff) << 8) |
+        ((b & 0xff) << 16) |
+        ((a & 0xff) << 24)
+      ) >>> 0;
+    }
+
+    return (
+      ((a & 0xff) << 24) |
+      ((b & 0xff) << 16) |
+      ((g & 0xff) << 8) |
+      (r & 0xff)
+    ) >>> 0;
+  }
+
+  private ensureBloodGroundLookupTables(): void {
+    if (!this.bloodGroundColorLut) {
+      const lut = new Uint32Array(this.bloodGroundMaxDensity + 1);
+      for (let density = 0; density <= this.bloodGroundMaxDensity; density += 1) {
+        if (density === 0) {
+          lut[density] = 0;
+          continue;
+        }
+
+        const normalizedDensity = THREE.MathUtils.clamp(
+          (density * this.bloodGroundOpacityStrength) /
+            this.bloodGroundMaxDensity,
+          0,
+          1,
+        );
+        const smoothDarken = THREE.MathUtils.smoothstep(
+          normalizedDensity,
+          0.22,
+          0.99,
+        );
+        const darkenT = smoothDarken * 0.62;
+        const r = Math.round(THREE.MathUtils.lerp(132, 72, darkenT));
+        const g = Math.round(THREE.MathUtils.lerp(24, 10, darkenT));
+        const b = Math.round(THREE.MathUtils.lerp(20, 11, darkenT));
+        const a = Math.round(
+          255 *
+            THREE.MathUtils.clamp(
+              Math.pow(normalizedDensity, 0.76) * 0.94,
+              0,
+              1,
+            ),
+        );
+        lut[density] = this.packBloodGroundRgba(r, g, b, a);
+      }
+      this.bloodGroundColorLut = lut;
+    }
+
+    if (
+      this.bloodGroundNoiseAtlasA &&
+      this.bloodGroundNoiseAtlasB &&
+      this.bloodGroundNoiseAtlasC
+    ) {
+      return;
+    }
+
+    const atlasLength =
+      this.bloodGroundNoiseAtlasSize * this.bloodGroundNoiseAtlasSize;
+    const buildNoiseAtlas = (seed: number): Float32Array => {
+      const atlas = new Float32Array(atlasLength);
+      for (let y = 0; y < this.bloodGroundNoiseAtlasSize; y += 1) {
+        const rowOffset = y << this.bloodGroundNoiseAtlasShift;
+        for (let x = 0; x < this.bloodGroundNoiseAtlasSize; x += 1) {
+          atlas[rowOffset + x] = this.sampleBloodGroundNoise(x, y, seed);
+        }
+      }
+      return atlas;
+    };
+
+    this.bloodGroundNoiseAtlasA = buildNoiseAtlas(0x2f6e2b1);
+    this.bloodGroundNoiseAtlasB = buildNoiseAtlas(0x51a9d17);
+    this.bloodGroundNoiseAtlasC = buildNoiseAtlas(0x7c4f39d);
+  }
+
+  private getBloodGroundFeatherLut(power: number): Float32Array {
+    const lutKey = Math.max(1, Math.round(power * 48));
+    const cached = this.bloodGroundFeatherLutCache.get(lutKey);
+    if (cached) {
+      return cached;
+    }
+
+    const actualPower = lutKey / 48;
+    const lut = new Float32Array(257);
+    for (let i = 0; i < lut.length; i += 1) {
+      lut[i] = Math.pow(i / 256, actualPower);
+    }
+    this.bloodGroundFeatherLutCache.set(lutKey, lut);
+    return lut;
+  }
+
+  private resetBloodGroundDirtyRowTracking(): void {
+    this.bloodGroundDirtyRowMin?.fill(BLOOD_GROUND_WIDTH_PX);
+    this.bloodGroundDirtyRowMax?.fill(-1);
+    this.bloodGroundDirtyRowRangeStart = BLOOD_GROUND_HEIGHT_PX;
+    this.bloodGroundDirtyRowRangeEnd = -1;
+  }
+
   private ensureBloodGroundOverlayResources(): boolean {
     // One persistent level-sized plane, with density accumulated into a CPU-side
-    // buffer and only the dirty texture region pushed back to the GPU.
+    // buffer and only changed pixel rows pushed back to the GPU.
     if (
       this.bloodGroundOverlayMesh &&
       this.bloodGroundOverlayMaterial &&
       this.bloodGroundOverlayTexture &&
-      this.bloodGroundCanvas &&
-      this.bloodGroundCanvasContext &&
-      this.bloodGroundImageData &&
+      this.bloodGroundPixelData &&
+      this.bloodGroundPixelData32 &&
       this.bloodGroundDensity
     ) {
       this.updateBloodGroundOverlayVisibility();
       return true;
     }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = BLOOD_GROUND_WIDTH_PX;
-    canvas.height = BLOOD_GROUND_HEIGHT_PX;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) {
-      return false;
-    }
+    this.ensureBloodGroundLookupTables();
 
-    const imageData = context.createImageData(
+    const pixelData = new Uint8Array(
+      BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX * 4,
+    );
+    const texture = new THREE.DataTexture(
+      pixelData,
       BLOOD_GROUND_WIDTH_PX,
       BLOOD_GROUND_HEIGHT_PX,
+      THREE.RGBAFormat,
+      THREE.UnsignedByteType,
     );
-    context.putImageData(imageData, 0, 0);
-
-    const texture = new THREE.CanvasTexture(canvas);
     texture.generateMipmaps = false;
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    texture.anisotropy = this.resolveTextureAnisotropyLevel();
+    texture.flipY = false;
+    texture.anisotropy = Math.max(
+      1,
+      Math.min(2, this.resolveTextureAnisotropyLevel()),
+    );
+    texture.needsUpdate = true;
 
     const material = new THREE.MeshBasicMaterial({
       map: texture,
@@ -2619,43 +2757,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayMesh = mesh;
     this.bloodGroundOverlayMaterial = material;
     this.bloodGroundOverlayTexture = texture;
-    this.bloodGroundCanvas = canvas;
-    this.bloodGroundCanvasContext = context;
-    this.bloodGroundImageData = imageData;
+    this.bloodGroundPixelData = pixelData;
+    this.bloodGroundPixelData32 = new Uint32Array(pixelData.buffer);
     this.bloodGroundDensity = new Uint16Array(
       BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX,
     );
+    this.bloodGroundDirtyRowMin = new Int32Array(BLOOD_GROUND_HEIGHT_PX);
+    this.bloodGroundDirtyRowMax = new Int32Array(BLOOD_GROUND_HEIGHT_PX);
     this.bloodGroundDirtyRect = null;
+    this.resetBloodGroundDirtyRowTracking();
     this.bloodGroundHasVisibleData = false;
+    this.bloodGroundTextureRequiresFullUpload = true;
     this.updateBloodGroundOverlayVisibility();
     return true;
   }
 
   private clearActiveBloodGroundCanvas(): void {
     this.bloodGroundDirtyRect = null;
+    this.resetBloodGroundDirtyRowTracking();
     this.bloodGroundHasVisibleData = false;
+    this.bloodGroundTextureRequiresFullUpload = true;
 
     if (this.bloodGroundDensity) {
       this.bloodGroundDensity.fill(0);
     }
-    if (this.bloodGroundImageData) {
-      this.bloodGroundImageData.data.fill(0);
-    }
-    if (this.bloodGroundCanvasContext && this.bloodGroundImageData) {
-      this.bloodGroundCanvasContext.putImageData(
-        this.bloodGroundImageData,
-        0,
-        0,
-      );
-    } else if (this.bloodGroundCanvasContext && this.bloodGroundCanvas) {
-      this.bloodGroundCanvasContext.clearRect(
-        0,
-        0,
-        this.bloodGroundCanvas.width,
-        this.bloodGroundCanvas.height,
-      );
+    if (this.bloodGroundPixelData) {
+      this.bloodGroundPixelData.fill(0);
     }
     if (this.bloodGroundOverlayTexture) {
+      this.bloodGroundOverlayTexture.clearUpdateRanges();
       this.bloodGroundOverlayTexture.needsUpdate = true;
     }
 
@@ -2671,12 +2801,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayMesh = null;
     this.bloodGroundOverlayMaterial = null;
     this.bloodGroundOverlayTexture = null;
-    this.bloodGroundCanvas = null;
-    this.bloodGroundCanvasContext = null;
-    this.bloodGroundImageData = null;
+    this.bloodGroundPixelData = null;
+    this.bloodGroundPixelData32 = null;
     this.bloodGroundDensity = null;
     this.bloodGroundDirtyRect = null;
+    this.bloodGroundDirtyRowMin = null;
+    this.bloodGroundDirtyRowMax = null;
+    this.bloodGroundDirtyRowRangeStart = BLOOD_GROUND_HEIGHT_PX;
+    this.bloodGroundDirtyRowRangeEnd = -1;
     this.bloodGroundHasVisibleData = false;
+    this.bloodGroundTextureRequiresFullUpload = false;
   }
 
   private captureActiveBloodGroundCacheSnapshot(): BloodGroundCacheSnapshot | null {
@@ -2685,6 +2819,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     return {
+      version: this.bloodGroundCacheVersion,
       width: BLOOD_GROUND_WIDTH_PX,
       height: BLOOD_GROUND_HEIGHT_PX,
       density: new Uint16Array(this.bloodGroundDensity),
@@ -2699,6 +2834,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     if (
+      snapshot.version !== this.bloodGroundCacheVersion ||
       snapshot.width !== BLOOD_GROUND_WIDTH_PX ||
       snapshot.height !== BLOOD_GROUND_HEIGHT_PX ||
       !(snapshot.density instanceof Uint16Array) ||
@@ -2759,6 +2895,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
         maxX: clampedMaxX,
         maxY: clampedMaxY,
       };
+      if (this.bloodGroundDirtyRowMin && this.bloodGroundDirtyRowMax) {
+        for (let y = clampedMinY; y <= clampedMaxY; y += 1) {
+          this.bloodGroundDirtyRowMin[y] = Math.min(
+            this.bloodGroundDirtyRowMin[y],
+            clampedMinX,
+          );
+          this.bloodGroundDirtyRowMax[y] = Math.max(
+            this.bloodGroundDirtyRowMax[y],
+            clampedMaxX,
+          );
+        }
+        this.bloodGroundDirtyRowRangeStart = Math.min(
+          this.bloodGroundDirtyRowRangeStart,
+          clampedMinY,
+        );
+        this.bloodGroundDirtyRowRangeEnd = Math.max(
+          this.bloodGroundDirtyRowRangeEnd,
+          clampedMaxY,
+        );
+      }
       return;
     }
 
@@ -2778,6 +2934,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.bloodGroundDirtyRect.maxY,
       clampedMaxY,
     );
+
+    if (this.bloodGroundDirtyRowMin && this.bloodGroundDirtyRowMax) {
+      for (let y = clampedMinY; y <= clampedMaxY; y += 1) {
+        this.bloodGroundDirtyRowMin[y] = Math.min(
+          this.bloodGroundDirtyRowMin[y],
+          clampedMinX,
+        );
+        this.bloodGroundDirtyRowMax[y] = Math.max(
+          this.bloodGroundDirtyRowMax[y],
+          clampedMaxX,
+        );
+      }
+      this.bloodGroundDirtyRowRangeStart = Math.min(
+        this.bloodGroundDirtyRowRangeStart,
+        clampedMinY,
+      );
+      this.bloodGroundDirtyRowRangeEnd = Math.max(
+        this.bloodGroundDirtyRowRangeEnd,
+        clampedMaxY,
+      );
+    }
   }
 
   private sampleBloodGroundNoise(px: number, py: number, seed: number): number {
@@ -2790,78 +2967,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return (value >>> 0) / 4294967295;
   }
 
-  private sampleBloodGroundPatternNoise(
-    px: number,
-    py: number,
-    pattern: BloodGroundPatternParams,
-  ): number {
-    const rotatedX =
-      px * pattern.rotationCos - py * pattern.rotationSin + pattern.offsetX;
-    const rotatedY =
-      px * pattern.rotationSin + py * pattern.rotationCos + pattern.offsetY;
-    const primary = this.sampleBloodGroundNoise(
-      Math.floor(rotatedX / pattern.primaryScale),
-      Math.floor(rotatedY / pattern.primaryScale),
-      pattern.primarySeed,
-    );
-    const secondary = this.sampleBloodGroundNoise(
-      Math.floor(rotatedX / pattern.secondaryScale - pattern.offsetY * 0.17),
-      Math.floor(rotatedY / pattern.secondaryScale + pattern.offsetX * 0.17),
-      pattern.secondarySeed,
-    );
-    const tertiary = this.sampleBloodGroundNoise(
-      Math.floor((rotatedX + rotatedY) / pattern.tertiaryScale),
-      Math.floor((rotatedY - rotatedX) / pattern.tertiaryScale),
-      pattern.secondarySeed ^ 0x5bd1e995,
-    );
-    const ridge = 1 - Math.abs(secondary * 2 - 1);
-    const combined = primary * 0.5 + ridge * 0.3 + tertiary * 0.2;
-    return THREE.MathUtils.clamp(
-      (combined - pattern.threshold) * pattern.contrast + 0.5,
-      0,
-      1,
-    );
-  }
-
-  private writeBloodGroundPixelColor(
-    data: Uint8ClampedArray,
-    rgbaIndex: number,
-    density: number,
-  ): void {
-    if (density <= 0) {
-      data[rgbaIndex] = 0;
-      data[rgbaIndex + 1] = 0;
-      data[rgbaIndex + 2] = 0;
-      data[rgbaIndex + 3] = 0;
-      return;
-    }
-
-    const normalizedDensity = THREE.MathUtils.clamp(
-      (density * this.bloodGroundOpacityStrength) / this.bloodGroundMaxDensity,
-      0,
-      1,
-    );
-    const darkenT = THREE.MathUtils.smoothstep(normalizedDensity, 0.14, 0.96);
-    data[rgbaIndex] = Math.round(THREE.MathUtils.lerp(132, 44, darkenT));
-    data[rgbaIndex + 1] = Math.round(THREE.MathUtils.lerp(24, 5, darkenT));
-    data[rgbaIndex + 2] = Math.round(THREE.MathUtils.lerp(20, 7, darkenT));
-    data[rgbaIndex + 3] = Math.round(
-      255 *
-        THREE.MathUtils.clamp(Math.pow(normalizedDensity, 0.76) * 0.94, 0, 1),
-    );
-  }
-
   private syncBloodGroundTexture(forceFull: boolean = false): void {
     if (
-      !this.bloodGroundCanvasContext ||
-      !this.bloodGroundImageData ||
+      !this.bloodGroundPixelData32 ||
       !this.bloodGroundDensity ||
-      !this.bloodGroundOverlayTexture
+      !this.bloodGroundOverlayTexture ||
+      !this.bloodGroundColorLut
     ) {
       return;
     }
 
-    const dirtyRect = forceFull
+    const requiresFullUpload = forceFull || this.bloodGroundTextureRequiresFullUpload;
+    const dirtyRect = requiresFullUpload
       ? {
           minX: 0,
           minY: 0,
@@ -2874,30 +2991,92 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    const data = this.bloodGroundImageData.data;
-    for (let y = dirtyRect.minY; y <= dirtyRect.maxY; y += 1) {
-      const rowOffset = y * BLOOD_GROUND_WIDTH_PX;
-      for (let x = dirtyRect.minX; x <= dirtyRect.maxX; x += 1) {
-        const densityIndex = rowOffset + x;
-        const rgbaIndex = densityIndex * 4;
-        this.writeBloodGroundPixelColor(
-          data,
-          rgbaIndex,
-          this.bloodGroundDensity[densityIndex] ?? 0,
-        );
+    const dirtyWidth = dirtyRect.maxX - dirtyRect.minX + 1;
+    const dirtyHeight = dirtyRect.maxY - dirtyRect.minY + 1;
+    const rowDirtyMin = this.bloodGroundDirtyRowMin;
+    const rowDirtyMax = this.bloodGroundDirtyRowMax;
+    const hasRowDirtyTracking =
+      !requiresFullUpload &&
+      rowDirtyMin !== null &&
+      rowDirtyMax !== null &&
+      this.bloodGroundDirtyRowRangeEnd >= this.bloodGroundDirtyRowRangeStart;
+    let dirtyArea = dirtyWidth * dirtyHeight;
+    if (hasRowDirtyTracking) {
+      dirtyArea = 0;
+      for (
+        let y = this.bloodGroundDirtyRowRangeStart;
+        y <= this.bloodGroundDirtyRowRangeEnd;
+        y += 1
+      ) {
+        const rowMin = rowDirtyMin[y];
+        const rowMax = rowDirtyMax[y];
+        if (rowMax >= rowMin) {
+          dirtyArea += rowMax - rowMin + 1;
+        }
+      }
+    }
+    const fullArea = BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX;
+    const usePartialUpload =
+      !requiresFullUpload &&
+      dirtyArea / fullArea <= this.bloodGroundTexturePartialUploadAreaRatio;
+    const pixelData32 = this.bloodGroundPixelData32;
+    const density = this.bloodGroundDensity;
+    const colorLut = this.bloodGroundColorLut;
+    const texture = this.bloodGroundOverlayTexture;
+
+    texture.clearUpdateRanges();
+    if (hasRowDirtyTracking) {
+      for (
+        let y = this.bloodGroundDirtyRowRangeStart;
+        y <= this.bloodGroundDirtyRowRangeEnd;
+        y += 1
+      ) {
+        const minRowX = rowDirtyMin[y];
+        const maxRowX = rowDirtyMax[y];
+        if (maxRowX < minRowX) {
+          continue;
+        }
+
+        const rowOffset = y * BLOOD_GROUND_WIDTH_PX;
+        for (let x = minRowX; x <= maxRowX; x += 1) {
+          const pixelIndex = rowOffset + x;
+          pixelData32[pixelIndex] = colorLut[density[pixelIndex]];
+        }
+
+        if (usePartialUpload) {
+          texture.addUpdateRange(
+            (rowOffset + minRowX) * 4,
+            (maxRowX - minRowX + 1) * 4,
+          );
+        }
+
+        rowDirtyMin[y] = BLOOD_GROUND_WIDTH_PX;
+        rowDirtyMax[y] = -1;
+      }
+      this.bloodGroundDirtyRowRangeStart = BLOOD_GROUND_HEIGHT_PX;
+      this.bloodGroundDirtyRowRangeEnd = -1;
+    } else {
+      for (let y = dirtyRect.minY; y <= dirtyRect.maxY; y += 1) {
+        const rowOffset = y * BLOOD_GROUND_WIDTH_PX;
+        for (let x = dirtyRect.minX; x <= dirtyRect.maxX; x += 1) {
+          const pixelIndex = rowOffset + x;
+          pixelData32[pixelIndex] = colorLut[density[pixelIndex]];
+        }
+
+        if (usePartialUpload) {
+          texture.addUpdateRange(
+            (rowOffset + dirtyRect.minX) * 4,
+            dirtyWidth * 4,
+          );
+        }
       }
     }
 
-    this.bloodGroundCanvasContext.putImageData(
-      this.bloodGroundImageData,
-      0,
-      0,
-      dirtyRect.minX,
-      dirtyRect.minY,
-      dirtyRect.maxX - dirtyRect.minX + 1,
-      dirtyRect.maxY - dirtyRect.minY + 1,
-    );
-    this.bloodGroundOverlayTexture.needsUpdate = true;
+    if (requiresFullUpload) {
+      this.resetBloodGroundDirtyRowTracking();
+    }
+    this.bloodGroundTextureRequiresFullUpload = false;
+    texture.needsUpdate = true;
     this.bloodGroundDirtyRect = null;
     this.updateBloodGroundOverlayVisibility();
   }
@@ -2913,19 +3092,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
     seed: number,
     pattern: BloodGroundPatternParams | null = null,
   ): void {
-    if (!this.ensureBloodGroundOverlayResources() || !this.bloodGroundDensity) {
+    const densityBuffer = this.bloodGroundDensity;
+    const noiseAtlasA = this.bloodGroundNoiseAtlasA;
+    const noiseAtlasB = this.bloodGroundNoiseAtlasB;
+    const noiseAtlasC = this.bloodGroundNoiseAtlasC;
+    if (!densityBuffer || !noiseAtlasA || !noiseAtlasB || !noiseAtlasC) {
       return;
     }
 
-    const pixelsPerWorldUnit = BLOOD_GROUND_PIXELS_PER_TILE / TILE_SIZE;
-    const centerX =
-      ((worldX + TILE_SIZE * 0.5) / (MINIMAP_WIDTH_TILES * TILE_SIZE)) *
-      (BLOOD_GROUND_WIDTH_PX - 1);
+    const centerX = (worldX + TILE_SIZE * 0.5) * this.bloodGroundWorldToPixelX;
     const centerY =
-      ((TILE_SIZE * 0.5 - worldY) / (MINIMAP_HEIGHT_TILES * TILE_SIZE)) *
-      (BLOOD_GROUND_HEIGHT_PX - 1);
-    const radiusPxX = Math.max(0.75, radiusWorldX * pixelsPerWorldUnit);
-    const radiusPxY = Math.max(0.75, radiusWorldY * pixelsPerWorldUnit);
+      BLOOD_GROUND_HEIGHT_PX -
+      1 -
+      (TILE_SIZE * 0.5 - worldY) * this.bloodGroundWorldToPixelY;
+    const radiusPxX = Math.max(
+      0.75,
+      radiusWorldX * this.bloodGroundPixelsPerWorldUnit,
+    );
+    const radiusPxY = Math.max(
+      0.75,
+      radiusWorldY * this.bloodGroundPixelsPerWorldUnit,
+    );
     const extent = Math.max(radiusPxX, radiusPxY) * 1.5 + 2;
     const minX = Math.max(0, Math.floor(centerX - extent));
     const maxX = Math.min(
@@ -2943,64 +3130,199 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const sin = Math.sin(angleRadians);
     const cos = Math.cos(angleRadians);
+    const invRadiusXSq = 1 / (radiusPxX * radiusPxX);
+    const invRadiusYSq = 1 / (radiusPxY * radiusPxY);
+    const noiseMask = this.bloodGroundNoiseAtlasMask;
+    const noiseShift = this.bloodGroundNoiseAtlasShift;
+    const baseNoiseOffsetX = seed & noiseMask;
+    const baseNoiseOffsetY = (seed >>> 8) & noiseMask;
+    const secondaryNoiseOffsetX = (seed >>> 16) & noiseMask;
+    const secondaryNoiseOffsetY = (seed >>> 24) & noiseMask;
+    const baseDensity = Math.max(0, densityAmount);
+    const featherLut = this.getBloodGroundFeatherLut(featherPower);
+    const minDx = minX - centerX;
     let wrotePixel = false;
 
     for (let py = minY; py <= maxY; py += 1) {
       const dy = py - centerY;
       const rowOffset = py * BLOOD_GROUND_WIDTH_PX;
+      let localX = minDx * cos + dy * sin;
+      let localY = -minDx * sin + dy * cos;
+      let primaryX = 0;
+      let primaryY = 0;
+      let secondaryX = 0;
+      let secondaryY = 0;
+      let tertiaryX = 0;
+      let tertiaryY = 0;
+      if (pattern) {
+        primaryX = minX * pattern.primary.xx + py * pattern.primary.xy + pattern.primary.xb;
+        primaryY = minX * pattern.primary.yx + py * pattern.primary.yy + pattern.primary.yb;
+        secondaryX =
+          minX * pattern.secondary.xx +
+          py * pattern.secondary.xy +
+          pattern.secondary.xb;
+        secondaryY =
+          minX * pattern.secondary.yx +
+          py * pattern.secondary.yy +
+          pattern.secondary.yb;
+        tertiaryX =
+          minX * pattern.tertiary.xx +
+          py * pattern.tertiary.xy +
+          pattern.tertiary.xb;
+        tertiaryY =
+          minX * pattern.tertiary.yx +
+          py * pattern.tertiary.yy +
+          pattern.tertiary.yb;
+      }
+
       for (let px = minX; px <= maxX; px += 1) {
-        const dx = px - centerX;
-        const localX = dx * cos + dy * sin;
-        const localY = -dx * sin + dy * cos;
         const radialDistance =
-          (localX * localX) / (radiusPxX * radiusPxX) +
-          (localY * localY) / (radiusPxY * radiusPxY);
+          localX * localX * invRadiusXSq + localY * localY * invRadiusYSq;
         if (radialDistance > 1) {
+          localX += cos;
+          localY -= sin;
+          if (pattern) {
+            primaryX += pattern.primary.xx;
+            primaryY += pattern.primary.yx;
+            secondaryX += pattern.secondary.xx;
+            secondaryY += pattern.secondary.yx;
+            tertiaryX += pattern.tertiary.xx;
+            tertiaryY += pattern.tertiary.yx;
+          }
           continue;
         }
 
         const distanceT = Math.sqrt(radialDistance);
-        const edgeT = Math.max(0, 1 - distanceT);
-        const noise = this.sampleBloodGroundNoise(px, py, seed);
-        const patternNoise = pattern
-          ? this.sampleBloodGroundPatternNoise(px, py, pattern)
-          : 1;
-        const breakupThreshold = THREE.MathUtils.lerp(
-          0.16,
-          0.68,
-          THREE.MathUtils.clamp((distanceT - 0.08) / 0.92, 0, 1),
-        );
+        const edgeT = 1 - distanceT;
+        const baseNoise =
+          noiseAtlasA[
+            (((py + baseNoiseOffsetY) & noiseMask) << noiseShift) +
+              ((px + baseNoiseOffsetX) & noiseMask)
+          ];
+        const breakupT =
+          distanceT <= 0.08
+            ? 0
+            : distanceT >= 1
+              ? 1
+              : (distanceT - 0.08) * 1.0869565217391304;
+        let patternNoise = 1;
+        let depositScale = 1;
+        const breakupThreshold = 0.16 + (0.68 - 0.16) * breakupT;
+        if (pattern) {
+          const primaryNoise =
+            noiseAtlasA[
+              ((Math.floor(primaryY) & noiseMask) << noiseShift) +
+                (Math.floor(primaryX) & noiseMask)
+            ];
+          const secondaryNoise =
+            noiseAtlasB[
+              ((Math.floor(secondaryY) & noiseMask) << noiseShift) +
+                (Math.floor(secondaryX) & noiseMask)
+            ];
+          const tertiaryNoise =
+            noiseAtlasC[
+              ((Math.floor(tertiaryY) & noiseMask) << noiseShift) +
+                (Math.floor(tertiaryX) & noiseMask)
+            ];
+          const ridge = 1 - Math.abs(secondaryNoise * 2 - 1);
+          const combined =
+            primaryNoise * 0.5 + ridge * 0.3 + tertiaryNoise * 0.2;
+          patternNoise = Math.max(
+            0,
+            Math.min(1, (combined - pattern.threshold) * pattern.contrast + 0.5),
+          );
+          depositScale = 0.18 + 1.18 * patternNoise;
+        }
+
         if (distanceT > 0.28 && patternNoise < breakupThreshold) {
+          localX += cos;
+          localY -= sin;
+          if (pattern) {
+            primaryX += pattern.primary.xx;
+            primaryY += pattern.primary.yx;
+            secondaryX += pattern.secondary.xx;
+            secondaryY += pattern.secondary.yx;
+            tertiaryX += pattern.tertiary.xx;
+            tertiaryY += pattern.tertiary.yx;
+          }
           continue;
         }
-        if (distanceT > 0.93 && noise < 0.18) {
+        if (
+          distanceT > 0.93 &&
+          noiseAtlasB[
+            (((py + secondaryNoiseOffsetY) & noiseMask) << noiseShift) +
+              ((px + secondaryNoiseOffsetX) & noiseMask)
+          ] < 0.18
+        ) {
+          localX += cos;
+          localY -= sin;
+          if (pattern) {
+            primaryX += pattern.primary.xx;
+            primaryY += pattern.primary.yx;
+            secondaryX += pattern.secondary.xx;
+            secondaryY += pattern.secondary.yx;
+            tertiaryX += pattern.tertiary.xx;
+            tertiaryY += pattern.tertiary.yx;
+          }
           continue;
         }
 
-        let deposit = densityAmount * Math.pow(edgeT, featherPower);
-        deposit *= THREE.MathUtils.lerp(0.18, 1.36, patternNoise);
+        const edgeIndex =
+          edgeT <= 0 ? 0 : edgeT >= 1 ? 256 : Math.round(edgeT * 256);
+        let deposit = baseDensity * featherLut[edgeIndex];
+        deposit *= depositScale;
         if (distanceT > 0.72) {
-          deposit *= THREE.MathUtils.lerp(0.45, 1.18, noise);
+          deposit *= 0.45 + (1.18 - 0.45) * baseNoise;
         } else {
-          deposit *= 0.84 + noise * 0.24;
+          deposit *= 0.84 + baseNoise * 0.24;
         }
         const depositRounded = Math.max(0, Math.round(deposit));
         if (depositRounded <= 0) {
+          localX += cos;
+          localY -= sin;
+          if (pattern) {
+            primaryX += pattern.primary.xx;
+            primaryY += pattern.primary.yx;
+            secondaryX += pattern.secondary.xx;
+            secondaryY += pattern.secondary.yx;
+            tertiaryX += pattern.tertiary.xx;
+            tertiaryY += pattern.tertiary.yx;
+          }
           continue;
         }
 
         const densityIndex = rowOffset + px;
-        const previousDensity = this.bloodGroundDensity[densityIndex] ?? 0;
+        const previousDensity = densityBuffer[densityIndex];
         const nextDensity = Math.min(
           this.bloodGroundMaxDensity,
           previousDensity + depositRounded,
         );
         if (nextDensity === previousDensity) {
+          localX += cos;
+          localY -= sin;
+          if (pattern) {
+            primaryX += pattern.primary.xx;
+            primaryY += pattern.primary.yx;
+            secondaryX += pattern.secondary.xx;
+            secondaryY += pattern.secondary.yx;
+            tertiaryX += pattern.tertiary.xx;
+            tertiaryY += pattern.tertiary.yx;
+          }
           continue;
         }
 
-        this.bloodGroundDensity[densityIndex] = nextDensity;
+        densityBuffer[densityIndex] = nextDensity;
         wrotePixel = true;
+        localX += cos;
+        localY -= sin;
+        if (pattern) {
+          primaryX += pattern.primary.xx;
+          primaryY += pattern.primary.yx;
+          secondaryX += pattern.secondary.xx;
+          secondaryY += pattern.secondary.yx;
+          tertiaryX += pattern.tertiary.xx;
+          tertiaryY += pattern.tertiary.yx;
+        }
       }
     }
 
@@ -3027,10 +3349,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const deltaY = endWorldY - startWorldY;
     const lengthWorld = Math.hypot(deltaX, deltaY);
     const angle = Math.atan2(deltaY, deltaX);
+    const averageRadiusWorld = (startRadiusWorld + endRadiusWorld) * 0.5;
+    const lengthPx = lengthWorld * this.bloodGroundPixelsPerWorldUnit;
+    const averageRadiusPx =
+      averageRadiusWorld * this.bloodGroundPixelsPerWorldUnit;
+    const segmentSpacingPx = Math.max(
+      this.bloodGroundTrailSegmentSpacingPx,
+      averageRadiusPx * 1.2,
+    );
     const steps = THREE.MathUtils.clamp(
-      Math.ceil(lengthWorld * BLOOD_GROUND_PIXELS_PER_TILE * 1.4),
+      Math.ceil(lengthPx / Math.max(1, segmentSpacingPx)),
       1,
-      20,
+      9,
     );
 
     for (let step = 0; step <= steps; step += 1) {
@@ -3080,16 +3410,57 @@ class Nethack3DEngine implements Nethack3DEngineController {
     // directional trails so hits read as splats instead of uniform ovals.
     const seed = Math.floor(Math.random() * 0x7fffffff);
     const patternAngle = Math.random() * Math.PI * 2;
+    const rotationSin = Math.sin(patternAngle);
+    const rotationCos = Math.cos(patternAngle);
+    const offsetX = (Math.random() - 0.5) * 4096;
+    const offsetY = (Math.random() - 0.5) * 4096;
+    const buildPatternLayer = (
+      sampleXOffset: number,
+      sampleYOffset: number,
+      sampleXX: number,
+      sampleXY: number,
+      sampleYX: number,
+      sampleYY: number,
+      scale: number,
+    ): BloodGroundPatternLayer => {
+      const inverseScale = 1 / scale;
+      return {
+        xx: sampleXX * inverseScale,
+        xy: sampleXY * inverseScale,
+        xb: sampleXOffset * inverseScale,
+        yx: sampleYX * inverseScale,
+        yy: sampleYY * inverseScale,
+        yb: sampleYOffset * inverseScale,
+      };
+    };
     const pattern: BloodGroundPatternParams = {
-      primarySeed: seed + 17,
-      secondarySeed: seed + 733,
-      primaryScale: THREE.MathUtils.lerp(4.2, 10.5, Math.random()),
-      secondaryScale: THREE.MathUtils.lerp(1.8, 4.4, Math.random()),
-      tertiaryScale: THREE.MathUtils.lerp(1.2, 2.5, Math.random()),
-      offsetX: (Math.random() - 0.5) * 4096,
-      offsetY: (Math.random() - 0.5) * 4096,
-      rotationSin: Math.sin(patternAngle),
-      rotationCos: Math.cos(patternAngle),
+      primary: buildPatternLayer(
+        offsetX,
+        offsetY,
+        rotationCos,
+        -rotationSin,
+        rotationSin,
+        rotationCos,
+        THREE.MathUtils.lerp(4.2, 10.5, Math.random()),
+      ),
+      secondary: buildPatternLayer(
+        offsetX - offsetY * 0.17,
+        offsetY + offsetX * 0.17,
+        rotationCos,
+        -rotationSin,
+        rotationSin,
+        rotationCos,
+        THREE.MathUtils.lerp(1.8, 4.4, Math.random()),
+      ),
+      tertiary: buildPatternLayer(
+        offsetX + offsetY,
+        offsetY - offsetX,
+        rotationCos + rotationSin,
+        rotationCos - rotationSin,
+        rotationSin - rotationCos,
+        rotationCos + rotationSin,
+        THREE.MathUtils.lerp(1.2, 2.5, Math.random()),
+      ),
       threshold: THREE.MathUtils.lerp(0.3, 0.56, Math.random()),
       contrast: THREE.MathUtils.lerp(1.9, 3.1, Math.random()),
     };
@@ -3865,7 +4236,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private activateNewLevelTerrainCacheEntry(levelName: string): void {
     const entryId = this.createLevelCacheEntryId(levelName);
+    this.clearActiveBloodGroundCanvas();
     const snapshot = this.captureCurrentLevelTerrainCacheSnapshot();
+    snapshot.bloodGround = null;
     this.upsertLevelTerrainCacheEntry(levelName, entryId, snapshot);
     this.activeLevelCacheRef = { levelName, entryId };
     this.currentLevelCacheName = levelName;
