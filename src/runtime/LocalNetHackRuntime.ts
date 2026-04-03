@@ -6320,6 +6320,12 @@ class LocalNetHackRuntime {
     this.gameOverSequenceActive = true;
     this.gameOverEmptyRawPrintCount = 0;
     this.lastGameOverDeathSummary = "";
+    if (this.eventHandler) {
+      this.emit({
+        type: "game_over_started",
+        source,
+      });
+    }
     console.log(`Game-over sequence armed (${source}).`);
   }
 

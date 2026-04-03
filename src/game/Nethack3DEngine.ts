@@ -224,6 +224,17 @@ type BillboardShardDescriptor = {
   areaRatio: number;
 };
 
+type MonsterBillboardShatterOptions = {
+  splitTargetCountOverride?: number;
+  removeSourceBillboard?: boolean;
+  persistShardsOnGround?: boolean;
+};
+
+type DamageEffectOptions = {
+  bloodMistCountMultiplier?: number;
+  billboardShatter?: MonsterBillboardShatterOptions;
+};
+
 type BillboardShardParticle = {
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   velocity: THREE.Vector3;
@@ -237,6 +248,7 @@ type BillboardShardParticle = {
   settled: boolean;
   flatOrientation: THREE.Quaternion;
   groundImpactCount: number;
+  persistOnGround: boolean;
 };
 
 type CharacterCreationQuestionPayload = {
@@ -1349,6 +1361,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodParticleHitCountMax: number = 10;
   private readonly bloodParticleDefeatCountMin: number = 18;
   private readonly bloodParticleDefeatCountMax: number = 32;
+  private readonly playerDeathBloodMistCountMultiplier: number = 3;
   private readonly bloodParticleSpawnJitter: number = 0.12;
   private readonly damageParticleGravity: number = 67;
   private readonly damageParticleDrag: number = 4.2;
@@ -1371,9 +1384,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly monsterBillboardShardVerticalBaseSpeed: number = -2.5;
   private readonly monsterBillboardShardVerticalVariance: number = 5;
   private readonly monsterBillboardShardMaxPieces: number = 18;
+  private readonly playerDeathBillboardSplitCount: number = 3;
   private readonly monsterBillboardShardBoundaryRedChancePercent: number = 40;
   private readonly monsterBillboardShardBoundaryRedBleedChancePercent: number = 42;
   private readonly monsterBillboardShardBoundaryRed2x2ChancePercent: number = 30;
+  private hasTriggeredPlayerDeathEffect: boolean = false;
   private readonly vultureFrontWallPlaneRenderOrder: number = 914;
   private readonly vultureBillboardRenderOrder: number = 915;
   private readonly vultureBackWallPlaneRenderOrder: number = 916;
@@ -9285,6 +9300,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         break;
 
+      case "game_over_started":
+        this.triggerPlayerDeathEffects();
+        break;
+
       case "game_over_complete":
         const shouldDeferPromptReady = this.infoMenuBlockingActive;
         this.pendingGameOverPromptReady = shouldDeferPromptReady;
@@ -9426,10 +9445,61 @@ class Nethack3DEngine implements Nethack3DEngineController {
           ? [...nextTombstoneLines]
           : null,
     };
+    if (!nextActive) {
+      this.hasTriggeredPlayerDeathEffect = false;
+    }
     this.uiAdapter.setGameOver({ ...this.gameOverState });
     if (this.isInventoryDialogVisible) {
       this.uiAdapter.setInventory(this.buildInventoryDialogState());
     }
+  }
+
+  private isMobileIosWebOrAndroidDevice(): boolean {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+
+    const userAgent = navigator.userAgent || "";
+    const platform = navigator.platform || "";
+    const maxTouchPoints =
+      typeof navigator.maxTouchPoints === "number"
+        ? navigator.maxTouchPoints
+        : 0;
+    const isIosTouchDevice =
+      /\b(iPad|iPhone|iPod)\b/i.test(userAgent) ||
+      (/Mac/i.test(platform) && maxTouchPoints > 1);
+    const isIosWeb = isIosTouchDevice && !this.isLikelyCapacitorEnvironment();
+    const isAndroid = /\bAndroid\b/i.test(userAgent);
+    return isIosWeb || isAndroid;
+  }
+
+  private triggerPlayerDeathEffects(): void {
+    if (this.hasTriggeredPlayerDeathEffect) {
+      return;
+    }
+    this.hasTriggeredPlayerDeathEffect = true;
+
+    if (!this.hasSeenPlayerPosition) {
+      this.messageSoundHooks.playDamageEffectSound("defeat");
+      return;
+    }
+
+    this.triggerDamageEffectsAtTile(
+      this.playerPos.x,
+      this.playerPos.y,
+      1,
+      "defeat",
+      {
+        bloodMistCountMultiplier: this.isMobileIosWebOrAndroidDevice()
+          ? 1
+          : this.playerDeathBloodMistCountMultiplier,
+        billboardShatter: {
+          persistShardsOnGround: true,
+          removeSourceBillboard: true,
+          splitTargetCountOverride: this.playerDeathBillboardSplitCount,
+        },
+      },
+    );
   }
 
   private isGameOverPossessionsIdentifyQuestion(questionText: string): boolean {
@@ -10622,6 +10692,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     y: number,
     amount: number,
     variant: "hit" | "defeat" = "hit",
+    options: DamageEffectOptions = {},
   ): void {
     if (
       !Number.isFinite(x) ||
@@ -10637,7 +10708,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const hadElevatedBillboard = this.monsterBillboards.has(key);
     if (variant === "defeat") {
       if (this.clientOptions.monsterShatter) {
-        this.spawnMonsterBillboardShatterEffectAtTile(x, y);
+        this.spawnMonsterBillboardShatterEffectAtTile(
+          x,
+          y,
+          options.billboardShatter,
+        );
       }
     }
     const useMonsterBillboardFlash =
@@ -10677,7 +10752,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       });
     }
     if (this.clientOptions.bloodMist || this.clientOptions.bloodGround) {
-      this.spawnBloodEffects(x, y, damage, variant);
+      this.spawnBloodEffects(x, y, damage, variant, {
+        mistParticleCountMultiplier: options.bloodMistCountMultiplier,
+      });
     }
   }
 
@@ -16040,6 +16117,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     tileY: number,
     damage: number,
     variant: "hit" | "defeat",
+    options: {
+      mistParticleCountMultiplier?: number;
+    } = {},
   ): void {
     const sanitized = Math.max(1, Math.round(Math.abs(damage)));
     const awayFromPlayer = new THREE.Vector2(
@@ -16083,8 +16163,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
             this.bloodParticleHitCountMin,
             this.bloodParticleHitCountMax,
           );
-    const particleCount =
-      count + (variant === "defeat" ? Math.min(12, sanitized) : 0);
+    const mistParticleCountMultiplier =
+      typeof options.mistParticleCountMultiplier === "number" &&
+      Number.isFinite(options.mistParticleCountMultiplier)
+        ? Math.max(0.1, options.mistParticleCountMultiplier)
+        : 1;
+    const particleCount = Math.max(
+      1,
+      Math.round(
+        (count + (variant === "defeat" ? Math.min(12, sanitized) : 0)) *
+          mistParticleCountMultiplier,
+      ),
+    );
     const baseLifetimeMs =
       variant === "defeat"
         ? this.bloodParticleDefeatLifetimeMs
@@ -16619,6 +16709,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
 
       const material = particle.mesh.material;
+      if (particle.persistOnGround && particle.settled) {
+        material.opacity = 0.98;
+        particle.mesh.scale.set(
+          particle.baseScale.x,
+          particle.baseScale.y,
+          1,
+        );
+        continue;
+      }
       const lifeT = THREE.MathUtils.clamp(
         particle.ageMs / particle.lifetimeMs,
         0,
@@ -21014,17 +21113,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return sprite;
   }
 
-  private removeMonsterBillboard(key: string): void {
-    if (!key.includes("|")) {
-      const underlayKey = this.getPlayerUnderlayBillboardKey(key);
-      if (underlayKey !== key) {
-        this.removeMonsterBillboard(underlayKey);
-      }
-    }
-    const sprite = this.detachMonsterBillboard(key);
-    if (!sprite) {
-      return;
-    }
+  private disposeDetachedMonsterBillboard(sprite: THREE.Sprite): void {
     this.disposeMonsterBillboardPitchLockedProxyMesh(sprite);
     this.disposeMonsterBillboardFlatProxyMesh(sprite);
     this.disposeMonsterBillboardFlattenedBackdropSprite(sprite);
@@ -21041,6 +21130,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
       material.dispose();
     }
+  }
+
+  private removeMonsterBillboard(key: string): void {
+    if (!key.includes("|")) {
+      const underlayKey = this.getPlayerUnderlayBillboardKey(key);
+      if (underlayKey !== key) {
+        this.removeMonsterBillboard(underlayKey);
+      }
+    }
+    const sprite = this.detachMonsterBillboard(key);
+    if (!sprite) {
+      return;
+    }
+    this.disposeDetachedMonsterBillboard(sprite);
   }
 
   private resolveMonsterBillboardTextureSource(texture: THREE.Texture): {
@@ -21202,9 +21305,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     gridHeight: number,
     startX: number,
     startY: number,
+    targetCountOverride?: number,
   ): Uint8Array {
     const splitMask = new Uint8Array(gridWidth * gridHeight);
-    const minBranchCount = 8;
+    const targetCount = Math.max(
+      4,
+      Number.isFinite(targetCountOverride)
+        ? Math.trunc(targetCountOverride ?? 4)
+        : 8,
+    );
     const targets: { x: number; y: number }[] = [
       { x: 0, y: THREE.MathUtils.randInt(0, gridHeight - 1) },
       {
@@ -21221,10 +21330,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       targets.map((target) => `${target.x},${target.y}`),
     );
     let uniqueAttempts = 0;
-    while (
-      targets.length < minBranchCount &&
-      uniqueAttempts < minBranchCount * 8
-    ) {
+    while (targets.length < targetCount && uniqueAttempts < targetCount * 8) {
       const candidate = this.pickRandomMonsterBillboardSplitEdgeTarget(
         gridWidth,
         gridHeight,
@@ -21236,7 +21342,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
       uniqueAttempts += 1;
     }
-    while (targets.length < minBranchCount) {
+    while (targets.length < targetCount) {
       targets.push(
         this.pickRandomMonsterBillboardSplitEdgeTarget(gridWidth, gridHeight),
       );
@@ -21367,6 +21473,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private createMonsterBillboardShardDescriptors(
     texture: THREE.Texture,
+    options: MonsterBillboardShatterOptions = {},
   ): BillboardShardDescriptor[] {
     const sourceInfo = this.resolveMonsterBillboardTextureSource(texture);
     if (!sourceInfo) {
@@ -21436,6 +21543,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       gridHeight,
       startX,
       startY,
+      options.splitTargetCountOverride,
     );
     const regions = this.collectMonsterBillboardSplitRegions(
       gridWidth,
@@ -21735,6 +21843,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private spawnMonsterBillboardShardParticlesFromDescriptors(
     sprite: THREE.Sprite,
     descriptors: BillboardShardDescriptor[],
+    options: MonsterBillboardShatterOptions = {},
   ): void {
     if (!descriptors.length) {
       return;
@@ -21880,6 +21989,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         settled: false,
         flatOrientation,
         groundImpactCount: 0,
+        persistOnGround: options.persistShardsOnGround === true,
       });
     }
   }
@@ -21887,6 +21997,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private spawnMonsterBillboardShatterEffectAtTile(
     tileX: number,
     tileY: number,
+    options: MonsterBillboardShatterOptions = {},
   ): boolean {
     const key = `${tileX},${tileY}`;
     const sprite = this.monsterBillboards.get(key);
@@ -21903,8 +22014,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!sourceTexture) {
       return false;
     }
-    const descriptors =
-      this.createMonsterBillboardShardDescriptors(sourceTexture);
+    const descriptors = this.createMonsterBillboardShardDescriptors(
+      sourceTexture,
+      options,
+    );
     if (!descriptors.length) {
       return false;
     }
@@ -21912,7 +22025,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.spawnMonsterBillboardShardParticlesFromDescriptors(
       sprite,
       descriptors,
+      options,
     );
+    if (options.removeSourceBillboard) {
+      const detached = this.detachMonsterBillboard(key);
+      if (detached) {
+        this.disposeDetachedMonsterBillboard(detached);
+      }
+    }
     return true;
   }
 
