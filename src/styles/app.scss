@@ -2004,6 +2004,11 @@ canvas {
     align-items: stretch;
     width: min(420px, 100%);
     max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   .nh3d-choice-button {
