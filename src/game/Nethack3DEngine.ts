@@ -232,6 +232,9 @@ type MonsterBillboardShatterOptions = {
 
 type DamageEffectOptions = {
   bloodMistCountMultiplier?: number;
+  radialBloodMistSpread?: boolean;
+  bloodMistHorizontalSpeedMultiplier?: number;
+  bloodMistVerticalSpeedMultiplier?: number;
   billboardShatter?: MonsterBillboardShatterOptions;
 };
 
@@ -768,6 +771,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private currentInventory: any[] = []; // Store current inventory items
   private pendingInventoryDialog: boolean = false; // Flag to show inventory dialog after update
   private pendingInventoryDialogOptions: InventoryDialogOptions | null = null;
+  private deferredGameOverInventoryDialogOptions: InventoryDialogOptions | null =
+    null;
+  private deferredGameOverQuestionState: {
+    question: string;
+    choices: string;
+    defaultChoice: string;
+    menuItems: any[];
+  } | null = null;
+  private deferredGameOverCompletionState: {
+    deathMessage: string | null;
+    tombstoneLines: string[] | null;
+    shouldDeferPromptReady: boolean;
+  } | null = null;
   private inventoryRefreshInFlight: boolean = false;
   private runtimeTerminationPromptShown: boolean = false;
   private runtimeConnectionState: NethackConnectionState = "disconnected";
@@ -781,6 +797,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     tombstoneLines: null,
   };
   private pendingGameOverPromptReady: boolean = false;
+  private gameOverUiRevealBlocked: boolean = false;
   private isInfoDialogVisible: boolean = false;
   private infoMenuBlockingActive: boolean = false;
   private deferredPlayerTileRefreshReason: string | null = null;
@@ -1361,7 +1378,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodParticleHitCountMax: number = 10;
   private readonly bloodParticleDefeatCountMin: number = 18;
   private readonly bloodParticleDefeatCountMax: number = 32;
-  private readonly playerDeathBloodMistCountMultiplier: number = 3;
+  private readonly playerDeathBloodMistCountMultiplier: number = 5;
   private readonly bloodParticleSpawnJitter: number = 0.12;
   private readonly damageParticleGravity: number = 67;
   private readonly damageParticleDrag: number = 4.2;
@@ -9116,8 +9133,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (this.shouldCloseInventoryForPendingContextPrompt()) {
           this.hideInventoryDialog();
         }
+        const isGameOverPossessionsQuestion =
+          this.isGameOverPossessionsIdentifyQuestion(String(data.text || ""));
         if (
-          this.isGameOverPossessionsIdentifyQuestion(String(data.text || ""))
+          isGameOverPossessionsQuestion
         ) {
           this.setGameOverState(true, null);
         }
@@ -9134,6 +9153,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
 
         // For non-character creation questions, show normal dialog and pause movement
+        if (isGameOverPossessionsQuestion && this.isGameOverUiRevealBlocked()) {
+          this.deferredGameOverQuestionState = {
+            question: String(data.text || ""),
+            choices: String(data.choices || ""),
+            defaultChoice: String(data.default || ""),
+            menuItems: Array.isArray(data.menuItems) ? data.menuItems : [],
+          };
+          this.scheduleGameOverUiRevealFlush();
+          break;
+        }
         this.isInQuestion = true;
         this.showQuestion(
           data.text,
@@ -9184,9 +9213,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.gameOverState.active &&
           !this.isInventoryDialogVisible
         ) {
-          this.showInventoryDialog({
+          const gameOverInventoryOptions = {
             contextActionsEnabled: false,
-          });
+          };
+          if (this.isGameOverUiRevealBlocked()) {
+            this.deferredGameOverInventoryDialogOptions =
+              gameOverInventoryOptions;
+            this.scheduleGameOverUiRevealFlush();
+          } else {
+            this.showInventoryDialog(gameOverInventoryOptions);
+          }
         }
 
         // Update inventory display if we have an inventory UI element
@@ -9302,21 +9338,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
       case "game_over_started":
         this.triggerPlayerDeathEffects();
+        this.armGameOverUiRevealDelay();
         break;
 
       case "game_over_complete":
         const shouldDeferPromptReady = this.infoMenuBlockingActive;
+        const deathMessage =
+          typeof data.deathMessage === "string" ? data.deathMessage : null;
+        const tombstoneLines = Array.isArray(data.tombstoneLines)
+          ? (data.tombstoneLines as string[])
+          : null;
+        if (this.isGameOverUiRevealBlocked()) {
+          this.deferredGameOverCompletionState = {
+            deathMessage,
+            tombstoneLines,
+            shouldDeferPromptReady,
+          };
+          this.setGameOverState(true, deathMessage, {
+            promptReady: false,
+            tombstoneLines,
+          });
+          this.scheduleGameOverUiRevealFlush();
+          break;
+        }
         this.pendingGameOverPromptReady = shouldDeferPromptReady;
-        this.setGameOverState(
-          true,
-          typeof data.deathMessage === "string" ? data.deathMessage : null,
-          {
-            promptReady: shouldDeferPromptReady ? false : true,
-            tombstoneLines: Array.isArray(data.tombstoneLines)
-              ? (data.tombstoneLines as string[])
-              : null,
-          },
-        );
+        this.setGameOverState(true, deathMessage, {
+          promptReady: shouldDeferPromptReady ? false : true,
+          tombstoneLines,
+        });
         break;
 
       case "runtime_terminated":
@@ -9447,10 +9496,108 @@ class Nethack3DEngine implements Nethack3DEngineController {
     };
     if (!nextActive) {
       this.hasTriggeredPlayerDeathEffect = false;
+      this.clearGameOverUiRevealDelayState();
     }
     this.uiAdapter.setGameOver({ ...this.gameOverState });
     if (this.isInventoryDialogVisible) {
       this.uiAdapter.setInventory(this.buildInventoryDialogState());
+    }
+  }
+
+  private clearGameOverUiRevealDelayState(): void {
+    this.gameOverUiRevealBlocked = false;
+    this.deferredGameOverInventoryDialogOptions = null;
+    this.deferredGameOverQuestionState = null;
+    this.deferredGameOverCompletionState = null;
+  }
+
+  private isGameOverUiRevealBlocked(): boolean {
+    return this.gameOverUiRevealBlocked;
+  }
+
+  private armGameOverUiRevealDelay(): void {
+    this.gameOverUiRevealBlocked = true;
+    this.deferredGameOverInventoryDialogOptions = null;
+    this.deferredGameOverQuestionState = null;
+    this.deferredGameOverCompletionState = null;
+  }
+
+  private scheduleGameOverUiRevealFlush(): void {
+    if (!this.isGameOverUiRevealBlocked()) {
+      this.flushDeferredGameOverUiReveal();
+    }
+  }
+
+  private releaseDeferredGameOverUiReveal(): boolean {
+    if (!this.isGameOverUiRevealBlocked()) {
+      return false;
+    }
+    this.gameOverUiRevealBlocked = false;
+    this.flushDeferredGameOverUiReveal();
+    return true;
+  }
+
+  private shouldReleaseDeferredGameOverUiFromKeyDown(
+    event: KeyboardEvent,
+  ): boolean {
+    if (!this.isGameOverUiRevealBlocked()) {
+      return false;
+    }
+    if (
+      event.key === "Escape" ||
+      event.key === "Enter" ||
+      event.key === "NumpadEnter" ||
+      this.isSpaceDismissKey(event)
+    ) {
+      return true;
+    }
+    if (this.isMovementInput(event.key) || this.isMovementInput(event.code)) {
+      return true;
+    }
+    return (
+      this.tryResolveFpsMovementInput(event.key, event.code) !== null ||
+      this.tryResolveCameraRelativeGameplayMovementInput(event) !== null
+    );
+  }
+
+  private flushDeferredGameOverUiReveal(): void {
+    if (this.isGameOverUiRevealBlocked()) {
+      return;
+    }
+
+    const deferredCompletion = this.deferredGameOverCompletionState;
+    this.deferredGameOverCompletionState = null;
+    if (deferredCompletion) {
+      this.pendingGameOverPromptReady = deferredCompletion.shouldDeferPromptReady;
+      this.setGameOverState(true, deferredCompletion.deathMessage, {
+        promptReady: deferredCompletion.shouldDeferPromptReady ? false : true,
+        tombstoneLines: deferredCompletion.tombstoneLines,
+      });
+    }
+
+    const deferredQuestion = this.deferredGameOverQuestionState;
+    this.deferredGameOverQuestionState = null;
+    if (deferredQuestion) {
+      this.isInQuestion = true;
+      this.showQuestion(
+        deferredQuestion.question,
+        deferredQuestion.choices,
+        deferredQuestion.defaultChoice,
+        deferredQuestion.menuItems,
+      );
+    }
+
+    if (
+      !this.isInQuestion &&
+      !this.isInDirectionQuestion &&
+      this.deferredGameOverInventoryDialogOptions &&
+      this.gameOverState.active &&
+      !this.isInventoryDialogVisible
+    ) {
+      const deferredInventoryOptions =
+        this.deferredGameOverInventoryDialogOptions;
+      this.deferredGameOverInventoryDialogOptions = null;
+      this.showInventoryDialog(deferredInventoryOptions);
     }
   }
 
@@ -9493,6 +9640,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         bloodMistCountMultiplier: this.isMobileIosWebOrAndroidDevice()
           ? 1
           : this.playerDeathBloodMistCountMultiplier,
+        radialBloodMistSpread: true,
+        bloodMistHorizontalSpeedMultiplier: 0.5,
+        bloodMistVerticalSpeedMultiplier: 0.72,
         billboardShatter: {
           persistShardsOnGround: true,
           removeSourceBillboard: true,
@@ -10753,7 +10903,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (this.clientOptions.bloodMist || this.clientOptions.bloodGround) {
       this.spawnBloodEffects(x, y, damage, variant, {
+        horizontalSpeedMultiplier: options.bloodMistHorizontalSpeedMultiplier,
         mistParticleCountMultiplier: options.bloodMistCountMultiplier,
+        radialSpread: options.radialBloodMistSpread,
+        verticalSpeedMultiplier: options.bloodMistVerticalSpeedMultiplier,
       });
     }
   }
@@ -16112,13 +16265,43 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private panThirdPersonCameraByScreenDelta(
+    deltaX: number,
+    deltaY: number,
+    panSpeed: number,
+    directionMultiplier: number =
+      this.clientOptions.invertTouchPanningDirection ? -1 : 1,
+  ): void {
+    const sinYaw = Math.sin(this.cameraYaw);
+    const cosYaw = Math.cos(this.cameraYaw);
+    const rightX = -cosYaw;
+    const rightY = sinYaw;
+    const backwardX = sinYaw;
+    const backwardY = cosYaw;
+
+    this.cameraPanX +=
+      (-deltaX * rightX - deltaY * backwardX) *
+      panSpeed *
+      directionMultiplier;
+    this.cameraPanY +=
+      (-deltaX * rightY - deltaY * backwardY) *
+      panSpeed *
+      directionMultiplier;
+    this.cameraPanTargetX = this.cameraPanX;
+    this.cameraPanTargetY = this.cameraPanY;
+    this.isCameraCenteredOnPlayer = false;
+  }
+
   private spawnBloodEffects(
     tileX: number,
     tileY: number,
     damage: number,
     variant: "hit" | "defeat",
     options: {
+      horizontalSpeedMultiplier?: number;
       mistParticleCountMultiplier?: number;
+      radialSpread?: boolean;
+      verticalSpeedMultiplier?: number;
     } = {},
   ): void {
     const sanitized = Math.max(1, Math.round(Math.abs(damage)));
@@ -16148,9 +16331,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const texture = this.getBloodMistTexture();
+    const radialSpread = options.radialSpread === true;
 
     const spreadRadians =
-      variant === "defeat"
+      radialSpread
+        ? Math.PI * 2
+        : variant === "defeat"
         ? THREE.MathUtils.degToRad(52)
         : THREE.MathUtils.degToRad(32);
     const count =
@@ -16167,6 +16353,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof options.mistParticleCountMultiplier === "number" &&
       Number.isFinite(options.mistParticleCountMultiplier)
         ? Math.max(0.1, options.mistParticleCountMultiplier)
+        : 1;
+    const horizontalSpeedMultiplier =
+      typeof options.horizontalSpeedMultiplier === "number" &&
+      Number.isFinite(options.horizontalSpeedMultiplier)
+        ? Math.max(0.1, options.horizontalSpeedMultiplier)
+        : 1;
+    const verticalSpeedMultiplier =
+      typeof options.verticalSpeedMultiplier === "number" &&
+      Number.isFinite(options.verticalSpeedMultiplier)
+        ? Math.max(0.1, options.verticalSpeedMultiplier)
         : 1;
     const particleCount = Math.max(
       1,
@@ -16221,18 +16417,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.scene.add(sprite);
 
       const directionAngle =
-        Math.atan2(awayFromPlayer.y, awayFromPlayer.x) +
-        (Math.random() - 0.5) * spreadRadians;
+        radialSpread
+          ? Math.random() * spreadRadians
+          : Math.atan2(awayFromPlayer.y, awayFromPlayer.x) +
+            (Math.random() - 0.5) * spreadRadians;
       const horizontalSpeed =
-        baseHorizontalSpeed +
-        Math.random() * (baseHorizontalSpeed * horizontalVarianceScale) +
-        (Math.random() - 0.5) * horizontalVarianceJitter +
-        sanitized * horizontalBoost +
-        (1 - sizeFactor) * (variant === "defeat" ? 2.6 : 1.9);
+        (
+          baseHorizontalSpeed +
+          Math.random() * (baseHorizontalSpeed * horizontalVarianceScale) +
+          (Math.random() - 0.5) * horizontalVarianceJitter +
+          sanitized * horizontalBoost +
+          (1 - sizeFactor) * (variant === "defeat" ? 2.6 : 1.9)
+        ) * horizontalSpeedMultiplier;
       const verticalSpeed =
-        baseVerticalSpeed +
-        Math.random() * (variant === "defeat" ? 3.2 : 2.2) +
-        (1 - sizeFactor) * (variant === "defeat" ? 1.9 : 1.2);
+        (
+          baseVerticalSpeed +
+          Math.random() * (variant === "defeat" ? 3.2 : 2.2) +
+          (1 - sizeFactor) * (variant === "defeat" ? 1.9 : 1.2)
+        ) * verticalSpeedMultiplier;
 
       this.damageParticles.push({
         sprite,
@@ -26104,6 +26306,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.activeQuestionActionFocusIndex = -1;
     this.uiAdapter.setQuestion(null);
     this.syncFpsPointerLockForUiState(true);
+    this.flushDeferredGameOverUiReveal();
   }
 
   private decodeMenuSelectionIndexFromInput(input: string): number | null {
@@ -26230,6 +26433,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       window.clearTimeout(this.fpsTouchRunButtonHoldTimerId);
       this.fpsTouchRunButtonHoldTimerId = null;
     }
+    this.clearGameOverUiRevealDelayState();
     this.clearMapTouchContextHoldTimer();
     this.stopMinimapDrag();
     this.resetControllerVirtualCursor();
@@ -28872,6 +29076,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private handleKeyDown(event: KeyboardEvent): void {
     if (this.isUiInputBlocked()) {
       event.preventDefault();
+      return;
+    }
+    if (this.shouldReleaseDeferredGameOverUiFromKeyDown(event)) {
+      event.preventDefault();
+      this.releaseDeferredGameOverUiReveal();
       return;
     }
     this.resumeFmodFromUserGesture();
@@ -34108,6 +34317,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.resumeFmodFromUserGesture();
+    if (event.button === 0 && this.releaseDeferredGameOverUiReveal()) {
+      event.preventDefault();
+      return;
+    }
 
     if (
       !this.isFpsMode() &&
@@ -34658,11 +34871,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const touchPanDirection = this.clientOptions.invertTouchPanningDirection
         ? -1
         : 1;
-      this.cameraPanX += -deltaX * panSpeed * touchPanDirection;
-      this.cameraPanY += deltaY * panSpeed * touchPanDirection;
-      this.cameraPanTargetX = this.cameraPanX;
-      this.cameraPanTargetY = this.cameraPanY;
-      this.isCameraCenteredOnPlayer = false;
+      this.panThirdPersonCameraByScreenDelta(
+        deltaX,
+        deltaY,
+        panSpeed,
+        touchPanDirection,
+      );
       this.touchSwipeStart.lastX = touch.clientX;
       this.touchSwipeStart.lastY = touch.clientY;
     }
@@ -34794,6 +35008,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
             distance < this.fpsTouchLookMoveThresholdPx &&
             durationMs <= this.fpsTouchTapMaxDurationMs;
           if (isTap) {
+            if (this.releaseDeferredGameOverUiReveal()) {
+              consumed = true;
+              continue;
+            }
             if (this.fpsCrosshairContextMenuOpen) {
               this.closeFpsCrosshairContextMenu(false);
             } else {
@@ -34820,6 +35038,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
             this.clearFpsTouchRunButtonState();
             const fpsMoveInput = this.resolveFpsMovementInputFromSwipe(dx, dy);
             if (runButtonActive && fpsMoveInput) {
+              if (this.releaseDeferredGameOverUiReveal()) {
+                consumed = true;
+                continue;
+              }
               if (this.fpsCrosshairContextMenuOpen) {
                 this.closeFpsCrosshairContextMenu(false);
               }
@@ -34840,6 +35062,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
               ? this.resolveFpsMovementInputFromSwipe(dx, dy)
               : null;
           if (fpsMoveInput) {
+            if (this.releaseDeferredGameOverUiReveal()) {
+              consumed = true;
+              continue;
+            }
             if (this.fpsCrosshairContextMenuOpen) {
               this.closeFpsCrosshairContextMenu(false);
             }
@@ -34909,6 +35135,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const dy = touch.clientY - start.y;
     const distance = Math.hypot(dx, dy);
     const durationMs = Date.now() - start.startedAtMs;
+    const isQuickTap =
+      distance < this.touchSwipeMinDistancePx &&
+      durationMs <= this.fpsTouchTapMaxDurationMs;
+    if (isQuickTap && this.releaseDeferredGameOverUiReveal()) {
+      this.mapTouchContextHoldState = null;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      return;
+    }
     if (durationMs >= this.mapTouchContextHoldMs) {
       this.mapTouchContextHoldState = null;
       if (event.cancelable) {
@@ -34965,6 +35201,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const swipeInput = this.resolveSwipeDirectionInput(dx, dy);
     if (!swipeInput) {
       this.mapTouchContextHoldState = null;
+      return;
+    }
+    if (this.releaseDeferredGameOverUiReveal()) {
+      this.mapTouchContextHoldState = null;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
       return;
     }
     if (event.cancelable) {
@@ -35051,11 +35294,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const deltaY = event.clientY - this.lastMouseY;
 
       const panSpeed = 0.05;
-      this.cameraPanX -= deltaX * panSpeed;
-      this.cameraPanY += deltaY * panSpeed;
-      this.cameraPanTargetX = this.cameraPanX;
-      this.cameraPanTargetY = this.cameraPanY;
-      this.isCameraCenteredOnPlayer = false;
+      this.panThirdPersonCameraByScreenDelta(deltaX, deltaY, panSpeed);
 
       this.lastMouseX = event.clientX;
       this.lastMouseY = event.clientY;

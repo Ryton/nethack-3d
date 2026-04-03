@@ -1,4 +1,4 @@
-import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
+﻿import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
 import { en, type TranslationDictionary } from "./en";
 
 export const deOverrides: LocaleOverrides<TranslationDictionary> = {
@@ -830,9 +830,8 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         groupMobileControls: "Mobile Steuerung",
         invertTouchPanningDirection: {
-          label: "Touch-Schwenkrichtung umkehren",
-          description:
-            "Kehrt die Ziehrichtung f\u00fcr Touch-Schwenken nach dem Gedr\u00fcckthalten um.",
+          label: "Schwenkrichtung umkehren",
+          description: "Kehrt die Ziehrichtung fuer das Schwenken um, sobald Gedrueckthalten zum Schwenken aktiv ist.",
         },
         groupCombat: "Kampf-Feedback",
         damageNumbers: {
@@ -1289,7 +1288,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           rightRingFinger: "Rechter Ringfinger",
           here: "Hier",
           onGround: "Am Boden",
-          eligibleItems: "Passende Gegenstände",
+          eligibleItems: "Passende GegenstÃ¤nde",
           allInventory: "Ganzes Inventar",
         },
       },
@@ -1314,7 +1313,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         levelLabel: (level: number) => `Stufe ${level}`,
         xpAtMaxLevel: (xp: string) => `EP ${xp} (maximale Stufe erreicht)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `EP ${xp} / ${next} • ${remaining} bis zur n\u00e4chsten Stufe`,
+          `EP ${xp} / ${next} â€¢ ${remaining} bis zur n\u00e4chsten Stufe`,
         vitals: "Vitalwerte",
         characteristics: "Eigenschaften",
         currentLimit: "Aktuell / Limit",

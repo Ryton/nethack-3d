@@ -320,7 +320,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   invertLookYAxis: false,
   cameraRelativeMovement: true,
   snapCameraYawToNearest45: true,
-  invertTouchPanningDirection: true,
+  invertTouchPanningDirection: false,
   desktopTouchInterfaceMode: "off",
   disableAnimatedTransitions: false,
   uiTileBackgroundRemoval: true,
@@ -615,7 +615,8 @@ export function normalizeNh3dClientOptions(
     typeof legacyBloodOverrides?.blood === "boolean"
       ? legacyBloodOverrides.blood
       : undefined;
-  const locale = resolveSupportedLocale(overrides?.locale) ?? getCurrentLocale();
+  const locale =
+    resolveSupportedLocale(overrides?.locale) ?? getCurrentLocale();
   const rawFpsFov =
     typeof overrides?.fpsFov === "number" && Number.isFinite(overrides.fpsFov)
       ? overrides.fpsFov

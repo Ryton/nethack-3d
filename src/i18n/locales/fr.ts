@@ -1,4 +1,4 @@
-export const fr = {
+﻿export const fr = {
   meta: {
     locale: "fr-FR",
   },
@@ -831,9 +831,8 @@ export const fr = {
         },
         groupMobileControls: "Commandes mobiles",
         invertTouchPanningDirection: {
-          label: "Inverser la direction du panoramique tactile",
-          description:
-            "Inverse la direction du glissement pour le panoramique tactile apres le debut du maintien pour panoramiquer.",
+          label: "Inverser la direction du panoramique",
+          description: "Inverse la direction du glissement pour le panoramique une fois le maintien pour panoramiquer active.",
         },
         groupCombat: "Retour de combat",
         damageNumbers: {
@@ -1320,7 +1319,7 @@ export const fr = {
         levelLabel: (level: number) => `Level ${level}`,
         xpAtMaxLevel: (xp: string) => `XP ${xp} (max level reached)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `XP ${xp} / ${next} • ${remaining} to next level`,
+          `XP ${xp} / ${next} â€¢ ${remaining} to next level`,
         vitals: "Signes vitaux",
         characteristics: "Caracteristiques",
         currentLimit: "Actuel / Limite",

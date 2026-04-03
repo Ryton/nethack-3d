@@ -1,4 +1,4 @@
-export const en = {
+﻿export const en = {
   meta: {
     locale: "en-US",
   },
@@ -802,9 +802,8 @@ export const en = {
         },
         groupMobileControls: "Mobile controls",
         invertTouchPanningDirection: {
-          label: "Invert touch panning direction",
-          description:
-            "Reverse drag direction for touch panning after hold-to-pan starts.",
+          label: "Invert panning direction",
+          description: "Reverse drag direction for panning after hold-to-pan starts.",
         },
         groupCombat: "Combat feedback",
         damageNumbers: {
@@ -1276,7 +1275,7 @@ export const en = {
         levelLabel: (level: number) => `Level ${level}`,
         xpAtMaxLevel: (xp: string) => `XP ${xp} (max level reached)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `XP ${xp} / ${next} • ${remaining} to next level`,
+          `XP ${xp} / ${next} â€¢ ${remaining} to next level`,
         vitals: "Vitals",
         characteristics: "Characteristics",
         currentLimit: "Current / Limit",

@@ -4219,6 +4219,12 @@ const clientOptionsConfig: ClientOption[] = [
     type: "boolean",
   },
   {
+    key: "invertTouchPanningDirection",
+    label: t.clientOptions.config.invertTouchPanningDirection.label,
+    description: t.clientOptions.config.invertTouchPanningDirection.description,
+    type: "boolean",
+  },
+  {
     key: "fpsLookSensitivityX",
     label: t.clientOptions.config.fpsLookSensitivityX.label,
     description: t.clientOptions.config.fpsLookSensitivityX.description,
@@ -4561,17 +4567,6 @@ const clientOptionsConfig: ClientOption[] = [
     type: "boolean",
   },
   {
-    key: "group-mobile-controls",
-    label: t.clientOptions.config.groupMobileControls,
-    type: "group",
-  },
-  {
-    key: "invertTouchPanningDirection",
-    label: t.clientOptions.config.invertTouchPanningDirection.label,
-    description: t.clientOptions.config.invertTouchPanningDirection.description,
-    type: "boolean",
-  },
-  {
     key: "group-combat",
     label: t.clientOptions.config.groupCombat,
     type: "group",
@@ -4725,12 +4720,6 @@ const clientOptionsTabs: ClientOptionsTab[] = [
     label: t.clientOptions.tabs.display.label,
     description: t.clientOptions.tabs.display.description,
     groupKey: "group-interface",
-  },
-  {
-    id: "mobile",
-    label: t.clientOptions.tabs.mobile.label,
-    description: t.clientOptions.tabs.mobile.description,
-    groupKey: "group-mobile-controls",
   },
   {
     id: "controls",
@@ -10467,6 +10456,31 @@ export default function App(): JSX.Element {
     setNewGamePrompt({ visible: false, reason: null });
   };
 
+  const restoreDeferredNewGamePrompt = useCallback((): void => {
+    setReopenNewGamePromptOnInteraction(false);
+    setNewGamePrompt({
+      visible: true,
+      reason: deferredNewGamePromptReason,
+    });
+  }, [deferredNewGamePromptReason, setNewGamePrompt]);
+
+  const toggleDeferredGameOverTombstoneUi = useCallback((): boolean => {
+    if (gameOverDialogShowsTombstone) {
+      dismissNewGamePromptUntilInteraction();
+      return true;
+    }
+    if (hideAllUiForDeferredGameOver) {
+      restoreDeferredNewGamePrompt();
+      return true;
+    }
+    return false;
+  }, [
+    dismissNewGamePromptUntilInteraction,
+    gameOverDialogShowsTombstone,
+    hideAllUiForDeferredGameOver,
+    restoreDeferredNewGamePrompt,
+  ]);
+
   const handleNewGamePromptKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>): void => {
       const actionButtons = [
@@ -13169,16 +13183,99 @@ export default function App(): JSX.Element {
       return;
     }
     let handled = false;
+    const tapMaxDurationMs = 250;
+    const tapMaxMovePx = 12;
+    let activeTouchId: number | null = null;
+    let touchStartedAtMs = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchTapEligible = false;
+    let multiTouchGestureSeen = false;
     const handleFirstInteraction = (): void => {
       if (handled) {
         return;
       }
       handled = true;
-      setReopenNewGamePromptOnInteraction(false);
-      setNewGamePrompt({
-        visible: true,
-        reason: deferredNewGamePromptReason,
-      });
+      restoreDeferredNewGamePrompt();
+    };
+
+    const handleInteractionMouseDown = (event: MouseEvent): void => {
+      if (event.button !== 0) {
+        return;
+      }
+      handleFirstInteraction();
+    };
+
+    const handleInteractionTouchStart = (event: TouchEvent): void => {
+      if (event.touches.length !== 1 || event.changedTouches.length < 1) {
+        multiTouchGestureSeen = true;
+        touchTapEligible = false;
+        activeTouchId = null;
+        return;
+      }
+      const touch = event.changedTouches[0];
+      activeTouchId = touch.identifier;
+      touchStartedAtMs = performance.now();
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchTapEligible = true;
+      multiTouchGestureSeen = false;
+    };
+
+    const handleInteractionTouchMove = (event: TouchEvent): void => {
+      if (event.touches.length !== 1 || activeTouchId === null) {
+        multiTouchGestureSeen = true;
+        touchTapEligible = false;
+        return;
+      }
+      const activeTouch = Array.from(event.touches).find(
+        (touch) => touch.identifier === activeTouchId,
+      );
+      if (!activeTouch) {
+        touchTapEligible = false;
+        return;
+      }
+      if (
+        Math.hypot(
+          activeTouch.clientX - touchStartX,
+          activeTouch.clientY - touchStartY,
+        ) > tapMaxMovePx
+      ) {
+        touchTapEligible = false;
+      }
+    };
+
+    const resetInteractionTouchState = (): void => {
+      activeTouchId = null;
+      touchTapEligible = false;
+      multiTouchGestureSeen = false;
+      touchStartedAtMs = 0;
+    };
+
+    const handleInteractionTouchEnd = (event: TouchEvent): void => {
+      if (activeTouchId === null || multiTouchGestureSeen || !touchTapEligible) {
+        resetInteractionTouchState();
+        return;
+      }
+      const endedTouch = Array.from(event.changedTouches).find(
+        (touch) => touch.identifier === activeTouchId,
+      );
+      if (!endedTouch) {
+        return;
+      }
+      const tapDurationMs = performance.now() - touchStartedAtMs;
+      const tapDistancePx = Math.hypot(
+        endedTouch.clientX - touchStartX,
+        endedTouch.clientY - touchStartY,
+      );
+      const shouldHandleTap =
+        event.touches.length === 0 &&
+        tapDurationMs <= tapMaxDurationMs &&
+        tapDistancePx <= tapMaxMovePx;
+      resetInteractionTouchState();
+      if (shouldHandleTap) {
+        handleFirstInteraction();
+      }
     };
 
     const handleInteractionKey = (event: KeyboardEvent): void => {
@@ -13197,17 +13294,36 @@ export default function App(): JSX.Element {
       handleFirstInteraction();
     };
 
-    window.addEventListener("pointerdown", handleFirstInteraction, true);
+    window.addEventListener("mousedown", handleInteractionMouseDown, true);
+    window.addEventListener("touchstart", handleInteractionTouchStart, true);
+    window.addEventListener("touchmove", handleInteractionTouchMove, true);
+    window.addEventListener("touchend", handleInteractionTouchEnd, true);
+    window.addEventListener("touchcancel", resetInteractionTouchState, true);
     window.addEventListener("keydown", handleInteractionKey, true);
     return () => {
-      window.removeEventListener("pointerdown", handleFirstInteraction, true);
+      window.removeEventListener(
+        "mousedown",
+        handleInteractionMouseDown,
+        true,
+      );
+      window.removeEventListener(
+        "touchstart",
+        handleInteractionTouchStart,
+        true,
+      );
+      window.removeEventListener("touchmove", handleInteractionTouchMove, true);
+      window.removeEventListener("touchend", handleInteractionTouchEnd, true);
+      window.removeEventListener(
+        "touchcancel",
+        resetInteractionTouchState,
+        true,
+      );
       window.removeEventListener("keydown", handleInteractionKey, true);
     };
   }, [
-    deferredNewGamePromptReason,
     newGamePrompt.visible,
     reopenNewGamePromptOnInteraction,
-    setNewGamePrompt,
+    restoreDeferredNewGamePrompt,
     loadingOverlayVisible,
   ]);
 
@@ -13482,6 +13598,12 @@ export default function App(): JSX.Element {
       ) {
         return;
       }
+      if (toggleDeferredGameOverTombstoneUi()) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (inventoryDropCountDialog) {
         event.preventDefault();
         event.stopPropagation();
@@ -13575,6 +13697,7 @@ export default function App(): JSX.Element {
     isDesktopGameRunning,
     isMobileViewport,
     loadingOverlayVisible,
+    toggleDeferredGameOverTombstoneUi,
   ]);
 
   const clearStartupControllerCursorHighlight = useCallback((): void => {

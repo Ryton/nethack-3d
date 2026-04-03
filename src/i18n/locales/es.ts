@@ -1,4 +1,4 @@
-import type { LocaleOverrides } from "../locale-helpers";
+﻿import type { LocaleOverrides } from "../locale-helpers";
 import type { TranslationDictionary } from "./en";
 
 export const esOverrides = {
@@ -759,8 +759,8 @@ export const esOverrides = {
                 },
                 groupMobileControls: "Controles m\u00F3viles",
                 invertTouchPanningDirection: {
-                    label: "Invertir direcci\u00F3n de panor\u00E1mica t\u00E1ctil",
-                    description: "Invierta la direcci\u00F3n de arrastre para realizar una panor\u00E1mica t\u00E1ctil despu\u00E9s de que comience a mantener la panor\u00E1mica.",
+                  label: "Invertir direccion de panoramica",
+                  description: "Invierte la direccion de arrastre para la panoramica despues de activar mantener para panoramica.",
                 },
                 groupCombat: "Comentarios de combate",
                 damageNumbers: {
@@ -794,11 +794,11 @@ export const esOverrides = {
                 },
                 bloodStrength: {
                     label: "Intensidad de la sangre",
-                    description: "Controla la intensidad visual de las texturas y el teñido de la sangre.",
+                    description: "Controla la intensidad visual de las texturas y el teÃ±ido de la sangre.",
                 },
                 bloodDetail: {
                     label: "Detalle de la sangre",
-                    description: "Elige la resolución de la textura de salpicaduras de sangre por casilla de mazmorra.",
+                    description: "Elige la resoluciÃ³n de la textura de salpicaduras de sangre por casilla de mazmorra.",
                     options: {
                         veryLow: "Muy bajo",
                         low: "Bajo",
@@ -808,11 +808,11 @@ export const esOverrides = {
                 },
                 bloodColorLightHex: {
                     label: "Tono claro de sangre en el suelo",
-                    description: "Elige el tono de sangre más claro usado en las salpicaduras frescas del suelo.",
+                    description: "Elige el tono de sangre mÃ¡s claro usado en las salpicaduras frescas del suelo.",
                 },
                 bloodColorDarkHex: {
                     label: "Tono oscuro de sangre en el suelo",
-                    description: "Elige el tono de sangre más oscuro usado en las zonas densas de sangre del suelo.",
+                    description: "Elige el tono de sangre mÃ¡s oscuro usado en las zonas densas de sangre del suelo.",
                 },
                 bloodMistColorHex: {
                     label: "Tono de la niebla de sangre",
@@ -1158,9 +1158,9 @@ export const esOverrides = {
                 choices: {
                     leftRingFinger: "Dedo anular izquierdo",
                     rightRingFinger: "Dedo anular derecho",
-                    here: "Aquí",
+                    here: "AquÃ­",
                     onGround: "En el suelo",
-                    eligibleItems: "Objetos válidos",
+                    eligibleItems: "Objetos vÃ¡lidos",
                     allInventory: "Todo el inventario",
                 },
             },
