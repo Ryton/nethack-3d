@@ -173,6 +173,7 @@ type BloodMistParticle = {
   lifetimeMs: number;
   radius: number;
   baseScale: THREE.Vector2;
+  groundImpactCount: number;
 };
 
 type DamageNumberParticle = {
@@ -234,6 +235,7 @@ type BillboardShardParticle = {
   floorContactMs: number;
   settled: boolean;
   flatOrientation: THREE.Quaternion;
+  groundImpactCount: number;
 };
 
 type CharacterCreationQuestionPayload = {
@@ -249,6 +251,11 @@ type InventoryDialogOptions = {
 
 const MINIMAP_WIDTH_TILES = 79;
 const MINIMAP_HEIGHT_TILES = 21;
+const BLOOD_GROUND_PIXELS_PER_TILE = 16;
+const BLOOD_GROUND_WIDTH_PX =
+  MINIMAP_WIDTH_TILES * BLOOD_GROUND_PIXELS_PER_TILE;
+const BLOOD_GROUND_HEIGHT_PX =
+  MINIMAP_HEIGHT_TILES * BLOOD_GROUND_PIXELS_PER_TILE;
 
 type MinimapViewportRect = {
   minX: number;
@@ -351,6 +358,7 @@ type LevelTerrainCacheSnapshot = {
   flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot>;
   inferredDarkCorridorWallTiles: Map<string, { x: number; y: number }>;
   inferredDarkCorridorTileFlags: Set<string>;
+  bloodGround: BloodGroundCacheSnapshot | null;
 };
 
 type LevelTerrainCacheEntry = LevelTerrainCacheSnapshot & {
@@ -375,6 +383,19 @@ type RuntimeLevelIdentity = {
   depth: number | null;
   dungeonName: string | null;
   branchTag: string | null;
+};
+
+type BloodGroundCacheSnapshot = {
+  width: number;
+  height: number;
+  density: Uint16Array;
+};
+
+type BloodGroundDirtyRect = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
 };
 
 type WallSideTileOverlay = {
@@ -601,6 +622,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private inferredDarkCorridorTileFlags: Set<string> = new Set();
   private levelTerrainCachesByName: Map<string, LevelTerrainCacheEntry[]> =
     new Map();
+  private bloodGroundOverlayMesh: THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > | null = null;
+  private bloodGroundOverlayMaterial: THREE.MeshBasicMaterial | null = null;
+  private bloodGroundOverlayTexture: THREE.CanvasTexture | null = null;
+  private bloodGroundCanvas: HTMLCanvasElement | null = null;
+  private bloodGroundCanvasContext: CanvasRenderingContext2D | null = null;
+  private bloodGroundImageData: ImageData | null = null;
+  private bloodGroundDensity: Uint16Array | null = null;
+  private bloodGroundDirtyRect: BloodGroundDirtyRect | null = null;
+  private bloodGroundHasVisibleData: boolean = false;
   private activeLevelCacheRef: { levelName: string; entryId: string } | null =
     null;
   private currentLevelCacheName: string | null = null;
@@ -1338,6 +1371,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly monsterBillboardShardAngularAxis = new THREE.Vector3();
   private readonly monsterBillboardShardDeltaQuaternion =
     new THREE.Quaternion();
+  private readonly bloodGroundDirectionScratch = new THREE.Vector2();
+  private readonly bloodGroundPerpendicularScratch = new THREE.Vector2();
+  private readonly bloodGroundOverlayZ: number = 0.012;
+  private readonly bloodGroundMaxDensity: number = 2048;
+  private readonly bloodGroundOpacityStrength: number = 1.55;
   private readonly damageParticleFloorZ: number = 0.02;
   private readonly damageParticleWallBounce: number = 0.46;
   private minimapContainer: HTMLDivElement | null = null;
@@ -1367,6 +1405,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   // Pre-create geometries and materials
   private floorGeometry = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE);
+  private readonly bloodGroundPlaneGeometry = new THREE.PlaneGeometry(
+    MINIMAP_WIDTH_TILES * TILE_SIZE,
+    MINIMAP_HEIGHT_TILES * TILE_SIZE,
+  );
   private wallGeometry = this.createUprightWallBlockGeometry();
   private readonly vultureWallPlaneGeometry = (() => {
     const geometry = new THREE.PlaneGeometry(TILE_SIZE, WALL_HEIGHT);
@@ -2472,6 +2514,725 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return new Set(source);
   }
 
+  private cloneBloodGroundCacheSnapshot(
+    source: BloodGroundCacheSnapshot | null,
+  ): BloodGroundCacheSnapshot | null {
+    if (
+      !source ||
+      source.width !== BLOOD_GROUND_WIDTH_PX ||
+      source.height !== BLOOD_GROUND_HEIGHT_PX ||
+      !(source.density instanceof Uint16Array) ||
+      source.density.length !== BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX
+    ) {
+      return null;
+    }
+
+    return {
+      width: source.width,
+      height: source.height,
+      density: new Uint16Array(source.density),
+    };
+  }
+
+  private updateBloodGroundOverlayVisibility(): void {
+    if (!this.bloodGroundOverlayMesh) {
+      return;
+    }
+
+    this.bloodGroundOverlayMesh.visible =
+      this.clientOptions.blood && this.bloodGroundHasVisibleData;
+  }
+
+  private ensureBloodGroundOverlayResources(): boolean {
+    // One persistent level-sized plane, with density accumulated into a CPU-side
+    // buffer and only the dirty texture region pushed back to the GPU.
+    if (
+      this.bloodGroundOverlayMesh &&
+      this.bloodGroundOverlayMaterial &&
+      this.bloodGroundOverlayTexture &&
+      this.bloodGroundCanvas &&
+      this.bloodGroundCanvasContext &&
+      this.bloodGroundImageData &&
+      this.bloodGroundDensity
+    ) {
+      this.updateBloodGroundOverlayVisibility();
+      return true;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = BLOOD_GROUND_WIDTH_PX;
+    canvas.height = BLOOD_GROUND_HEIGHT_PX;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return false;
+    }
+
+    const imageData = context.createImageData(
+      BLOOD_GROUND_WIDTH_PX,
+      BLOOD_GROUND_HEIGHT_PX,
+    );
+    context.putImageData(imageData, 0, 0);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.anisotropy = this.resolveTextureAnisotropyLevel();
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+    });
+    material.alphaTest = 0.001;
+    this.patchMaterialForVignette(material);
+
+    const mesh = new THREE.Mesh(this.bloodGroundPlaneGeometry, material);
+    mesh.position.set(
+      ((MINIMAP_WIDTH_TILES - 1) * TILE_SIZE) / 2,
+      -((MINIMAP_HEIGHT_TILES - 1) * TILE_SIZE) / 2,
+      this.bloodGroundOverlayZ,
+    );
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.renderOrder = 111;
+    mesh.visible = false;
+    this.scene.add(mesh);
+
+    this.bloodGroundOverlayMesh = mesh;
+    this.bloodGroundOverlayMaterial = material;
+    this.bloodGroundOverlayTexture = texture;
+    this.bloodGroundCanvas = canvas;
+    this.bloodGroundCanvasContext = context;
+    this.bloodGroundImageData = imageData;
+    this.bloodGroundDensity = new Uint16Array(
+      BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX,
+    );
+    this.bloodGroundDirtyRect = null;
+    this.bloodGroundHasVisibleData = false;
+    this.updateBloodGroundOverlayVisibility();
+    return true;
+  }
+
+  private clearActiveBloodGroundCanvas(): void {
+    this.bloodGroundDirtyRect = null;
+    this.bloodGroundHasVisibleData = false;
+
+    if (this.bloodGroundDensity) {
+      this.bloodGroundDensity.fill(0);
+    }
+    if (this.bloodGroundImageData) {
+      this.bloodGroundImageData.data.fill(0);
+    }
+    if (this.bloodGroundCanvasContext && this.bloodGroundImageData) {
+      this.bloodGroundCanvasContext.putImageData(this.bloodGroundImageData, 0, 0);
+    } else if (this.bloodGroundCanvasContext && this.bloodGroundCanvas) {
+      this.bloodGroundCanvasContext.clearRect(
+        0,
+        0,
+        this.bloodGroundCanvas.width,
+        this.bloodGroundCanvas.height,
+      );
+    }
+    if (this.bloodGroundOverlayTexture) {
+      this.bloodGroundOverlayTexture.needsUpdate = true;
+    }
+
+    this.updateBloodGroundOverlayVisibility();
+  }
+
+  private disposeBloodGroundOverlayResources(): void {
+    if (this.bloodGroundOverlayMesh) {
+      this.scene.remove(this.bloodGroundOverlayMesh);
+    }
+    this.bloodGroundOverlayMaterial?.dispose();
+    this.bloodGroundOverlayTexture?.dispose();
+    this.bloodGroundOverlayMesh = null;
+    this.bloodGroundOverlayMaterial = null;
+    this.bloodGroundOverlayTexture = null;
+    this.bloodGroundCanvas = null;
+    this.bloodGroundCanvasContext = null;
+    this.bloodGroundImageData = null;
+    this.bloodGroundDensity = null;
+    this.bloodGroundDirtyRect = null;
+    this.bloodGroundHasVisibleData = false;
+  }
+
+  private captureActiveBloodGroundCacheSnapshot(): BloodGroundCacheSnapshot | null {
+    if (!this.bloodGroundDensity || !this.bloodGroundHasVisibleData) {
+      return null;
+    }
+
+    return {
+      width: BLOOD_GROUND_WIDTH_PX,
+      height: BLOOD_GROUND_HEIGHT_PX,
+      density: new Uint16Array(this.bloodGroundDensity),
+    };
+  }
+
+  private restoreBloodGroundCacheSnapshot(
+    snapshot: BloodGroundCacheSnapshot | null,
+  ): void {
+    if (!snapshot) {
+      this.clearActiveBloodGroundCanvas();
+      return;
+    }
+    if (
+      snapshot.width !== BLOOD_GROUND_WIDTH_PX ||
+      snapshot.height !== BLOOD_GROUND_HEIGHT_PX ||
+      !(snapshot.density instanceof Uint16Array) ||
+      snapshot.density.length !== BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX
+    ) {
+      this.clearActiveBloodGroundCanvas();
+      return;
+    }
+    if (!this.ensureBloodGroundOverlayResources() || !this.bloodGroundDensity) {
+      return;
+    }
+
+    this.bloodGroundDensity.set(snapshot.density);
+    this.bloodGroundHasVisibleData = true;
+    this.bloodGroundDirtyRect = {
+      minX: 0,
+      minY: 0,
+      maxX: BLOOD_GROUND_WIDTH_PX - 1,
+      maxY: BLOOD_GROUND_HEIGHT_PX - 1,
+    };
+    this.syncBloodGroundTexture(true);
+  }
+
+  private markBloodGroundDirtyRect(
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+  ): void {
+    const clampedMinX = THREE.MathUtils.clamp(
+      Math.floor(minX),
+      0,
+      BLOOD_GROUND_WIDTH_PX - 1,
+    );
+    const clampedMinY = THREE.MathUtils.clamp(
+      Math.floor(minY),
+      0,
+      BLOOD_GROUND_HEIGHT_PX - 1,
+    );
+    const clampedMaxX = THREE.MathUtils.clamp(
+      Math.ceil(maxX),
+      0,
+      BLOOD_GROUND_WIDTH_PX - 1,
+    );
+    const clampedMaxY = THREE.MathUtils.clamp(
+      Math.ceil(maxY),
+      0,
+      BLOOD_GROUND_HEIGHT_PX - 1,
+    );
+    if (clampedMinX > clampedMaxX || clampedMinY > clampedMaxY) {
+      return;
+    }
+
+    if (!this.bloodGroundDirtyRect) {
+      this.bloodGroundDirtyRect = {
+        minX: clampedMinX,
+        minY: clampedMinY,
+        maxX: clampedMaxX,
+        maxY: clampedMaxY,
+      };
+      return;
+    }
+
+    this.bloodGroundDirtyRect.minX = Math.min(
+      this.bloodGroundDirtyRect.minX,
+      clampedMinX,
+    );
+    this.bloodGroundDirtyRect.minY = Math.min(
+      this.bloodGroundDirtyRect.minY,
+      clampedMinY,
+    );
+    this.bloodGroundDirtyRect.maxX = Math.max(
+      this.bloodGroundDirtyRect.maxX,
+      clampedMaxX,
+    );
+    this.bloodGroundDirtyRect.maxY = Math.max(
+      this.bloodGroundDirtyRect.maxY,
+      clampedMaxY,
+    );
+  }
+
+  private sampleBloodGroundNoise(px: number, py: number, seed: number): number {
+    let value =
+      Math.imul(px + 1, 374761393) ^
+      Math.imul(py + 1, 668265263) ^
+      Math.imul(seed + 1, 2246822519);
+    value = Math.imul(value ^ (value >>> 13), 1274126177);
+    value ^= value >>> 16;
+    return (value >>> 0) / 4294967295;
+  }
+
+  private writeBloodGroundPixelColor(
+    data: Uint8ClampedArray,
+    rgbaIndex: number,
+    density: number,
+  ): void {
+    if (density <= 0) {
+      data[rgbaIndex] = 0;
+      data[rgbaIndex + 1] = 0;
+      data[rgbaIndex + 2] = 0;
+      data[rgbaIndex + 3] = 0;
+      return;
+    }
+
+    const normalizedDensity = THREE.MathUtils.clamp(
+      (density * this.bloodGroundOpacityStrength) / this.bloodGroundMaxDensity,
+      0,
+      1,
+    );
+    const darkenT = THREE.MathUtils.smoothstep(normalizedDensity, 0.14, 0.96);
+    data[rgbaIndex] = Math.round(THREE.MathUtils.lerp(132, 44, darkenT));
+    data[rgbaIndex + 1] = Math.round(THREE.MathUtils.lerp(24, 5, darkenT));
+    data[rgbaIndex + 2] = Math.round(THREE.MathUtils.lerp(20, 7, darkenT));
+    data[rgbaIndex + 3] = Math.round(
+      255 *
+        THREE.MathUtils.clamp(Math.pow(normalizedDensity, 0.76) * 0.94, 0, 1),
+    );
+  }
+
+  private syncBloodGroundTexture(forceFull: boolean = false): void {
+    if (
+      !this.bloodGroundCanvasContext ||
+      !this.bloodGroundImageData ||
+      !this.bloodGroundDensity ||
+      !this.bloodGroundOverlayTexture
+    ) {
+      return;
+    }
+
+    const dirtyRect = forceFull
+      ? {
+          minX: 0,
+          minY: 0,
+          maxX: BLOOD_GROUND_WIDTH_PX - 1,
+          maxY: BLOOD_GROUND_HEIGHT_PX - 1,
+        }
+      : this.bloodGroundDirtyRect;
+    if (!dirtyRect) {
+      this.updateBloodGroundOverlayVisibility();
+      return;
+    }
+
+    const data = this.bloodGroundImageData.data;
+    for (let y = dirtyRect.minY; y <= dirtyRect.maxY; y += 1) {
+      const rowOffset = y * BLOOD_GROUND_WIDTH_PX;
+      for (let x = dirtyRect.minX; x <= dirtyRect.maxX; x += 1) {
+        const densityIndex = rowOffset + x;
+        const rgbaIndex = densityIndex * 4;
+        this.writeBloodGroundPixelColor(
+          data,
+          rgbaIndex,
+          this.bloodGroundDensity[densityIndex] ?? 0,
+        );
+      }
+    }
+
+    this.bloodGroundCanvasContext.putImageData(
+      this.bloodGroundImageData,
+      0,
+      0,
+      dirtyRect.minX,
+      dirtyRect.minY,
+      dirtyRect.maxX - dirtyRect.minX + 1,
+      dirtyRect.maxY - dirtyRect.minY + 1,
+    );
+    this.bloodGroundOverlayTexture.needsUpdate = true;
+    this.bloodGroundDirtyRect = null;
+    this.updateBloodGroundOverlayVisibility();
+  }
+
+  private rasterizeBloodGroundEllipse(
+    worldX: number,
+    worldY: number,
+    radiusWorldX: number,
+    radiusWorldY: number,
+    angleRadians: number,
+    densityAmount: number,
+    featherPower: number,
+    seed: number,
+  ): void {
+    if (!this.ensureBloodGroundOverlayResources() || !this.bloodGroundDensity) {
+      return;
+    }
+
+    const pixelsPerWorldUnit = BLOOD_GROUND_PIXELS_PER_TILE / TILE_SIZE;
+    const centerX =
+      ((worldX + TILE_SIZE * 0.5) / (MINIMAP_WIDTH_TILES * TILE_SIZE)) *
+      (BLOOD_GROUND_WIDTH_PX - 1);
+    const centerY =
+      ((TILE_SIZE * 0.5 - worldY) / (MINIMAP_HEIGHT_TILES * TILE_SIZE)) *
+      (BLOOD_GROUND_HEIGHT_PX - 1);
+    const radiusPxX = Math.max(0.75, radiusWorldX * pixelsPerWorldUnit);
+    const radiusPxY = Math.max(0.75, radiusWorldY * pixelsPerWorldUnit);
+    const extent = Math.max(radiusPxX, radiusPxY) * 1.5 + 2;
+    const minX = Math.max(0, Math.floor(centerX - extent));
+    const maxX = Math.min(BLOOD_GROUND_WIDTH_PX - 1, Math.ceil(centerX + extent));
+    const minY = Math.max(
+      0,
+      Math.floor(centerY - extent),
+    );
+    const maxY = Math.min(
+      BLOOD_GROUND_HEIGHT_PX - 1,
+      Math.ceil(centerY + extent),
+    );
+    if (minX > maxX || minY > maxY) {
+      return;
+    }
+
+    const sin = Math.sin(angleRadians);
+    const cos = Math.cos(angleRadians);
+    let wrotePixel = false;
+
+    for (let py = minY; py <= maxY; py += 1) {
+      const dy = py - centerY;
+      const rowOffset = py * BLOOD_GROUND_WIDTH_PX;
+      for (let px = minX; px <= maxX; px += 1) {
+        const dx = px - centerX;
+        const localX = dx * cos + dy * sin;
+        const localY = -dx * sin + dy * cos;
+        const radialDistance =
+          (localX * localX) / (radiusPxX * radiusPxX) +
+          (localY * localY) / (radiusPxY * radiusPxY);
+        if (radialDistance > 1) {
+          continue;
+        }
+
+        const distanceT = Math.sqrt(radialDistance);
+        const edgeT = Math.max(0, 1 - distanceT);
+        const noise = this.sampleBloodGroundNoise(px, py, seed);
+        if (distanceT > 0.93 && noise < 0.18) {
+          continue;
+        }
+
+        let deposit = densityAmount * Math.pow(edgeT, featherPower);
+        if (distanceT > 0.72) {
+          deposit *= THREE.MathUtils.lerp(0.45, 1.18, noise);
+        } else {
+          deposit *= 0.84 + noise * 0.24;
+        }
+        const depositRounded = Math.max(0, Math.round(deposit));
+        if (depositRounded <= 0) {
+          continue;
+        }
+
+        const densityIndex = rowOffset + px;
+        const previousDensity = this.bloodGroundDensity[densityIndex] ?? 0;
+        const nextDensity = Math.min(
+          this.bloodGroundMaxDensity,
+          previousDensity + depositRounded,
+        );
+        if (nextDensity === previousDensity) {
+          continue;
+        }
+
+        this.bloodGroundDensity[densityIndex] = nextDensity;
+        wrotePixel = true;
+      }
+    }
+
+    if (!wrotePixel) {
+      return;
+    }
+
+    this.bloodGroundHasVisibleData = true;
+    this.markBloodGroundDirtyRect(minX, minY, maxX, maxY);
+  }
+
+  private rasterizeBloodGroundTrail(
+    startWorldX: number,
+    startWorldY: number,
+    endWorldX: number,
+    endWorldY: number,
+    startRadiusWorld: number,
+    endRadiusWorld: number,
+    densityAmount: number,
+    seed: number,
+  ): void {
+    const deltaX = endWorldX - startWorldX;
+    const deltaY = endWorldY - startWorldY;
+    const lengthWorld = Math.hypot(deltaX, deltaY);
+    const angle = Math.atan2(deltaY, deltaX);
+    const steps = THREE.MathUtils.clamp(
+      Math.ceil(lengthWorld * BLOOD_GROUND_PIXELS_PER_TILE * 1.4),
+      1,
+      20,
+    );
+
+    for (let step = 0; step <= steps; step += 1) {
+      const t = steps > 0 ? step / steps : 0;
+      const worldX = THREE.MathUtils.lerp(startWorldX, endWorldX, t);
+      const worldY = THREE.MathUtils.lerp(startWorldY, endWorldY, t);
+      const radiusWorld = THREE.MathUtils.lerp(
+        startRadiusWorld,
+        endRadiusWorld,
+        t,
+      );
+      const stepDensity = densityAmount * (0.95 - t * 0.42);
+      this.rasterizeBloodGroundEllipse(
+        worldX,
+        worldY,
+        radiusWorld * 1.08,
+        radiusWorld * 0.82,
+        angle,
+        stepDensity,
+        1.55 + t * 0.45,
+        seed + step * 977,
+      );
+    }
+  }
+
+  private paintBloodGroundImpact(params: {
+    worldX: number;
+    worldY: number;
+    directionX: number;
+    directionY: number;
+    baseRadiusWorld: number;
+    densityAmount: number;
+    scatterCount: number;
+    streakCount: number;
+    streakLengthWorld: number;
+    elongation: number;
+  }): void {
+    if (!this.clientOptions.blood) {
+      return;
+    }
+    if (!this.ensureBloodGroundOverlayResources()) {
+      return;
+    }
+
+    // Compose each deposit from a denser focal blot, satellite droplets, and
+    // directional trails so hits read as splats instead of uniform ovals.
+    const seed = Math.floor(Math.random() * 0x7fffffff);
+    this.bloodGroundDirectionScratch.set(params.directionX, params.directionY);
+    if (this.bloodGroundDirectionScratch.lengthSq() < 1e-8) {
+      const randomAngle = Math.random() * Math.PI * 2;
+      this.bloodGroundDirectionScratch.set(
+        Math.cos(randomAngle),
+        Math.sin(randomAngle),
+      );
+    } else {
+      this.bloodGroundDirectionScratch.normalize();
+    }
+    this.bloodGroundPerpendicularScratch.set(
+      -this.bloodGroundDirectionScratch.y,
+      this.bloodGroundDirectionScratch.x,
+    );
+
+    const impactAngle = Math.atan2(
+      this.bloodGroundDirectionScratch.y,
+      this.bloodGroundDirectionScratch.x,
+    );
+    const baseRadius = Math.max(0.015, params.baseRadiusWorld);
+    const coreRadiusX = baseRadius * (1 + params.elongation * 0.38);
+    const coreRadiusY = baseRadius * (0.84 + Math.random() * 0.18);
+    this.rasterizeBloodGroundEllipse(
+      params.worldX,
+      params.worldY,
+      coreRadiusX,
+      coreRadiusY,
+      impactAngle + (Math.random() - 0.5) * 0.42,
+      params.densityAmount,
+      1.4,
+      seed,
+    );
+
+    const lobeDistance = baseRadius * (0.28 + Math.random() * 0.55);
+    this.rasterizeBloodGroundEllipse(
+      params.worldX +
+        this.bloodGroundDirectionScratch.x * lobeDistance +
+        this.bloodGroundPerpendicularScratch.x *
+          baseRadius *
+          (Math.random() - 0.5) *
+          0.7,
+      params.worldY +
+        this.bloodGroundDirectionScratch.y * lobeDistance +
+        this.bloodGroundPerpendicularScratch.y *
+          baseRadius *
+          (Math.random() - 0.5) *
+          0.7,
+      baseRadius * (0.55 + Math.random() * 0.2),
+      baseRadius * (0.4 + Math.random() * 0.2),
+      impactAngle + (Math.random() - 0.5) * 0.55,
+      params.densityAmount * 0.78,
+      1.7,
+      seed + 101,
+    );
+
+    for (let i = 0; i < params.scatterCount; i += 1) {
+      const forward =
+        Math.pow(Math.random(), 0.78) *
+        (baseRadius * 1.25 + params.streakLengthWorld * 0.75);
+      const lateral = (Math.random() - 0.5) * baseRadius * (1.5 + Math.random());
+      const spotRadius = baseRadius * (0.16 + Math.random() * 0.32);
+      const worldX =
+        params.worldX +
+        this.bloodGroundDirectionScratch.x * forward +
+        this.bloodGroundPerpendicularScratch.x * lateral;
+      const worldY =
+        params.worldY +
+        this.bloodGroundDirectionScratch.y * forward +
+        this.bloodGroundPerpendicularScratch.y * lateral;
+      this.rasterizeBloodGroundEllipse(
+        worldX,
+        worldY,
+        spotRadius * (0.85 + Math.random() * 0.35),
+        spotRadius * (0.8 + Math.random() * 0.25),
+        impactAngle + (Math.random() - 0.5) * 1.15,
+        params.densityAmount * (0.18 + Math.random() * 0.28),
+        1.8 + Math.random() * 0.5,
+        seed + 211 + i * 31,
+      );
+    }
+
+    for (let i = 0; i < params.streakCount; i += 1) {
+      const streakStartForward = baseRadius * (0.18 + Math.random() * 0.34);
+      const streakLateral = (Math.random() - 0.5) * baseRadius * 0.9;
+      const streakLength =
+        params.streakLengthWorld * (0.55 + Math.random() * 0.75);
+      const startX =
+        params.worldX +
+        this.bloodGroundDirectionScratch.x * streakStartForward +
+        this.bloodGroundPerpendicularScratch.x * streakLateral;
+      const startY =
+        params.worldY +
+        this.bloodGroundDirectionScratch.y * streakStartForward +
+        this.bloodGroundPerpendicularScratch.y * streakLateral;
+      const endX =
+        startX +
+        this.bloodGroundDirectionScratch.x * streakLength +
+        this.bloodGroundPerpendicularScratch.x *
+          baseRadius *
+          (Math.random() - 0.5) *
+          0.65;
+      const endY =
+        startY +
+        this.bloodGroundDirectionScratch.y * streakLength +
+        this.bloodGroundPerpendicularScratch.y *
+          baseRadius *
+          (Math.random() - 0.5) *
+          0.65;
+      this.rasterizeBloodGroundTrail(
+        startX,
+        startY,
+        endX,
+        endY,
+        baseRadius * (0.28 + Math.random() * 0.14),
+        baseRadius * (0.08 + Math.random() * 0.06),
+        params.densityAmount * (0.36 + Math.random() * 0.22),
+        seed + 503 + i * 131,
+      );
+    }
+  }
+
+  private paintBloodGroundFromDirectHit(
+    tileX: number,
+    tileY: number,
+    damage: number,
+    variant: "hit" | "defeat",
+    directionX: number,
+    directionY: number,
+  ): void {
+    const clampedDamage = THREE.MathUtils.clamp(Math.abs(damage), 1, 24);
+    const defeat = variant === "defeat";
+    this.paintBloodGroundImpact({
+      worldX: tileX * TILE_SIZE,
+      worldY: -tileY * TILE_SIZE,
+      directionX,
+      directionY,
+      baseRadiusWorld:
+        (defeat ? 0.13 : 0.09) + clampedDamage * (defeat ? 0.011 : 0.0075),
+      densityAmount: defeat ? 230 + clampedDamage * 12 : 150 + clampedDamage * 9,
+      scatterCount:
+        (defeat ? THREE.MathUtils.randInt(8, 13) : THREE.MathUtils.randInt(4, 8)) +
+        Math.min(defeat ? 5 : 3, Math.floor(clampedDamage / 4)),
+      streakCount: defeat ? THREE.MathUtils.randInt(2, 4) : THREE.MathUtils.randInt(1, 2),
+      streakLengthWorld:
+        (defeat ? 0.28 : 0.16) + clampedDamage * (defeat ? 0.03 : 0.018),
+      elongation: defeat ? 1.05 : 0.72,
+    });
+  }
+
+  private paintBloodGroundFromParticleImpact(
+    worldX: number,
+    worldY: number,
+    velocityX: number,
+    velocityY: number,
+    impactSpeed: number,
+    radiusHint: number,
+    impactCount: number,
+  ): void {
+    if (impactSpeed < 0.3 || (impactCount > 0 && impactSpeed < 1.05)) {
+      return;
+    }
+
+    const horizontalSpeed = Math.hypot(velocityX, velocityY);
+    this.paintBloodGroundImpact({
+      worldX,
+      worldY,
+      directionX: velocityX,
+      directionY: velocityY,
+      baseRadiusWorld: THREE.MathUtils.clamp(
+        radiusHint * 0.95 + impactSpeed * 0.012,
+        0.02,
+        0.1,
+      ),
+      densityAmount: THREE.MathUtils.clamp(38 + impactSpeed * 16, 28, 118),
+      scatterCount:
+        horizontalSpeed > 0.85
+          ? THREE.MathUtils.randInt(1, 3)
+          : THREE.MathUtils.randInt(0, 1),
+      streakCount: horizontalSpeed > 0.45 ? THREE.MathUtils.randInt(1, 2) : 0,
+      streakLengthWorld: THREE.MathUtils.clamp(horizontalSpeed * 0.055, 0.04, 0.22),
+      elongation: THREE.MathUtils.clamp(horizontalSpeed / 2.2, 0.12, 0.95),
+    });
+  }
+
+  private paintBloodGroundFromShardImpact(
+    particle: BillboardShardParticle,
+    impactSpeed: number,
+  ): void {
+    if (impactSpeed < 0.35 || (particle.groundImpactCount > 0 && impactSpeed < 0.95)) {
+      return;
+    }
+
+    const horizontalSpeed = Math.hypot(particle.velocity.x, particle.velocity.y);
+    const scaleHint = Math.max(particle.baseScale.x, particle.baseScale.y);
+    this.paintBloodGroundImpact({
+      worldX: particle.mesh.position.x,
+      worldY: particle.mesh.position.y,
+      directionX: particle.velocity.x,
+      directionY: particle.velocity.y,
+      baseRadiusWorld: THREE.MathUtils.clamp(
+        scaleHint * 0.18 + impactSpeed * 0.01,
+        0.03,
+        0.12,
+      ),
+      densityAmount: THREE.MathUtils.clamp(
+        58 + impactSpeed * 14 + scaleHint * 140,
+        48,
+        156,
+      ),
+      scatterCount: THREE.MathUtils.randInt(1, 4),
+      streakCount: horizontalSpeed > 0.35 ? THREE.MathUtils.randInt(1, 2) : 1,
+      streakLengthWorld: THREE.MathUtils.clamp(
+        scaleHint * 0.42 + horizontalSpeed * 0.06,
+        0.05,
+        0.24,
+      ),
+      elongation: THREE.MathUtils.clamp(0.22 + horizontalSpeed / 2.6, 0.22, 1),
+    });
+  }
+
   private addInferredDarkCorridorTile(key: string, x: number, y: number): void {
     this.inferredDarkCorridorWallTiles.set(key, { x, y });
     this.inferredDarkCorridorTileFlags.add(key);
@@ -2500,6 +3261,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.inferredDarkCorridorWallTiles,
       ),
       inferredDarkCorridorTileFlags: inferredDarkFlags,
+      bloodGround: this.captureActiveBloodGroundCacheSnapshot(),
     };
   }
 
@@ -2525,6 +3287,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       inferredDarkCorridorTileFlags: this.cloneStringSet(
         snapshot.inferredDarkCorridorTileFlags,
       ),
+      bloodGround: this.cloneBloodGroundCacheSnapshot(snapshot.bloodGround),
     };
 
     const existingIndex = existingEntries.findIndex(
@@ -2609,7 +3372,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       snapshot.lastKnownTerrain.size === 0 &&
       snapshot.flatFeatureUnderPlayerCache.size === 0 &&
       snapshot.inferredDarkCorridorWallTiles.size === 0 &&
-      snapshot.inferredDarkCorridorTileFlags.size === 0
+      snapshot.inferredDarkCorridorTileFlags.size === 0 &&
+      !snapshot.bloodGround
     ) {
       return;
     }
@@ -2630,6 +3394,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.latestRuntimeLevelIdentity = null;
     this.hasResolvedInitialDeterministicLevelThisSession = false;
     this.pendingLevelCacheTransition = null;
+    this.clearActiveBloodGroundCanvas();
   }
 
   private beginPendingLevelCacheTransition(): void {
@@ -2964,6 +3729,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       );
     }
 
+    this.restoreBloodGroundCacheSnapshot(entry.bloodGround);
     this.activeLevelCacheRef = { levelName, entryId: entry.id };
     this.currentLevelCacheName = levelName;
   }
@@ -4196,6 +4962,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (bloodChanged && !normalized.blood) {
       this.clearBloodMistParticles();
+    }
+    if (bloodChanged) {
+      this.updateBloodGroundOverlayVisibility();
     }
     if (monsterShatterChanged && !normalized.monsterShatter) {
       this.clearMonsterBillboardShardParticles();
@@ -14680,6 +15449,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
       awayFromPlayer.normalize();
     }
 
+    this.paintBloodGroundFromDirectHit(
+      tileX,
+      tileY,
+      sanitized,
+      variant,
+      awayFromPlayer.x,
+      awayFromPlayer.y,
+    );
+
     const spreadRadians =
       variant === "defeat"
         ? THREE.MathUtils.degToRad(52)
@@ -14766,6 +15544,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         lifetimeMs: baseLifetimeMs + Math.random() * lifetimeJitterMs,
         radius: baseScaleValue * 0.52,
         baseScale,
+        groundImpactCount: 0,
       });
     }
   }
@@ -15071,6 +15850,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.resolveDamageParticleWallCollision(particle);
 
         if (particle.sprite.position.z < this.damageParticleFloorZ) {
+          const impactSpeed = particle.velocity.length();
+          if (particle.velocity.z < -0.12) {
+            this.paintBloodGroundFromParticleImpact(
+              particle.sprite.position.x,
+              particle.sprite.position.y,
+              particle.velocity.x,
+              particle.velocity.y,
+              impactSpeed,
+              particle.radius,
+              particle.groundImpactCount,
+            );
+            particle.groundImpactCount += 1;
+          }
           particle.sprite.position.z = this.damageParticleFloorZ;
           if (particle.velocity.z < 0) {
             particle.velocity.z *= -0.22;
@@ -15148,6 +15940,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.resolveMonsterBillboardShardWallCollision(particle);
 
         if (particle.mesh.position.z < this.damageParticleFloorZ) {
+          const impactSpeed = particle.velocity.length();
+          if (particle.velocity.z < -0.14) {
+            this.paintBloodGroundFromShardImpact(particle, impactSpeed);
+            particle.groundImpactCount += 1;
+          }
           onFloor = true;
           particle.mesh.position.z = this.damageParticleFloorZ;
           particle.floorContactMs += stepSeconds * 1000;
@@ -15637,6 +16434,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateGlyphDamageShakes(deltaSeconds);
     this.updateDamageParticles(deltaSeconds);
     this.updateMonsterBillboardShardParticles(deltaSeconds);
+    this.syncBloodGroundTexture();
     this.updatePlayerDamageNumberParticles(deltaSeconds);
     this.updatePlayerUiNumberParticles(deltaSeconds);
     const now = Date.now();
@@ -18895,6 +19693,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private clearScene(): void {
     this.clearDamageEffects();
+    this.clearActiveBloodGroundCanvas();
     this.vultureTilesetTranslator?.resetRuntimeMapState();
     this.pendingVultureRoomDecorReconcileKeys.clear();
     this.vultureRoomDecorReconcileScheduled = false;
@@ -20469,6 +21268,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         floorContactMs: 0,
         settled: false,
         flatOrientation,
+        groundImpactCount: 0,
       });
     }
   }
@@ -24797,7 +25597,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.renderer.domElement.remove();
     this.renderer.forceContextLoss();
     this.renderer.dispose();
+    this.disposeBloodGroundOverlayResources();
     this.floorGeometry.dispose();
+    this.bloodGroundPlaneGeometry.dispose();
     this.wallGeometry.dispose();
     this.vultureWallPlaneGeometry.dispose();
     this.vultureDoorPlaneGeometry.dispose();
