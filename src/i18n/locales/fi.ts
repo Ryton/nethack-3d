@@ -940,14 +940,16 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         "Päivityksiä ei otettu käyttöön. Yritä tarkistaa uudelleen.",
       noFilesApplied: "Päivitystiedostoja ei otettu käyttöön.",
       unexpectedFailure: "Odottamaton päivitysvirhe.",
-      checkingForUpdates: "Tarkistetaan päivityksiä...",
+      checkingForUpdates: "Tarkistetaan GitHub-julkaisuja...",
       unsupportedPlatform:
-        "Tämä alusta ei tue pelin verkkopäivityksiä.",
-      latestAlreadyInstalledOptions: "Sinulla on jo uusin pelipäivitys.",
-      oneUpdateAvailable: "1 pelipäivitys on saatavilla.",
+        "GitHub-julkaisujen tarkistus ei ole saatavilla tällä alustalla.",
+      latestAlreadyInstalledOptions: "Sinulla on jo pelin uusin versio.",
+      oneUpdateAvailable:
+        "Uudempi peliversio on saatavilla. Haluatko päivittää?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} game updates are available.`,
-      updateCheckFailed: (message: string) => `Update check failed: ${message}`,
+        `${count} uudempaa peliversiota on saatavilla. Haluatko päivittää?`,
+      updateCheckFailed: (message: string) =>
+        `GitHub-julkaisujen tarkistus epäonnistui: ${message}`,
     },
     saves: {
       sections: {
@@ -1084,10 +1086,17 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         clearLogs: "Tyhjennä lokit",
       },
       startupUpdate: {
-        maintenanceNotice: "Pelipäivityksen huoltoilmoitus.",
+        maintenanceNotice: "Uudempia GitHub-julkaisuja ei löytynyt.",
         summaryAvailable:
-          "Lataa uusimmat build-tiedostot nyt ja päivitä peli uuteen versioon.",
-        summaryNone: "Ladattavaa pelipäivitystä ei ole tällä hetkellä odottamassa.",
+          "Uudempi peliversio on saatavilla. Haluatko päivittää?",
+        summaryNone: "Sinulla on jo pelin uusin versio.",
+        currentVersion: (version: string) => `Nykyinen versio: ${version}`,
+        latestVersion: (version: string) =>
+          `Uusin GitHub-julkaisu: ${version}`,
+        disableAtStartup:
+          "Älä näytä näitä ilmoituksia enää käynnistyksessä.",
+        disabledNotice:
+          "Käynnistyksen julkaisu-ilmoitukset on nyt poistettu käytöstä. Voit ottaa ne uudelleen käyttöön asetuksissa.",
         clientUpgradeRequired:
           "Uusimpien alustaparannusten käyttö vaatii myös täyden asiakasohjelman päivityksen.",
         progressTitle: "Päivityslatauksen tila",
@@ -1124,14 +1133,17 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         title: "NetHack 3D:n asiakasasetukset",
         categoriesLabel: "Asetusluokat",
         updates: {
-          checkOnLaunchLabel: "Tarkista päivitykset käynnistyksessä",
+          checkOnLaunchLabel:
+            "Näytä GitHub-julkaisu-ilmoitukset käynnistyksessä",
           checkOnLaunchDescription:
-            "Tarkistaa verkkomanifestin automaattisesti, kun peli käynnistyy.",
-          title: "Pelipäivitykset",
+            "Tarkistaa GitHub-julkaisut käynnistyksessä ja ilmoittaa, jos uudempi versio on saatavilla.",
+          title: "GitHub-julkaisut",
           description:
-            "Tarkista julkaistu verkkomanifesti ja vertaa sitä asennettuun buildiisi.",
-          idle: "Varmista pelitiedostojen ajantasaisuus painamalla Tarkista päivitykset.",
+            "Vertaa tätä buildia julkaistuihin GitHub-julkaisuihin.",
+          idle:
+            "Paina Tarkista päivitykset vertaillaksesi tätä buildia GitHub-julkaisuihin.",
           button: "Tarkista päivitykset",
+          openGitHubReleases: "Avaa GitHub-julkaisut",
         },
         buttons: {
           manageTileSets: "Hallitse ruutusettejä",

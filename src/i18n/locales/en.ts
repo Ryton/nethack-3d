@@ -929,8 +929,8 @@ export const en = {
       },
       runtimeStoppedBeforeStartup:
         "The local NetHack runtime stopped before startup finished.",
-      preparingDownload: "Preparing game update download...",
-      idleStatus: "Update status is idle.",
+      preparingDownload: "Preparing version check...",
+      idleStatus: "Version check is idle.",
       fileProgress: (index: number, count: number) =>
         `File ${index} of ${count}`,
       unexpectedCheckFailure: "Unexpected update check failure.",
@@ -948,14 +948,17 @@ export const en = {
         "No updates were applied. Please try checking again.",
       noFilesApplied: "No update files were applied.",
       unexpectedFailure: "Unexpected update failure.",
-      checkingForUpdates: "Checking for updates...",
+      checkingForUpdates: "Checking GitHub releases...",
       unsupportedPlatform:
-        "This platform does not support online game updates.",
-      latestAlreadyInstalledOptions: "You already have the latest game update.",
-      oneUpdateAvailable: "1 game update is available.",
+        "GitHub release checks are not available on this platform.",
+      latestAlreadyInstalledOptions:
+        "You already have the newest game version.",
+      oneUpdateAvailable:
+        "A newer game version is available. Would you like to update?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} game updates are available.`,
-      updateCheckFailed: (message: string) => `Update check failed: ${message}`,
+        `${count} newer game versions are available. Would you like to update?`,
+      updateCheckFailed: (message: string) =>
+        `GitHub release check failed: ${message}`,
     },
     saves: {
       sections: {
@@ -1091,10 +1094,15 @@ export const en = {
         clearLogs: "Clear Logs",
       },
       startupUpdate: {
-        maintenanceNotice: "Game update maintenance notice.",
+        maintenanceNotice: "No newer GitHub releases were found.",
         summaryAvailable:
-          "Download the latest build files now and refresh into the updated game.",
-        summaryNone: "No downloadable game update is currently pending.",
+          "A newer game version is available. Would you like to update?",
+        summaryNone: "You already have the newest game version.",
+        currentVersion: (version: string) => `Current version: ${version}`,
+        latestVersion: (version: string) => `Latest GitHub release: ${version}`,
+        disableAtStartup: "Don't show these notifications again at startup.",
+        disabledNotice:
+          "Startup release notifications are now off. You can re-enable them again in Options.",
         clientUpgradeRequired:
           "A full client upgrade is also required for the newest platform enhancements.",
         progressTitle: "Update Download Status",
@@ -1131,14 +1139,15 @@ export const en = {
         title: "NetHack 3D Client Options",
         categoriesLabel: "Settings categories",
         updates: {
-          checkOnLaunchLabel: "Check for updates on launch",
+          checkOnLaunchLabel: "Show GitHub release notifications on launch",
           checkOnLaunchDescription:
-            "Automatically checks the online manifest when the game starts.",
-          title: "Game Updates",
+            "Checks GitHub releases at startup and lets you know when a newer release exists.",
+          title: "GitHub Releases",
           description:
-            "Check the published online manifest and compare it to your installed build.",
-          idle: "Press Check for Updates to verify game files are up to date.",
+            "Compare this build against the published GitHub releases.",
+          idle: "Press Check for Updates to compare this build against GitHub releases.",
           button: "Check for Updates",
+          openGitHubReleases: "Open GitHub Releases",
         },
         buttons: {
           manageTileSets: "Manage Tile Sets",

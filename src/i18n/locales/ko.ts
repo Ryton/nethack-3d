@@ -949,14 +949,16 @@ export const ko = {
         "적용된 업데이트가 없습니다. 다시 확인해 주세요.",
       noFilesApplied: "적용된 업데이트 파일이 없습니다.",
       unexpectedFailure: "예상치 못한 업데이트 실패입니다.",
-      checkingForUpdates: "업데이트 확인 중...",
+      checkingForUpdates: "GitHub 릴리스를 확인하는 중...",
       unsupportedPlatform:
-        "이 플랫폼은 온라인 게임 업데이트를 지원하지 않습니다.",
-      latestAlreadyInstalledOptions: "이미 최신 게임 업데이트를 사용 중입니다.",
-      oneUpdateAvailable: "게임 업데이트 1개를 사용할 수 있습니다.",
+        "이 플랫폼에서는 GitHub 릴리스를 확인할 수 없습니다.",
+      latestAlreadyInstalledOptions: "이미 최신 게임 버전을 사용 중입니다.",
+      oneUpdateAvailable:
+        "새로운 게임 버전이 있습니다. 업데이트하시겠습니까?",
       manyUpdatesAvailable: (count: number) =>
-        `게임 업데이트 ${count}개를 사용할 수 있습니다.`,
-      updateCheckFailed: (message: string) => `업데이트 확인 실패: ${message}`,
+        `새로운 게임 버전 ${count}개가 있습니다. 업데이트하시겠습니까?`,
+      updateCheckFailed: (message: string) =>
+        `GitHub 릴리스 확인 실패: ${message}`,
     },
     saves: {
       sections: {
@@ -1092,10 +1094,17 @@ export const ko = {
         clearLogs: "로그 지우기",
       },
       startupUpdate: {
-        maintenanceNotice: "게임 업데이트 점검 안내입니다.",
+        maintenanceNotice: "새로운 GitHub 릴리스를 찾지 못했습니다.",
         summaryAvailable:
-          "지금 최신 빌드 파일을 다운로드하고 업데이트된 게임으로 새로고침하세요.",
-        summaryNone: "현재 다운로드할 수 있는 게임 업데이트가 대기 중이 아닙니다.",
+          "새로운 게임 버전이 있습니다. 업데이트하시겠습니까?",
+        summaryNone: "이미 최신 게임 버전입니다.",
+        currentVersion: (version: string) => `현재 버전: ${version}`,
+        latestVersion: (version: string) =>
+          `최신 GitHub 릴리스: ${version}`,
+        disableAtStartup:
+          "앞으로 시작할 때 이 알림을 표시하지 않기",
+        disabledNotice:
+          "시작 시 릴리스 알림이 꺼졌습니다. 옵션에서 다시 켤 수 있습니다.",
         clientUpgradeRequired:
           "최신 플랫폼 개선 사항을 사용하려면 전체 클라이언트 업그레이드도 필요합니다.",
         progressTitle: "업데이트 다운로드 상태",
@@ -1132,14 +1141,16 @@ export const ko = {
         title: "NetHack 3D 클라이언트 옵션",
         categoriesLabel: "설정 범주",
         updates: {
-          checkOnLaunchLabel: "실행 시 업데이트 확인",
+          checkOnLaunchLabel: "실행 시 GitHub 릴리스 알림 표시",
           checkOnLaunchDescription:
-            "게임이 시작되면 온라인 매니페스트를 자동으로 확인합니다.",
-          title: "게임 업데이트",
+            "시작할 때 GitHub 릴리스를 확인하고 새 버전이 있으면 알려줍니다.",
+          title: "GitHub 릴리스",
           description:
-            "게시된 온라인 매니페스트를 확인하고 설치된 빌드와 비교합니다.",
-          idle: "업데이트 확인을 눌러 게임 파일이 최신인지 확인하세요.",
+            "이 빌드를 공개된 GitHub 릴리스와 비교합니다.",
+          idle:
+            "업데이트 확인을 눌러 이 빌드를 GitHub 릴리스와 비교하세요.",
           button: "업데이트 확인",
+          openGitHubReleases: "GitHub 릴리스 열기",
         },
         buttons: {
           manageTileSets: "타일셋 관리",

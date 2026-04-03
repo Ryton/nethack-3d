@@ -980,14 +980,17 @@ export const fr = {
         "Aucune mise a jour n'a ete appliquee. Veuillez relancer la verification.",
       noFilesApplied: "Aucun fichier de mise a jour n'a ete applique.",
       unexpectedFailure: "Echec inattendu de la mise a jour.",
-      checkingForUpdates: "Verification des mises a jour...",
+      checkingForUpdates: "Verification des versions GitHub...",
       unsupportedPlatform:
-        "Cette plateforme ne prend pas en charge les mises a jour du jeu en ligne.",
-      latestAlreadyInstalledOptions: "Vous avez deja la derniere mise a jour du jeu.",
-      oneUpdateAvailable: "1 mise a jour du jeu est disponible.",
+        "La verification des versions GitHub n'est pas disponible sur cette plateforme.",
+      latestAlreadyInstalledOptions:
+        "Vous avez deja la version la plus recente du jeu.",
+      oneUpdateAvailable:
+        "Une nouvelle version du jeu est disponible. Voulez-vous la mettre a jour ?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} game updates are available.`,
-      updateCheckFailed: (message: string) => `Update check failed: ${message}`,
+        `${count} nouvelles versions du jeu sont disponibles. Voulez-vous la mettre a jour ?`,
+      updateCheckFailed: (message: string) =>
+        `La verification des versions GitHub a echoue : ${message}`,
     },
     saves: {
       sections: {
@@ -1127,11 +1130,18 @@ export const fr = {
         clearLogs: "Effacer les journaux",
       },
       startupUpdate: {
-        maintenanceNotice: "Avis de maintenance pour la mise a jour du jeu.",
+        maintenanceNotice:
+          "Aucune version GitHub plus recente n'a ete trouvee.",
         summaryAvailable:
-          "Telechargez maintenant les derniers fichiers de build puis rechargez le jeu mis a jour.",
-        summaryNone:
-          "Aucune mise a jour telechargeable du jeu n'est actuellement en attente.",
+          "Une nouvelle version du jeu est disponible. Voulez-vous la mettre a jour ?",
+        summaryNone: "Vous avez deja la version la plus recente du jeu.",
+        currentVersion: (version: string) => `Version actuelle : ${version}`,
+        latestVersion: (version: string) =>
+          `Derniere version GitHub : ${version}`,
+        disableAtStartup:
+          "Ne plus afficher ces notifications au demarrage.",
+        disabledNotice:
+          "Les notifications de version au demarrage sont maintenant desactivees. Vous pouvez les reactiver dans les options.",
         clientUpgradeRequired:
           "Une mise a niveau complete du client est egalement requise pour beneficier des dernieres ameliorations de la plateforme.",
         progressTitle: "Etat du telechargement de la mise a jour",
@@ -1169,14 +1179,17 @@ export const fr = {
         title: "Options client de NetHack 3D",
         categoriesLabel: "Categories de parametres",
         updates: {
-          checkOnLaunchLabel: "Verifier les mises a jour au lancement",
+          checkOnLaunchLabel:
+            "Afficher les notifications de version GitHub au lancement",
           checkOnLaunchDescription:
-            "Verifie automatiquement le manifeste en ligne au demarrage du jeu.",
-          title: "Mises a jour du jeu",
+            "Verifie les versions GitHub au demarrage et vous avertit lorsqu'une version plus recente existe.",
+          title: "Versions GitHub",
           description:
-            "Verifie le manifeste en ligne publie et le compare a votre build installee.",
-          idle: "Appuyez sur Verifier les mises a jour pour confirmer que les fichiers du jeu sont a jour.",
+            "Compare cette build avec les versions publiees sur GitHub.",
+          idle:
+            "Appuyez sur Verifier les mises a jour pour comparer cette build aux versions GitHub.",
           button: "Verifier les mises a jour",
+          openGitHubReleases: "Ouvrir les versions GitHub",
         },
         buttons: {
           manageTileSets: "Gerer les jeux de tuiles",

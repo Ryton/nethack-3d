@@ -666,12 +666,14 @@ export const zhCnOverrides = {
       nothingAppliedTryAgain: "未应用任何更新，请重新检查。",
       noFilesApplied: "没有应用任何更新文件。",
       unexpectedFailure: "更新时发生意外错误。",
-      checkingForUpdates: "正在检查更新...",
-      unsupportedPlatform: "此平台不支持在线游戏更新。",
-      latestAlreadyInstalledOptions: "你已经安装了最新的游戏更新。",
-      oneUpdateAvailable: "有 1 个游戏更新可用。",
-      manyUpdatesAvailable: (count: number) => `有 ${count} 个游戏更新可用。`,
-      updateCheckFailed: (message: string) => `更新检查失败：${message}`,
+      checkingForUpdates: "正在检查 GitHub 发行版...",
+      unsupportedPlatform: "此平台无法检查 GitHub 发行版。",
+      latestAlreadyInstalledOptions: "你已经拥有最新的游戏版本。",
+      oneUpdateAvailable: "发现新游戏版本。要更新吗？",
+      manyUpdatesAvailable: (count: number) =>
+        `发现 ${count} 个较新的游戏版本。要更新吗？`,
+      updateCheckFailed: (message: string) =>
+        `GitHub 发行版检查失败：${message}`,
     },
     saves: {
       sections: {
@@ -803,9 +805,15 @@ export const zhCnOverrides = {
         clearLogs: "清除日志",
       },
       startupUpdate: {
-        maintenanceNotice: "游戏更新维护通知。",
-        summaryAvailable: "立即下载最新构建文件，并刷新进入更新后的游戏。",
-        summaryNone: "当前没有待下载的游戏更新。",
+        maintenanceNotice: "没有找到更新的 GitHub 发行版。",
+        summaryAvailable: "发现新游戏版本。要更新吗？",
+        summaryNone: "你已经拥有最新的游戏版本。",
+        currentVersion: (version: string) => `当前版本：${version}`,
+        latestVersion: (version: string) =>
+          `最新 GitHub 发行版：${version}`,
+        disableAtStartup: "启动时不再显示这些通知。",
+        disabledNotice:
+          "启动时的发行版通知现已关闭。你可以在选项中重新启用。",
         clientUpgradeRequired: "最新的平台增强功能还需要完整的客户端升级。",
         progressTitle: "更新下载状态",
         canceling: "正在取消更新下载...",
@@ -841,12 +849,14 @@ export const zhCnOverrides = {
         title: "NetHack 3D 客户端选项",
         categoriesLabel: "设置分类",
         updates: {
-          checkOnLaunchLabel: "启动时检查更新",
-          checkOnLaunchDescription: "游戏启动时自动检查在线清单。",
-          title: "游戏更新",
-          description: "检查已发布的在线清单，并与已安装的构建进行比较。",
-          idle: "按“检查更新”以确认游戏文件是否为最新。",
+          checkOnLaunchLabel: "启动时显示 GitHub 发行版通知",
+          checkOnLaunchDescription:
+            "启动时检查 GitHub 发行版，并在有新版本时提醒你。",
+          title: "GitHub 发行版",
+          description: "将当前构建与已发布的 GitHub 发行版进行比较。",
+          idle: "按“检查更新”以将当前构建与 GitHub 发行版进行比较。",
           button: "检查更新",
+          openGitHubReleases: "打开 GitHub 发行版",
         },
         buttons: {
           manageTileSets: "管理瓦片集",
