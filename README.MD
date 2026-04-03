@@ -6,11 +6,7 @@ Play in browser: https://jamesiv4.github.io/nethack-3d/
 
 [Download the latest release](https://github.com/JamesIV4/nethack-3d/releases/latest)
 
-## macOS App
-
-[Download the latest release](https://github.com/JamesIV4/nethack-3d/releases/latest)
-
-The macOS desktop build is packaged as an unsigned DMG from GitHub Actions.
+Note: The macOS desktop build is packaged as an unsigned DMG from GitHub Actions.
 On first launch, macOS may ask you to right-click the app and choose `Open`.
 
 ## iOS App
