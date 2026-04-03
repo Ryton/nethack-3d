@@ -22,7 +22,7 @@ export const nh3dSoundEffectDefinitions = [
   {
     key: "missed-attack",
     label: soundEffectStrings["missed-attack"],
-    messageLogKeywords: [/\bmiss\b/i, /\bmisses\b/i],
+    messageLogKeywords: [/\bmiss\b/i, /\bmisses\b/i, /\balmost hit\b/i],
   },
   {
     key: "thrown-weapon",

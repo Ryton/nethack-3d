@@ -959,16 +959,18 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         "Es wurden keine Updates angewendet. Bitte erneut pr\u00fcfen.",
       noFilesApplied: "Es wurden keine Updatedateien angewendet.",
       unexpectedFailure: "Unerwarteter Update-Fehler.",
-      checkingForUpdates: "Es wird nach Updates gesucht...",
+      checkingForUpdates:
+        "GitHub-Ver\u00f6ffentlichungen werden gepr\u00fcft...",
       unsupportedPlatform:
-        "Diese Plattform unterst\u00fctzt keine Online-Spielupdates.",
+        "GitHub-Ver\u00f6ffentlichungen k\u00f6nnen auf dieser Plattform nicht gepr\u00fcft werden.",
       latestAlreadyInstalledOptions:
-        "Du hast bereits das neueste Spielupdate.",
-      oneUpdateAvailable: "1 Spielupdate ist verf\u00fcgbar.",
+        "Du hast bereits die neueste Spielversion.",
+      oneUpdateAvailable:
+        "Eine neuere Spielversion ist verf\u00fcgbar. M\u00f6chtest du aktualisieren?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} Spielupdates sind verf\u00fcgbar.`,
+        `${count} neuere Spielversionen sind verf\u00fcgbar. M\u00f6chtest du aktualisieren?`,
       updateCheckFailed: (message: string) =>
-        `Update-Pr\u00fcfung fehlgeschlagen: ${message}`,
+        `Pr\u00fcfung der GitHub-Ver\u00f6ffentlichungen fehlgeschlagen: ${message}`,
     },
     saves: {
       sections: {
@@ -1114,11 +1116,18 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         clearLogs: "Protokolle l\u00f6schen",
       },
       startupUpdate: {
-        maintenanceNotice: "Wartungshinweis zum Spielupdate.",
+        maintenanceNotice:
+          "Es wurden keine neueren GitHub-Ver\u00f6ffentlichungen gefunden.",
         summaryAvailable:
-          "Lade jetzt die neuesten Build-Dateien herunter und aktualisiere das Spiel.",
-        summaryNone:
-          "Derzeit steht kein herunterladbares Spielupdate aus.",
+          "Eine neuere Spielversion ist verf\u00fcgbar. M\u00f6chtest du aktualisieren?",
+        summaryNone: "Du hast bereits die neueste Spielversion.",
+        currentVersion: (version: string) => `Aktuelle Version: ${version}`,
+        latestVersion: (version: string) =>
+          `Neueste GitHub-Ver\u00f6ffentlichung: ${version}`,
+        disableAtStartup:
+          "Diese Hinweise beim Start nicht mehr anzeigen.",
+        disabledNotice:
+          "Benachrichtigungen zu Ver\u00f6ffentlichungen beim Start sind jetzt deaktiviert. Du kannst sie in den Optionen wieder aktivieren.",
         clientUpgradeRequired:
           "F\u00fcr die neuesten Plattformverbesserungen ist au\u00dferdem ein vollst\u00e4ndiges Client-Upgrade erforderlich.",
         progressTitle: "Status des Update-Downloads",
@@ -1156,14 +1165,17 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         title: "NetHack 3D Client-Optionen",
         categoriesLabel: "Einstellungskategorien",
         updates: {
-          checkOnLaunchLabel: "Beim Start nach Updates suchen",
+          checkOnLaunchLabel:
+            "GitHub-Ver\u00f6ffentlichungen beim Start anzeigen",
           checkOnLaunchDescription:
-            "Pr\u00fcft beim Spielstart automatisch das Online-Manifest.",
-          title: "Spielupdates",
+            "Pr\u00fcft GitHub-Ver\u00f6ffentlichungen beim Start und informiert dich, wenn eine neuere Version verf\u00fcgbar ist.",
+          title: "GitHub-Ver\u00f6ffentlichungen",
           description:
-            "Pr\u00fcft das ver\u00f6ffentlichte Online-Manifest und vergleicht es mit deinem installierten Build.",
-          idle: "Dr\u00fccke 'Nach Updates suchen', um zu pr\u00fcfen, ob die Spieldateien aktuell sind.",
+            "Vergleiche diesen Build mit den ver\u00f6ffentlichten GitHub-Ver\u00f6ffentlichungen.",
+          idle:
+            "Dr\u00fccke 'Nach Updates suchen', um diesen Build mit GitHub-Ver\u00f6ffentlichungen zu vergleichen.",
           button: "Nach Updates suchen",
+          openGitHubReleases: "GitHub-Ver\u00f6ffentlichungen \u00f6ffnen",
         },
         buttons: {
           manageTileSets: "Tilesets verwalten",

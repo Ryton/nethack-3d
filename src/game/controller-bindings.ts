@@ -41,12 +41,7 @@ export type Nh3dControllerActionSpec = {
   id: Nh3dControllerActionId;
   label: string;
   description: string;
-  group:
-    | "Movement"
-    | "Look And Camera"
-    | "Actions"
-    | "System"
-    | "Dialogs";
+  group: Nh3dControllerActionGroupId;
 };
 
 export type ParsedNh3dControllerBinding =
@@ -64,156 +59,172 @@ const axisBindingPattern = /^axis:(\d+):([+-])$/i;
 const buttonBindingPattern = /^button:(\d+)$/i;
 const controllerStrings = getTranslationStrings().controller;
 
+export type Nh3dControllerActionGroupId = keyof typeof controllerStrings.groups;
+
+export const nh3dControllerActionGroupLabels: Record<
+  Nh3dControllerActionGroupId,
+  string
+> = {
+  movement: controllerStrings.groups.movement,
+  lookAndCamera: controllerStrings.groups.lookAndCamera,
+  actions: controllerStrings.groups.actions,
+  dialogs: controllerStrings.groups.dialogs,
+  system: controllerStrings.groups.system,
+};
+
 const controllerActionSpecs: readonly Nh3dControllerActionSpec[] = [
   {
     id: "dpad_up",
     label: controllerStrings.actions.dpad_up.label,
     description: controllerStrings.actions.dpad_up.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "dpad_down",
     label: controllerStrings.actions.dpad_down.label,
     description: controllerStrings.actions.dpad_down.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "dpad_left",
     label: controllerStrings.actions.dpad_left.label,
     description: controllerStrings.actions.dpad_left.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "dpad_right",
     label: controllerStrings.actions.dpad_right.label,
     description: controllerStrings.actions.dpad_right.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "left_stick_up",
     label: controllerStrings.actions.left_stick_up.label,
     description: controllerStrings.actions.left_stick_up.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "left_stick_down",
     label: controllerStrings.actions.left_stick_down.label,
     description: controllerStrings.actions.left_stick_down.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "left_stick_left",
     label: controllerStrings.actions.left_stick_left.label,
     description: controllerStrings.actions.left_stick_left.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "left_stick_right",
     label: controllerStrings.actions.left_stick_right.label,
     description: controllerStrings.actions.left_stick_right.description,
-    group: controllerStrings.groups.movement,
+    group: "movement",
   },
   {
     id: "right_stick_up",
     label: controllerStrings.actions.right_stick_up.label,
     description: controllerStrings.actions.right_stick_up.description,
-    group: controllerStrings.groups.lookAndCamera,
+    group: "lookAndCamera",
   },
   {
     id: "right_stick_down",
     label: controllerStrings.actions.right_stick_down.label,
     description: controllerStrings.actions.right_stick_down.description,
-    group: controllerStrings.groups.lookAndCamera,
+    group: "lookAndCamera",
   },
   {
     id: "right_stick_left",
     label: controllerStrings.actions.right_stick_left.label,
     description: controllerStrings.actions.right_stick_left.description,
-    group: controllerStrings.groups.lookAndCamera,
+    group: "lookAndCamera",
   },
   {
     id: "right_stick_right",
     label: controllerStrings.actions.right_stick_right.label,
     description: controllerStrings.actions.right_stick_right.description,
-    group: controllerStrings.groups.lookAndCamera,
+    group: "lookAndCamera",
   },
   {
     id: "confirm",
     label: controllerStrings.actions.confirm.label,
     description: controllerStrings.actions.confirm.description,
-    group: controllerStrings.groups.actions,
+    group: "actions",
   },
   {
     id: "search",
     label: controllerStrings.actions.search.label,
     description: controllerStrings.actions.search.description,
-    group: controllerStrings.groups.actions,
+    group: "actions",
   },
   {
     id: "cancel_or_context",
     label: controllerStrings.actions.cancel_or_context.label,
     description: controllerStrings.actions.cancel_or_context.description,
-    group: controllerStrings.groups.actions,
+    group: "actions",
   },
   {
     id: "action_menu",
     label: controllerStrings.actions.action_menu.label,
     description: controllerStrings.actions.action_menu.description,
-    group: controllerStrings.groups.actions,
+    group: "actions",
   },
   {
     id: "run_modifier",
     label: controllerStrings.actions.run_modifier.label,
     description: controllerStrings.actions.run_modifier.description,
-    group: controllerStrings.groups.actions,
+    group: "actions",
   },
   {
     id: "zoom_in",
     label: controllerStrings.actions.zoom_in.label,
     description: controllerStrings.actions.zoom_in.description,
-    group: controllerStrings.groups.lookAndCamera,
+    group: "lookAndCamera",
   },
   {
     id: "recenter_camera",
     label: controllerStrings.actions.recenter_camera.label,
     description: controllerStrings.actions.recenter_camera.description,
-    group: controllerStrings.groups.lookAndCamera,
+    group: "lookAndCamera",
   },
   {
     id: "toggle_large_minimap",
     label: controllerStrings.actions.toggle_large_minimap.label,
     description: controllerStrings.actions.toggle_large_minimap.description,
-    group: controllerStrings.groups.system,
+    group: "system",
   },
   {
     id: "pause_menu",
     label: controllerStrings.actions.pause_menu.label,
     description: controllerStrings.actions.pause_menu.description,
-    group: controllerStrings.groups.system,
+    group: "system",
   },
   {
     id: "open_inventory",
     label: controllerStrings.actions.open_inventory.label,
     description: controllerStrings.actions.open_inventory.description,
-    group: controllerStrings.groups.dialogs,
+    group: "dialogs",
   },
   {
     id: "open_character",
     label: controllerStrings.actions.open_character.label,
     description: controllerStrings.actions.open_character.description,
-    group: controllerStrings.groups.dialogs,
+    group: "dialogs",
   },
 ];
 
-export const nh3dControllerActionSpecsByGroup = {
-  Movement: controllerActionSpecs.filter((spec) => spec.group === "Movement"),
-  "Look And Camera": controllerActionSpecs.filter(
-    (spec) => spec.group === "Look And Camera",
+export const nh3dControllerActionSpecsByGroup: Record<
+  Nh3dControllerActionGroupId,
+  readonly Nh3dControllerActionSpec[]
+> = {
+  movement: controllerActionSpecs.filter((spec) => spec.group === "movement"),
+  lookAndCamera: controllerActionSpecs.filter(
+    (spec) => spec.group === "lookAndCamera",
   ),
-  Actions: controllerActionSpecs.filter((spec) => spec.group === "Actions"),
-  Dialogs: controllerActionSpecs.filter((spec) => spec.group === "Dialogs"),
-  System: controllerActionSpecs.filter((spec) => spec.group === "System"),
-} as const;
+  actions: controllerActionSpecs.filter((spec) => spec.group === "actions"),
+  dialogs: controllerActionSpecs.filter((spec) => spec.group === "dialogs"),
+  system: controllerActionSpecs.filter((spec) => spec.group === "system"),
+};
 
 export const nh3dControllerActionSpecs = controllerActionSpecs;
 

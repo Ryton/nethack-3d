@@ -944,16 +944,17 @@ export const ptBrOverrides = {
         "Nenhuma atualização foi aplicada. Tente verificar novamente.",
       noFilesApplied: "Nenhum arquivo de atualização foi aplicado.",
       unexpectedFailure: "Falha inesperada na atualização.",
-      checkingForUpdates: "Verificando atualizações...",
+      checkingForUpdates: "Verificando lançamentos do GitHub...",
       unsupportedPlatform:
-        "Esta plataforma não suporta atualizações online do jogo.",
+        "Não é possível verificar lançamentos do GitHub nesta plataforma.",
       latestAlreadyInstalledOptions:
-        "Você já tem a atualização mais recente do jogo.",
-      oneUpdateAvailable: "1 atualização do jogo está disponível.",
+        "Você já tem a versão mais recente do jogo.",
+      oneUpdateAvailable:
+        "Uma nova versão do jogo está disponível. Deseja atualizar?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} atualizações do jogo estão disponíveis.`,
+        `${count} versões mais recentes do jogo estão disponíveis. Deseja atualizar?`,
       updateCheckFailed: (message: string) =>
-        `Falha ao verificar atualizações: ${message}`,
+        `Falha ao verificar lançamentos do GitHub: ${message}`,
     },
     saves: {
       sections: {
@@ -1092,11 +1093,19 @@ export const ptBrOverrides = {
         clearLogs: "Limpar logs",
       },
       startupUpdate: {
-        maintenanceNotice: "Aviso de manutenção de atualização do jogo.",
+        maintenanceNotice:
+          "Nenhum lançamento mais recente do GitHub foi encontrado.",
         summaryAvailable:
-          "Baixe agora os arquivos da build mais recente e recarregue no jogo atualizado.",
+          "Uma nova versão do jogo está disponível. Deseja atualizar?",
         summaryNone:
-          "Nenhuma atualização baixável do jogo está pendente no momento.",
+          "Você já tem a versão mais recente do jogo.",
+        currentVersion: (version: string) => `Versão atual: ${version}`,
+        latestVersion: (version: string) =>
+          `Último lançamento do GitHub: ${version}`,
+        disableAtStartup:
+          "Não mostrar mais essas notificações ao iniciar.",
+        disabledNotice:
+          "As notificações de lançamento ao iniciar agora estão desativadas. Você pode ativá-las novamente em Opções.",
         clientUpgradeRequired:
           "Também é necessária uma atualização completa do cliente para os aprimoramentos mais recentes da plataforma.",
         progressTitle: "Status do download da atualização",
@@ -1133,14 +1142,17 @@ export const ptBrOverrides = {
         title: "Opções do cliente NetHack 3D",
         categoriesLabel: "Categorias de configuração",
         updates: {
-          checkOnLaunchLabel: "Verificar atualizações ao iniciar",
+          checkOnLaunchLabel:
+            "Mostrar notificações de lançamentos do GitHub ao iniciar",
           checkOnLaunchDescription:
-            "Verifica automaticamente o manifesto online quando o jogo inicia.",
-          title: "Atualizações do jogo",
+            "Verifica lançamentos do GitHub ao iniciar e avisa quando houver uma versão mais recente.",
+          title: "Lançamentos do GitHub",
           description:
-            "Verifique o manifesto online publicado e compare com a sua build instalada.",
-          idle: "Pressione Verificar atualizações para confirmar que os arquivos do jogo estão atualizados.",
+            "Compare esta build com os lançamentos publicados no GitHub.",
+          idle:
+            "Pressione Verificar atualizações para comparar esta build com os lançamentos do GitHub.",
           button: "Verificar atualizações",
+          openGitHubReleases: "Abrir lançamentos do GitHub",
         },
         buttons: {
           manageTileSets: "Gerenciar tilesets",

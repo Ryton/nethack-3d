@@ -893,15 +893,17 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         "更新は適用されませんでした。もう一度確認してください。",
       noFilesApplied: "更新ファイルは適用されませんでした。",
       unexpectedFailure: "予期しない更新失敗が発生しました。",
-      checkingForUpdates: "更新を確認中...",
+      checkingForUpdates: "GitHub リリースを確認中...",
       unsupportedPlatform:
-        "このプラットフォームはオンラインゲーム更新に対応していません。",
+        "このプラットフォームでは GitHub リリースを確認できません。",
       latestAlreadyInstalledOptions:
-        "すでに最新のゲーム更新が適用されています。",
-      oneUpdateAvailable: "1 件のゲーム更新があります。",
+        "すでに最新のゲームバージョンです。",
+      oneUpdateAvailable:
+        "新しいゲームバージョンが利用可能です。更新しますか？",
       manyUpdatesAvailable: (count: number) =>
-        `${count} 件のゲーム更新があります。`,
-      updateCheckFailed: (message: string) => `更新確認に失敗しました: ${message}`,
+        `${count} 件の新しいゲームバージョンがあります。更新しますか？`,
+      updateCheckFailed: (message: string) =>
+        `GitHub リリースの確認に失敗しました: ${message}`,
     },
     saves: {
       sections: {
@@ -1042,10 +1044,17 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         clearLogs: "ログを削除",
       },
       startupUpdate: {
-        maintenanceNotice: "ゲーム更新メンテナンス通知。",
+        maintenanceNotice: "新しい GitHub リリースは見つかりませんでした。",
         summaryAvailable:
-          "最新ビルドファイルを今すぐダウンロードして、更新済みゲームへ再読み込みします。",
-        summaryNone: "現在、ダウンロード可能な保留中ゲーム更新はありません。",
+          "新しいゲームバージョンが利用可能です。更新しますか？",
+        summaryNone: "すでに最新のゲームバージョンです。",
+        currentVersion: (version: string) => `現在のバージョン: ${version}`,
+        latestVersion: (version: string) =>
+          `最新の GitHub リリース: ${version}`,
+        disableAtStartup:
+          "今後は起動時にこれらの通知を表示しない。",
+        disabledNotice:
+          "起動時のリリース通知はオフになりました。オプションで再度有効にできます。",
         clientUpgradeRequired:
           "最新のプラットフォーム強化を使うには、クライアント全体の更新も必要です。",
         progressTitle: "更新ダウンロード状況",
@@ -1082,14 +1091,16 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         title: "NetHack 3D クライアントオプション",
         categoriesLabel: "設定カテゴリ",
         updates: {
-          checkOnLaunchLabel: "起動時に更新を確認",
+          checkOnLaunchLabel: "起動時に GitHub リリース通知を表示",
           checkOnLaunchDescription:
-            "ゲーム起動時にオンラインマニフェストを自動確認します。",
-          title: "ゲーム更新",
+            "起動時に GitHub リリースを確認し、新しいバージョンがあれば通知します。",
+          title: "GitHub リリース",
           description:
-            "公開済みオンラインマニフェストを確認し、インストール済みビルドと比較します。",
-          idle: "更新を確認 を押してゲームファイルが最新か確認してください。",
+            "このビルドを公開済みの GitHub リリースと比較します。",
+          idle:
+            "更新を確認 を押して、このビルドを GitHub リリースと比較してください。",
           button: "更新を確認",
+          openGitHubReleases: "GitHub リリースを開く",
         },
         buttons: {
           manageTileSets: "タイルセット管理",

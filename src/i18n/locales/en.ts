@@ -825,9 +825,38 @@ export const en = {
           label: "Tile shake on hit",
           description: "Shake impact tiles when combat lands.",
         },
+        sectionCombatBlood: "Blood effects",
         blood: {
           label: "Blood",
-          description: "Render blood mist particle effects on hits.",
+          description: "Render blood mist and ground splat effects on hits.",
+        },
+        bloodStrength: {
+          label: "Blood strength",
+          description: "Control how strongly blood textures and tinting read.",
+        },
+        bloodDetail: {
+          label: "Blood detail",
+          description:
+            "Choose the blood splat texture resolution per dungeon tile.",
+          options: {
+            low: "Low",
+            medium: "Medium",
+            high: "High",
+          },
+        },
+        bloodColorLightHex: {
+          label: "Ground blood fresh tint",
+          description:
+            "Pick the brighter blood tint used in fresh ground splats.",
+        },
+        bloodColorDarkHex: {
+          label: "Ground blood dark tint",
+          description:
+            "Pick the darker blood tint used in dense ground blood areas.",
+        },
+        bloodMistColorHex: {
+          label: "Blood mist tint",
+          description: "Pick the base tint used for airborne blood mist.",
         },
         monsterShatter: {
           label: "Monster shatter",
@@ -900,8 +929,8 @@ export const en = {
       },
       runtimeStoppedBeforeStartup:
         "The local NetHack runtime stopped before startup finished.",
-      preparingDownload: "Preparing game update download...",
-      idleStatus: "Update status is idle.",
+      preparingDownload: "Preparing version check...",
+      idleStatus: "Version check is idle.",
       fileProgress: (index: number, count: number) =>
         `File ${index} of ${count}`,
       unexpectedCheckFailure: "Unexpected update check failure.",
@@ -919,14 +948,17 @@ export const en = {
         "No updates were applied. Please try checking again.",
       noFilesApplied: "No update files were applied.",
       unexpectedFailure: "Unexpected update failure.",
-      checkingForUpdates: "Checking for updates...",
+      checkingForUpdates: "Checking GitHub releases...",
       unsupportedPlatform:
-        "This platform does not support online game updates.",
-      latestAlreadyInstalledOptions: "You already have the latest game update.",
-      oneUpdateAvailable: "1 game update is available.",
+        "GitHub release checks are not available on this platform.",
+      latestAlreadyInstalledOptions:
+        "You already have the newest game version.",
+      oneUpdateAvailable:
+        "A newer game version is available. Would you like to update?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} game updates are available.`,
-      updateCheckFailed: (message: string) => `Update check failed: ${message}`,
+        `${count} newer game versions are available. Would you like to update?`,
+      updateCheckFailed: (message: string) =>
+        `GitHub release check failed: ${message}`,
     },
     saves: {
       sections: {
@@ -1062,10 +1094,15 @@ export const en = {
         clearLogs: "Clear Logs",
       },
       startupUpdate: {
-        maintenanceNotice: "Game update maintenance notice.",
+        maintenanceNotice: "No newer GitHub releases were found.",
         summaryAvailable:
-          "Download the latest build files now and refresh into the updated game.",
-        summaryNone: "No downloadable game update is currently pending.",
+          "A newer game version is available. Would you like to update?",
+        summaryNone: "You already have the newest game version.",
+        currentVersion: (version: string) => `Current version: ${version}`,
+        latestVersion: (version: string) => `Latest GitHub release: ${version}`,
+        disableAtStartup: "Don't show these notifications again at startup.",
+        disabledNotice:
+          "Startup release notifications are now off. You can re-enable them again in Options.",
         clientUpgradeRequired:
           "A full client upgrade is also required for the newest platform enhancements.",
         progressTitle: "Update Download Status",
@@ -1102,14 +1139,15 @@ export const en = {
         title: "NetHack 3D Client Options",
         categoriesLabel: "Settings categories",
         updates: {
-          checkOnLaunchLabel: "Check for updates on launch",
+          checkOnLaunchLabel: "Show GitHub release notifications on launch",
           checkOnLaunchDescription:
-            "Automatically checks the online manifest when the game starts.",
-          title: "Game Updates",
+            "Checks GitHub releases at startup and lets you know when a newer release exists.",
+          title: "GitHub Releases",
           description:
-            "Check the published online manifest and compare it to your installed build.",
-          idle: "Press Check for Updates to verify game files are up to date.",
+            "Compare this build against the published GitHub releases.",
+          idle: "Press Check for Updates to compare this build against GitHub releases.",
           button: "Check for Updates",
+          openGitHubReleases: "Open GitHub Releases",
         },
         buttons: {
           manageTileSets: "Manage Tile Sets",
@@ -1297,4 +1335,22 @@ export const en = {
   },
 } as const;
 
-export type TranslationDictionary = typeof en;
+type WidenTranslationLiterals<T> = T extends (...args: any[]) => any
+  ? T
+  : T extends string
+    ? string
+    : T extends number
+      ? number
+      : T extends boolean
+        ? boolean
+        : T extends bigint
+          ? bigint
+          : T extends symbol
+            ? symbol
+            : T extends readonly (infer U)[]
+              ? readonly WidenTranslationLiterals<U>[]
+              : T extends object
+                ? { readonly [K in keyof T]: WidenTranslationLiterals<T[K]> }
+                : T;
+
+export type TranslationDictionary = WidenTranslationLiterals<typeof en>;
