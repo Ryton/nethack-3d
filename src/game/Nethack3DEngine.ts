@@ -251,7 +251,7 @@ type InventoryDialogOptions = {
 
 const MINIMAP_WIDTH_TILES = 79;
 const MINIMAP_HEIGHT_TILES = 21;
-const BLOOD_GROUND_PIXELS_PER_TILE = 16;
+const BLOOD_GROUND_PIXELS_PER_TILE = 64;
 const BLOOD_GROUND_WIDTH_PX =
   MINIMAP_WIDTH_TILES * BLOOD_GROUND_PIXELS_PER_TILE;
 const BLOOD_GROUND_HEIGHT_PX =
@@ -396,6 +396,20 @@ type BloodGroundDirtyRect = {
   minY: number;
   maxX: number;
   maxY: number;
+};
+
+type BloodGroundPatternParams = {
+  primarySeed: number;
+  secondarySeed: number;
+  primaryScale: number;
+  secondaryScale: number;
+  tertiaryScale: number;
+  offsetX: number;
+  offsetY: number;
+  rotationSin: number;
+  rotationCos: number;
+  threshold: number;
+  contrast: number;
 };
 
 type WallSideTileOverlay = {
@@ -2628,7 +2642,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.bloodGroundImageData.data.fill(0);
     }
     if (this.bloodGroundCanvasContext && this.bloodGroundImageData) {
-      this.bloodGroundCanvasContext.putImageData(this.bloodGroundImageData, 0, 0);
+      this.bloodGroundCanvasContext.putImageData(
+        this.bloodGroundImageData,
+        0,
+        0,
+      );
     } else if (this.bloodGroundCanvasContext && this.bloodGroundCanvas) {
       this.bloodGroundCanvasContext.clearRect(
         0,
@@ -2772,6 +2790,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return (value >>> 0) / 4294967295;
   }
 
+  private sampleBloodGroundPatternNoise(
+    px: number,
+    py: number,
+    pattern: BloodGroundPatternParams,
+  ): number {
+    const rotatedX =
+      px * pattern.rotationCos - py * pattern.rotationSin + pattern.offsetX;
+    const rotatedY =
+      px * pattern.rotationSin + py * pattern.rotationCos + pattern.offsetY;
+    const primary = this.sampleBloodGroundNoise(
+      Math.floor(rotatedX / pattern.primaryScale),
+      Math.floor(rotatedY / pattern.primaryScale),
+      pattern.primarySeed,
+    );
+    const secondary = this.sampleBloodGroundNoise(
+      Math.floor(rotatedX / pattern.secondaryScale - pattern.offsetY * 0.17),
+      Math.floor(rotatedY / pattern.secondaryScale + pattern.offsetX * 0.17),
+      pattern.secondarySeed,
+    );
+    const tertiary = this.sampleBloodGroundNoise(
+      Math.floor((rotatedX + rotatedY) / pattern.tertiaryScale),
+      Math.floor((rotatedY - rotatedX) / pattern.tertiaryScale),
+      pattern.secondarySeed ^ 0x5bd1e995,
+    );
+    const ridge = 1 - Math.abs(secondary * 2 - 1);
+    const combined = primary * 0.5 + ridge * 0.3 + tertiary * 0.2;
+    return THREE.MathUtils.clamp(
+      (combined - pattern.threshold) * pattern.contrast + 0.5,
+      0,
+      1,
+    );
+  }
+
   private writeBloodGroundPixelColor(
     data: Uint8ClampedArray,
     rgbaIndex: number,
@@ -2860,6 +2911,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     densityAmount: number,
     featherPower: number,
     seed: number,
+    pattern: BloodGroundPatternParams | null = null,
   ): void {
     if (!this.ensureBloodGroundOverlayResources() || !this.bloodGroundDensity) {
       return;
@@ -2876,11 +2928,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const radiusPxY = Math.max(0.75, radiusWorldY * pixelsPerWorldUnit);
     const extent = Math.max(radiusPxX, radiusPxY) * 1.5 + 2;
     const minX = Math.max(0, Math.floor(centerX - extent));
-    const maxX = Math.min(BLOOD_GROUND_WIDTH_PX - 1, Math.ceil(centerX + extent));
-    const minY = Math.max(
-      0,
-      Math.floor(centerY - extent),
+    const maxX = Math.min(
+      BLOOD_GROUND_WIDTH_PX - 1,
+      Math.ceil(centerX + extent),
     );
+    const minY = Math.max(0, Math.floor(centerY - extent));
     const maxY = Math.min(
       BLOOD_GROUND_HEIGHT_PX - 1,
       Math.ceil(centerY + extent),
@@ -2910,11 +2962,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
         const distanceT = Math.sqrt(radialDistance);
         const edgeT = Math.max(0, 1 - distanceT);
         const noise = this.sampleBloodGroundNoise(px, py, seed);
+        const patternNoise = pattern
+          ? this.sampleBloodGroundPatternNoise(px, py, pattern)
+          : 1;
+        const breakupThreshold = THREE.MathUtils.lerp(
+          0.16,
+          0.68,
+          THREE.MathUtils.clamp((distanceT - 0.08) / 0.92, 0, 1),
+        );
+        if (distanceT > 0.28 && patternNoise < breakupThreshold) {
+          continue;
+        }
         if (distanceT > 0.93 && noise < 0.18) {
           continue;
         }
 
         let deposit = densityAmount * Math.pow(edgeT, featherPower);
+        deposit *= THREE.MathUtils.lerp(0.18, 1.36, patternNoise);
         if (distanceT > 0.72) {
           deposit *= THREE.MathUtils.lerp(0.45, 1.18, noise);
         } else {
@@ -2957,6 +3021,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     endRadiusWorld: number,
     densityAmount: number,
     seed: number,
+    pattern: BloodGroundPatternParams | null = null,
   ): void {
     const deltaX = endWorldX - startWorldX;
     const deltaY = endWorldY - startWorldY;
@@ -2987,6 +3052,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         stepDensity,
         1.55 + t * 0.45,
         seed + step * 977,
+        pattern,
       );
     }
   }
@@ -3013,6 +3079,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
     // Compose each deposit from a denser focal blot, satellite droplets, and
     // directional trails so hits read as splats instead of uniform ovals.
     const seed = Math.floor(Math.random() * 0x7fffffff);
+    const patternAngle = Math.random() * Math.PI * 2;
+    const pattern: BloodGroundPatternParams = {
+      primarySeed: seed + 17,
+      secondarySeed: seed + 733,
+      primaryScale: THREE.MathUtils.lerp(4.2, 10.5, Math.random()),
+      secondaryScale: THREE.MathUtils.lerp(1.8, 4.4, Math.random()),
+      tertiaryScale: THREE.MathUtils.lerp(1.2, 2.5, Math.random()),
+      offsetX: (Math.random() - 0.5) * 4096,
+      offsetY: (Math.random() - 0.5) * 4096,
+      rotationSin: Math.sin(patternAngle),
+      rotationCos: Math.cos(patternAngle),
+      threshold: THREE.MathUtils.lerp(0.3, 0.56, Math.random()),
+      contrast: THREE.MathUtils.lerp(1.9, 3.1, Math.random()),
+    };
     this.bloodGroundDirectionScratch.set(params.directionX, params.directionY);
     if (this.bloodGroundDirectionScratch.lengthSq() < 1e-8) {
       const randomAngle = Math.random() * Math.PI * 2;
@@ -3044,6 +3124,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       params.densityAmount,
       1.4,
       seed,
+      pattern,
     );
 
     const lobeDistance = baseRadius * (0.28 + Math.random() * 0.55);
@@ -3066,13 +3147,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
       params.densityAmount * 0.78,
       1.7,
       seed + 101,
+      pattern,
     );
 
     for (let i = 0; i < params.scatterCount; i += 1) {
       const forward =
         Math.pow(Math.random(), 0.78) *
         (baseRadius * 1.25 + params.streakLengthWorld * 0.75);
-      const lateral = (Math.random() - 0.5) * baseRadius * (1.5 + Math.random());
+      const lateral =
+        (Math.random() - 0.5) * baseRadius * (1.5 + Math.random());
       const spotRadius = baseRadius * (0.16 + Math.random() * 0.32);
       const worldX =
         params.worldX +
@@ -3091,6 +3174,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         params.densityAmount * (0.18 + Math.random() * 0.28),
         1.8 + Math.random() * 0.5,
         seed + 211 + i * 31,
+        pattern,
       );
     }
 
@@ -3130,6 +3214,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         baseRadius * (0.08 + Math.random() * 0.06),
         params.densityAmount * (0.36 + Math.random() * 0.22),
         seed + 503 + i * 131,
+        pattern,
       );
     }
   }
@@ -3151,11 +3236,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       directionY,
       baseRadiusWorld:
         (defeat ? 0.13 : 0.09) + clampedDamage * (defeat ? 0.011 : 0.0075),
-      densityAmount: defeat ? 230 + clampedDamage * 12 : 150 + clampedDamage * 9,
+      densityAmount: defeat
+        ? 230 + clampedDamage * 12
+        : 150 + clampedDamage * 9,
       scatterCount:
-        (defeat ? THREE.MathUtils.randInt(8, 13) : THREE.MathUtils.randInt(4, 8)) +
+        (defeat
+          ? THREE.MathUtils.randInt(8, 13)
+          : THREE.MathUtils.randInt(4, 8)) +
         Math.min(defeat ? 5 : 3, Math.floor(clampedDamage / 4)),
-      streakCount: defeat ? THREE.MathUtils.randInt(2, 4) : THREE.MathUtils.randInt(1, 2),
+      streakCount: defeat
+        ? THREE.MathUtils.randInt(2, 4)
+        : THREE.MathUtils.randInt(1, 2),
       streakLengthWorld:
         (defeat ? 0.28 : 0.16) + clampedDamage * (defeat ? 0.03 : 0.018),
       elongation: defeat ? 1.05 : 0.72,
@@ -3192,7 +3283,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
           ? THREE.MathUtils.randInt(1, 3)
           : THREE.MathUtils.randInt(0, 1),
       streakCount: horizontalSpeed > 0.45 ? THREE.MathUtils.randInt(1, 2) : 0,
-      streakLengthWorld: THREE.MathUtils.clamp(horizontalSpeed * 0.055, 0.04, 0.22),
+      streakLengthWorld: THREE.MathUtils.clamp(
+        horizontalSpeed * 0.055,
+        0.04,
+        0.22,
+      ),
       elongation: THREE.MathUtils.clamp(horizontalSpeed / 2.2, 0.12, 0.95),
     });
   }
@@ -3201,35 +3296,69 @@ class Nethack3DEngine implements Nethack3DEngineController {
     particle: BillboardShardParticle,
     impactSpeed: number,
   ): void {
-    if (impactSpeed < 0.35 || (particle.groundImpactCount > 0 && impactSpeed < 0.95)) {
+    if (
+      impactSpeed < 0.35 ||
+      (particle.groundImpactCount > 0 && impactSpeed < 0.95)
+    ) {
       return;
     }
 
-    const horizontalSpeed = Math.hypot(particle.velocity.x, particle.velocity.y);
-    const scaleHint = Math.max(particle.baseScale.x, particle.baseScale.y);
+    const horizontalSpeed = Math.hypot(
+      particle.velocity.x,
+      particle.velocity.y,
+    );
+    const shardWidth = Math.max(0.01, particle.baseScale.x);
+    const shardHeight = Math.max(0.01, particle.baseScale.y);
+    const scaleHint = Math.max(shardWidth, shardHeight);
+    const shardArea = shardWidth * shardHeight;
+    const shardSizeFactor = THREE.MathUtils.clamp(
+      Math.sqrt(shardArea) / 0.1,
+      0.55,
+      2.5,
+    );
     this.paintBloodGroundImpact({
       worldX: particle.mesh.position.x,
       worldY: particle.mesh.position.y,
       directionX: particle.velocity.x,
       directionY: particle.velocity.y,
       baseRadiusWorld: THREE.MathUtils.clamp(
-        scaleHint * 0.18 + impactSpeed * 0.01,
-        0.03,
-        0.12,
+        scaleHint * (0.3 + shardSizeFactor * 0.07) + impactSpeed * 0.012,
+        0.05,
+        0.22,
       ),
       densityAmount: THREE.MathUtils.clamp(
-        58 + impactSpeed * 14 + scaleHint * 140,
-        48,
-        156,
+        74 +
+          impactSpeed * 16 +
+          scaleHint * 190 +
+          shardArea * 2000 +
+          shardSizeFactor * 22,
+        68,
+        280,
       ),
-      scatterCount: THREE.MathUtils.randInt(1, 4),
-      streakCount: horizontalSpeed > 0.35 ? THREE.MathUtils.randInt(1, 2) : 1,
+      scatterCount: THREE.MathUtils.randInt(
+        2,
+        Math.max(3, 2 + Math.round(shardSizeFactor * 1.3)),
+      ),
+      streakCount:
+        horizontalSpeed > 0.35
+          ? THREE.MathUtils.randInt(
+              1,
+              Math.max(2, 2 + Math.round(shardSizeFactor * 0.8)),
+            )
+          : THREE.MathUtils.randInt(
+              1,
+              Math.max(1, 1 + Math.round(shardSizeFactor * 0.55)),
+            ),
       streakLengthWorld: THREE.MathUtils.clamp(
-        scaleHint * 0.42 + horizontalSpeed * 0.06,
-        0.05,
-        0.24,
+        scaleHint * (0.64 + shardSizeFactor * 0.1) + horizontalSpeed * 0.072,
+        0.08,
+        0.34,
       ),
-      elongation: THREE.MathUtils.clamp(0.22 + horizontalSpeed / 2.6, 0.22, 1),
+      elongation: THREE.MathUtils.clamp(
+        0.26 + shardSizeFactor * 0.14 + horizontalSpeed / 2.45,
+        0.28,
+        1.08,
+      ),
     });
   }
 
@@ -9014,10 +9143,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private isPassableDoorwayTerrainBehavior(
     behavior: TileBehaviorResult,
   ): boolean {
-    return (
-      !behavior.isWall &&
-      isDoorwayCmapGlyph(behavior.effective.glyph)
-    );
+    return !behavior.isWall && isDoorwayCmapGlyph(behavior.effective.glyph);
   }
 
   private isOpenDoorFloorBehavior(behavior: TileBehaviorResult): boolean {
@@ -9108,7 +9234,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
             Number.isFinite(playerTileMesh.userData.tileIndex)
           ? Math.trunc(playerTileMesh.userData.tileIndex)
           : null;
-    const sharedSpaceBillboard = this.monsterBillboards.get(playerTileKey) ?? null;
+    const sharedSpaceBillboard =
+      this.monsterBillboards.get(playerTileKey) ?? null;
     const sharedSpaceBillboardTileIndex =
       typeof sharedSpaceBillboard?.userData?.tileIndex === "number" &&
       Number.isFinite(sharedSpaceBillboard.userData.tileIndex)
@@ -9349,7 +9476,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       behavior.effective.char,
       behavior.resolved.char,
     ];
-    if (chars.some((value) => typeof value === "string" && value.trim() === "`")) {
+    if (
+      chars.some((value) => typeof value === "string" && value.trim() === "`")
+    ) {
       return true;
     }
     if (
@@ -11428,10 +11557,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.clearRepeatDirectionCandidate();
     this.clearFpsContextAutoDirection();
-    if (
-      normalizedCommandText === "throw" ||
-      normalizedCommandText === "fire"
-    ) {
+    if (normalizedCommandText === "throw" || normalizedCommandText === "fire") {
       this.armPendingThrownWeaponDirectionSound();
     } else {
       this.clearPendingThrownWeaponDirectionSound();
@@ -21895,7 +22021,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
           symidx: resolvedTerrainSymidx,
         });
       }
-      if (shouldCacheFlatUnderPlayer && !shouldSuppressLootLikeFlatFeatureCache) {
+      if (
+        shouldCacheFlatUnderPlayer &&
+        !shouldSuppressLootLikeFlatFeatureCache
+      ) {
         this.flatFeatureUnderPlayerCache.set(key, {
           glyph,
           char: behavior.resolved.char ?? undefined,
@@ -22276,10 +22405,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.userData.glyphTextColor = tileTextColor;
     mesh.userData.glyphDarkenFactor = behavior.darkenFactor;
     mesh.userData.glyphBaseColorHex = material.color.getHexString();
-    const tileTextureIndex = this.resolveInferredDarkCorridorWallTileTextureIndex(
-      renderBehavior.effective.tileIndex,
-      darkCorridorWallCompatibilityActive,
-    );
+    const tileTextureIndex =
+      this.resolveInferredDarkCorridorWallTileTextureIndex(
+        renderBehavior.effective.tileIndex,
+        darkCorridorWallCompatibilityActive,
+      );
     const inferredDarkWallSolidColorHex =
       this.resolveInferredDarkCorridorWallSolidColorHex(
         darkCorridorWallCompatibilityActive,
@@ -22454,7 +22584,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const floorSnapshotCandidates: TerrainSnapshot[] = [];
       const authoritativeUnderPlayerItem =
         this.getAuthoritativeUnderPlayerItemSnapshot(key);
-      if (authoritativeUnderPlayerItem && shouldIncludeFlatUnderPlayerFeatures) {
+      if (
+        authoritativeUnderPlayerItem &&
+        shouldIncludeFlatUnderPlayerFeatures
+      ) {
         floorSnapshotCandidates.push(authoritativeUnderPlayerItem);
       }
       const cachedUnderPlayerFeature =
@@ -24313,11 +24446,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!normalized) {
       return false;
     }
-    if (
-      normalized === "." ||
-      normalized === "5" ||
-      normalized === "Numpad5"
-    ) {
+    if (normalized === "." || normalized === "5" || normalized === "Numpad5") {
       return true;
     }
     return normalized.toLowerCase() === "s";
