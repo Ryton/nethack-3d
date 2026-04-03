@@ -15354,17 +15354,20 @@ export default function App(): JSX.Element {
                         )}
                         {optionsUpdateCheckResult &&
                         !optionsUpdateCheckResult.error ? (
-                          <div className="nh3d-updates-status">
-                            {t.dialogs.startupUpdate.currentVersion(
-                              `v${optionsUpdateCheckResult.currentVersion}`,
-                            )}
-                            {" "}
-                            {t.dialogs.startupUpdate.latestVersion(
-                              optionsUpdateCheckResult.latestVersion ??
-                                optionsUpdateCheckResult.latestTagName ??
-                                commonStrings.none,
-                            )}
-                          </div>
+                          <>
+                            <div className="nh3d-updates-status">
+                              {t.dialogs.startupUpdate.currentVersion(
+                                `v${optionsUpdateCheckResult.currentVersion}`,
+                              )}
+                            </div>
+                            <div className="nh3d-updates-status">
+                              {t.dialogs.startupUpdate.latestVersion(
+                                optionsUpdateCheckResult.latestVersion ??
+                                  optionsUpdateCheckResult.latestTagName ??
+                                  commonStrings.none,
+                              )}
+                            </div>
+                          </>
                         ) : null}
                         {optionsUpdateCheckResult &&
                         !optionsUpdateCheckResult.error &&
@@ -15381,7 +15384,7 @@ export default function App(): JSX.Element {
                           </ul>
                         ) : null}
                       </div>
-                      <div className="nh3d-option-select-controls">
+                      <div className="nh3d-option-select-controls nh3d-option-select-controls-stacked">
                         <button
                           className="nh3d-menu-action-button"
                           disabled={optionsUpdateCheckBusy}

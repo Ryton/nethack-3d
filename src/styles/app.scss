@@ -3539,6 +3539,13 @@ canvas {
   }
 }
 
+.nh3d-option-select-controls-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
 .nh3d-option-select-controls-tileset {
   .nh3d-startup-config-select {
     min-width: 220px;
