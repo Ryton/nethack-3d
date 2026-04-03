@@ -21514,7 +21514,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       1,
       Number.isFinite(targetCountOverride)
         ? Math.trunc(targetCountOverride ?? 1)
-        : THREE.MathUtils.randInt(5, 8),
+        : 8,
     );
     const targets: { x: number; y: number }[] = [];
     const uniqueTargetKeys = new Set(
