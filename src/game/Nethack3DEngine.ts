@@ -2673,7 +2673,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
 
         const normalizedDensity = THREE.MathUtils.clamp(
-          (density * this.clientOptions.bloodStrength) / this.bloodGroundMaxDensity,
+          (density * this.clientOptions.bloodStrength) /
+            this.bloodGroundMaxDensity,
           0,
           1,
         );
@@ -2939,26 +2940,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   ): void {
     const width = this.bloodGroundWidthPx;
     const height = this.bloodGroundHeightPx;
-    const clampedMinX = THREE.MathUtils.clamp(
-      Math.floor(minX),
-      0,
-      width - 1,
-    );
-    const clampedMinY = THREE.MathUtils.clamp(
-      Math.floor(minY),
-      0,
-      height - 1,
-    );
-    const clampedMaxX = THREE.MathUtils.clamp(
-      Math.ceil(maxX),
-      0,
-      width - 1,
-    );
-    const clampedMaxY = THREE.MathUtils.clamp(
-      Math.ceil(maxY),
-      0,
-      height - 1,
-    );
+    const clampedMinX = THREE.MathUtils.clamp(Math.floor(minX), 0, width - 1);
+    const clampedMinY = THREE.MathUtils.clamp(Math.floor(minY), 0, height - 1);
+    const clampedMaxX = THREE.MathUtils.clamp(Math.ceil(maxX), 0, width - 1);
+    const clampedMaxY = THREE.MathUtils.clamp(Math.ceil(maxY), 0, height - 1);
     if (clampedMinX > clampedMaxX || clampedMinY > clampedMaxY) {
       return;
     }
@@ -5468,8 +5453,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tileShakeChanged =
       previous.tileShakeOnHit !== normalized.tileShakeOnHit;
     const bloodMistChanged = previous.bloodMist !== normalized.bloodMist;
-    const bloodGroundChanged =
-      previous.bloodGround !== normalized.bloodGround;
+    const bloodGroundChanged = previous.bloodGround !== normalized.bloodGround;
     const bloodStrengthChanged =
       previous.bloodStrength !== normalized.bloodStrength;
     const bloodGroundColorChanged =
@@ -5477,8 +5461,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previous.bloodColorDarkHex !== normalized.bloodColorDarkHex;
     const bloodMistColorChanged =
       previous.bloodMistColorHex !== normalized.bloodMistColorHex;
-    const bloodDetailChanged =
-      previous.bloodDetail !== normalized.bloodDetail;
+    const bloodDetailChanged = previous.bloodDetail !== normalized.bloodDetail;
     const monsterShatterChanged =
       previous.monsterShatter !== normalized.monsterShatter;
     const blockAmbientOcclusionChanged =
@@ -10192,7 +10175,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private isMonsterDefeatMessage(message: string): boolean {
-    return /\byou (?:kill|kills|killed|destroy|destroys|destroyed) (?:the |an? )?.+[.!]?$/i.test(
+    return /\byou (?:kill|kills|killed|smite|destroy|destroys|destroyed) (?:the |an? )?.+[.!]?$/i.test(
       message,
     );
   }
