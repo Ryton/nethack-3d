@@ -1,5 +1,7 @@
 # NetHack 3D
 
+NetHack 3D lets you play classic NetHack in a fully interactive 3D dungeon.
+
 Play in browser: https://jamesiv4.github.io/nethack-3d/
 
 ## Windows, macOS and Android App
@@ -13,8 +15,6 @@ On first launch, macOS may ask you to right-click the app and choose `Open`.
 
 On iPhone/iPad, open the play link in Safari, tap the Share button, then tap `Add to Home Screen`.
 Launch it from your Home Screen for a web app fullscreen experience.
-
-NetHack 3D lets you play classic NetHack in a fully interactive 3D dungeon, in your browser, phone or desktop PC.
 
 ## Steam Deck (SteamOS) / Linux AppImage
 
