@@ -2805,7 +2805,8 @@ type ClientOptionSelect = {
     | "tilesetPath"
     | "antialiasing"
     | "inventoryFixedTileSize"
-    | "desktopTouchInterfaceMode";
+    | "desktopTouchInterfaceMode"
+    | "bloodDetail";
   label: string;
   description: string;
   type: "select";
@@ -2830,6 +2831,7 @@ type ClientOptionSlider = {
     | "fpsFov"
     | "fpsLookSensitivityX"
     | "fpsLookSensitivityY"
+    | "bloodStrength"
     | "liveMessageDisplayTimeMs"
     | "liveMessageFadeOutTimeMs";
   label: string;
@@ -2838,6 +2840,14 @@ type ClientOptionSlider = {
   min: number;
   max: number;
   step: number;
+  developerOnly?: boolean;
+};
+
+type ClientOptionColor = {
+  key: "bloodColorLightHex" | "bloodColorDarkHex" | "bloodMistColorHex";
+  label: string;
+  description: string;
+  type: "color";
   developerOnly?: boolean;
 };
 
@@ -2860,7 +2870,8 @@ type ClientOption =
   | ClientOptionSectionHeader
   | ClientOptionToggle
   | ClientOptionSelect
-  | ClientOptionSlider;
+  | ClientOptionSlider
+  | ClientOptionColor;
 
 type ClientOptionsTabId =
   | "display"
@@ -4598,10 +4609,62 @@ const clientOptionsConfig: ClientOption[] = [
     type: "boolean",
   },
   {
+    key: "sectionCombatBlood",
+    label: t.clientOptions.config.sectionCombatBlood,
+    type: "section",
+  },
+  {
     key: "blood",
     label: t.clientOptions.config.blood.label,
     description: t.clientOptions.config.blood.description,
     type: "boolean",
+  },
+  {
+    key: "bloodStrength",
+    label: t.clientOptions.config.bloodStrength.label,
+    description: t.clientOptions.config.bloodStrength.description,
+    type: "slider",
+    min: 0.5,
+    max: 4,
+    step: 0.05,
+  },
+  {
+    key: "bloodDetail",
+    label: t.clientOptions.config.bloodDetail.label,
+    description: t.clientOptions.config.bloodDetail.description,
+    type: "select",
+    options: [
+      {
+        value: "low",
+        label: t.clientOptions.config.bloodDetail.options.low,
+      },
+      {
+        value: "medium",
+        label: t.clientOptions.config.bloodDetail.options.medium,
+      },
+      {
+        value: "high",
+        label: t.clientOptions.config.bloodDetail.options.high,
+      },
+    ],
+  },
+  {
+    key: "bloodColorLightHex",
+    label: t.clientOptions.config.bloodColorLightHex.label,
+    description: t.clientOptions.config.bloodColorLightHex.description,
+    type: "color",
+  },
+  {
+    key: "bloodColorDarkHex",
+    label: t.clientOptions.config.bloodColorDarkHex.label,
+    description: t.clientOptions.config.bloodColorDarkHex.description,
+    type: "color",
+  },
+  {
+    key: "bloodMistColorHex",
+    label: t.clientOptions.config.bloodMistColorHex.label,
+    description: t.clientOptions.config.bloodMistColorHex.description,
+    type: "color",
   },
   {
     key: "monsterShatter",
@@ -11894,7 +11957,8 @@ export default function App(): JSX.Element {
     K extends
       | ClientOptionToggleKey
       | ClientOptionSelect["key"]
-      | ClientOptionSlider["key"],
+      | ClientOptionSlider["key"]
+      | ClientOptionColor["key"],
   >(
     optionKey: K,
     value: Nh3dClientOptions[K],
@@ -12176,6 +12240,8 @@ export default function App(): JSX.Element {
       clamped = Math.max(-0.25, Math.min(0.25, rawValue));
     } else if (key === "gamma") {
       clamped = Math.max(0.5, Math.min(2.5, rawValue));
+    } else if (key === "bloodStrength") {
+      clamped = Math.max(0.5, Math.min(4, rawValue));
     } else if (key === "minimapScale") {
       clamped = Math.max(0.6, Math.min(2.2, rawValue));
     } else if (key === "liveMessageDisplayTimeMs") {
@@ -16091,6 +16157,7 @@ export default function App(): JSX.Element {
                     const isTilesetSelect = option.key === "tilesetPath";
                     const isInventoryFixedTileSizeSelect =
                       option.key === "inventoryFixedTileSize";
+                    const isBloodDetailSelect = option.key === "bloodDetail";
                     const selectOptions = isTilesetSelect
                       ? tilesetDropdownOptions
                       : option.options;
@@ -16101,6 +16168,8 @@ export default function App(): JSX.Element {
                       ? tilesetSelectDisabledByDisplayMode || !hasAnyTilesets
                       : isInventoryFixedTileSizeSelect
                         ? !clientOptionsDraft.reduceInventoryMotion
+                        : isBloodDetailSelect
+                          ? !clientOptionsDraft.blood
                         : Boolean(option.disabled);
                     return (
                       <div
@@ -16176,6 +16245,15 @@ export default function App(): JSX.Element {
                                 updateClientOptionDraft(option.key, nextValue);
                                 return;
                               }
+                              if (option.key === "bloodDetail") {
+                                const nextValue =
+                                  event.target.value === "low" ||
+                                  event.target.value === "high"
+                                    ? event.target.value
+                                    : "medium";
+                                updateClientOptionDraft(option.key, nextValue);
+                                return;
+                              }
                               updateClientOptionDraft(
                                 option.key,
                                 event.target.value === "taa" ? "taa" : "fxaa",
@@ -16204,10 +16282,16 @@ export default function App(): JSX.Element {
                     const sliderDisabledByController =
                       option.key === "controllerFpsMoveRepeatMs" &&
                       !clientOptionsDraft.controllerEnabled;
+                    const sliderDisabledByBlood =
+                      option.key === "bloodStrength" && !clientOptionsDraft.blood;
                     const sliderDisabled =
-                      sliderDisabledByFpsMode || sliderDisabledByController;
+                      sliderDisabledByFpsMode ||
+                      sliderDisabledByController ||
+                      sliderDisabledByBlood;
                     const sliderLabel =
-                      option.key === "gamma"
+                      option.key === "bloodStrength"
+                        ? `${sliderValue.toFixed(2)}x`
+                        : option.key === "gamma"
                         ? `${sliderValue.toFixed(2)}x`
                         : option.key === "fpsFov"
                           ? `${Math.round(sliderValue)}\u00b0`
@@ -16264,6 +16348,47 @@ export default function App(): JSX.Element {
                           <div className="nh3d-option-slider-value">
                             {sliderLabel}
                           </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (option.type === "color") {
+                    const colorValue = normalizeSolidChromaKeyHex(
+                      String(clientOptionsDraft[option.key] || ""),
+                    );
+                    const colorDisabled = !clientOptionsDraft.blood;
+                    return (
+                      <div
+                        className={`nh3d-option-row${
+                          colorDisabled ? " nh3d-option-row-mode-inactive" : ""
+                        }`}
+                        key={option.key}
+                      >
+                        <div className="nh3d-option-copy">
+                          <div className="nh3d-option-label">
+                            {option.label}
+                          </div>
+                          <div className="nh3d-option-description">
+                            {option.description}
+                          </div>
+                        </div>
+                        <div className="nh3d-option-select-controls">
+                          <input
+                            aria-label={option.label}
+                            className="nh3d-option-solid-color-native-picker"
+                            disabled={colorDisabled}
+                            onChange={(event) =>
+                              updateClientOptionDraft(
+                                option.key,
+                                normalizeSolidChromaKeyHex(
+                                  event.target.value,
+                                  colorValue,
+                                ),
+                              )
+                            }
+                            type="color"
+                            value={colorValue}
+                          />
                         </div>
                       </div>
                     );

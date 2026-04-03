@@ -133,6 +133,7 @@ export type FpsCrosshairContextState = {
 export type PlayMode = "normal" | "fps";
 export type Nh3dAntialiasingMode = "taa" | "fxaa";
 export type Nh3dDesktopTouchInterfaceMode = "off" | "portrait" | "landscape";
+export type Nh3dBloodDetailMode = "low" | "medium" | "high";
 export type Nh3dInventoryFixedTileSizeMode =
   | "none"
   | "small"
@@ -194,6 +195,11 @@ export type Nh3dClientOptions = {
   displayXpGainsAbovePlayer: boolean;
   tileShakeOnHit: boolean;
   blood: boolean;
+  bloodStrength: number;
+  bloodColorLightHex: string;
+  bloodColorDarkHex: string;
+  bloodMistColorHex: string;
+  bloodDetail: Nh3dBloodDetailMode;
   monsterShatter: boolean;
   monsterShatterBloodBorders: boolean;
   liveMessageLog: boolean;
@@ -237,6 +243,9 @@ export type Nh3dClientOptions = {
 
 export const nh3dFpsLookSensitivityMin = 0.4;
 export const nh3dFpsLookSensitivityMax = 2.6;
+export const defaultNh3dBloodColorLightHex = "#841814";
+export const defaultNh3dBloodColorDarkHex = "#480a0b";
+export const defaultNh3dBloodMistColorHex = "#d21616";
 export const nh3dOpenCharacterSheetEventName = "nh3d:open-character-sheet";
 export const nh3dToggleControllerActionWheelEventName =
   "nh3d:toggle-controller-action-wheel";
@@ -244,6 +253,20 @@ export const nh3dCloseControllerActionWheelEventName =
   "nh3d:close-controller-action-wheel";
 export const nh3dCloseInventoryContextMenuEventName =
   "nh3d:close-inventory-context-menu";
+
+export function resolveNh3dBloodDetailPixelsPerTile(
+  detail: Nh3dBloodDetailMode,
+): number {
+  switch (detail) {
+    case "low":
+      return 32;
+    case "high":
+      return 128;
+    case "medium":
+    default:
+      return 64;
+  }
+}
 
 const isMobilePortrait = window.matchMedia(
   "(orientation: portrait) and (pointer: coarse)",
@@ -281,6 +304,11 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   displayXpGainsAbovePlayer: true,
   tileShakeOnHit: true,
   blood: true,
+  bloodStrength: 2.5,
+  bloodColorLightHex: defaultNh3dBloodColorLightHex,
+  bloodColorDarkHex: defaultNh3dBloodColorDarkHex,
+  bloodMistColorHex: defaultNh3dBloodMistColorHex,
+  bloodDetail: "medium",
   monsterShatter: true,
   monsterShatterBloodBorders: true,
   liveMessageLog: true,
@@ -516,6 +544,15 @@ function normalizeTilesetSolidChromaKeyColorHex(
   return `#${match[1].toLowerCase()}`;
 }
 
+function normalizeBloodColorHex(rawValue: unknown, fallback: string): string {
+  const normalized = String(rawValue || "").trim();
+  const match = normalized.match(/^#?([0-9a-fA-F]{6})$/);
+  if (!match) {
+    return fallback;
+  }
+  return `#${match[1].toLowerCase()}`;
+}
+
 function normalizeTilesetSolidChromaKeyColorHexByTileset(
   rawValue: unknown,
 ): TilesetSolidChromaKeyColorHexByTileset {
@@ -627,6 +664,32 @@ export function normalizeNh3dClientOptions(
   const minimapScale = Number(
     Math.max(0.6, Math.min(2.2, rawMinimapScale)).toFixed(2),
   );
+  const rawBloodStrength =
+    typeof overrides?.bloodStrength === "number" &&
+    Number.isFinite(overrides.bloodStrength)
+      ? overrides.bloodStrength
+      : defaultNh3dClientOptions.bloodStrength;
+  const bloodStrength = Number(
+    Math.max(0.5, Math.min(4, rawBloodStrength)).toFixed(2),
+  );
+  const bloodColorLightHex = normalizeBloodColorHex(
+    overrides?.bloodColorLightHex,
+    defaultNh3dClientOptions.bloodColorLightHex,
+  );
+  const bloodColorDarkHex = normalizeBloodColorHex(
+    overrides?.bloodColorDarkHex,
+    defaultNh3dClientOptions.bloodColorDarkHex,
+  );
+  const bloodMistColorHex = normalizeBloodColorHex(
+    overrides?.bloodMistColorHex,
+    defaultNh3dClientOptions.bloodMistColorHex,
+  );
+  const bloodDetail =
+    overrides?.bloodDetail === "low" ||
+    overrides?.bloodDetail === "high" ||
+    overrides?.bloodDetail === "medium"
+      ? overrides.bloodDetail
+      : defaultNh3dClientOptions.bloodDetail;
   const inventoryFixedTileSize =
     overrides?.inventoryFixedTileSize === "none" ||
     overrides?.inventoryFixedTileSize === "small" ||
@@ -902,6 +965,11 @@ export function normalizeNh3dClientOptions(
       typeof overrides?.blood === "boolean"
         ? overrides.blood
         : defaultNh3dClientOptions.blood,
+    bloodStrength,
+    bloodColorLightHex,
+    bloodColorDarkHex,
+    bloodMistColorHex,
+    bloodDetail,
     monsterShatter:
       typeof overrides?.monsterShatter === "boolean"
         ? overrides.monsterShatter

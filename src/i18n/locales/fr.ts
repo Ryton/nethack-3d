@@ -854,9 +854,41 @@ export const fr = {
           label: "Secousse des tuiles a l'impact",
           description: "Secoue les tuiles d'impact lors des coups portes.",
         },
+        sectionCombatBlood: "Effets de sang",
         blood: {
           label: "Sang",
-          description: "Affiche des effets de particules de brume sanglante lors des impacts.",
+          description:
+            "Affiche des effets de brume sanglante et de flaques au sol lors des impacts.",
+        },
+        bloodStrength: {
+          label: "Intensite du sang",
+          description:
+            "Controle la force visuelle des textures et de la teinte du sang.",
+        },
+        bloodDetail: {
+          label: "Detail du sang",
+          description:
+            "Choisit la resolution des eclaboussures de sang par tuile du donjon.",
+          options: {
+            low: "Faible",
+            medium: "Moyen",
+            high: "Eleve",
+          },
+        },
+        bloodColorLightHex: {
+          label: "Teinte claire du sang au sol",
+          description:
+            "Choisit la teinte de sang la plus claire pour les nouvelles eclaboussures au sol.",
+        },
+        bloodColorDarkHex: {
+          label: "Teinte sombre du sang au sol",
+          description:
+            "Choisit la teinte de sang la plus sombre pour les zones denses au sol.",
+        },
+        bloodMistColorHex: {
+          label: "Teinte de la brume de sang",
+          description:
+            "Choisit la teinte de base utilisee pour la brume de sang en l'air.",
         },
         monsterShatter: {
           label: "Monstres en eclats",

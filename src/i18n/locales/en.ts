@@ -825,9 +825,38 @@ export const en = {
           label: "Tile shake on hit",
           description: "Shake impact tiles when combat lands.",
         },
+        sectionCombatBlood: "Blood effects",
         blood: {
           label: "Blood",
-          description: "Render blood mist particle effects on hits.",
+          description: "Render blood mist and ground splat effects on hits.",
+        },
+        bloodStrength: {
+          label: "Blood strength",
+          description: "Control how strongly blood textures and tinting read.",
+        },
+        bloodDetail: {
+          label: "Blood detail",
+          description:
+            "Choose the blood splat texture resolution per dungeon tile.",
+          options: {
+            low: "Low",
+            medium: "Medium",
+            high: "High",
+          },
+        },
+        bloodColorLightHex: {
+          label: "Ground blood fresh tint",
+          description:
+            "Pick the brighter blood tint used in fresh ground splats.",
+        },
+        bloodColorDarkHex: {
+          label: "Ground blood dark tint",
+          description:
+            "Pick the darker blood tint used in dense ground blood areas.",
+        },
+        bloodMistColorHex: {
+          label: "Blood mist tint",
+          description: "Pick the base tint used for airborne blood mist.",
         },
         monsterShatter: {
           label: "Monster shatter",

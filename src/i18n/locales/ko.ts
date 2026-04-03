@@ -825,9 +825,39 @@ export const ko = {
           label: "피격 시 타일 흔들림",
           description: "공격이 적중하면 충돌 타일을 흔듭니다.",
         },
+        sectionCombatBlood: "Blood effects",
         blood: {
           label: "피 효과",
           description: "적중 시 피 안개 파티클 효과를 렌더링합니다.",
+        },
+        bloodStrength: {
+          label: "Blood strength",
+          description:
+            "Control how strongly blood textures and tinting read.",
+        },
+        bloodDetail: {
+          label: "Blood detail",
+          description:
+            "Choose the blood splat texture resolution per dungeon tile.",
+          options: {
+            low: "Low",
+            medium: "Medium",
+            high: "High",
+          },
+        },
+        bloodColorLightHex: {
+          label: "Ground blood fresh tint",
+          description:
+            "Pick the brighter blood tint used in fresh ground splats.",
+        },
+        bloodColorDarkHex: {
+          label: "Ground blood dark tint",
+          description:
+            "Pick the darker blood tint used in dense ground blood areas.",
+        },
+        bloodMistColorHex: {
+          label: "Blood mist tint",
+          description: "Pick the base tint used for airborne blood mist.",
         },
         monsterShatter: {
           label: "몬스터 파쇄",

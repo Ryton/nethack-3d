@@ -3591,14 +3591,30 @@ canvas {
 }
 
 .nh3d-option-solid-color-native-picker {
-  width: 44px;
-  height: 36px;
-  padding: 2px;
+  width: 42px;
+  height: 42px;
+  padding: 3px;
   border-radius: 6px;
   border: 1px solid rgba(108, 166, 226, 0.45);
   background: rgba(8, 18, 29, 0.96);
   cursor: pointer;
   flex: 0 0 auto;
+  box-sizing: border-box;
+
+  &::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border-radius: 4px;
+  }
+
+  &::-webkit-color-swatch {
+    border: 1px solid rgba(126, 153, 184, 0.55);
+    border-radius: 4px;
+  }
+
+  &::-moz-color-swatch {
+    border: 1px solid rgba(126, 153, 184, 0.55);
+    border-radius: 4px;
+  }
 
   &:disabled {
     opacity: 0.48;

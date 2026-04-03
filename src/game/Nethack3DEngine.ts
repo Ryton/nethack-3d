@@ -75,6 +75,7 @@ import {
   nh3dOpenCharacterSheetEventName,
   nh3dToggleControllerActionWheelEventName,
   normalizeNh3dClientOptions,
+  resolveNh3dBloodDetailPixelsPerTile,
 } from "./ui-types";
 import {
   defaultNh3dControllerBindings,
@@ -251,11 +252,6 @@ type InventoryDialogOptions = {
 
 const MINIMAP_WIDTH_TILES = 79;
 const MINIMAP_HEIGHT_TILES = 21;
-const BLOOD_GROUND_PIXELS_PER_TILE = 64;
-const BLOOD_GROUND_WIDTH_PX =
-  MINIMAP_WIDTH_TILES * BLOOD_GROUND_PIXELS_PER_TILE;
-const BLOOD_GROUND_HEIGHT_PX =
-  MINIMAP_HEIGHT_TILES * BLOOD_GROUND_PIXELS_PER_TILE;
 
 type MinimapViewportRect = {
   minX: number;
@@ -414,6 +410,19 @@ type BloodGroundPatternParams = {
   tertiary: BloodGroundPatternLayer;
   threshold: number;
   contrast: number;
+};
+
+type BloodGroundImpactParams = {
+  worldX: number;
+  worldY: number;
+  directionX: number;
+  directionY: number;
+  baseRadiusWorld: number;
+  densityAmount: number;
+  scatterCount: number;
+  streakCount: number;
+  streakLengthWorld: number;
+  elongation: number;
 };
 
 type WallSideTileOverlay = {
@@ -652,7 +661,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private bloodGroundDirtyRect: BloodGroundDirtyRect | null = null;
   private bloodGroundDirtyRowMin: Int32Array | null = null;
   private bloodGroundDirtyRowMax: Int32Array | null = null;
-  private bloodGroundDirtyRowRangeStart: number = BLOOD_GROUND_HEIGHT_PX;
+  private bloodGroundDirtyRowRangeStart: number = 0;
   private bloodGroundDirtyRowRangeEnd: number = -1;
   private bloodGroundHasVisibleData: boolean = false;
   private bloodGroundTextureRequiresFullUpload: boolean = false;
@@ -1402,15 +1411,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodGroundDirectionScratch = new THREE.Vector2();
   private readonly bloodGroundPerpendicularScratch = new THREE.Vector2();
   private readonly bloodGroundOverlayZ: number = 0.012;
-  private readonly bloodGroundCacheVersion: number = 2;
+  private readonly bloodGroundCacheVersion: number = 4;
   private readonly bloodGroundMaxDensity: number = 2048;
-  private readonly bloodGroundOpacityStrength: number = 2.5;
-  private readonly bloodGroundPixelsPerWorldUnit: number =
-    BLOOD_GROUND_PIXELS_PER_TILE / TILE_SIZE;
-  private readonly bloodGroundWorldToPixelX: number =
-    (BLOOD_GROUND_WIDTH_PX - 1) / (MINIMAP_WIDTH_TILES * TILE_SIZE);
-  private readonly bloodGroundWorldToPixelY: number =
-    (BLOOD_GROUND_HEIGHT_PX - 1) / (MINIMAP_HEIGHT_TILES * TILE_SIZE);
   private readonly bloodGroundTexturePartialUploadAreaRatio: number = 0.34;
   private readonly bloodGroundTrailSegmentSpacingPx: number = 3.5;
   private readonly bloodGroundNoiseAtlasSize: number = 256;
@@ -1454,6 +1456,30 @@ class Nethack3DEngine implements Nethack3DEngineController {
     MINIMAP_WIDTH_TILES * TILE_SIZE,
     MINIMAP_HEIGHT_TILES * TILE_SIZE,
   );
+
+  private get bloodGroundPixelsPerTile(): number {
+    return resolveNh3dBloodDetailPixelsPerTile(this.clientOptions.bloodDetail);
+  }
+
+  private get bloodGroundWidthPx(): number {
+    return MINIMAP_WIDTH_TILES * this.bloodGroundPixelsPerTile;
+  }
+
+  private get bloodGroundHeightPx(): number {
+    return MINIMAP_HEIGHT_TILES * this.bloodGroundPixelsPerTile;
+  }
+
+  private get bloodGroundPixelsPerWorldUnit(): number {
+    return this.bloodGroundPixelsPerTile / TILE_SIZE;
+  }
+
+  private get bloodGroundWorldToPixelX(): number {
+    return (this.bloodGroundWidthPx - 1) / (MINIMAP_WIDTH_TILES * TILE_SIZE);
+  }
+
+  private get bloodGroundWorldToPixelY(): number {
+    return (this.bloodGroundHeightPx - 1) / (MINIMAP_HEIGHT_TILES * TILE_SIZE);
+  }
   private wallGeometry = this.createUprightWallBlockGeometry();
   private readonly vultureWallPlaneGeometry = (() => {
     const geometry = new THREE.PlaneGeometry(TILE_SIZE, WALL_HEIGHT);
@@ -2562,13 +2588,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private cloneBloodGroundCacheSnapshot(
     source: BloodGroundCacheSnapshot | null,
   ): BloodGroundCacheSnapshot | null {
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
     if (
       !source ||
       source.version !== this.bloodGroundCacheVersion ||
-      source.width !== BLOOD_GROUND_WIDTH_PX ||
-      source.height !== BLOOD_GROUND_HEIGHT_PX ||
+      source.width !== width ||
+      source.height !== height ||
       !(source.density instanceof Uint16Array) ||
-      source.density.length !== BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX
+      source.density.length !== width * height
     ) {
       return null;
     }
@@ -2588,6 +2616,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.bloodGroundOverlayMesh.visible =
       this.clientOptions.blood && this.bloodGroundHasVisibleData;
+  }
+
+  private clearAllCachedBloodGroundSnapshots(): void {
+    for (const entries of this.levelTerrainCachesByName.values()) {
+      for (const entry of entries) {
+        entry.bloodGround = null;
+      }
+    }
   }
 
   private packBloodGroundRgba(
@@ -2617,6 +2653,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private ensureBloodGroundLookupTables(): void {
     if (!this.bloodGroundColorLut) {
+      const lightColor = new THREE.Color(this.clientOptions.bloodColorLightHex);
+      const darkColor = new THREE.Color(this.clientOptions.bloodColorDarkHex);
+      const lightR = Math.round(lightColor.r * 255);
+      const lightG = Math.round(lightColor.g * 255);
+      const lightB = Math.round(lightColor.b * 255);
+      const darkR = Math.round(darkColor.r * 255);
+      const darkG = Math.round(darkColor.g * 255);
+      const darkB = Math.round(darkColor.b * 255);
       const lut = new Uint32Array(this.bloodGroundMaxDensity + 1);
       for (
         let density = 0;
@@ -2629,8 +2673,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
 
         const normalizedDensity = THREE.MathUtils.clamp(
-          (density * this.bloodGroundOpacityStrength) /
-            this.bloodGroundMaxDensity,
+          (density * this.clientOptions.bloodStrength) / this.bloodGroundMaxDensity,
           0,
           1,
         );
@@ -2639,10 +2682,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
           0.22,
           0.99,
         );
-        const darkenT = smoothDarken * 0.62;
-        const r = Math.round(THREE.MathUtils.lerp(132, 72, darkenT));
-        const g = Math.round(THREE.MathUtils.lerp(24, 10, darkenT));
-        const b = Math.round(THREE.MathUtils.lerp(20, 11, darkenT));
+        const darkenT = smoothDarken * 0.84;
+        const r = Math.round(THREE.MathUtils.lerp(lightR, darkR, darkenT));
+        const g = Math.round(THREE.MathUtils.lerp(lightG, darkG, darkenT));
+        const b = Math.round(THREE.MathUtils.lerp(lightB, darkB, darkenT));
         const a = Math.round(
           255 *
             THREE.MathUtils.clamp(
@@ -2699,9 +2742,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private resetBloodGroundDirtyRowTracking(): void {
-    this.bloodGroundDirtyRowMin?.fill(BLOOD_GROUND_WIDTH_PX);
+    this.bloodGroundDirtyRowMin?.fill(this.bloodGroundWidthPx);
     this.bloodGroundDirtyRowMax?.fill(-1);
-    this.bloodGroundDirtyRowRangeStart = BLOOD_GROUND_HEIGHT_PX;
+    this.bloodGroundDirtyRowRangeStart = this.bloodGroundHeightPx;
     this.bloodGroundDirtyRowRangeEnd = -1;
   }
 
@@ -2721,14 +2764,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.ensureBloodGroundLookupTables();
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
 
-    const pixelData = new Uint8Array(
-      BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX * 4,
-    );
+    const pixelData = new Uint8Array(width * height * 4);
     const texture = new THREE.DataTexture(
       pixelData,
-      BLOOD_GROUND_WIDTH_PX,
-      BLOOD_GROUND_HEIGHT_PX,
+      width,
+      height,
       THREE.RGBAFormat,
       THREE.UnsignedByteType,
     );
@@ -2770,11 +2813,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayTexture = texture;
     this.bloodGroundPixelData = pixelData;
     this.bloodGroundPixelData32 = new Uint32Array(pixelData.buffer);
-    this.bloodGroundDensity = new Uint16Array(
-      BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX,
-    );
-    this.bloodGroundDirtyRowMin = new Int32Array(BLOOD_GROUND_HEIGHT_PX);
-    this.bloodGroundDirtyRowMax = new Int32Array(BLOOD_GROUND_HEIGHT_PX);
+    this.bloodGroundDensity = new Uint16Array(width * height);
+    this.bloodGroundDirtyRowMin = new Int32Array(height);
+    this.bloodGroundDirtyRowMax = new Int32Array(height);
     this.bloodGroundDirtyRect = null;
     this.resetBloodGroundDirtyRowTracking();
     this.bloodGroundHasVisibleData = false;
@@ -2818,7 +2859,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundDirtyRect = null;
     this.bloodGroundDirtyRowMin = null;
     this.bloodGroundDirtyRowMax = null;
-    this.bloodGroundDirtyRowRangeStart = BLOOD_GROUND_HEIGHT_PX;
+    this.bloodGroundDirtyRowRangeStart = this.bloodGroundHeightPx;
     this.bloodGroundDirtyRowRangeEnd = -1;
     this.bloodGroundHasVisibleData = false;
     this.bloodGroundTextureRequiresFullUpload = false;
@@ -2831,8 +2872,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     return {
       version: this.bloodGroundCacheVersion,
-      width: BLOOD_GROUND_WIDTH_PX,
-      height: BLOOD_GROUND_HEIGHT_PX,
+      width: this.bloodGroundWidthPx,
+      height: this.bloodGroundHeightPx,
       density: new Uint16Array(this.bloodGroundDensity),
     };
   }
@@ -2844,12 +2885,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearActiveBloodGroundCanvas();
       return;
     }
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
     if (
       snapshot.version !== this.bloodGroundCacheVersion ||
-      snapshot.width !== BLOOD_GROUND_WIDTH_PX ||
-      snapshot.height !== BLOOD_GROUND_HEIGHT_PX ||
+      snapshot.width !== width ||
+      snapshot.height !== height ||
       !(snapshot.density instanceof Uint16Array) ||
-      snapshot.density.length !== BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX
+      snapshot.density.length !== width * height
     ) {
       this.clearActiveBloodGroundCanvas();
       return;
@@ -2863,9 +2906,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundDirtyRect = {
       minX: 0,
       minY: 0,
-      maxX: BLOOD_GROUND_WIDTH_PX - 1,
-      maxY: BLOOD_GROUND_HEIGHT_PX - 1,
+      maxX: width - 1,
+      maxY: height - 1,
     };
+    this.syncBloodGroundTexture(true);
+  }
+
+  private refreshActiveBloodGroundVisuals(): void {
+    if (!this.bloodGroundDensity || !this.bloodGroundHasVisibleData) {
+      this.updateBloodGroundOverlayVisibility();
+      return;
+    }
+
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
+    this.ensureBloodGroundLookupTables();
+    this.bloodGroundDirtyRect = {
+      minX: 0,
+      minY: 0,
+      maxX: width - 1,
+      maxY: height - 1,
+    };
+    this.bloodGroundTextureRequiresFullUpload = true;
     this.syncBloodGroundTexture(true);
   }
 
@@ -2875,25 +2937,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
     maxX: number,
     maxY: number,
   ): void {
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
     const clampedMinX = THREE.MathUtils.clamp(
       Math.floor(minX),
       0,
-      BLOOD_GROUND_WIDTH_PX - 1,
+      width - 1,
     );
     const clampedMinY = THREE.MathUtils.clamp(
       Math.floor(minY),
       0,
-      BLOOD_GROUND_HEIGHT_PX - 1,
+      height - 1,
     );
     const clampedMaxX = THREE.MathUtils.clamp(
       Math.ceil(maxX),
       0,
-      BLOOD_GROUND_WIDTH_PX - 1,
+      width - 1,
     );
     const clampedMaxY = THREE.MathUtils.clamp(
       Math.ceil(maxY),
       0,
-      BLOOD_GROUND_HEIGHT_PX - 1,
+      height - 1,
     );
     if (clampedMinX > clampedMaxX || clampedMinY > clampedMaxY) {
       return;
@@ -2988,14 +3052,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
     const requiresFullUpload =
       forceFull || this.bloodGroundTextureRequiresFullUpload;
     const dirtyRect = requiresFullUpload
       ? {
           minX: 0,
           minY: 0,
-          maxX: BLOOD_GROUND_WIDTH_PX - 1,
-          maxY: BLOOD_GROUND_HEIGHT_PX - 1,
+          maxX: width - 1,
+          maxY: height - 1,
         }
       : this.bloodGroundDirtyRect;
     if (!dirtyRect) {
@@ -3027,7 +3093,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
       }
     }
-    const fullArea = BLOOD_GROUND_WIDTH_PX * BLOOD_GROUND_HEIGHT_PX;
+    const fullArea = width * height;
     const usePartialUpload =
       !requiresFullUpload &&
       dirtyArea / fullArea <= this.bloodGroundTexturePartialUploadAreaRatio;
@@ -3049,7 +3115,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           continue;
         }
 
-        const rowOffset = y * BLOOD_GROUND_WIDTH_PX;
+        const rowOffset = y * width;
         for (let x = minRowX; x <= maxRowX; x += 1) {
           const pixelIndex = rowOffset + x;
           pixelData32[pixelIndex] = colorLut[density[pixelIndex]];
@@ -3062,14 +3128,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
           );
         }
 
-        rowDirtyMin[y] = BLOOD_GROUND_WIDTH_PX;
+        rowDirtyMin[y] = width;
         rowDirtyMax[y] = -1;
       }
-      this.bloodGroundDirtyRowRangeStart = BLOOD_GROUND_HEIGHT_PX;
+      this.bloodGroundDirtyRowRangeStart = height;
       this.bloodGroundDirtyRowRangeEnd = -1;
     } else {
       for (let y = dirtyRect.minY; y <= dirtyRect.maxY; y += 1) {
-        const rowOffset = y * BLOOD_GROUND_WIDTH_PX;
+        const rowOffset = y * width;
         for (let x = dirtyRect.minX; x <= dirtyRect.maxX; x += 1) {
           const pixelIndex = rowOffset + x;
           pixelData32[pixelIndex] = colorLut[density[pixelIndex]];
@@ -3112,11 +3178,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    const width = this.bloodGroundWidthPx;
+    const height = this.bloodGroundHeightPx;
     const centerX = (worldX + TILE_SIZE * 0.5) * this.bloodGroundWorldToPixelX;
     const centerY =
-      BLOOD_GROUND_HEIGHT_PX -
-      1 -
-      (TILE_SIZE * 0.5 - worldY) * this.bloodGroundWorldToPixelY;
+      height - 1 - (TILE_SIZE * 0.5 - worldY) * this.bloodGroundWorldToPixelY;
     const radiusPxX = Math.max(
       0.75,
       radiusWorldX * this.bloodGroundPixelsPerWorldUnit,
@@ -3127,15 +3193,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
     const extent = Math.max(radiusPxX, radiusPxY) * 1.5 + 2;
     const minX = Math.max(0, Math.floor(centerX - extent));
-    const maxX = Math.min(
-      BLOOD_GROUND_WIDTH_PX - 1,
-      Math.ceil(centerX + extent),
-    );
+    const maxX = Math.min(width - 1, Math.ceil(centerX + extent));
     const minY = Math.max(0, Math.floor(centerY - extent));
-    const maxY = Math.min(
-      BLOOD_GROUND_HEIGHT_PX - 1,
-      Math.ceil(centerY + extent),
-    );
+    const maxY = Math.min(height - 1, Math.ceil(centerY + extent));
     if (minX > maxX || minY > maxY) {
       return;
     }
@@ -3157,7 +3217,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     for (let py = minY; py <= maxY; py += 1) {
       const dy = py - centerY;
-      const rowOffset = py * BLOOD_GROUND_WIDTH_PX;
+      const rowOffset = py * width;
       let localX = minDx * cos + dy * sin;
       let localY = -minDx * sin + dy * cos;
       let primaryX = 0;
@@ -3408,19 +3468,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private paintBloodGroundImpact(params: {
-    worldX: number;
-    worldY: number;
-    directionX: number;
-    directionY: number;
-    baseRadiusWorld: number;
-    densityAmount: number;
-    scatterCount: number;
-    streakCount: number;
-    streakLengthWorld: number;
-    elongation: number;
-  }): void {
+  private paintBloodGroundImpact(params: BloodGroundImpactParams): void {
     if (!this.clientOptions.blood) {
+      return;
+    }
+    if (this.pendingLevelCacheTransition) {
       return;
     }
     if (!this.ensureBloodGroundOverlayResources()) {
@@ -3915,7 +3967,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.latestRuntimeLevelIdentity = null;
     this.hasResolvedInitialDeterministicLevelThisSession = false;
     this.pendingLevelCacheTransition = null;
-    this.clearActiveBloodGroundCanvas();
+    this.disposeBloodGroundOverlayResources();
   }
 
   private beginPendingLevelCacheTransition(): void {
@@ -4265,6 +4317,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.currentLevelCacheName = levelName;
   }
 
+  private completePendingLevelCacheTransition(levelName: string): void {
+    this.handleDeterministicLevelCacheResolution(levelName);
+    this.pendingLevelCacheTransition = null;
+  }
+
   private resolveLevelNameForPendingTransition(
     forceFallback: boolean,
   ): string | null {
@@ -4318,8 +4375,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const candidates = this.levelTerrainCachesByName.get(levelName) ?? [];
     if (candidates.length === 0) {
       this.activateNewLevelTerrainCacheEntry(levelName);
-      this.handleDeterministicLevelCacheResolution(levelName);
-      this.pendingLevelCacheTransition = null;
+      this.completePendingLevelCacheTransition(levelName);
       return;
     }
 
@@ -4332,8 +4388,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           candidates[0],
           pending.observedTiles,
         );
-        this.handleDeterministicLevelCacheResolution(levelName);
-        this.pendingLevelCacheTransition = null;
+        this.completePendingLevelCacheTransition(levelName);
         return;
       }
 
@@ -4361,8 +4416,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       } else {
         this.activateNewLevelTerrainCacheEntry(levelName);
       }
-      this.handleDeterministicLevelCacheResolution(levelName);
-      this.pendingLevelCacheTransition = null;
+      this.completePendingLevelCacheTransition(levelName);
       return;
     }
 
@@ -4390,8 +4444,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     } else {
       this.activateNewLevelTerrainCacheEntry(levelName);
     }
-    this.handleDeterministicLevelCacheResolution(levelName);
-    this.pendingLevelCacheTransition = null;
+    this.completePendingLevelCacheTransition(levelName);
   }
 
   private handlePendingLevelTransitionPlayerPosition(
@@ -5415,6 +5468,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tileShakeChanged =
       previous.tileShakeOnHit !== normalized.tileShakeOnHit;
     const bloodChanged = previous.blood !== normalized.blood;
+    const bloodStrengthChanged =
+      previous.bloodStrength !== normalized.bloodStrength;
+    const bloodGroundColorChanged =
+      previous.bloodColorLightHex !== normalized.bloodColorLightHex ||
+      previous.bloodColorDarkHex !== normalized.bloodColorDarkHex;
+    const bloodMistColorChanged =
+      previous.bloodMistColorHex !== normalized.bloodMistColorHex;
+    const bloodDetailChanged =
+      previous.bloodDetail !== normalized.bloodDetail;
     const monsterShatterChanged =
       previous.monsterShatter !== normalized.monsterShatter;
     const blockAmbientOcclusionChanged =
@@ -5483,8 +5545,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (tileShakeChanged && !normalized.tileShakeOnHit) {
       this.clearGlyphDamageShakes();
     }
-    if (bloodChanged && !normalized.blood) {
+    if (
+      (bloodChanged ||
+        bloodStrengthChanged ||
+        bloodGroundColorChanged ||
+        bloodMistColorChanged ||
+        bloodDetailChanged) &&
+      !normalized.blood
+    ) {
       this.clearBloodMistParticles();
+    }
+    if (bloodStrengthChanged || bloodMistColorChanged || bloodDetailChanged) {
+      this.clearBloodMistParticles();
+      this.disposeBloodMistTexture();
+    }
+    if (bloodStrengthChanged || bloodGroundColorChanged) {
+      this.bloodGroundColorLut = null;
+    }
+    if (bloodDetailChanged) {
+      this.clearAllCachedBloodGroundSnapshots();
+      this.disposeBloodGroundOverlayResources();
+    } else if (bloodStrengthChanged || bloodGroundColorChanged) {
+      this.refreshActiveBloodGroundVisuals();
     }
     if (bloodChanged) {
       this.updateBloodGroundOverlayVisibility();
@@ -15551,6 +15633,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private disposeBloodMistTexture(): void {
+    this.bloodMistTexture?.dispose();
+    this.bloodMistTexture = null;
+  }
+
   private getBloodMistTexture(): THREE.CanvasTexture {
     if (this.bloodMistTexture) {
       return this.bloodMistTexture;
@@ -15575,11 +15662,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
       size * 0.5,
       size * 0.34,
     );
-    gradient.addColorStop(0, "rgba(210, 22, 22, 1)");
-    gradient.addColorStop(0.22, "rgba(170, 10, 10, 0.99)");
-    gradient.addColorStop(0.58, "rgba(118, 4, 4, 0.73)");
-    gradient.addColorStop(0.9, "rgba(74, 0, 0, 0.13)");
-    gradient.addColorStop(1, "rgba(74, 0, 0, 0)");
+    const lightColor = new THREE.Color(this.clientOptions.bloodMistColorHex);
+    const darkColor = lightColor.clone().lerp(new THREE.Color(0x000000), 0.74);
+    const strengthAlphaScale = THREE.MathUtils.clamp(
+      this.clientOptions.bloodStrength / 2.5,
+      0.3,
+      1.6,
+    );
+    const buildMistColorStop = (mixT: number, alpha: number): string => {
+      const mixedColor = lightColor.clone().lerp(darkColor, mixT);
+      const r = Math.round(mixedColor.r * 255);
+      const g = Math.round(mixedColor.g * 255);
+      const b = Math.round(mixedColor.b * 255);
+      const adjustedAlpha = Number(
+        THREE.MathUtils.clamp(alpha * strengthAlphaScale, 0, 1).toFixed(3),
+      );
+      return `rgba(${r}, ${g}, ${b}, ${adjustedAlpha})`;
+    };
+    gradient.addColorStop(0, buildMistColorStop(0.08, 1));
+    gradient.addColorStop(0.22, buildMistColorStop(0.42, 0.99));
+    gradient.addColorStop(0.58, buildMistColorStop(0.78, 0.73));
+    gradient.addColorStop(0.9, buildMistColorStop(1, 0.13));
+    gradient.addColorStop(1, buildMistColorStop(1, 0));
     context.fillStyle = gradient;
     context.beginPath();
     context.arc(size / 2, size / 2, size * 0.34, 0, Math.PI * 2);
@@ -20213,7 +20317,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private clearScene(): void {
     this.clearDamageEffects();
-    this.clearActiveBloodGroundCanvas();
+    this.disposeBloodGroundOverlayResources();
     this.vultureTilesetTranslator?.resetRuntimeMapState();
     this.pendingVultureRoomDecorReconcileKeys.clear();
     this.vultureRoomDecorReconcileScheduled = false;
@@ -26120,6 +26224,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.renderer.domElement.remove();
     this.renderer.forceContextLoss();
     this.renderer.dispose();
+    this.disposeBloodMistTexture();
     this.disposeBloodGroundOverlayResources();
     this.floorGeometry.dispose();
     this.bloodGroundPlaneGeometry.dispose();
