@@ -830,6 +830,14 @@ export const ko = {
           label: "피 효과",
           description: "적중 시 피 안개 파티클 효과를 렌더링합니다.",
         },
+        bloodMist: {
+          label: "피 안개",
+          description: "적중 시 공중의 피 안개 파티클 효과를 렌더링합니다.",
+        },
+        bloodGround: {
+          label: "핏자국 튐",
+          description: "적중 후 던전 바닥에 피 튄 자국 효과를 렌더링합니다.",
+        },
         bloodStrength: {
           label: "Blood strength",
           description:
@@ -840,6 +848,7 @@ export const ko = {
           description:
             "Choose the blood splat texture resolution per dungeon tile.",
           options: {
+            veryLow: "매우 낮음",
             low: "Low",
             medium: "Medium",
             high: "High",

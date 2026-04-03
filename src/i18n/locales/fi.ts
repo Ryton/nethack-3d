@@ -850,6 +850,21 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "Veri",
           description: "Renderöi verisumutyyppiset hiukkastehosteet osumissa.",
         },
+        bloodMist: {
+          label: "Verisumu",
+          description:
+            "Renderöi ilmassa leijuvat verisumuhitukkaset osumissa.",
+        },
+        bloodGround: {
+          label: "Veriroiskeet",
+          description:
+            "Renderöi veriroiskeet luolaston lattialle osumien jälkeen.",
+        },
+        bloodDetail: {
+          options: {
+            veryLow: "Erittäin matala",
+          },
+        },
         monsterShatter: {
           label: "Hirviön pirstoutuminen",
           description:

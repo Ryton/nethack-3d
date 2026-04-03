@@ -804,6 +804,19 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "血しぶき",
           description: "攻撃命中時に血しぶきのパーティクル効果を描画します。",
         },
+        bloodMist: {
+          label: "血の霧",
+          description: "命中時に空中の血霧パーティクルを描画します。",
+        },
+        bloodGround: {
+          label: "血の飛び散り",
+          description: "命中後にダンジョンの床へ血の飛び散りを描画します。",
+        },
+        bloodDetail: {
+          options: {
+            veryLow: "非常に低い",
+          },
+        },
         monsterShatter: {
           label: "モンスター破砕",
           description:

@@ -860,6 +860,16 @@ export const fr = {
           description:
             "Affiche des effets de brume sanglante et de flaques au sol lors des impacts.",
         },
+        bloodMist: {
+          label: "Brume de sang",
+          description:
+            "Affiche des particules de brume de sang en l'air lors des impacts.",
+        },
+        bloodGround: {
+          label: "Eclaboussures de sang",
+          description:
+            "Affiche des eclaboussures de sang sur le sol du donjon apres les impacts.",
+        },
         bloodStrength: {
           label: "Intensite du sang",
           description:
@@ -870,6 +880,7 @@ export const fr = {
           description:
             "Choisit la resolution des eclaboussures de sang par tuile du donjon.",
           options: {
+            veryLow: "Tres faible",
             low: "Faible",
             medium: "Moyen",
             high: "Eleve",

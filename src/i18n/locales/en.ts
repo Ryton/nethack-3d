@@ -830,6 +830,15 @@ export const en = {
           label: "Blood",
           description: "Render blood mist and ground splat effects on hits.",
         },
+        bloodMist: {
+          label: "Blood mist",
+          description: "Render airborne blood mist particles on hits.",
+        },
+        bloodGround: {
+          label: "Blood splatter",
+          description:
+            "Render blood splatter on dungeon floor tiles after hits.",
+        },
         bloodStrength: {
           label: "Blood strength",
           description: "Control how strongly blood textures and tinting read.",
@@ -839,6 +848,7 @@ export const en = {
           description:
             "Choose the blood splat texture resolution per dungeon tile.",
           options: {
+            veryLow: "Very Low",
             low: "Low",
             medium: "Medium",
             high: "High",

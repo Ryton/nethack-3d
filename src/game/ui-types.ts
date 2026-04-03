@@ -133,7 +133,7 @@ export type FpsCrosshairContextState = {
 export type PlayMode = "normal" | "fps";
 export type Nh3dAntialiasingMode = "taa" | "fxaa";
 export type Nh3dDesktopTouchInterfaceMode = "off" | "portrait" | "landscape";
-export type Nh3dBloodDetailMode = "low" | "medium" | "high";
+export type Nh3dBloodDetailMode = "veryLow" | "low" | "medium" | "high";
 export type Nh3dInventoryFixedTileSizeMode =
   | "none"
   | "small"
@@ -194,7 +194,8 @@ export type Nh3dClientOptions = {
   displayStatChangesAbovePlayer: boolean;
   displayXpGainsAbovePlayer: boolean;
   tileShakeOnHit: boolean;
-  blood: boolean;
+  bloodMist: boolean;
+  bloodGround: boolean;
   bloodStrength: number;
   bloodColorLightHex: string;
   bloodColorDarkHex: string;
@@ -258,6 +259,8 @@ export function resolveNh3dBloodDetailPixelsPerTile(
   detail: Nh3dBloodDetailMode,
 ): number {
   switch (detail) {
+    case "veryLow":
+      return 16;
     case "low":
       return 32;
     case "high":
@@ -266,6 +269,33 @@ export function resolveNh3dBloodDetailPixelsPerTile(
     default:
       return 64;
   }
+}
+
+function resolveDefaultNh3dBloodDetail(): Nh3dBloodDetailMode {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return "medium";
+  }
+
+  const globalWithCapacitor = window as Window & {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  };
+  if (globalWithCapacitor.Capacitor?.isNativePlatform?.() === true) {
+    return "low";
+  }
+
+  const protocol = window.location.protocol.toLowerCase();
+  if (protocol === "capacitor:" || protocol === "ionic:") {
+    return "low";
+  }
+
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints =
+    typeof navigator.maxTouchPoints === "number" ? navigator.maxTouchPoints : 0;
+  const isIosBrowser =
+    /\b(iPad|iPhone|iPod)\b/i.test(userAgent) ||
+    (/Mac/i.test(platform) && maxTouchPoints > 1);
+  return isIosBrowser ? "low" : "medium";
 }
 
 const isMobilePortrait = window.matchMedia(
@@ -303,12 +333,13 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   displayStatChangesAbovePlayer: true,
   displayXpGainsAbovePlayer: true,
   tileShakeOnHit: true,
-  blood: true,
+  bloodMist: true,
+  bloodGround: true,
   bloodStrength: 1.5,
   bloodColorLightHex: defaultNh3dBloodColorLightHex,
   bloodColorDarkHex: defaultNh3dBloodColorDarkHex,
   bloodMistColorHex: defaultNh3dBloodMistColorHex,
-  bloodDetail: "high",
+  bloodDetail: resolveDefaultNh3dBloodDetail(),
   monsterShatter: true,
   monsterShatterBloodBorders: true,
   liveMessageLog: true,
@@ -576,6 +607,14 @@ function normalizeTilesetSolidChromaKeyColorHexByTileset(
 export function normalizeNh3dClientOptions(
   overrides?: Partial<Nh3dClientOptions> | null,
 ): Nh3dClientOptions {
+  const legacyBloodOverrides = overrides as
+    | (Partial<Nh3dClientOptions> & { blood?: unknown })
+    | null
+    | undefined;
+  const legacyBloodEnabled =
+    typeof legacyBloodOverrides?.blood === "boolean"
+      ? legacyBloodOverrides.blood
+      : undefined;
   const locale = resolveSupportedLocale(overrides?.locale) ?? getCurrentLocale();
   const rawFpsFov =
     typeof overrides?.fpsFov === "number" && Number.isFinite(overrides.fpsFov)
@@ -685,6 +724,7 @@ export function normalizeNh3dClientOptions(
     defaultNh3dClientOptions.bloodMistColorHex,
   );
   const bloodDetail =
+    overrides?.bloodDetail === "veryLow" ||
     overrides?.bloodDetail === "low" ||
     overrides?.bloodDetail === "high" ||
     overrides?.bloodDetail === "medium"
@@ -961,10 +1001,18 @@ export function normalizeNh3dClientOptions(
       typeof overrides?.tileShakeOnHit === "boolean"
         ? overrides.tileShakeOnHit
         : defaultNh3dClientOptions.tileShakeOnHit,
-    blood:
-      typeof overrides?.blood === "boolean"
-        ? overrides.blood
-        : defaultNh3dClientOptions.blood,
+    bloodMist:
+      typeof overrides?.bloodMist === "boolean"
+        ? overrides.bloodMist
+        : typeof legacyBloodEnabled === "boolean"
+          ? legacyBloodEnabled
+          : defaultNh3dClientOptions.bloodMist,
+    bloodGround:
+      typeof overrides?.bloodGround === "boolean"
+        ? overrides.bloodGround
+        : typeof legacyBloodEnabled === "boolean"
+          ? legacyBloodEnabled
+          : defaultNh3dClientOptions.bloodGround,
     bloodStrength,
     bloodColorLightHex,
     bloodColorDarkHex,

@@ -353,6 +353,7 @@ export const esOverrides = {
         byKey: {
             "player-walk": "Paseo del jugador",
             hit: "Golpear",
+            "thrown-weapon": "Arma arrojadiza",
             "monster-killed": "Monstruo asesinado (jugador)",
             "monster-killed-other": "Monstruo asesinado (otro)",
             "missed-attack": "Ataque fallido",
@@ -778,9 +779,44 @@ export const esOverrides = {
                     label: "El azulejo se sacude al golpear",
                     description: "Agite las fichas de impacto cuando aterrice el combate.",
                 },
+                sectionCombatBlood: "Efectos de sangre",
                 blood: {
                     label: "Sangre",
                     description: "Genera efectos de part\u00EDculas de niebla de sangre en los golpes.",
+                },
+                bloodMist: {
+                    label: "Niebla de sangre",
+                    description: "Genera part\u00EDculas de niebla de sangre suspendidas al golpear.",
+                },
+                bloodGround: {
+                    label: "Salpicaduras de sangre",
+                    description: "Muestra salpicaduras de sangre sobre el suelo de la mazmorra tras los golpes.",
+                },
+                bloodStrength: {
+                    label: "Intensidad de la sangre",
+                    description: "Controla la intensidad visual de las texturas y el teñido de la sangre.",
+                },
+                bloodDetail: {
+                    label: "Detalle de la sangre",
+                    description: "Elige la resolución de la textura de salpicaduras de sangre por casilla de mazmorra.",
+                    options: {
+                        veryLow: "Muy bajo",
+                        low: "Bajo",
+                        medium: "Medio",
+                        high: "Alto",
+                    },
+                },
+                bloodColorLightHex: {
+                    label: "Tono claro de sangre en el suelo",
+                    description: "Elige el tono de sangre más claro usado en las salpicaduras frescas del suelo.",
+                },
+                bloodColorDarkHex: {
+                    label: "Tono oscuro de sangre en el suelo",
+                    description: "Elige el tono de sangre más oscuro usado en las zonas densas de sangre del suelo.",
+                },
+                bloodMistColorHex: {
+                    label: "Tono de la niebla de sangre",
+                    description: "Elige el tono base usado para la niebla de sangre en el aire.",
                 },
                 monsterShatter: {
                     label: "monstruo destrozado",

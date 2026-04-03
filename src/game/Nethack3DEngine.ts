@@ -2615,7 +2615,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.bloodGroundOverlayMesh.visible =
-      this.clientOptions.blood && this.bloodGroundHasVisibleData;
+      this.clientOptions.bloodGround && this.bloodGroundHasVisibleData;
   }
 
   private clearAllCachedBloodGroundSnapshots(): void {
@@ -3469,7 +3469,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private paintBloodGroundImpact(params: BloodGroundImpactParams): void {
-    if (!this.clientOptions.blood) {
+    if (!this.clientOptions.bloodGround) {
       return;
     }
     if (this.pendingLevelCacheTransition) {
@@ -5467,7 +5467,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previous.damageNumbers !== normalized.damageNumbers;
     const tileShakeChanged =
       previous.tileShakeOnHit !== normalized.tileShakeOnHit;
-    const bloodChanged = previous.blood !== normalized.blood;
+    const bloodMistChanged = previous.bloodMist !== normalized.bloodMist;
+    const bloodGroundChanged =
+      previous.bloodGround !== normalized.bloodGround;
     const bloodStrengthChanged =
       previous.bloodStrength !== normalized.bloodStrength;
     const bloodGroundColorChanged =
@@ -5546,16 +5548,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearGlyphDamageShakes();
     }
     if (
-      (bloodChanged ||
-        bloodStrengthChanged ||
-        bloodGroundColorChanged ||
-        bloodMistColorChanged ||
-        bloodDetailChanged) &&
-      !normalized.blood
+      (bloodMistChanged || bloodStrengthChanged || bloodMistColorChanged) &&
+      !normalized.bloodMist
     ) {
       this.clearBloodMistParticles();
     }
-    if (bloodStrengthChanged || bloodMistColorChanged || bloodDetailChanged) {
+    if (bloodStrengthChanged || bloodMistColorChanged) {
       this.clearBloodMistParticles();
       this.disposeBloodMistTexture();
     }
@@ -5568,7 +5566,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     } else if (bloodStrengthChanged || bloodGroundColorChanged) {
       this.refreshActiveBloodGroundVisuals();
     }
-    if (bloodChanged) {
+    if (bloodGroundChanged) {
       this.updateBloodGroundOverlayVisibility();
     }
     if (monsterShatterChanged && !normalized.monsterShatter) {
@@ -10695,8 +10693,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         spriteOnly: false,
       });
     }
-    if (this.clientOptions.blood) {
-      this.spawnBloodMistParticles(x, y, damage, variant);
+    if (this.clientOptions.bloodMist || this.clientOptions.bloodGround) {
+      this.spawnBloodEffects(x, y, damage, variant);
     }
   }
 
@@ -16054,14 +16052,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
-  private spawnBloodMistParticles(
+  private spawnBloodEffects(
     tileX: number,
     tileY: number,
     damage: number,
     variant: "hit" | "defeat",
   ): void {
     const sanitized = Math.max(1, Math.round(Math.abs(damage)));
-    const texture = this.getBloodMistTexture();
     const awayFromPlayer = new THREE.Vector2(
       tileX - this.playerPos.x,
       -(tileY - this.playerPos.y),
@@ -16073,14 +16070,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
       awayFromPlayer.normalize();
     }
 
-    this.paintBloodGroundFromDirectHit(
-      tileX,
-      tileY,
-      sanitized,
-      variant,
-      awayFromPlayer.x,
-      awayFromPlayer.y,
-    );
+    if (this.clientOptions.bloodGround) {
+      this.paintBloodGroundFromDirectHit(
+        tileX,
+        tileY,
+        sanitized,
+        variant,
+        awayFromPlayer.x,
+        awayFromPlayer.y,
+      );
+    }
+    if (!this.clientOptions.bloodMist) {
+      return;
+    }
+
+    const texture = this.getBloodMistTexture();
 
     const spreadRadians =
       variant === "defeat"

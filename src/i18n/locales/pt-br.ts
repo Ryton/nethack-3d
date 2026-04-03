@@ -380,6 +380,7 @@ export const ptBrOverrides = {
     byKey: {
       "player-walk": "Passos do jogador",
       hit: "Golpe",
+      "thrown-weapon": "Arma arremessada",
       "monster-killed": "Monstro morto (jogador)",
       "monster-killed-other": "Monstro morto (outro)",
       "missed-attack": "Ataque errou",
@@ -846,9 +847,51 @@ export const ptBrOverrides = {
           label: "Tremor do tile ao acertar",
           description: "Sacode os tiles de impacto quando golpes acertam.",
         },
+        sectionCombatBlood: "Efeitos de sangue",
         blood: {
           label: "Sangue",
           description: "Renderiza efeitos de névoa de sangue nos impactos.",
+        },
+        bloodMist: {
+          label: "Névoa de sangue",
+          description:
+            "Renderiza partículas de névoa de sangue suspensas nos impactos.",
+        },
+        bloodGround: {
+          label: "Respingos de sangue",
+          description:
+            "Renderiza respingos de sangue no chão da masmorra após impactos.",
+        },
+        bloodStrength: {
+          label: "Intensidade do sangue",
+          description:
+            "Controla a intensidade visual das texturas e da coloração do sangue.",
+        },
+        bloodDetail: {
+          label: "Detalhe do sangue",
+          description:
+            "Escolhe a resolução da textura de manchas de sangue por tile da masmorra.",
+          options: {
+            veryLow: "Muito baixo",
+            low: "Baixo",
+            medium: "Médio",
+            high: "Alto",
+          },
+        },
+        bloodColorLightHex: {
+          label: "Tonalidade clara do sangue no chão",
+          description:
+            "Escolhe a tonalidade mais clara usada em manchas frescas de sangue no chão.",
+        },
+        bloodColorDarkHex: {
+          label: "Tonalidade escura do sangue no chão",
+          description:
+            "Escolhe a tonalidade mais escura usada em áreas densas de sangue no chão.",
+        },
+        bloodMistColorHex: {
+          label: "Tonalidade da névoa de sangue",
+          description:
+            "Escolhe a tonalidade base usada na névoa de sangue no ar.",
         },
         monsterShatter: {
           label: "Estilhaçar monstros",

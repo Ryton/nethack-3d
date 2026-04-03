@@ -2900,7 +2900,8 @@ type ClientOptionToggleKey =
   | "displayStatChangesAbovePlayer"
   | "displayXpGainsAbovePlayer"
   | "tileShakeOnHit"
-  | "blood"
+  | "bloodMist"
+  | "bloodGround"
   | "monsterShatter"
   | "monsterShatterBloodBorders"
   | "liveMessageLog"
@@ -4606,9 +4607,15 @@ const clientOptionsConfig: ClientOption[] = [
     type: "section",
   },
   {
-    key: "blood",
-    label: t.clientOptions.config.blood.label,
-    description: t.clientOptions.config.blood.description,
+    key: "bloodMist",
+    label: t.clientOptions.config.bloodMist.label,
+    description: t.clientOptions.config.bloodMist.description,
+    type: "boolean",
+  },
+  {
+    key: "bloodGround",
+    label: t.clientOptions.config.bloodGround.label,
+    description: t.clientOptions.config.bloodGround.description,
     type: "boolean",
   },
   {
@@ -4626,6 +4633,10 @@ const clientOptionsConfig: ClientOption[] = [
     description: t.clientOptions.config.bloodDetail.description,
     type: "select",
     options: [
+      {
+        value: "veryLow",
+        label: t.clientOptions.config.bloodDetail.options.veryLow,
+      },
       {
         value: "low",
         label: t.clientOptions.config.bloodDetail.options.low,
@@ -15729,7 +15740,7 @@ export default function App(): JSX.Element {
                       : isInventoryFixedTileSizeSelect
                         ? !clientOptionsDraft.reduceInventoryMotion
                         : isBloodDetailSelect
-                          ? !clientOptionsDraft.blood
+                          ? !clientOptionsDraft.bloodGround
                         : Boolean(option.disabled);
                     return (
                       <div
@@ -15807,6 +15818,7 @@ export default function App(): JSX.Element {
                               }
                               if (option.key === "bloodDetail") {
                                 const nextValue =
+                                  event.target.value === "veryLow" ||
                                   event.target.value === "low" ||
                                   event.target.value === "high"
                                     ? event.target.value
@@ -15843,7 +15855,9 @@ export default function App(): JSX.Element {
                       option.key === "controllerFpsMoveRepeatMs" &&
                       !clientOptionsDraft.controllerEnabled;
                     const sliderDisabledByBlood =
-                      option.key === "bloodStrength" && !clientOptionsDraft.blood;
+                      option.key === "bloodStrength" &&
+                      !clientOptionsDraft.bloodMist &&
+                      !clientOptionsDraft.bloodGround;
                     const sliderDisabled =
                       sliderDisabledByFpsMode ||
                       sliderDisabledByController ||
@@ -15916,7 +15930,10 @@ export default function App(): JSX.Element {
                     const colorValue = normalizeSolidChromaKeyHex(
                       String(clientOptionsDraft[option.key] || ""),
                     );
-                    const colorDisabled = !clientOptionsDraft.blood;
+                    const colorDisabled =
+                      option.key === "bloodMistColorHex"
+                        ? !clientOptionsDraft.bloodMist
+                        : !clientOptionsDraft.bloodGround;
                     return (
                       <div
                         className={`nh3d-option-row${

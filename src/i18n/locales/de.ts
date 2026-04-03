@@ -859,6 +859,21 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "Blut",
           description: "Rendert blutigen Partikelnebel bei Treffern.",
         },
+        bloodMist: {
+          label: "Blutnebel",
+          description:
+            "Rendert schwebende Blutnebel-Partikel bei Treffern.",
+        },
+        bloodGround: {
+          label: "Blutspritzer",
+          description:
+            "Rendert Blutspritzer auf den Bodenfliesen des Dungeons nach Treffern.",
+        },
+        bloodDetail: {
+          options: {
+            veryLow: "Sehr niedrig",
+          },
+        },
         monsterShatter: {
           label: "Monster zersplittern",
           description:

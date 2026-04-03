@@ -184,6 +184,7 @@ export const zhCnOverrides = {
     byKey: {
       "player-walk": "玩家行走",
       hit: "命中",
+      "thrown-weapon": "投掷武器",
       "monster-killed": "怪物被击杀（玩家）",
       "monster-killed-other": "怪物被击杀（其他）",
       "missed-attack": "攻击未命中",
@@ -581,9 +582,44 @@ export const zhCnOverrides = {
           label: "命中时瓦片震动",
           description: "战斗命中时让受击瓦片发生震动。",
         },
+        sectionCombatBlood: "血液效果",
         blood: {
           label: "血液效果",
           description: "命中时渲染血雾粒子效果。",
+        },
+        bloodMist: {
+          label: "血雾",
+          description: "命中时渲染空中的血雾粒子效果。",
+        },
+        bloodGround: {
+          label: "血液飞溅",
+          description: "命中后在地牢地面上渲染血液飞溅效果。",
+        },
+        bloodStrength: {
+          label: "血液强度",
+          description: "控制血液纹理和染色的显示强度。",
+        },
+        bloodDetail: {
+          label: "血迹细节",
+          description: "选择每个地牢地块的血迹纹理分辨率。",
+          options: {
+            veryLow: "极低",
+            low: "低",
+            medium: "中",
+            high: "高",
+          },
+        },
+        bloodColorLightHex: {
+          label: "地面新鲜血迹色调",
+          description: "选择新鲜地面血迹使用的较亮血色。",
+        },
+        bloodColorDarkHex: {
+          label: "地面深色血迹色调",
+          description: "选择浓重地面血迹区域使用的较深血色。",
+        },
+        bloodMistColorHex: {
+          label: "血雾色调",
+          description: "选择空中血雾使用的基础色调。",
         },
         monsterShatter: {
           label: "怪物碎裂",
