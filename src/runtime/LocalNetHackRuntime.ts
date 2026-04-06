@@ -3793,6 +3793,7 @@ class LocalNetHackRuntime {
         accelerator,
         count,
         actionId: actionId || null,
+        listEverythingFallbackUsed: false,
         armedAtMs: Date.now(),
         commandIssuedAtMs: 0,
       };
@@ -3823,6 +3824,7 @@ class LocalNetHackRuntime {
       this.pendingInventoryContextSelection = {
         accelerator,
         actionId: actionId || null,
+        listEverythingFallbackUsed: false,
         armedAtMs: Date.now(),
         commandIssuedAtMs: 0,
       };
@@ -3943,6 +3945,85 @@ class LocalNetHackRuntime {
       this.clearPendingInventoryContextSelection("no matching menu item");
     }
     return null;
+  }
+
+  resolveInventoryListEverythingMenuItem(menuItems) {
+    if (!Array.isArray(menuItems) || menuItems.length === 0) {
+      return null;
+    }
+
+    const byAccelerator = menuItems.find((item) => {
+      if (!item || item.isCategory) {
+        return false;
+      }
+      const accelerator = String(item.accelerator || "").trim();
+      if (accelerator === "*") {
+        return true;
+      }
+      const originalAcceleratorChar = this.getPrintableAcceleratorCharacter(
+        item.originalAccelerator,
+      );
+      if (originalAcceleratorChar === "*") {
+        return true;
+      }
+      return false;
+    });
+    if (byAccelerator) {
+      return byAccelerator;
+    }
+
+    return (
+      menuItems.find((item) => {
+        if (!item || item.isCategory || typeof item.text !== "string") {
+          return false;
+        }
+        const normalizedText = item.text.trim().toLowerCase();
+        return (
+          normalizedText === "(list everything)" ||
+          normalizedText.includes("list everything")
+        );
+      }) || null
+    );
+  }
+
+  tryAutoRoutePendingInventoryContextSelectionThroughListEverything(
+    menuItems,
+    reason = "context action",
+    menuQuestion = this.currentMenuQuestionText,
+  ) {
+    const pending = this.pendingInventoryContextSelection;
+    if (!pending) {
+      return false;
+    }
+    if (pending.listEverythingFallbackUsed === true) {
+      return false;
+    }
+
+    const listEverythingItem =
+      this.resolveInventoryListEverythingMenuItem(menuItems);
+    if (!listEverythingItem) {
+      return false;
+    }
+
+    pending.listEverythingFallbackUsed = true;
+    console.log(
+      `Routing pending inventory context selection through * list everything fallback via ${reason}`,
+    );
+    if (
+      this.tryAutoSelectMenuItem(
+        listEverythingItem,
+        `${reason} (* list everything fallback)`,
+        undefined,
+        menuQuestion,
+      )
+    ) {
+      return true;
+    }
+
+    this.clearPendingInventoryContextSelection(
+      "* list everything fallback unavailable",
+    );
+    return false;
   }
 
   handleTextInputResponse(text, source = "user") {
@@ -7783,9 +7864,30 @@ class LocalNetHackRuntime {
       }
     }
 
-    const directInventorySelection =
-      this.consumePendingInventoryContextSelection(menuItems);
+    const directInventorySelection = this.consumePendingInventoryContextSelection(
+      menuItems,
+      { clearOnMiss: false },
+    );
     if (!directInventorySelection) {
+      if (
+        this.tryAutoRoutePendingInventoryContextSelectionThroughListEverything(
+          menuItems,
+          reason,
+          menuQuestion,
+        )
+      ) {
+        return true;
+      }
+      const pending =
+        this.pendingInventoryContextSelection &&
+        typeof this.pendingInventoryContextSelection === "object"
+          ? this.pendingInventoryContextSelection
+          : null;
+      const noMatchReason =
+        pending?.listEverythingFallbackUsed === true
+          ? "no matching menu item after * list everything fallback"
+          : "no matching menu item";
+      this.clearPendingInventoryContextSelection(noMatchReason);
       return false;
     }
 
@@ -11444,7 +11546,10 @@ class LocalNetHackRuntime {
           const directInventorySelection =
             this.consumePendingInventoryContextSelection(
               this.currentMenuItems,
-              { preserveActionRoute: true },
+              {
+                clearOnMiss: false,
+                preserveActionRoute: true,
+              },
             );
           if (directInventorySelection) {
             if (
@@ -11467,6 +11572,38 @@ class LocalNetHackRuntime {
               this.lastMenuInteractionCancelled = false;
               return 1;
             }
+          }
+          if (
+            this.tryAutoRoutePendingInventoryContextSelectionThroughListEverything(
+              this.currentMenuItems,
+              "context action (questionless PICK_ONE)",
+              this.currentMenuQuestionText,
+            )
+          ) {
+            const selectedItems = Array.from(this.menuSelections.values());
+            const selectedItem = selectedItems[0];
+            if (selectedItem) {
+              console.log(
+                `Returning single menu selection count (questionless auto via *): 1 (${selectedItem.menuChar} ${selectedItem.text})`,
+              );
+            }
+            this.writeMenuSelectionResult(menuListPtrPtr, 1);
+            this.menuSelections.clear();
+            this.isInMultiPickup = false;
+            this.lastMenuInteractionCancelled = false;
+            return 1;
+          }
+          if (this.hasPendingInventoryContextSelection()) {
+            const pending =
+              this.pendingInventoryContextSelection &&
+              typeof this.pendingInventoryContextSelection === "object"
+                ? this.pendingInventoryContextSelection
+                : null;
+            this.clearPendingInventoryContextSelection(
+              pending?.listEverythingFallbackUsed === true
+                ? "no matching menu item after * list everything fallback (questionless PICK_ONE)"
+                : "no matching menu item for questionless PICK_ONE",
+            );
           }
 
           console.log(
