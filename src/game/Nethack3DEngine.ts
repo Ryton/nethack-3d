@@ -822,10 +822,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private positionCursorColumnMaterial: THREE.MeshBasicMaterial | null = null;
   private readonly positionCursorOutlineColorHex: number = 0xffe15a;
   private readonly positionCursorOutlineInset: number = 0.05;
+  private readonly positionCursorColumnScale: number = 0.94;
   private readonly positionCursorBottomOutlineThickness: number =
     TILE_SIZE * 0.05;
-  private readonly positionCursorBottomOutlineHeight: number = TILE_SIZE * 0.08;
-  private readonly positionCursorBottomOutlineLiftZ: number = TILE_SIZE * 0.02;
+  private readonly positionCursorBottomOutlineLiftZ: number = TILE_SIZE * 0.002;
+  private readonly positionCursorBottomOutlineGlowInset: number =
+    TILE_SIZE * 0.025;
+  private readonly positionCursorBottomOutlineGlowLiftZ: number =
+    TILE_SIZE * 0.004;
+  private readonly positionCursorBottomOutlineGlowOpacity: number = 0.18;
   private readonly positionCursorGroundZ: number = 0.03;
   private readonly positionCursorColumnHeight: number = WALL_HEIGHT * 1.42;
   private readonly positionCursorFarLookOrbitDistance: number = TILE_SIZE * 4.4;
@@ -834,7 +839,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly positionCursorFarLookFollowHalfLifeMs: number = 115;
   private readonly positionCursorFarLookManualFollowHalfLifeMs: number = 34;
   private readonly positionCursorFarLookManualOverrideWindowMs: number = 220;
-  private readonly positionCursorFarLookReturnHalfLifeMs: number = 120;
+  private readonly positionCursorFarLookReturnHalfLifeMs: number = 52;
   private readonly positionCursorFarLookLookSensitivityScale: number = 0.5;
   private readonly positionCursorFarLookCornerRadius: number =
     TILE_SIZE * 0.14;
@@ -847,6 +852,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsPositionCursorManualOverrideUntilMs: number = 0;
   private fpsPositionCursorEntryCameraYaw: number | null = null;
   private fpsPositionCursorEntryCameraPitch: number | null = null;
+  private fpsPositionCursorOrbitYaw: number = 0;
+  private fpsPositionCursorOrbitPitch: number = 0;
   private fpsPositionCursorReturnActive: boolean = false;
   private fpsFarLookPlayerBillboardOpacity: number = 0;
 
@@ -20794,6 +20801,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.uiAdapter.setPositionInputActive(false);
     this.fpsFarLookPlayerBillboardOpacity = 0;
     this.hasRuntimePositionCursor = false;
+    this.fpsPositionCursorOrbitYaw = 0;
+    this.fpsPositionCursorOrbitPitch = 0;
     this.clearPositionCursor();
     console.log("🧹 Clearing all tiles and glyph overlays from 3D scene");
 
@@ -20940,10 +20949,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return shape;
   }
 
-  private buildPositionCursorBottomOutlineShape(): THREE.Shape {
+  private buildPositionCursorBottomOutlineShape(
+    extraInnerInset: number = 0,
+  ): THREE.Shape {
     const outlineShape = this.buildPositionCursorRoundedSquareShape();
     const innerShape = this.buildPositionCursorRoundedSquareShape(
-      this.positionCursorBottomOutlineThickness,
+      this.positionCursorBottomOutlineThickness + extraInnerInset,
     );
     const innerHole = new THREE.Path(innerShape.getPoints(32).reverse());
     innerHole.closePath();
@@ -20959,7 +20970,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           new THREE.Vector3(
             point.x,
             point.y,
-            this.positionCursorBottomOutlineHeight + TILE_SIZE * 0.006,
+            this.positionCursorBottomOutlineGlowLiftZ,
           ),
       );
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -21013,9 +21024,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const shape = this.buildPositionCursorRoundedSquareShape();
+    const outlineRenderOrderBase = this.getPositionCursorOutlineRenderOrder();
     const bottomOutlineShape = this.buildPositionCursorBottomOutlineShape();
     const height = this.positionCursorColumnHeight;
     const group = new THREE.Group();
+    const bottomOutlineGeometry = new THREE.ShapeGeometry(bottomOutlineShape);
     const columnGeometry = new THREE.ExtrudeGeometry(shape, {
       depth: height,
       bevelEnabled: false,
@@ -21034,9 +21047,36 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
     this.patchPositionCursorColumnMaterial(columnMaterial);
     const column = new THREE.Mesh(columnGeometry, columnMaterial);
-    column.scale.set(0.94, 0.94, 1);
+    column.scale.set(this.positionCursorColumnScale, this.positionCursorColumnScale, 1);
     column.renderOrder = 1000;
     group.add(column);
+
+    const bottomOutlineGlowMaterial = new THREE.MeshBasicMaterial({
+      color: this.positionCursorOutlineColorHex,
+      transparent: true,
+      opacity: this.positionCursorBottomOutlineGlowOpacity,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const bottomOutlineGlow = new THREE.Mesh(
+      new THREE.ShapeGeometry(
+        this.buildPositionCursorBottomOutlineShape(
+          this.positionCursorBottomOutlineGlowInset,
+        ),
+      ),
+      bottomOutlineGlowMaterial,
+    );
+    bottomOutlineGlow.position.z = this.positionCursorBottomOutlineGlowLiftZ;
+    bottomOutlineGlow.scale.set(
+      this.positionCursorColumnScale,
+      this.positionCursorColumnScale,
+      1,
+    );
+    bottomOutlineGlow.renderOrder = outlineRenderOrderBase + 0.05;
+    group.add(bottomOutlineGlow);
 
     const bottomOutlineMaterial = new THREE.MeshBasicMaterial({
       color: this.positionCursorOutlineColorHex,
@@ -21048,19 +21088,33 @@ class Nethack3DEngine implements Nethack3DEngineController {
       toneMapped: false,
     });
     const bottomOutline = new THREE.Mesh(
-      new THREE.ExtrudeGeometry(bottomOutlineShape, {
-        depth: this.positionCursorBottomOutlineHeight,
-        bevelEnabled: false,
-        curveSegments: 18,
-        steps: 1,
-      }),
+      bottomOutlineGeometry,
       bottomOutlineMaterial,
     );
     bottomOutline.position.z = this.positionCursorBottomOutlineLiftZ;
-    bottomOutline.scale.set(1.02, 1.02, 1);
-    bottomOutline.renderOrder = 1001;
+    bottomOutline.scale.set(
+      this.positionCursorColumnScale,
+      this.positionCursorColumnScale,
+      1,
+    );
+    bottomOutline.renderOrder = outlineRenderOrderBase + 0.1;
     group.add(bottomOutline);
-    group.add(this.buildPositionCursorBottomOutlineLoop());
+    const bottomOutlineLoop = this.buildPositionCursorBottomOutlineLoop();
+    bottomOutlineLoop.renderOrder = outlineRenderOrderBase + 0.15;
+    const bottomOutlineLoopMaterial = bottomOutlineLoop.material;
+    if (bottomOutlineLoopMaterial instanceof THREE.LineBasicMaterial) {
+      bottomOutlineLoopMaterial.transparent = false;
+      bottomOutlineLoopMaterial.opacity = 1;
+      bottomOutlineLoopMaterial.depthTest = false;
+      bottomOutlineLoopMaterial.depthWrite = false;
+    }
+    bottomOutlineLoop.position.z = this.positionCursorBottomOutlineLiftZ;
+    bottomOutlineLoop.scale.set(
+      this.positionCursorColumnScale,
+      this.positionCursorColumnScale,
+      1,
+    );
+    group.add(bottomOutlineLoop);
 
     group.visible = false;
     this.scene.add(group);
@@ -21095,6 +21149,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsPositionCursorReturnActive =
         this.fpsPositionCursorEntryCameraYaw !== null &&
         this.fpsPositionCursorEntryCameraPitch !== null;
+      this.fpsPositionCursorOrbitYaw = 0;
+      this.fpsPositionCursorOrbitPitch = 0;
       this.clearPositionCursor();
       this.uiAdapter.setPositionRequest(null);
       this.refreshCurrentPlayerTileVisualFromStateCache();
@@ -21116,9 +21172,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
     this.fpsPositionCursorReturnActive = false;
-    this.fpsPositionCursorEntryCameraYaw = this.cameraYaw;
-    this.fpsPositionCursorEntryCameraPitch = this.cameraPitch;
-    this.cameraPitch = this.positionCursorFarLookDefaultPitch;
+    const entryCameraYaw = Number.isFinite(this.cameraYaw)
+      ? this.wrapAngle(this.cameraYaw)
+      : 0;
+    const entryCameraPitch = Number.isFinite(this.cameraPitch)
+      ? this.cameraPitch
+      : this.positionCursorFarLookDefaultPitch;
+    this.fpsPositionCursorEntryCameraYaw = entryCameraYaw;
+    this.fpsPositionCursorEntryCameraPitch = entryCameraPitch;
+    this.fpsPositionCursorOrbitYaw = entryCameraYaw;
+    this.fpsPositionCursorOrbitPitch = THREE.MathUtils.clamp(
+      entryCameraPitch,
+      this.minCameraPitch,
+      this.maxCameraPitch,
+    );
     if (this.fpsCrosshairGlancePending) {
       this.fpsCrosshairGlancePending.sawPositionInput = true;
     }
@@ -28873,13 +28940,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (farLookViewActive) {
       this.fpsPositionCursorManualOverrideUntilMs =
         Date.now() + this.positionCursorFarLookManualOverrideWindowMs;
+      this.fpsPositionCursorOrbitYaw = this.wrapAngle(
+        this.fpsPositionCursorOrbitYaw + deltaX * sensitivityX,
+      );
+      this.fpsPositionCursorOrbitPitch = THREE.MathUtils.clamp(
+        this.fpsPositionCursorOrbitPitch - deltaY * sensitivityY * lookYDirection,
+        this.minCameraPitch,
+        this.maxCameraPitch,
+      );
+      return;
     }
-    this.fpsPositionCursorReturnActive = false;
     this.cameraYaw = this.wrapAngle(this.cameraYaw + deltaX * sensitivityX);
     this.cameraPitch = THREE.MathUtils.clamp(
       this.cameraPitch - deltaY * sensitivityY * lookYDirection,
-      farLookViewActive ? this.minCameraPitch : this.firstPersonPitchMin,
-      farLookViewActive ? this.maxCameraPitch : this.firstPersonPitchMax,
+      this.firstPersonPitchMin,
+      this.firstPersonPitchMax,
+    );
+  }
+
+  private getActiveFpsAimYaw(): number {
+    if (this.isFpsFarLookViewActive()) {
+      return this.wrapAngle(this.fpsPositionCursorOrbitYaw);
+    }
+    return this.wrapAngle(this.cameraYaw);
+  }
+
+  private getPositionCursorOutlineRenderOrder(): number {
+    return (
+      this.resolveStandardBillboardRenderOrder(this.shouldUseVultureTiles()) -
+      0.2
     );
   }
 
@@ -28887,8 +28976,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     // FPS movement/fire should follow yaw, even when pitch is looking up/down.
     // Use a nearest-of-8-direction projection with a small diagonal bias so
     // diagonals are easier to target from mouselook.
-    const mapForwardX = -Math.sin(this.cameraYaw);
-    const mapForwardY = Math.cos(this.cameraYaw);
+    const aimYaw = this.getActiveFpsAimYaw();
+    const mapForwardX = -Math.sin(aimYaw);
+    const mapForwardY = Math.cos(aimYaw);
     const candidates = [
       { dx: 0, dy: -1 },
       { dx: 1, dy: -1 },
@@ -30430,22 +30520,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       let eyeY = targetEyeY;
       const eyeZ = this.firstPersonEyeHeight;
 
-      this.updateFpsAutoTurnYaw(deltaSeconds);
+      if (!this.positionInputModeActive) {
+        this.updateFpsAutoTurnYaw(deltaSeconds);
+      }
       if (
         !this.positionInputModeActive &&
         this.fpsPositionCursorReturnActive &&
         this.fpsPositionCursorEntryCameraYaw !== null &&
         this.fpsPositionCursorEntryCameraPitch !== null
       ) {
+        const targetYaw = this.cameraYaw;
+        const targetPitch = this.cameraPitch;
         const desiredForwardX =
-          -Math.sin(this.fpsPositionCursorEntryCameraYaw) *
-          Math.cos(this.fpsPositionCursorEntryCameraPitch);
+          -Math.sin(targetYaw) * Math.cos(targetPitch);
         const desiredForwardY =
-          -Math.cos(this.fpsPositionCursorEntryCameraYaw) *
-          Math.cos(this.fpsPositionCursorEntryCameraPitch);
-        const desiredForwardZ = Math.sin(
-          this.fpsPositionCursorEntryCameraPitch,
-        );
+          -Math.cos(targetYaw) * Math.cos(targetPitch);
+        const desiredForwardZ = Math.sin(targetPitch);
         const desiredCameraPosition = new THREE.Vector3(targetEyeX, targetEyeY, eyeZ);
         const desiredLookTarget = new THREE.Vector3(
           targetEyeX + desiredForwardX * (TILE_SIZE * 2.5),
@@ -30458,33 +30548,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
             (-Math.LN2 * deltaSeconds * 1000) /
               this.positionCursorFarLookReturnHalfLifeMs,
           );
-        const yawDelta = this.wrapAngle(
-          this.fpsPositionCursorEntryCameraYaw - this.cameraYaw,
-        );
-        this.cameraYaw = this.wrapAngle(this.cameraYaw + yawDelta * alpha);
-        this.cameraPitch = THREE.MathUtils.lerp(
-          this.cameraPitch,
-          this.fpsPositionCursorEntryCameraPitch,
-          alpha,
-        );
         this.fpsPositionCursorCameraCurrent.lerp(desiredCameraPosition, alpha);
         this.fpsPositionCursorLookCurrent.lerp(desiredLookTarget, alpha);
         this.camera.position.copy(this.fpsPositionCursorCameraCurrent);
         this.camera.lookAt(this.fpsPositionCursorLookCurrent);
         if (
-          Math.abs(this.wrapAngle(this.fpsPositionCursorEntryCameraYaw - this.cameraYaw)) <=
-            this.cameraYawSnapEpsilon &&
-          Math.abs(this.fpsPositionCursorEntryCameraPitch - this.cameraPitch) <=
-            0.0008 &&
           this.fpsPositionCursorCameraCurrent.distanceToSquared(
             desiredCameraPosition,
           ) <=
-            0.0008 &&
+            0.0024 &&
           this.fpsPositionCursorLookCurrent.distanceToSquared(desiredLookTarget) <=
-            0.0016
+            0.0048
         ) {
-          this.cameraYaw = this.fpsPositionCursorEntryCameraYaw;
-          this.cameraPitch = this.fpsPositionCursorEntryCameraPitch;
           this.fpsPositionCursorCameraCurrent.copy(desiredCameraPosition);
           this.fpsPositionCursorLookCurrent.copy(desiredLookTarget);
           this.camera.position.copy(desiredCameraPosition);
@@ -30534,15 +30609,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
             ? Math.max(this.positionCursorColumnHeight, WALL_HEIGHT + 0.22)
             : this.positionCursorColumnHeight;
         const focusZ = cursorHeight * this.positionCursorFarLookFocusHeightRatio;
+        const orbitYaw = this.fpsPositionCursorOrbitYaw;
         const effectivePitch = THREE.MathUtils.clamp(
-          this.cameraPitch,
+          this.fpsPositionCursorOrbitPitch,
           this.minCameraPitch,
           this.maxCameraPitch,
         );
         const cosPitch = Math.cos(effectivePitch);
         const sinPitch = Math.sin(effectivePitch);
-        const sinYaw = Math.sin(this.cameraYaw);
-        const cosYaw = Math.cos(this.cameraYaw);
+        const sinYaw = Math.sin(orbitYaw);
+        const cosYaw = Math.cos(orbitYaw);
         const desiredCameraPosition = new THREE.Vector3(
           cursorWorldX +
             this.positionCursorFarLookOrbitDistance * cosPitch * sinYaw,
