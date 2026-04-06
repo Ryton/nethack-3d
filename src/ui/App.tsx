@@ -10144,6 +10144,25 @@ export default function App(): JSX.Element {
   const closeWizardCommands = useCallback((): void => {
     setIsWizardCommandsVisible(false);
   }, []);
+  const openPauseMenu = useCallback((): void => {
+    if (!isMobileGameRunning && !isDesktopGameRunning) {
+      return;
+    }
+    controller?.dismissFpsCrosshairContextMenu();
+    closeControllerActionWheel();
+    closeWizardCommands();
+    setIsMobileActionSheetVisible(false);
+    setMobileActionSheetMode("quick");
+    setIsMobileLogVisible(false);
+    setIsExitConfirmationVisible(false);
+    setIsPauseMenuVisible(true);
+  }, [
+    closeControllerActionWheel,
+    closeWizardCommands,
+    controller,
+    isDesktopGameRunning,
+    isMobileGameRunning,
+  ]);
   const toggleWizardCommands = useCallback((): void => {
     if (!wizardCommandsSupported) {
       return;
@@ -13702,7 +13721,7 @@ export default function App(): JSX.Element {
     }
 
     const handleEscapeForClientOptions = (event: KeyboardEvent): void => {
-      if (event.key !== "Escape" || isMobileViewport) {
+      if (event.key !== "Escape") {
         return;
       }
       const target = event.target as HTMLElement | null;
@@ -13735,6 +13754,8 @@ export default function App(): JSX.Element {
       }
 
       if (isPauseMenuVisible) {
+        event.preventDefault();
+        event.stopPropagation();
         if (isExitConfirmationVisible) {
           setIsExitConfirmationVisible(false);
         } else {
@@ -13778,13 +13799,13 @@ export default function App(): JSX.Element {
         return;
       }
 
-      if (!isDesktopGameRunning || hasGameplayOverlayOpen) {
+      if ((!isDesktopGameRunning && !isMobileGameRunning) || hasGameplayOverlayOpen) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      setIsPauseMenuVisible(true);
+      openPauseMenu();
     };
 
     window.addEventListener("keydown", handleEscapeForClientOptions, true);
@@ -13812,8 +13833,9 @@ export default function App(): JSX.Element {
     isPauseMenuVisible,
     isExitConfirmationVisible,
     isDesktopGameRunning,
-    isMobileViewport,
+    isMobileGameRunning,
     loadingOverlayVisible,
+    openPauseMenu,
     toggleDeferredGameOverTombstoneUi,
   ]);
 
@@ -19000,13 +19022,7 @@ export default function App(): JSX.Element {
 
               <button
                 className="nh3d-mobile-actions-back"
-                onClick={() => {
-                  setIsMobileActionSheetVisible(false);
-
-                  setMobileActionSheetMode("quick");
-
-                  setIsPauseMenuVisible(true);
-                }}
+                onClick={openPauseMenu}
                 type="button"
               >
                 {t.dialogs.mobileActions.menu}
