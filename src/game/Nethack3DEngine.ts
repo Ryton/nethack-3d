@@ -11218,6 +11218,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private isEmptyAdjacentFloorFallbackBehavior(
+    behavior: TileBehaviorResult | null,
+  ): boolean {
+    if (!behavior) {
+      return false;
+    }
+    if (behavior.effective.kind !== "cmap") {
+      return false;
+    }
+    if (this.isDisallowedSpecialDotFloorBehavior(behavior)) {
+      return false;
+    }
+    return (
+      behavior.materialKind === "floor" || behavior.materialKind === "dark"
+    );
+  }
+
   private resolveFloorBehaviorFromNeighborTiles(
     tileX: number,
     tileY: number,
@@ -11233,8 +11250,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       { dx: -1, dy: -1 },
     ];
 
-    let bestRoomLikeFallback: TileBehaviorResult | null = null;
-    let bestGeneralFallback: TileBehaviorResult | null = null;
+    let bestDarkFloorFallback: TileBehaviorResult | null = null;
     for (const offset of neighborOffsets) {
       const neighborX = tileX + offset.dx;
       const neighborY = tileY + offset.dy;
@@ -11257,32 +11273,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.isMonsterLikeBehavior(neighborBehavior) ||
         this.isLootLikeBehavior(neighborBehavior) ||
         neighborBehavior.materialKind === "player" ||
-        this.isDisallowedSpecialDotFloorBehavior(neighborBehavior)
+        !this.isEmptyAdjacentFloorFallbackBehavior(neighborBehavior)
       ) {
         continue;
       }
 
-      const isRoomLikeMaterial =
-        neighborBehavior.materialKind === "floor" ||
-        neighborBehavior.materialKind === "feature" ||
-        neighborBehavior.materialKind === "default" ||
-        neighborBehavior.materialKind === "dark";
-      if (isRoomLikeMaterial) {
-        if (neighborBehavior.materialKind !== "dark") {
-          return neighborBehavior;
-        }
-        if (!bestRoomLikeFallback) {
-          bestRoomLikeFallback = neighborBehavior;
-        }
-        continue;
+      if (neighborBehavior.materialKind !== "dark") {
+        return neighborBehavior;
       }
-
-      if (!bestGeneralFallback) {
-        bestGeneralFallback = neighborBehavior;
+      if (!bestDarkFloorFallback) {
+        bestDarkFloorFallback = neighborBehavior;
       }
     }
 
-    return bestRoomLikeFallback ?? bestGeneralFallback;
+    return bestDarkFloorFallback;
   }
 
   private shouldEmitAsciiPlayerTileDebugLog(
@@ -20009,8 +20013,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
             ? Math.trunc(adjacentFloorBehavior.effective.glyph)
             : null,
         materialKind: adjacentFloorBehavior.materialKind,
-        // resolveFloorBehaviorFromNeighborTiles already skips doorway/open-door/
-        // closed-door neighbors, so only true floor-like tiles can win here.
+        // Adjacent fallback only accepts empty floor/corridor terrain, never
+        // doorways, raised specials, traps, water, or other feature tiles.
         useBackgroundReferenceTile:
           adjacentFloorBehavior.useBackgroundReferenceTile === true,
       };
@@ -23046,6 +23050,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
               ? this.resolveFloorBehaviorFromNeighborTiles(x, y)
               : null;
           if (inferredNeighborFloorBehavior) {
+            // Newly seen overlay entities can borrow only an adjacent empty
+            // floor/corridor underlay until authoritative terrain arrives.
             renderBehavior = inferredNeighborFloorBehavior;
           } else {
             const fallbackGlyph = this.isFpsMode()
