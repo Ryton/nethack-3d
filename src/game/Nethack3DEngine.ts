@@ -367,6 +367,7 @@ type LevelTerrainCacheSnapshot = {
   tileStateCache: Map<string, string>;
   lastKnownTerrain: Map<string, TerrainSnapshot>;
   flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot>;
+  suppressedLootLikeUnderPlayerCacheKeys: Set<string>;
   inferredDarkCorridorWallTiles: Map<string, { x: number; y: number }>;
   inferredDarkCorridorTileFlags: Set<string>;
   bloodGround: BloodGroundCacheSnapshot | null;
@@ -655,10 +656,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private tileStateCache: Map<string, string> = new Map();
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
   private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> = new Map();
-  private authoritativeUnderPlayerItemSnapshots: Map<string, TerrainSnapshot> =
-    new Map();
-  private fpsAuthoritativeUnderPlayerFallbackSuppressedKeys: Set<string> =
-    new Set();
+  private suppressedLootLikeUnderPlayerCacheKeys: Set<string> = new Set();
   private inferredDarkCorridorWallTiles: Map<string, { x: number; y: number }> =
     new Map();
   private inferredDarkCorridorTileFlags: Set<string> = new Set();
@@ -3865,6 +3863,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       flatFeatureUnderPlayerCache: this.cloneTerrainSnapshotMap(
         this.flatFeatureUnderPlayerCache,
       ),
+      suppressedLootLikeUnderPlayerCacheKeys: this.cloneStringSet(
+        this.suppressedLootLikeUnderPlayerCacheKeys,
+      ),
       inferredDarkCorridorWallTiles: this.cloneCoordinateMap(
         this.inferredDarkCorridorWallTiles,
       ),
@@ -3888,6 +3889,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       lastKnownTerrain: this.cloneTerrainSnapshotMap(snapshot.lastKnownTerrain),
       flatFeatureUnderPlayerCache: this.cloneTerrainSnapshotMap(
         snapshot.flatFeatureUnderPlayerCache,
+      ),
+      suppressedLootLikeUnderPlayerCacheKeys: this.cloneStringSet(
+        snapshot.suppressedLootLikeUnderPlayerCacheKeys,
       ),
       inferredDarkCorridorWallTiles: this.cloneCoordinateMap(
         snapshot.inferredDarkCorridorWallTiles,
@@ -3979,6 +3983,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       snapshot.tileStateCache.size === 0 &&
       snapshot.lastKnownTerrain.size === 0 &&
       snapshot.flatFeatureUnderPlayerCache.size === 0 &&
+      snapshot.suppressedLootLikeUnderPlayerCacheKeys.size === 0 &&
       snapshot.inferredDarkCorridorWallTiles.size === 0 &&
       snapshot.inferredDarkCorridorTileFlags.size === 0 &&
       !snapshot.bloodGround
@@ -4297,7 +4302,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.flatFeatureUnderPlayerCache = this.cloneTerrainSnapshotMap(
       entry.flatFeatureUnderPlayerCache,
     );
-    this.authoritativeUnderPlayerItemSnapshots.clear();
+    this.suppressedLootLikeUnderPlayerCacheKeys = this.cloneStringSet(
+      entry.suppressedLootLikeUnderPlayerCacheKeys,
+    );
     this.inferredDarkCorridorWallTiles = this.cloneCoordinateMap(
       entry.inferredDarkCorridorWallTiles,
     );
@@ -8998,9 +9005,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.refreshPlayerCliparoundInputCooldownFromMovement();
         }
         this.playerPos = { x: data.x, y: data.y };
-        this.pruneAuthoritativeUnderPlayerItemSnapshots(
-          `${this.playerPos.x},${this.playerPos.y}`,
-        );
         this.logAsciiPlayerTileDebug(
           "player_position_applied",
           data.x,
@@ -9962,7 +9966,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
-    const snapshot = this.getFpsPlayerTileUnderlaySnapshotFromCache(key);
+    const snapshot = this.getPlayerTileUnderlaySnapshotFromCache(key);
     if (!snapshot) {
       return null;
     }
@@ -9993,36 +9997,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
-  private getAuthoritativeUnderPlayerItemSnapshot(
-    key: string,
-  ): TerrainSnapshot | null {
-    return this.authoritativeUnderPlayerItemSnapshots.get(key) ?? null;
-  }
-
-  private pruneAuthoritativeUnderPlayerItemSnapshots(currentKey: string): void {
-    for (const key of this.authoritativeUnderPlayerItemSnapshots.keys()) {
-      if (key !== currentKey) {
-        this.authoritativeUnderPlayerItemSnapshots.delete(key);
-      }
-    }
-  }
-
-  private getFpsPlayerTileUnderlaySnapshotFromCache(
+  private getPlayerTileUnderlaySnapshotFromCache(
     key: string,
     runtimeFloorUnderlaySnapshot: TerrainSnapshot | null = null,
   ): TerrainSnapshot | null {
-    const authoritativeUnderPlayerItem =
-      this.getAuthoritativeUnderPlayerItemSnapshot(key);
     const cachedTerrain = this.lastKnownTerrain.get(key) ?? null;
-    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
-      return (
-        authoritativeUnderPlayerItem ??
-        runtimeFloorUnderlaySnapshot ??
-        cachedTerrain
-      );
-    }
     return (
-      authoritativeUnderPlayerItem ??
       this.flatFeatureUnderPlayerCache.get(key) ??
       runtimeFloorUnderlaySnapshot ??
       cachedTerrain
@@ -10317,10 +10297,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!isPlayerTile) {
       return;
     }
-    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
-      return;
-    }
     const previousBehavior = this.classifyTilePayload(previousTile);
+    const shouldSuppressPreviousFlatFeatureSeed =
+      previousBehavior !== null &&
+      this.isLootLikeBehavior(previousBehavior) &&
+      this.suppressedLootLikeUnderPlayerCacheKeys.has(key);
     const previousTerrain = this.snapshotPersistentTerrainFromTile(
       previousTile,
       previousBehavior,
@@ -10330,7 +10311,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         previousTile,
         previousBehavior,
       );
-      if (previousFlatFeature) {
+      if (previousFlatFeature && !shouldSuppressPreviousFlatFeatureSeed) {
         this.flatFeatureUnderPlayerCache.set(key, previousFlatFeature);
       }
       return;
@@ -10340,15 +10321,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previousTile,
       previousBehavior,
     );
-    if (previousFlatFeature) {
+    if (previousFlatFeature && !shouldSuppressPreviousFlatFeatureSeed) {
       this.flatFeatureUnderPlayerCache.set(key, previousFlatFeature);
     }
   }
 
   private seedFlatFeatureUnderPlayerCacheFromPreviousState(key: string): void {
-    if (this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key)) {
-      return;
-    }
     const previousSnapshot = this.getTileSnapshotFromStateCache(key);
     if (!previousSnapshot) {
       return;
@@ -10370,7 +10348,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previousSnapshot,
       previousBehavior,
     );
-    if (previousFlatFeature) {
+    const shouldSuppressPreviousFlatFeatureSeed =
+      previousBehavior !== null &&
+      this.isLootLikeBehavior(previousBehavior) &&
+      this.suppressedLootLikeUnderPlayerCacheKeys.has(key);
+    if (previousFlatFeature && !shouldSuppressPreviousFlatFeatureSeed) {
       this.flatFeatureUnderPlayerCache.set(key, previousFlatFeature);
     }
   }
@@ -11721,7 +11703,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ? Math.trunc(data.glyphFlags)
         : null;
     const rememberedUnderPlayerFeature =
-      this.getAuthoritativeUnderPlayerItemSnapshot(key);
+      this.flatFeatureUnderPlayerCache.get(key) ?? null;
     const resolvedRuntimeTileIndex =
       runtimeTileIndex === null &&
       rememberedUnderPlayerFeature &&
@@ -11784,15 +11766,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     console.log(
       `Applying under-player item glyph at (${tileX}, ${tileY}): ${normalizedGlyph}`,
     );
-    if (!this.isLootLikeBehavior(behavior)) {
-      this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.add(key);
-      this.authoritativeUnderPlayerItemSnapshots.delete(key);
+    if (!this.shouldRenderFlatFeatureUnderPlayer(behavior)) {
+      if (this.isLootLikeBehavior(behavior)) {
+        this.suppressedLootLikeUnderPlayerCacheKeys.add(key);
+      } else {
+        this.suppressedLootLikeUnderPlayerCacheKeys.delete(key);
+      }
+      this.flatFeatureUnderPlayerCache.delete(key);
       this.refreshTileVisualFromStateCache(tileX, tileY);
       return;
     }
 
-    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.delete(key);
-    this.authoritativeUnderPlayerItemSnapshots.set(key, {
+    this.suppressedLootLikeUnderPlayerCacheKeys.delete(key);
+    this.flatFeatureUnderPlayerCache.set(key, {
       glyph: normalizedGlyph,
       kind: resolvedRuntimeKind ?? undefined,
       char: resolvedRuntimeChar ?? undefined,
@@ -11817,8 +11803,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tileY = Math.trunc(y);
     const key = `${tileX},${tileY}`;
     console.log(`Clearing under-player item glyph at (${tileX}, ${tileY})`);
-    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.add(key);
-    this.authoritativeUnderPlayerItemSnapshots.delete(key);
+    this.suppressedLootLikeUnderPlayerCacheKeys.add(key);
+    this.flatFeatureUnderPlayerCache.delete(key);
     this.refreshTileVisualFromStateCache(tileX, tileY);
   }
 
@@ -20725,8 +20711,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.tileStateCache.clear();
     this.lastKnownTerrain.clear();
     this.flatFeatureUnderPlayerCache.clear();
-    this.authoritativeUnderPlayerItemSnapshots.clear();
-    this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.clear();
+    this.suppressedLootLikeUnderPlayerCacheKeys.clear();
     this.inferredDarkCorridorWallTiles.clear();
     this.inferredDarkCorridorTileFlags.clear();
     this.pendingBoulderPushDarkCorridorInference = null;
@@ -22757,7 +22742,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.removeFloorBlockAmbientOcclusionOverlay(key);
       this.removeTrimmedDoorInsetAmbientOcclusionOverlay(key);
       this.flatFeatureUnderPlayerCache.delete(key);
-      this.authoritativeUnderPlayerItemSnapshots.delete(key);
+      this.suppressedLootLikeUnderPlayerCacheKeys.delete(key);
       this.removeMonsterBillboard(key);
       this.activeEffectTileKeys.delete(key);
       const overlay = this.glyphOverlayMap.get(key);
@@ -22777,8 +22762,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const shouldCacheFlatUnderPlayer =
         this.shouldRenderFlatFeatureUnderPlayer(behavior);
       const shouldSuppressLootLikeFlatFeatureCache =
-        this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key) &&
-        this.isLootLikeBehavior(behavior);
+        isCurrentKnownPlayerTile &&
+        isLootLikeCharacter &&
+        this.suppressedLootLikeUnderPlayerCacheKeys.has(key);
       const previousFlatFeatureSnapshot =
         this.flatFeatureUnderPlayerCache.get(key) ?? null;
       const previousFlatFeatureBehavior =
@@ -22836,17 +22822,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
           symidx: resolvedTerrainSymidx,
         });
       }
-      if (
-        shouldCacheFlatUnderPlayer &&
-        !shouldSuppressLootLikeFlatFeatureCache
-      ) {
-        this.flatFeatureUnderPlayerCache.set(key, {
-          glyph,
-          char: behavior.resolved.char ?? undefined,
-          color: behavior.resolved.color ?? undefined,
-          tileIndex: behavior.resolved.tileIndex,
-          symidx: resolvedFlatFeatureSymidx,
-        });
+      if (shouldCacheFlatUnderPlayer) {
+        if (shouldSuppressLootLikeFlatFeatureCache) {
+          this.flatFeatureUnderPlayerCache.delete(key);
+        } else {
+          this.flatFeatureUnderPlayerCache.set(key, {
+            glyph,
+            char: behavior.resolved.char ?? undefined,
+            color: behavior.resolved.color ?? undefined,
+            tileIndex: behavior.resolved.tileIndex,
+            symidx: resolvedFlatFeatureSymidx,
+          });
+          if (isLootLikeCharacter) {
+            this.suppressedLootLikeUnderPlayerCacheKeys.delete(key);
+          }
+        }
       } else if (
         !(this.isFpsMode() && shouldSuppressPlayerTileVisualInFps) &&
         !shouldPreserveExistingUnderPlayerFeatureCache
@@ -22880,15 +22870,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const defaultPlayerSuppressedGlyph = this.isFpsMode()
         ? getDefaultDarkFloorGlyph()
         : getDefaultFloorGlyph();
-      const authoritativeUnderPlayerItem =
-        this.getAuthoritativeUnderPlayerItemSnapshot(key);
-      const cachedFlatFeature = this.getFpsPlayerTileUnderlaySnapshotFromCache(
+      const cachedFlatFeature = this.getPlayerTileUnderlaySnapshotFromCache(
         key,
         runtimeFloorUnderlaySnapshot,
       );
       if (cachedFlatFeature) {
         const usingAssumedUnderlayFromCache =
-          authoritativeUnderPlayerItem === null &&
           !this.shouldRenderFlatFeatureUnderPlayer(behavior) &&
           !this.shouldUseRaisedSpecialTileBillboardInTiles(behavior);
         if (usingAssumedUnderlayFromCache) {
@@ -23399,36 +23386,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const shouldIncludeFlatUnderPlayerFeatures =
         this.shouldShowUnderPlayerFeaturesInOverheadTilesMode();
       const floorSnapshotCandidates: TerrainSnapshot[] = [];
-      const authoritativeUnderPlayerItem =
-        this.getAuthoritativeUnderPlayerItemSnapshot(key);
-      if (
-        authoritativeUnderPlayerItem &&
-        shouldIncludeFlatUnderPlayerFeatures
-      ) {
-        floorSnapshotCandidates.push(authoritativeUnderPlayerItem);
-      }
       const cachedUnderPlayerFeature =
         this.flatFeatureUnderPlayerCache.get(key);
       if (cachedUnderPlayerFeature && shouldIncludeFlatUnderPlayerFeatures) {
-        const cachedUnderPlayerFeatureBehavior = classifyTileBehavior({
-          glyph: cachedUnderPlayerFeature.glyph,
-          runtimeChar: cachedUnderPlayerFeature.char ?? null,
-          runtimeColor:
-            typeof cachedUnderPlayerFeature.color === "number"
-              ? cachedUnderPlayerFeature.color
-              : null,
-          runtimeTileIndex:
-            typeof cachedUnderPlayerFeature.tileIndex === "number"
-              ? cachedUnderPlayerFeature.tileIndex
-              : null,
-          priorTerrain: cachedUnderPlayerFeature,
-        });
-        const shouldSuppressCachedLootLikeFeature =
-          this.fpsAuthoritativeUnderPlayerFallbackSuppressedKeys.has(key) &&
-          this.isLootLikeBehavior(cachedUnderPlayerFeatureBehavior);
-        if (!shouldSuppressCachedLootLikeFeature) {
-          floorSnapshotCandidates.push(cachedUnderPlayerFeature);
-        }
+        floorSnapshotCandidates.push(cachedUnderPlayerFeature);
       }
       const rememberedTerrain = this.lastKnownTerrain.get(key);
       if (rememberedTerrain) {
