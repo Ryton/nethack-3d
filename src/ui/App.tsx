@@ -16999,21 +16999,6 @@ export default function App(): JSX.Element {
                   })}
                   {showPickupActionButtons ? (
                     <div className="nh3d-pickup-actions">
-                      {showPickupToggleAllButton ? (
-                        <button
-                          className={`nh3d-pickup-action-button${
-                            question.activeActionButton === "select-all"
-                              ? " nh3d-action-button-active"
-                              : ""
-                          }`}
-                          onClick={() => controller?.toggleAllPickupChoices()}
-                          type="button"
-                        >
-                          {question.allPickupSelected
-                            ? t.dialogs.question.deselectAll
-                            : t.dialogs.question.selectAll}
-                        </button>
-                      ) : null}
                       <button
                         className={`nh3d-pickup-action-button nh3d-pickup-action-confirm${
                           question.activeActionButton === "confirm"
@@ -17025,6 +17010,29 @@ export default function App(): JSX.Element {
                       >
                         {commonStrings.confirm}
                       </button>
+                      {showPickupToggleAllButton ? (
+                        <button
+                          className={`nh3d-pickup-action-button nh3d-pickup-action-toggle-all${
+                            question.activeActionButton === "select-all"
+                              ? " nh3d-action-button-active"
+                              : ""
+                          }`}
+                          onClick={() => controller?.toggleAllPickupChoices()}
+                          type="button"
+                        >
+                          <span className="nh3d-pickup-action-button-label">
+                            {question.allPickupSelected
+                              ? t.dialogs.question.deselectAll
+                              : t.dialogs.question.selectAll}
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className="nh3d-pickup-action-button-sizer"
+                          >
+                            {t.dialogs.question.deselectAll}
+                          </span>
+                        </button>
+                      ) : null}
                       <button
                         className={`nh3d-pickup-action-button nh3d-pickup-action-cancel${
                           question.activeActionButton === "cancel"

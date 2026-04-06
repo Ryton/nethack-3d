@@ -7490,6 +7490,22 @@ button.nh3d-technique-row {
   }
 }
 
+.nh3d-pickup-action-toggle-all {
+  display: grid;
+  place-items: center;
+}
+
+.nh3d-pickup-action-button-label,
+.nh3d-pickup-action-button-sizer {
+  grid-area: 1 / 1;
+}
+
+.nh3d-pickup-action-button-sizer {
+  visibility: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .nh3d-menu-action-button:focus,
 .nh3d-menu-action-button:focus-visible,
 .nh3d-pickup-action-button:focus,

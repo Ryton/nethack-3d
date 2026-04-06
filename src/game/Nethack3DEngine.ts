@@ -893,6 +893,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private playMode: PlayMode = "normal";
   private readonly questionMenuPageAccelerators: string[] =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  private readonly pickupMenuObjectClassSymbols: ReadonlySet<string> = new Set([
+    ")",
+    "[",
+    "=",
+    '"',
+    "(",
+    "%",
+    "!",
+    "?",
+    "+",
+    "/",
+    "$",
+    "*",
+    "`",
+    "0",
+    "_",
+    ".",
+  ]);
   private altOrMetaHeld: boolean = false;
   private metaCommandModeActive: boolean = false;
   private metaCommandBuffer: string = "";
@@ -25347,6 +25365,131 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private resolvePickupMenuItemObjectSymbol(item: any): string | null {
+    if (!this.isSelectableQuestionMenuItem(item)) {
+      return null;
+    }
+
+    const glyphChar =
+      typeof item?.glyphChar === "string" ? item.glyphChar.trim() : "";
+    if (
+      glyphChar.length > 0 &&
+      this.pickupMenuObjectClassSymbols.has(glyphChar.charAt(0))
+    ) {
+      return glyphChar.charAt(0);
+    }
+
+    const text = typeof item?.text === "string" ? item.text.trimStart() : "";
+    const leadingSymbol = text.charAt(0);
+    if (this.pickupMenuObjectClassSymbols.has(leadingSymbol)) {
+      return leadingSymbol;
+    }
+
+    return null;
+  }
+
+  private getPickupSelectableMenuItemsByObjectSymbol(symbol: string): any[] {
+    if (typeof symbol !== "string" || symbol.length === 0) {
+      return [];
+    }
+    return this.getAllPickupSelectableMenuItems().filter((item) => {
+      return this.resolvePickupMenuItemObjectSymbol(item) === symbol;
+    });
+  }
+
+  private arePickupMenuItemsAllSelected(items: any[]): boolean {
+    if (!Array.isArray(items) || items.length === 0) {
+      return false;
+    }
+    return items.every((item) =>
+      this.activePickupSelections.has(this.getMenuSelectionStateKey(item)),
+    );
+  }
+
+  private applyPickupSelectionOperation(
+    items: any[],
+    operation: "select" | "deselect" | "invert",
+    shouldSendInput: boolean,
+  ): void {
+    if (!this.isInQuestion || !this.activeQuestionIsPickupDialog) {
+      return;
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return;
+    }
+
+    const changedInputs: string[] = [];
+    let focusSelectionInput: string | null = null;
+
+    for (const menuItem of items) {
+      const selectionInput = this.getQuestionMenuSelectionInput(menuItem);
+      if (!selectionInput) {
+        continue;
+      }
+      const selectionKey = this.getMenuSelectionStateKey(menuItem);
+      const isSelected = this.activePickupSelections.has(selectionKey);
+      let didChange = false;
+
+      if (operation === "select") {
+        if (!isSelected) {
+          this.activePickupSelections.add(selectionKey);
+          didChange = true;
+        }
+      } else if (operation === "deselect") {
+        if (isSelected) {
+          this.activePickupSelections.delete(selectionKey);
+          didChange = true;
+        }
+      } else if (isSelected) {
+        this.activePickupSelections.delete(selectionKey);
+        didChange = true;
+      } else {
+        this.activePickupSelections.add(selectionKey);
+        didChange = true;
+      }
+
+      if (!didChange) {
+        continue;
+      }
+
+      if (!focusSelectionInput) {
+        focusSelectionInput = selectionInput;
+      }
+      changedInputs.push(selectionInput);
+    }
+
+    if (focusSelectionInput) {
+      this.setActivePickupFocusBySelectionInput(focusSelectionInput);
+    }
+    if (shouldSendInput && changedInputs.length > 0) {
+      this.sendInputSequence(changedInputs);
+    }
+    this.updatePickupFocusVisualState();
+  }
+
+  private selectPickupMenuItems(items: any[], shouldSendInput: boolean): void {
+    this.applyPickupSelectionOperation(items, "select", shouldSendInput);
+  }
+
+  private deselectPickupMenuItems(
+    items: any[],
+    shouldSendInput: boolean,
+  ): void {
+    this.applyPickupSelectionOperation(items, "deselect", shouldSendInput);
+  }
+
+  private invertPickupMenuItems(items: any[], shouldSendInput: boolean): void {
+    this.applyPickupSelectionOperation(items, "invert", shouldSendInput);
+  }
+
+  private togglePickupMenuItems(items: any[], shouldSendInput: boolean): void {
+    if (this.arePickupMenuItemsAllSelected(items)) {
+      this.deselectPickupMenuItems(items, shouldSendInput);
+      return;
+    }
+    this.selectPickupMenuItems(items, shouldSendInput);
+  }
+
   private isAllPickupItemsSelected(): boolean {
     if (!this.activeQuestionIsPickupDialog) {
       return false;
@@ -25437,42 +25580,62 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private toggleAllPickupSelections(shouldSendInput: boolean): void {
-    if (!this.isInQuestion || !this.activeQuestionIsPickupDialog) {
-      return;
-    }
+    this.togglePickupMenuItems(
+      this.getAllPickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
 
-    const selectableItems = this.getAllPickupSelectableMenuItems();
-    if (selectableItems.length === 0) {
-      return;
-    }
+  private selectAllPickupSelections(shouldSendInput: boolean): void {
+    this.selectPickupMenuItems(
+      this.getAllPickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
 
-    const shouldDeselectAll = this.isAllPickupItemsSelected();
-    const selectionInputs: string[] = [];
-    for (const menuItem of selectableItems) {
-      const selectionKey = this.getMenuSelectionStateKey(menuItem);
-      const selectionInput = this.getQuestionMenuSelectionInput(menuItem);
-      if (!selectionInput) {
-        continue;
-      }
-      const isSelected = this.activePickupSelections.has(selectionKey);
-      if (shouldDeselectAll) {
-        if (!isSelected) {
-          continue;
-        }
-        this.activePickupSelections.delete(selectionKey);
-      } else {
-        if (isSelected) {
-          continue;
-        }
-        this.activePickupSelections.add(selectionKey);
-      }
-      selectionInputs.push(selectionInput);
-    }
+  private deselectAllPickupSelections(shouldSendInput: boolean): void {
+    this.deselectPickupMenuItems(
+      this.getAllPickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
 
-    if (shouldSendInput && selectionInputs.length > 0) {
-      this.sendInputSequence(selectionInputs);
-    }
-    this.updatePickupFocusVisualState();
+  private invertAllPickupSelections(shouldSendInput: boolean): void {
+    this.invertPickupMenuItems(
+      this.getAllPickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
+
+  private selectVisiblePickupSelections(shouldSendInput: boolean): void {
+    this.selectPickupMenuItems(
+      this.getVisiblePickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
+
+  private deselectVisiblePickupSelections(shouldSendInput: boolean): void {
+    this.deselectPickupMenuItems(
+      this.getVisiblePickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
+
+  private invertVisiblePickupSelections(shouldSendInput: boolean): void {
+    this.invertPickupMenuItems(
+      this.getVisiblePickupSelectableMenuItems(),
+      shouldSendInput,
+    );
+  }
+
+  private togglePickupSelectionsByObjectSymbol(
+    symbol: string,
+    shouldSendInput: boolean,
+  ): void {
+    this.togglePickupMenuItems(
+      this.getPickupSelectableMenuItemsByObjectSymbol(symbol),
+      shouldSendInput,
+    );
   }
 
   private getActiveQuestionActionButtons(): Array<
@@ -25868,6 +26031,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.activeQuestionMenuPageIndex = nextPage;
     this.rebuildActiveQuestionMenuPagination();
     this.syncQuestionDialogState();
+  }
+
+  private setQuestionMenuPageIndex(pageIndex: number): void {
+    if (
+      !this.isInQuestion ||
+      this.activeQuestionMenuItems.length === 0 ||
+      this.activeQuestionMenuPageCount <= 1
+    ) {
+      return;
+    }
+    const nextPage = Math.max(
+      0,
+      Math.min(this.activeQuestionMenuPageCount - 1, Math.trunc(pageIndex)),
+    );
+    if (nextPage === this.activeQuestionMenuPageIndex) {
+      return;
+    }
+    this.activeQuestionMenuPageIndex = nextPage;
+    this.rebuildActiveQuestionMenuPagination();
+    this.syncQuestionDialogState();
+  }
+
+  private goToFirstQuestionMenuPage(): void {
+    this.setQuestionMenuPageIndex(0);
+  }
+
+  private goToLastQuestionMenuPage(): void {
+    this.setQuestionMenuPageIndex(this.activeQuestionMenuPageCount - 1);
   }
 
   private setActiveQuestionState(
@@ -26636,6 +26827,42 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   public toggleAllPickupChoices(): void {
     this.toggleAllPickupSelections(true);
+  }
+
+  private handlePickupDialogShortcutKey(key: string): boolean {
+    if (typeof key !== "string" || key.length === 0) {
+      return false;
+    }
+
+    switch (key) {
+      case ".":
+        this.selectAllPickupSelections(true);
+        return true;
+      case ",":
+        this.selectVisiblePickupSelections(true);
+        return true;
+      case "-":
+        this.deselectAllPickupSelections(true);
+        return true;
+      case "\\":
+        this.deselectVisiblePickupSelections(true);
+        return true;
+      case "@":
+        this.invertAllPickupSelections(true);
+        return true;
+      case "~":
+        this.invertVisiblePickupSelections(true);
+        return true;
+      default:
+        break;
+    }
+
+    if (this.pickupMenuObjectClassSymbols.has(key)) {
+      this.togglePickupSelectionsByObjectSymbol(key, true);
+      return true;
+    }
+
+    return false;
   }
 
   public confirmPickupChoices(): void {
@@ -29577,13 +29804,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.goToNextQuestionMenuPage();
           return;
         }
+        if (event.key === "^") {
+          event.preventDefault();
+          this.goToFirstQuestionMenuPage();
+          return;
+        }
+        if (event.key === "|") {
+          event.preventDefault();
+          this.goToLastQuestionMenuPage();
+          return;
+        }
       }
 
       // For other questions, handle pickup dialogs specially
       if (isPickupDialog) {
-        if (event.key === ",") {
+        if (this.handlePickupDialogShortcutKey(event.key)) {
           event.preventDefault();
-          this.toggleAllPickupChoices();
           return;
         }
 
