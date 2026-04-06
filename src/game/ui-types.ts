@@ -1127,6 +1127,7 @@ export interface Nethack3DEngineController {
   dispose(): void;
   sendInput(input: string): void;
   chooseDirection(directionKey: string): void;
+  confirmActiveDirectionQuestion(): void;
   chooseQuestionChoice(choice: string): void;
   resolveLegacyQuestionChoicePreviewTileIndex(choice: string): number | null;
   confirmQuestionMenuChoice(): void;

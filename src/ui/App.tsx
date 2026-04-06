@@ -17427,6 +17427,13 @@ export default function App(): JSX.Element {
         className="nh3d-dialog nh3d-dialog-direction nh3d-dialog-direction-fps nh3d-dialog-has-mobile-close"
         open={Boolean(directionQuestion)}
         id="direction-dialog"
+        onClick={(event) => {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest("button")) {
+            return;
+          }
+          controller?.confirmActiveDirectionQuestion();
+        }}
       >
         {directionQuestion ? (
           <>

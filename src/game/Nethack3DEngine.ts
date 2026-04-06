@@ -9118,7 +9118,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.hideInventoryDialog();
         }
         // Special handling for direction questions - show UI and pause movement
-        this.isInQuestion = true;
         this.showDirectionQuestion(data.text);
         break;
       case "number_pad_mode":
@@ -12389,7 +12388,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (ageMs > this.fpsContextAutoDirectionWindowMs) {
       return false;
     }
-    this.isInQuestion = true;
     this.isInDirectionQuestion = true;
     this.submitDirectionAnswer(directionKey);
     return true;
@@ -12413,7 +12411,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!directionKey) {
       return false;
     }
-    this.isInQuestion = true;
     this.isInDirectionQuestion = true;
     this.submitDirectionAnswer(directionKey);
     return true;
@@ -25957,6 +25954,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private showDirectionQuestion(question: string): void {
+    this.isInQuestion = false;
     this.isInDirectionQuestion = true;
     this.cancelMapTouchContextHoldState();
     if (!this.isFpsMode()) {
@@ -26547,6 +26545,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.submitDirectionAnswer(resolvedDirection);
+  }
+
+  public confirmActiveDirectionQuestion(): void {
+    if (!this.isInDirectionQuestion) {
+      return;
+    }
+    if (this.isFpsMode()) {
+      this.confirmFpsDirectionQuestionFromAim();
+      return;
+    }
+    const activeButtonId =
+      this.directionPromptHoveredButtonId ??
+      this.directionPromptPressedButtonId ??
+      this.resolveDirectionPromptOverlayButtonFromInput(
+        this.controllerDirectionPromptPreviewInput,
+      );
+    if (!activeButtonId) {
+      return;
+    }
+    this.confirmDirectionPromptOverlayButton(activeButtonId);
   }
 
   public chooseQuestionChoice(choice: string): void {
