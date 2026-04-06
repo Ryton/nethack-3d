@@ -11,6 +11,46 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..", "..");
 const showAll = process.argv.includes("--verbose");
 const maxItemsPerCategory = showAll ? Number.POSITIVE_INFINITY : 80;
+const cp1252CodePointToByte = new Map([
+  [0x20ac, 0x80],
+  [0x201a, 0x82],
+  [0x0192, 0x83],
+  [0x201e, 0x84],
+  [0x2026, 0x85],
+  [0x2020, 0x86],
+  [0x2021, 0x87],
+  [0x02c6, 0x88],
+  [0x2030, 0x89],
+  [0x0160, 0x8a],
+  [0x2039, 0x8b],
+  [0x0152, 0x8c],
+  [0x017d, 0x8e],
+  [0x2018, 0x91],
+  [0x2019, 0x92],
+  [0x201c, 0x93],
+  [0x201d, 0x94],
+  [0x2022, 0x95],
+  [0x2013, 0x96],
+  [0x2014, 0x97],
+  [0x02dc, 0x98],
+  [0x2122, 0x99],
+  [0x0161, 0x9a],
+  [0x203a, 0x9b],
+  [0x0153, 0x9c],
+  [0x017e, 0x9e],
+  [0x0178, 0x9f],
+]);
+const mojibakeLeadCodePoints = new Set([
+  0x00c2, 0x00c3, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e6, 0x00e7, 0x00e8,
+  0x00e9, 0x00ea, 0x00eb, 0x00ec, 0x00ed, 0x00ee, 0x00ef, 0x00f0, 0x00f1,
+  0x00f2, 0x00f3, 0x00f4, 0x00f5, 0x00f6, 0x00f8, 0x00f9, 0x00fa, 0x00fb,
+  0x00fc, 0x00fd, 0x00fe, 0x00ff,
+]);
+const cp1252ContinuationCodePoints = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030,
+  0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022,
+  0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+]);
 
 const localeChecks = [
   {
@@ -257,10 +297,160 @@ function printCategory(title, items, formatter = (item) => item, log = "error") 
   }
 }
 
+function encodeCp1252Bytes(value) {
+  const bytes = [];
+  for (const char of value) {
+    const codePoint = char.codePointAt(0);
+    if (codePoint <= 0xff) {
+      bytes.push(codePoint);
+      continue;
+    }
+    const cp1252Byte = cp1252CodePointToByte.get(codePoint);
+    if (cp1252Byte === undefined) {
+      return null;
+    }
+    bytes.push(cp1252Byte);
+  }
+  return Buffer.from(bytes);
+}
+
+function countMojibakeSequences(value) {
+  const characters = Array.from(value);
+  let count = 0;
+  for (let index = 0; index < characters.length - 1; index += 1) {
+    const currentCodePoint = characters[index].codePointAt(0);
+    const nextCodePoint = characters[index + 1].codePointAt(0);
+    const isContinuationCodePoint =
+      cp1252ContinuationCodePoints.has(nextCodePoint) ||
+      (nextCodePoint >= 0x00a0 && nextCodePoint <= 0x00bf);
+    if (
+      mojibakeLeadCodePoints.has(currentCodePoint) &&
+      isContinuationCodePoint
+    ) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function mojibakeScore(value) {
+  const replacementCharCount = (value.match(/\uFFFD/g) ?? []).length;
+  return replacementCharCount * 10 + countMojibakeSequences(value);
+}
+
+function tryRepairMojibake(value) {
+  let current = value;
+  let best = value;
+  let bestScore = mojibakeScore(value);
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const bytes = encodeCp1252Bytes(current);
+    if (!bytes) {
+      break;
+    }
+
+    const repaired = bytes.toString("utf8");
+    if (repaired === current || repaired.includes("\uFFFD")) {
+      break;
+    }
+
+    const repairedScore = mojibakeScore(repaired);
+    if (repairedScore >= bestScore) {
+      break;
+    }
+
+    best = repaired;
+    bestScore = repairedScore;
+    current = repaired;
+  }
+
+  return best !== value ? { repaired: best, score: bestScore } : null;
+}
+
+function previewString(value, maxLength = 120) {
+  const serialized = JSON.stringify(value);
+  if (!serialized) {
+    return String(value);
+  }
+  if (serialized.length <= maxLength) {
+    return serialized;
+  }
+  return `${serialized.slice(0, maxLength - 3)}...`;
+}
+
+function collectMojibakePaths(value, prefix, result) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (isPlainObject(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      collectMojibakePaths(child, [...prefix, key], result);
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => {
+      collectMojibakePaths(child, [...prefix, String(index)], result);
+    });
+    return;
+  }
+
+  if (typeof value !== "string") {
+    return;
+  }
+
+  const originalScore = mojibakeScore(value);
+  const repairAttempt = tryRepairMojibake(value);
+  if (originalScore === 0 && !repairAttempt) {
+    return;
+  }
+
+  if (
+    originalScore > 0 ||
+    (repairAttempt && repairAttempt.score < originalScore)
+  ) {
+    result.push({
+      path: prefix.join("."),
+      value: previewString(value),
+      suggestion: repairAttempt ? previewString(repairAttempt.repaired) : null,
+    });
+  }
+}
+
 const { en } = loadTsModule(
   path.join(repoRoot, "src", "i18n", "locales", "en.ts"),
 );
+const coreModule = loadTsModule(path.join(repoRoot, "src", "i18n", "core.ts"));
 let hasFailures = false;
+
+const globalMojibakeFindings = [];
+collectMojibakePaths(en, ["en"], globalMojibakeFindings);
+
+if (typeof coreModule.getSupportedLocaleOptions === "function") {
+  const supportedLocaleOptions = coreModule.getSupportedLocaleOptions();
+  supportedLocaleOptions.forEach((option) => {
+    collectMojibakePaths(
+      option.label,
+      ["core", "supportedLocaleOptions", option.value, "label"],
+      globalMojibakeFindings,
+    );
+  });
+}
+
+if (globalMojibakeFindings.length > 0) {
+  hasFailures = true;
+  console.error("Global i18n strings contain likely mojibake.");
+  printCategory(
+    "Mojibake candidates",
+    globalMojibakeFindings,
+    (item) =>
+      item.suggestion
+        ? `${item.path}: ${item.value} -> ${item.suggestion}`
+        : `${item.path}: ${item.value}`,
+  );
+}
 
 for (const localeCheck of localeChecks) {
   const localeModule = loadTsModule(localeCheck.file);
@@ -281,16 +471,19 @@ for (const localeCheck of localeChecks) {
     mismatchedTypes: [],
     mismatchedArity: [],
     identicalStrings: [],
+    mojibake: [],
   };
 
   compareTrees(en, localeValue, [], result);
   collectIdenticalStringPaths(en, localeValue, [], result.identicalStrings);
+  collectMojibakePaths(localeValue, [], result.mojibake);
 
   const issueCount =
     result.missing.length +
     result.extra.length +
     result.mismatchedTypes.length +
-    result.mismatchedArity.length;
+    result.mismatchedArity.length +
+    result.mojibake.length;
 
   if (issueCount === 0) {
     if (result.identicalStrings.length === 0) {
@@ -322,6 +515,14 @@ for (const localeCheck of localeChecks) {
     "Function arity mismatches",
     result.mismatchedArity,
     (item) => `${item.path} (expected ${item.expected}, got ${item.actual})`,
+  );
+  printCategory(
+    "Mojibake candidates",
+    result.mojibake,
+    (item) =>
+      item.suggestion
+        ? `${item.path}: ${item.value} -> ${item.suggestion}`
+        : `${item.path}: ${item.value}`,
   );
   printCategory("Identical to English", result.identicalStrings);
 }
