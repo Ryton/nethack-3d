@@ -820,9 +820,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private hasRuntimePositionCursor: boolean = false;
   private positionCursorOutline: THREE.Group | null = null;
   private positionCursorColumnMaterial: THREE.MeshBasicMaterial | null = null;
-  private positionCursorBloomMaterial: THREE.MeshBasicMaterial | null = null;
   private readonly positionCursorOutlineColorHex: number = 0xffe15a;
   private readonly positionCursorOutlineInset: number = 0.05;
+  private readonly positionCursorBottomOutlineThickness: number =
+    TILE_SIZE * 0.05;
+  private readonly positionCursorBottomOutlineHeight: number = TILE_SIZE * 0.08;
+  private readonly positionCursorBottomOutlineLiftZ: number = TILE_SIZE * 0.02;
   private readonly positionCursorGroundZ: number = 0.03;
   private readonly positionCursorColumnHeight: number = WALL_HEIGHT * 1.42;
   private readonly positionCursorFarLookOrbitDistance: number = TILE_SIZE * 4.4;
@@ -836,6 +839,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly positionCursorFarLookCornerRadius: number =
     TILE_SIZE * 0.14;
   private readonly positionCursorFarLookFocusHeightRatio: number = 0.56;
+  private readonly fpsFarLookPlayerBillboardFadeOutHalfLifeMs: number = 90;
+  private readonly fpsFarLookPlayerBillboardMinOpacity: number = 0.018;
   private fpsPositionCursorCameraInitialized: boolean = false;
   private fpsPositionCursorCameraCurrent: THREE.Vector3 = new THREE.Vector3();
   private fpsPositionCursorLookCurrent: THREE.Vector3 = new THREE.Vector3();
@@ -843,6 +848,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsPositionCursorEntryCameraYaw: number | null = null;
   private fpsPositionCursorEntryCameraPitch: number | null = null;
   private fpsPositionCursorReturnActive: boolean = false;
+  private fpsFarLookPlayerBillboardOpacity: number = 0;
 
   // Player stats tracking
   private playerStats = {
@@ -5463,6 +5469,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsPredictedPlayerTile = null;
     this.asciiPendingPlayerTile = null;
     this.fpsRecentPlayerTilesForSuppression = [];
+    this.fpsFarLookPlayerBillboardOpacity = 0;
     this.asciiPlayerTileDebugLastLogAtByKey.clear();
     this.closeAnyTileContextMenu(false);
 
@@ -9060,7 +9067,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           const playerTileKey = `${data.x},${data.y}`;
           const shouldKeepPlayerTileBillboard =
             this.getFpsPlayerTileBillboardBehaviorFromCache(playerTileKey) !==
-              null || this.isFpsFarLookViewActive();
+              null || this.shouldKeepFarLookPlayerBillboardVisible();
           if (!shouldKeepPlayerTileBillboard) {
             this.removeMonsterBillboard(playerTileKey);
           }
@@ -10989,7 +10996,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       tileRelation.isTrailSuppressedTile &&
       (tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial);
     const shouldKeepVisiblePlayerBillboardInFarLook =
-      this.isFpsFarLookViewActive() &&
+      this.shouldKeepFarLookPlayerBillboardVisible() &&
       tileRelation.isCurrentPlayerTile &&
       this.hasExplicitPlayerVisual(
         behavior,
@@ -11429,6 +11436,95 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return chars.some(
       (value) => typeof value === "string" && value.trim() === "@",
     );
+  }
+
+  private shouldKeepFarLookPlayerBillboardVisible(): boolean {
+    return (
+      this.isFpsMode() &&
+      (this.isFpsFarLookViewActive() ||
+      this.fpsFarLookPlayerBillboardOpacity >
+        this.fpsFarLookPlayerBillboardMinOpacity)
+    );
+  }
+
+  private getPlayerBillboardOpacityForTile(isCurrentPlayerTile: boolean): number {
+    if (!isCurrentPlayerTile || !this.isFpsMode()) {
+      return 1;
+    }
+    if (this.isFpsFarLookViewActive()) {
+      return 1;
+    }
+    return THREE.MathUtils.clamp(this.fpsFarLookPlayerBillboardOpacity, 0, 1);
+  }
+
+  private setMonsterBillboardOpacity(
+    sprite: THREE.Sprite,
+    opacity: number,
+  ): void {
+    const clampedOpacity = THREE.MathUtils.clamp(opacity, 0, 1);
+    if (sprite.material instanceof THREE.SpriteMaterial) {
+      sprite.material.opacity = clampedOpacity;
+      sprite.material.needsUpdate = true;
+    }
+    const backdrop = this.getMonsterBillboardFlattenedBackdropSprite(sprite);
+    if (backdrop?.material instanceof THREE.SpriteMaterial) {
+      backdrop.material.opacity = clampedOpacity;
+      backdrop.material.needsUpdate = true;
+    }
+    const pitchLockedProxy = this.getMonsterBillboardPitchLockedProxyMesh(sprite);
+    if (pitchLockedProxy?.material instanceof THREE.MeshBasicMaterial) {
+      pitchLockedProxy.material.opacity = clampedOpacity;
+      pitchLockedProxy.material.needsUpdate = true;
+    }
+    const flatProxy = this.getMonsterBillboardFlatProxyMesh(sprite);
+    if (flatProxy?.material instanceof THREE.MeshBasicMaterial) {
+      flatProxy.material.opacity = clampedOpacity;
+      flatProxy.material.needsUpdate = true;
+    }
+    const billboardKey =
+      typeof sprite.userData?.billboardKey === "string"
+        ? sprite.userData.billboardKey
+        : "";
+    const shadow = billboardKey ? this.entityBlobShadows.get(billboardKey) : null;
+    if (shadow?.material instanceof THREE.MeshBasicMaterial) {
+      shadow.material.opacity = 0.58 * clampedOpacity;
+      shadow.material.needsUpdate = true;
+    }
+  }
+
+  private updateFarLookPlayerBillboardOpacity(deltaSeconds: number): void {
+    if (!this.isFpsMode()) {
+      this.fpsFarLookPlayerBillboardOpacity = 0;
+      return;
+    }
+    if (this.isFpsFarLookViewActive()) {
+      this.fpsFarLookPlayerBillboardOpacity = 1;
+      return;
+    }
+    if (this.fpsFarLookPlayerBillboardOpacity <= 0) {
+      this.fpsFarLookPlayerBillboardOpacity = 0;
+      return;
+    }
+    const previousOpacity = this.fpsFarLookPlayerBillboardOpacity;
+    const alpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) /
+          this.fpsFarLookPlayerBillboardFadeOutHalfLifeMs,
+      );
+    this.fpsFarLookPlayerBillboardOpacity = THREE.MathUtils.lerp(
+      previousOpacity,
+      0,
+      alpha,
+    );
+    if (
+      previousOpacity > this.fpsFarLookPlayerBillboardMinOpacity &&
+      this.fpsFarLookPlayerBillboardOpacity <=
+        this.fpsFarLookPlayerBillboardMinOpacity
+    ) {
+      this.fpsFarLookPlayerBillboardOpacity = 0;
+      this.refreshCurrentPlayerTileVisualFromStateCache();
+    }
   }
 
   private refreshAsciiPlayerTilesAfterPositionUpdate(
@@ -20696,6 +20792,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.lightingCenterInitialized = false;
     this.positionInputModeActive = false;
     this.uiAdapter.setPositionInputActive(false);
+    this.fpsFarLookPlayerBillboardOpacity = 0;
     this.hasRuntimePositionCursor = false;
     this.clearPositionCursor();
     console.log("🧹 Clearing all tiles and glyph overlays from 3D scene");
@@ -20812,24 +20909,102 @@ class Nethack3DEngine implements Nethack3DEngineController {
     console.log("🧹 Scene cleared - ready for new level");
   }
 
-  private buildPositionCursorRoundedSquareShape(): THREE.Shape {
-    const radius = TILE_SIZE / 2 - this.positionCursorOutlineInset;
+  private tracePositionCursorRoundedSquarePath(
+    path: THREE.Path | THREE.Shape,
+    inset: number,
+  ): void {
+    const radius = TILE_SIZE / 2 - inset;
     const cornerRadius = Math.min(
       this.positionCursorFarLookCornerRadius,
       radius * 0.64,
     );
     const inner = radius - cornerRadius;
+    path.moveTo(-inner, radius);
+    path.lineTo(inner, radius);
+    path.absarc(inner, inner, cornerRadius, Math.PI / 2, 0, true);
+    path.lineTo(radius, -inner);
+    path.absarc(inner, -inner, cornerRadius, 0, -Math.PI / 2, true);
+    path.lineTo(-inner, -radius);
+    path.absarc(-inner, -inner, cornerRadius, -Math.PI / 2, -Math.PI, true);
+    path.lineTo(-radius, inner);
+    path.absarc(-inner, inner, cornerRadius, Math.PI, Math.PI / 2, true);
+    path.closePath();
+  }
+
+  private buildPositionCursorRoundedSquareShape(extraInset: number = 0): THREE.Shape {
     const shape = new THREE.Shape();
-    shape.moveTo(-inner, radius);
-    shape.lineTo(inner, radius);
-    shape.absarc(inner, inner, cornerRadius, Math.PI / 2, 0, true);
-    shape.lineTo(radius, -inner);
-    shape.absarc(inner, -inner, cornerRadius, 0, -Math.PI / 2, true);
-    shape.lineTo(-inner, -radius);
-    shape.absarc(-inner, -inner, cornerRadius, -Math.PI / 2, -Math.PI, true);
-    shape.lineTo(-radius, inner);
-    shape.absarc(-inner, inner, cornerRadius, Math.PI, Math.PI / 2, true);
+    this.tracePositionCursorRoundedSquarePath(
+      shape,
+      this.positionCursorOutlineInset + extraInset,
+    );
     return shape;
+  }
+
+  private buildPositionCursorBottomOutlineShape(): THREE.Shape {
+    const outlineShape = this.buildPositionCursorRoundedSquareShape();
+    const innerShape = this.buildPositionCursorRoundedSquareShape(
+      this.positionCursorBottomOutlineThickness,
+    );
+    const innerHole = new THREE.Path(innerShape.getPoints(32).reverse());
+    innerHole.closePath();
+    outlineShape.holes.push(innerHole);
+    return outlineShape;
+  }
+
+  private buildPositionCursorBottomOutlineLoop(): THREE.LineLoop {
+    const points = this.buildPositionCursorRoundedSquareShape()
+      .getPoints(48)
+      .map(
+        (point) =>
+          new THREE.Vector3(
+            point.x,
+            point.y,
+            this.positionCursorBottomOutlineHeight + TILE_SIZE * 0.006,
+          ),
+      );
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color: this.positionCursorOutlineColorHex,
+      transparent: false,
+      opacity: 1,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false,
+    });
+    const loop = new THREE.LineLoop(geometry, material);
+    loop.renderOrder = 1002;
+    return loop;
+  }
+
+  private patchPositionCursorColumnMaterial(
+    material: THREE.MeshBasicMaterial,
+  ): void {
+    const columnHeight = this.positionCursorColumnHeight.toFixed(6);
+    material.customProgramCacheKey = () =>
+      `position_cursor_column_fade_v1_${columnHeight}`;
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = `
+        varying float vPositionCursorOpacityFade;
+        ${shader.vertexShader}
+      `.replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vPositionCursorOpacityFade = smoothstep(
+          0.0,
+          1.0,
+          1.0 - clamp(transformed.z / ${columnHeight}, 0.0, 1.0)
+        );`,
+      );
+      shader.fragmentShader = `
+        varying float vPositionCursorOpacityFade;
+        ${shader.fragmentShader}
+      `.replace(
+        "vec4 diffuseColor = vec4( diffuse, opacity );",
+        `vec4 diffuseColor = vec4( diffuse, opacity );
+        diffuseColor.a *= clamp(vPositionCursorOpacityFade, 0.0, 1.0);`,
+      );
+    };
+    material.needsUpdate = true;
   }
 
   private ensurePositionCursorOutline(): THREE.Group {
@@ -20838,6 +21013,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const shape = this.buildPositionCursorRoundedSquareShape();
+    const bottomOutlineShape = this.buildPositionCursorBottomOutlineShape();
     const height = this.positionCursorColumnHeight;
     const group = new THREE.Group();
     const columnGeometry = new THREE.ExtrudeGeometry(shape, {
@@ -20856,30 +21032,40 @@ class Nethack3DEngine implements Nethack3DEngineController {
       depthWrite: false,
       toneMapped: false,
     });
+    this.patchPositionCursorColumnMaterial(columnMaterial);
     const column = new THREE.Mesh(columnGeometry, columnMaterial);
+    column.scale.set(0.94, 0.94, 1);
     column.renderOrder = 1000;
     group.add(column);
 
-    const bloomMaterial = new THREE.MeshBasicMaterial({
+    const bottomOutlineMaterial = new THREE.MeshBasicMaterial({
       color: this.positionCursorOutlineColorHex,
-      transparent: true,
-      opacity: 0.14,
+      transparent: false,
+      opacity: 1,
       side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
       depthTest: false,
       depthWrite: false,
       toneMapped: false,
     });
-    const bloomColumn = new THREE.Mesh(columnGeometry.clone(), bloomMaterial);
-    bloomColumn.scale.set(1.14, 1.14, 1);
-    bloomColumn.renderOrder = 999;
-    group.add(bloomColumn);
+    const bottomOutline = new THREE.Mesh(
+      new THREE.ExtrudeGeometry(bottomOutlineShape, {
+        depth: this.positionCursorBottomOutlineHeight,
+        bevelEnabled: false,
+        curveSegments: 18,
+        steps: 1,
+      }),
+      bottomOutlineMaterial,
+    );
+    bottomOutline.position.z = this.positionCursorBottomOutlineLiftZ;
+    bottomOutline.scale.set(1.02, 1.02, 1);
+    bottomOutline.renderOrder = 1001;
+    group.add(bottomOutline);
+    group.add(this.buildPositionCursorBottomOutlineLoop());
 
     group.visible = false;
     this.scene.add(group);
     this.positionCursorOutline = group;
     this.positionCursorColumnMaterial = columnMaterial;
-    this.positionCursorBloomMaterial = bloomMaterial;
     return group;
   }
 
@@ -20926,6 +21112,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.positionInputModeActive = true;
     this.uiAdapter.setPositionInputActive(true);
+    this.fpsFarLookPlayerBillboardOpacity = 1;
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
     this.fpsPositionCursorReturnActive = false;
@@ -21003,7 +21190,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const pulse = 0.5 + 0.5 * Math.sin(timeMs / 220);
-    const radialScale = 0.98 + pulse * 0.08;
+    const radialScale = 1 + pulse * 0.045;
     const heightScale =
       typeof outline.userData.heightScale === "number" &&
       Number.isFinite(outline.userData.heightScale)
@@ -21013,9 +21200,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     if (this.positionCursorColumnMaterial) {
       this.positionCursorColumnMaterial.opacity = 0.048 + pulse * 0.066;
-    }
-    if (this.positionCursorBloomMaterial) {
-      this.positionCursorBloomMaterial.opacity = 0.08 + pulse * 0.12;
     }
   }
 
@@ -21420,6 +21604,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.isFpsMode() &&
       this.hasSeenPlayerPosition &&
       !this.isFpsFarLookViewActive();
+    const billboardOpacity =
+      this.getPlayerBillboardOpacityForTile(isCurrentPlayerTile);
+    this.setMonsterBillboardOpacity(sprite, billboardOpacity);
 
     const proxy = this.ensureMonsterBillboardPitchLockedProxyMesh(sprite);
     if (!proxy) {
@@ -22878,7 +23065,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       (tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial);
     const isPredictedFpsPlayerTile = tileRelation.isPredictedPlayerTile;
     const shouldKeepVisiblePlayerBillboardInFarLook =
-      this.isFpsFarLookViewActive() &&
+      this.shouldKeepFarLookPlayerBillboardVisible() &&
       tileRelation.isCurrentPlayerTile &&
       this.hasExplicitPlayerVisual(behavior, char);
     const shouldSuppressPlayerTileVisualInFps =
@@ -36305,6 +36492,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateControllerInput(deltaSeconds);
     this.updateCameraPanInertia(deltaSeconds);
     this.updateCamera(deltaSeconds);
+    this.updateFarLookPlayerBillboardOpacity(deltaSeconds);
     this.updateMonsterBillboardPitchLockState();
     this.syncDirectionPromptOverlayVisibility();
     this.directionPromptOverlay?.update(
