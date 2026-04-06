@@ -4884,7 +4884,9 @@ canvas {
   gap: 8px;
   width: min(560px, 90vw);
   max-height: min(62vh, 560px);
-  overflow-y: visible;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   padding-right: 4px;
   padding-bottom: 10px;
 
@@ -4892,6 +4894,10 @@ canvas {
     flex-direction: row;
     justify-content: center;
     flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
 
     .nh3d-choice-button {
       min-width: 44px;
@@ -4912,6 +4918,11 @@ canvas {
     width: max-content;
     max-width: 100%;
     max-height: min(38vh, 280px);
+
+    &.is-compact,
+    &.is-yes-no {
+      width: 100%;
+    }
   }
 }
 

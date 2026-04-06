@@ -1387,6 +1387,10 @@ function getQuestionBracketChoiceSpec(question: string): string {
     : "";
 }
 
+function isAdjustLetterQuestionPrompt(questionText: string): boolean {
+  return /^adjust letter to what\b/i.test(String(questionText || "").trim());
+}
+
 function isLegacyQuestionChoiceRuntime(
   runtimeVersion: NethackRuntimeVersion,
 ): boolean {
@@ -1456,6 +1460,9 @@ function shouldUseCompactQuestionChoiceLayout(
     return false;
   }
   if (isYesNoPrompt) {
+    return true;
+  }
+  if (isAdjustLetterQuestionPrompt(questionText)) {
     return true;
   }
   if (
@@ -9757,7 +9764,11 @@ export default function App(): JSX.Element {
     activeRuntimeVersion,
   );
   const isYesNoQuestionChoices = isYesNoChoicePrompt(visibleQuestionChoices);
-  const useInventoryChoiceLabels = !isYesNoQuestionChoices;
+  const isAdjustLetterQuestion = isAdjustLetterQuestionPrompt(
+    question?.text ?? "",
+  );
+  const useInventoryChoiceLabels =
+    !isYesNoQuestionChoices && !isAdjustLetterQuestion;
   const normalizedVisibleQuestionChoiceSignature = visibleQuestionChoices
     .map((choice) =>
       String(choice || "")
