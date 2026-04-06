@@ -26970,8 +26970,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.closeAnyTileContextMenu(false);
     }
     const resolvedInput = input;
+    const shouldTreatAsPlayerMovementInput =
+      this.isMovementInput(resolvedInput) &&
+      !this.isInDirectionQuestion &&
+      !this.positionInputModeActive;
 
-    if (this.isMovementInput(resolvedInput)) {
+    if (shouldTreatAsPlayerMovementInput) {
       const nowMs = Date.now();
       this.lastManualDirectionalInputAtMs = nowMs;
       this.fpsAutoMoveDirection = null;
@@ -26991,7 +26995,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       !this.hasPlayerMovedOnce &&
       !this.isInQuestion &&
       !this.isInDirectionQuestion &&
-      this.isMovementInput(resolvedInput)
+      shouldTreatAsPlayerMovementInput
     ) {
       this.lastMovementInputAtMs = Date.now();
     }
