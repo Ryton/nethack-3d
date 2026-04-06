@@ -6550,6 +6550,9 @@ export default function App(): JSX.Element {
     (state) => state.repeatActionVisible,
   );
   const positionRequest = useGameStore((state) => state.positionRequest);
+  const positionInputActive = useGameStore(
+    (state) => state.positionInputActive,
+  );
   const connectionState = useGameStore((state) => state.connectionState);
   const extendedCommands = useGameStore((state) => state.extendedCommands);
   const controller = useGameStore((state) => state.engineController);
@@ -18815,7 +18818,7 @@ export default function App(): JSX.Element {
       {isFpsPlayMode &&
       characterCreationConfig !== null &&
       connectionState === "running" &&
-      !positionRequest &&
+      !positionInputActive &&
       !loadingVisible ? (
         <div aria-hidden="true" className="nh3d-fps-crosshair">
           <div className="nh3d-fps-crosshair-dot" />

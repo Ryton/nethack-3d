@@ -9060,7 +9060,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           const playerTileKey = `${data.x},${data.y}`;
           const shouldKeepPlayerTileBillboard =
             this.getFpsPlayerTileBillboardBehaviorFromCache(playerTileKey) !==
-            null;
+              null || this.isFpsFarLookViewActive();
           if (!shouldKeepPlayerTileBillboard) {
             this.removeMonsterBillboard(playerTileKey);
           }
@@ -10988,6 +10988,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldSuppressRecentPreviousPlayerTileInFps =
       tileRelation.isTrailSuppressedTile &&
       (tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial);
+    const shouldKeepVisiblePlayerBillboardInFarLook =
+      this.isFpsFarLookViewActive() &&
+      tileRelation.isCurrentPlayerTile &&
+      this.hasExplicitPlayerVisual(
+        behavior,
+        typeof tile?.char === "string" ? tile.char : null,
+      );
     const fpsPlayerTileBillboardBehavior = tileRelation.isCurrentPlayerTile
       ? this.getFpsPlayerTileBillboardBehaviorFromCache(key, behavior)
       : null;
@@ -11020,7 +11027,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
               this.isAltarOrTombstoneLikeBehavior(behavior))) &&
           (this.clientOptions.tilesetMode === "tiles" || this.isFpsMode()) &&
           !tileRelation.isCurrentPlayerTile) ||
-        fpsPlayerTileBillboardBehavior !== null;
+        fpsPlayerTileBillboardBehavior !== null ||
+        shouldKeepVisiblePlayerBillboardInFarLook;
       if (shouldHaveElevatedBillboard && !this.monsterBillboards.has(key)) {
         this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
           runtimeTileIndex:
@@ -11395,6 +11403,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private refreshCurrentPlayerTileVisualFromStateCache(): void {
+    if (!this.hasSeenPlayerPosition) {
+      return;
+    }
+    this.refreshTileVisualFromStateCache(this.playerPos.x, this.playerPos.y);
+  }
+
+  private hasExplicitPlayerVisual(
+    behavior: TileBehaviorResult | null,
+    runtimeChar?: string | null,
+  ): boolean {
+    if (!behavior) {
+      return false;
+    }
+    if (behavior.materialKind === "player") {
+      return true;
+    }
+    const chars = [
+      runtimeChar,
+      behavior.glyphChar,
+      behavior.effective.char,
+      behavior.resolved.char,
+    ];
+    return chars.some(
+      (value) => typeof value === "string" && value.trim() === "@",
+    );
+  }
+
   private refreshAsciiPlayerTilesAfterPositionUpdate(
     fromX: number,
     fromY: number,
@@ -11501,12 +11537,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
    * @param x The x coordinate of the tile
    * @param y The y coordinate of the tile
    */
-  public requestTileUpdate(x: number, y: number): void {
-    // Temporarily disable explicit per-tile refresh requests across all
-    // runtimes so we can verify whether newer state-sync logic still needs
-    // them. Keep the public entry point intact for easy re-enable if needed.
-    void x;
-    void y;
+  public requestTileUpdate(
+    x: number,
+    y: number,
+    options: { forceRuntime?: boolean } = {},
+  ): void {
+    if (!options.forceRuntime) {
+      // Temporarily disable explicit per-tile refresh requests across all
+      // runtimes so we can verify whether newer state-sync logic still needs
+      // them. Keep the public entry point intact for easy re-enable if needed.
+      void x;
+      void y;
+      return;
+    }
+    if (!this.session) {
+      console.log("Cannot request tile update - runtime not started");
+      return;
+    }
+    console.log(`Requesting tile update at (${x}, ${y})`);
+    this.session.requestTileUpdate(x, y);
   }
   public requestAreaUpdate(
     centerX: number,
@@ -11559,8 +11608,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private requestTileUpdateWithRetry(x: number, y: number): void {
-    this.requestTileUpdate(x, y);
+  private requestTileUpdateWithRetry(
+    x: number,
+    y: number,
+    options: { forceRuntime?: boolean } = {},
+  ): void {
+    this.requestTileUpdate(x, y, options);
     if (typeof window === "undefined") {
       return;
     }
@@ -11579,7 +11632,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         activePlan.timerIds = activePlan.timerIds.filter(
           (id) => id !== timerId,
         );
-        this.requestTileUpdate(x, y);
+        this.requestTileUpdate(x, y, options);
         if (activePlan.timerIds.length <= 0) {
           this.tileRefreshRetryPlansByKey.delete(key);
         }
@@ -11591,7 +11644,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     scheduleRetry(this.tileRefreshRetryDelayMs * 2);
   }
 
-  private requestPlayerTileRefresh(reason: string): void {
+  private requestPlayerTileRefresh(
+    reason: string,
+    options: { forceRuntime?: boolean } = {},
+  ): void {
     if (!this.session) {
       return;
     }
@@ -11605,7 +11661,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     console.log(
       `Requesting player tile refresh (${reason}) at (${this.playerPos.x}, ${this.playerPos.y})`,
     );
-    this.requestTileUpdateWithRetry(this.playerPos.x, this.playerPos.y);
+    this.requestTileUpdateWithRetry(this.playerPos.x, this.playerPos.y, options);
   }
 
   private flushDeferredPlayerTileRefreshIfNeeded(trigger: string): void {
@@ -20639,6 +20695,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.pendingPlayerTileRefreshOnNextPosition = true;
     this.lightingCenterInitialized = false;
     this.positionInputModeActive = false;
+    this.uiAdapter.setPositionInputActive(false);
     this.hasRuntimePositionCursor = false;
     this.clearPositionCursor();
     console.log("🧹 Clearing all tiles and glyph overlays from 3D scene");
@@ -20845,6 +20902,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ),
       );
       this.positionInputModeActive = false;
+      this.uiAdapter.setPositionInputActive(false);
       this.hasRuntimePositionCursor = false;
       this.fpsPositionCursorCameraInitialized = false;
       this.fpsPositionCursorManualOverrideUntilMs = 0;
@@ -20853,6 +20911,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.fpsPositionCursorEntryCameraPitch !== null;
       this.clearPositionCursor();
       this.uiAdapter.setPositionRequest(null);
+      this.refreshCurrentPlayerTileVisualFromStateCache();
       this.syncFpsPointerLockForUiState(true);
       return;
     }
@@ -20866,6 +20925,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.positionHideTimerId = null;
     }
     this.positionInputModeActive = true;
+    this.uiAdapter.setPositionInputActive(true);
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
     this.fpsPositionCursorReturnActive = false;
@@ -20882,6 +20942,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.positionCursor = { ...this.playerPos };
     }
     this.updatePositionCursorOutline();
+    this.refreshCurrentPlayerTileVisualFromStateCache();
+    if (this.isFpsMode()) {
+      this.requestPlayerTileRefresh("fps-far-look-enter", {
+        forceRuntime: true,
+      });
+    }
   }
 
   private setPositionCursorPosition(x: number, y: number): void {
@@ -21350,6 +21416,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.hasSeenPlayerPosition &&
       tileX === this.playerPos.x &&
       tileY === this.playerPos.y;
+    const usePlayerCentricFacing =
+      this.isFpsMode() &&
+      this.hasSeenPlayerPosition &&
+      !this.isFpsFarLookViewActive();
 
     const proxy = this.ensureMonsterBillboardPitchLockedProxyMesh(sprite);
     if (!proxy) {
@@ -21359,7 +21429,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     proxy.position.copy(sprite.position);
     proxy.scale.copy(sprite.scale);
-    if (isCurrentPlayerTile && this.isFpsMode()) {
+    if (isCurrentPlayerTile && usePlayerCentricFacing) {
       const previousTile = this.fpsLastPlayerMoveFromTile;
       if (previousTile) {
         this.fpsPitchLockedBillboardRight.set(
@@ -21384,7 +21454,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         : 0.5;
     proxy.position.z += (0.5 - spriteCenterY) * proxy.scale.y;
     proxy.renderOrder = sprite.renderOrder;
-    if (this.isFpsMode() && this.hasSeenPlayerPosition) {
+    if (usePlayerCentricFacing) {
       this.fpsPitchLockedBillboardForward.set(
         this.playerPos.x * TILE_SIZE - proxy.position.x,
         -this.playerPos.y * TILE_SIZE - proxy.position.y,
@@ -22810,7 +22880,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const shouldKeepVisiblePlayerBillboardInFarLook =
       this.isFpsFarLookViewActive() &&
       tileRelation.isCurrentPlayerTile &&
-      (tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial);
+      this.hasExplicitPlayerVisual(behavior, char);
     const shouldSuppressPlayerTileVisualInFps =
       this.isFpsMode() &&
       ((tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial) &&
@@ -24328,6 +24398,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.closeAnyTileContextMenu(false);
 
     this.uiAdapter.setPositionRequest(null);
+    this.uiAdapter.setPositionInputActive(false);
     this.uiAdapter.setFpsCrosshairContext(null);
     this.uiAdapter.setRepeatActionVisible(false);
 
@@ -26727,6 +26798,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.hideInfoMenuDialog();
     this.closeAnyTileContextMenu(false);
     this.uiAdapter.setPositionRequest(null);
+    this.uiAdapter.setPositionInputActive(false);
     this.uiAdapter.setRepeatActionVisible(false);
     this.uiAdapter.setFpsCrosshairContext(null);
     this.uiAdapter.setNewGamePrompt({ visible: false, reason: null });

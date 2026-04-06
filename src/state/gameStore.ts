@@ -65,6 +65,7 @@ type GameStore = {
   repeatActionVisible: boolean;
   extendedCommands: string[];
   positionRequest: string | null;
+  positionInputActive: boolean;
   newGamePrompt: NewGamePromptState;
   gameOver: GameOverState;
   engineController: Nethack3DEngineController | null;
@@ -88,6 +89,7 @@ type GameStore = {
   setRepeatActionVisible: (visible: boolean) => void;
   setExtendedCommands: (commands: string[]) => void;
   setPositionRequest: (text: string | null) => void;
+  setPositionInputActive: (active: boolean) => void;
   setNewGamePrompt: (prompt: NewGamePromptState) => void;
   setGameOver: (state: GameOverState) => void;
   setEngineController: (controller: Nethack3DEngineController | null) => void;
@@ -123,6 +125,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   repeatActionVisible: false,
   extendedCommands: [],
   positionRequest: null,
+  positionInputActive: false,
   newGamePrompt: { visible: false, reason: null },
   gameOver: {
     active: false,
@@ -223,6 +226,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   setPositionRequest: (text) => {
     set({ positionRequest: text });
+  },
+  setPositionInputActive: (active) => {
+    set({ positionInputActive: Boolean(active) });
   },
   setNewGamePrompt: (prompt) => {
     set({ newGamePrompt: prompt });

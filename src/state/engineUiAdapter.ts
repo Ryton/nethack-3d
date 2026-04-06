@@ -58,6 +58,9 @@ export function createEngineUiAdapter(): Nethack3DEngineUIAdapter {
     setPositionRequest(text: string | null): void {
       useGameStore.getState().setPositionRequest(text);
     },
+    setPositionInputActive(active: boolean): void {
+      useGameStore.getState().setPositionInputActive(active);
+    },
     setFpsCrosshairContext(state): void {
       useGameStore.getState().setFpsCrosshairContext(state);
     },
