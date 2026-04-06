@@ -10430,6 +10430,60 @@ export default function App(): JSX.Element {
     setTextInputValue("");
   };
 
+  const pickupQuestionInitialFocusSeed = useMemo(() => {
+    if (!question?.isPickupDialog) {
+      return null;
+    }
+    const selectableKeys = question.menuItems
+      .filter((item) => isSelectableQuestionMenuItem(item))
+      .map((item, index) => {
+        const selectionInput = getMenuSelectionInput(item).trim();
+        return selectionInput.length > 0
+          ? selectionInput
+          : `${index}:${String(item.text || "").trim()}`;
+      })
+      .join("|");
+    return `${String(question.text || "").trim()}|${question.menuPageIndex ?? 0}|${selectableKeys}`;
+  }, [question]);
+
+  const pickupQuestionLastInitialFocusSeedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+    if (!pickupQuestionInitialFocusSeed) {
+      pickupQuestionLastInitialFocusSeedRef.current = null;
+      return;
+    }
+    if (
+      pickupQuestionLastInitialFocusSeedRef.current ===
+      pickupQuestionInitialFocusSeed
+    ) {
+      return;
+    }
+    pickupQuestionLastInitialFocusSeedRef.current = pickupQuestionInitialFocusSeed;
+    const timerId = window.setTimeout(() => {
+      const questionDialog = document.querySelector<HTMLElement>(
+        "#question-dialog.nh3d-dialog.is-visible",
+      );
+      if (!questionDialog) {
+        return;
+      }
+      const firstPickupItem = questionDialog.querySelector<HTMLElement>(
+        ".nh3d-pickup-item[tabindex='0']",
+      );
+      if (!firstPickupItem) {
+        return;
+      }
+      firstPickupItem.focus({ preventScroll: true });
+      firstPickupItem.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }, 0);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [pickupQuestionInitialFocusSeed]);
+
   const startNewGameFromPrompt = (): void => {
     setReopenNewGamePromptOnInteraction(false);
     setDeferredNewGamePromptReason(null);
