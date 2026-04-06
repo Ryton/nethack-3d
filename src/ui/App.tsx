@@ -18815,6 +18815,7 @@ export default function App(): JSX.Element {
       {isFpsPlayMode &&
       characterCreationConfig !== null &&
       connectionState === "running" &&
+      !positionRequest &&
       !loadingVisible ? (
         <div aria-hidden="true" className="nh3d-fps-crosshair">
           <div className="nh3d-fps-crosshair-dot" />

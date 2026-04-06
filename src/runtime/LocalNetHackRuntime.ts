@@ -1945,6 +1945,14 @@ class LocalNetHackRuntime {
     }
 
     if (clickButton === 0) {
+      if (
+        this.activeInputRequest?.kind === "position" &&
+        this.farLookMode === "active"
+      ) {
+        this.farLookMode = "none";
+        this.farLookOrigin = null;
+        this.setPositionInputActive(false);
+      }
       const playerX = Number(this.playerPosition?.x);
       const playerY = Number(this.playerPosition?.y);
       const clickedCurrentPlayerTile =
