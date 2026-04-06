@@ -7016,6 +7016,7 @@ export default function App(): JSX.Element {
     new Map(),
   );
   const inventoryKeyboardActivationKeysDownRef = useRef<Set<string>>(new Set());
+  const inventoryContextMenuKeyboardOpenPendingRef = useRef(false);
   const inventoryPointerClientYRef = useRef<number | null>(null);
   const inventoryPointerActiveRef = useRef(false);
   const inventoryRowProximityAnimationFrameRef = useRef<number | null>(null);
@@ -7084,6 +7085,53 @@ export default function App(): JSX.Element {
       return;
     }
     setInventoryContextTitleAnimationInstance((previous) => previous + 1);
+  }, [inventoryContextMenu]);
+  useEffect(() => {
+    if (
+      !inventoryContextMenu ||
+      !inventoryContextMenuKeyboardOpenPendingRef.current ||
+      typeof window === "undefined" ||
+      typeof document === "undefined"
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    let animationFrameId: number | null = null;
+    let remainingFrameAttempts = 4;
+    const focusFirstActionButton = (): void => {
+      if (cancelled) {
+        return;
+      }
+      const firstActionButton =
+        inventoryContextMenuRef.current?.querySelector<HTMLButtonElement>(
+          ".nh3d-context-menu-button:not(:disabled)",
+        ) ?? null;
+      if (!firstActionButton) {
+        if (remainingFrameAttempts <= 0) {
+          return;
+        }
+        remainingFrameAttempts -= 1;
+        animationFrameId = window.requestAnimationFrame(focusFirstActionButton);
+        return;
+      }
+      firstActionButton.focus({ preventScroll: true });
+      firstActionButton.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+      inventoryContextMenuKeyboardOpenPendingRef.current = false;
+    };
+    const timerId = window.setTimeout(() => {
+      focusFirstActionButton();
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [inventoryContextMenu]);
   const fpsCrosshairContextRenderState =
     fpsCrosshairContext ?? fpsCrosshairContextLastVisibleRef.current;
@@ -12435,6 +12483,7 @@ export default function App(): JSX.Element {
     (options?: { restoreItemFocus?: boolean }): void => {
       const shouldRestoreItemFocus = options?.restoreItemFocus === true;
       const activeContextMenu = inventoryContextMenuStateRef.current;
+      inventoryContextMenuKeyboardOpenPendingRef.current = false;
       setInventoryContextMenu(null);
       setInventoryDropTypeMenuPosition(null);
       if (shouldRestoreItemFocus && activeContextMenu?.accelerator) {
@@ -12847,7 +12896,10 @@ export default function App(): JSX.Element {
     clientX: number,
     clientY: number,
     anchorRect?: DOMRect | null,
+    options?: { focusMenu?: boolean },
   ): void => {
+    inventoryContextMenuKeyboardOpenPendingRef.current =
+      options?.focusMenu === true;
     setInventoryDropTypeMenuPosition(null);
     if (!inventoryContextActionsEnabled) {
       return;
@@ -18318,12 +18370,8 @@ export default function App(): JSX.Element {
                         target.right,
                         target.top + target.height / 2,
                         target,
+                        { focusMenu: true },
                       );
-                      if (typeof window !== "undefined") {
-                        window.requestAnimationFrame(() => {
-                          moveInventoryContextMenuActionFocus("right");
-                        });
-                      }
                     }}
                     role={inventoryContextActionsEnabled ? "button" : undefined}
                     tabIndex={inventoryContextActionsEnabled ? 0 : -1}
