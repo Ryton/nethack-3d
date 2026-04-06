@@ -12,11 +12,11 @@ export const ptBrOverrides = {
     close: "Fechar",
     back: "Voltar",
     yes: "Sim",
-    no: "NÃ£o",
+    no: "Não",
     delete: "Excluir",
     edit: "Editar",
     done: "Concluir",
-    resetToDefaults: "Restaurar padrÃµes",
+    resetToDefaults: "Restaurar padrões",
     later: "Mais tarde",
     checking: "Verificando...",
     downloading: "Baixando...",
@@ -29,78 +29,78 @@ export const ptBrOverrides = {
   controller: {
     groups: {
       movement: "Movimento",
-      lookAndCamera: "VisÃ£o e cÃ¢mera",
-      actions: "AÃ§Ãµes",
-      dialogs: "DiÃ¡logos",
+      lookAndCamera: "Visão e câmera",
+      actions: "Ações",
+      dialogs: "Diálogos",
       system: "Sistema",
     },
     actions: {
       dpad_up: {
         label: "Direcional para cima",
-        description: "Navega para cima em diÃ¡logos e na prÃ©via de movimento.",
+        description: "Navega para cima em diálogos e na prévia de movimento.",
       },
       dpad_down: {
         label: "Direcional para baixo",
-        description: "Navega para baixo em diÃ¡logos e na prÃ©via de movimento.",
+        description: "Navega para baixo em diálogos e na prévia de movimento.",
       },
       dpad_left: {
         label: "Direcional para a esquerda",
         description:
-          "Navega para a esquerda em diÃ¡logos e na prÃ©via de movimento.",
+          "Navega para a esquerda em diálogos e na prévia de movimento.",
       },
       dpad_right: {
         label: "Direcional para a direita",
         description:
-          "Navega para a direita em diÃ¡logos e na prÃ©via de movimento.",
+          "Navega para a direita em diálogos e na prévia de movimento.",
       },
       left_stick_up: {
-        label: "AnalÃ³gico esquerdo para cima",
-        description: "PrÃ©via de movimento e cursor virtual para cima.",
+        label: "Analógico esquerdo para cima",
+        description: "Prévia de movimento e cursor virtual para cima.",
       },
       left_stick_down: {
-        label: "AnalÃ³gico esquerdo para baixo",
-        description: "PrÃ©via de movimento e cursor virtual para baixo.",
+        label: "Analógico esquerdo para baixo",
+        description: "Prévia de movimento e cursor virtual para baixo.",
       },
       left_stick_left: {
-        label: "AnalÃ³gico esquerdo para a esquerda",
-        description: "PrÃ©via de movimento e cursor virtual para a esquerda.",
+        label: "Analógico esquerdo para a esquerda",
+        description: "Prévia de movimento e cursor virtual para a esquerda.",
       },
       left_stick_right: {
-        label: "AnalÃ³gico esquerdo para a direita",
-        description: "PrÃ©via de movimento e cursor virtual para a direita.",
+        label: "Analógico esquerdo para a direita",
+        description: "Prévia de movimento e cursor virtual para a direita.",
       },
       right_stick_up: {
-        label: "AnalÃ³gico direito para cima",
-        description: "Olhar, mover a cÃ¢mera e rolar diÃ¡logos para cima.",
+        label: "Analógico direito para cima",
+        description: "Olhar, mover a câmera e rolar diálogos para cima.",
       },
       right_stick_down: {
-        label: "AnalÃ³gico direito para baixo",
-        description: "Olhar, mover a cÃ¢mera e rolar diÃ¡logos para baixo.",
+        label: "Analógico direito para baixo",
+        description: "Olhar, mover a câmera e rolar diálogos para baixo.",
       },
       right_stick_left: {
-        label: "AnalÃ³gico direito para a esquerda",
-        description: "Olhar e mover a cÃ¢mera para a esquerda.",
+        label: "Analógico direito para a esquerda",
+        description: "Olhar e mover a câmera para a esquerda.",
       },
       right_stick_right: {
-        label: "AnalÃ³gico direito para a direita",
-        description: "Olhar e mover a cÃ¢mera para a direita.",
+        label: "Analógico direito para a direita",
+        description: "Olhar e mover a câmera para a direita.",
       },
       confirm: {
         label: "Confirmar / Clique",
-        description: "Confirma movimentos e clica em diÃ¡logos.",
+        description: "Confirma movimentos e clica em diálogos.",
       },
       search: {
         label: "Procurar",
         description:
-          "Procura no quadrado atual quando nÃ£o houver prÃ©via de movimento ativa.",
+          "Procura no quadrado atual quando não houver prévia de movimento ativa.",
       },
       cancel_or_context: {
         label: "Cancelar / Contexto",
-        description: "Abre aÃ§Ãµes de contexto ou cancela o diÃ¡logo atual.",
+        description: "Abre ações de contexto ou cancela o diálogo atual.",
       },
       action_menu: {
-        label: "Menu de aÃ§Ãµes",
-        description: "Abre o menu radial de aÃ§Ãµes do controle.",
+        label: "Menu de ações",
+        description: "Abre o menu radial de ações do controle.",
       },
       run_modifier: {
         label: "Modificador de corrida",
@@ -110,11 +110,11 @@ export const ptBrOverrides = {
       zoom_in: {
         label: "Zoom (segurar)",
         description:
-          "Segure e use o analÃ³gico esquerdo ou direito para cima/baixo para aproximar ou afastar.",
+          "Segure e use o analógico esquerdo ou direito para cima/baixo para aproximar ou afastar.",
       },
       recenter_camera: {
-        label: "Recentralizar cÃ¢mera",
-        description: "Retorna a cÃ¢mera ao centro do jogador.",
+        label: "Recentralizar câmera",
+        description: "Retorna a câmera ao centro do jogador.",
       },
       toggle_large_minimap: {
         label: "Alternar minimapa grande",
@@ -125,8 +125,8 @@ export const ptBrOverrides = {
         description: "Abre ou fecha o menu de pausa.",
       },
       open_inventory: {
-        label: "InventÃ¡rio",
-        description: "Abre a janela de inventÃ¡rio.",
+        label: "Inventário",
+        description: "Abre a janela de inventário.",
       },
       open_character: {
         label: "Ficha do personagem",
@@ -138,39 +138,39 @@ export const ptBrOverrides = {
       1: "B",
       2: "X",
       3: "Y",
-      4: "BotÃ£o superior esquerdo",
-      5: "BotÃ£o superior direito",
+      4: "Botão superior esquerdo",
+      5: "Botão superior direito",
       6: "Gatilho esquerdo",
       7: "Gatilho direito",
       8: "Voltar / Exibir",
       9: "Iniciar / Menu",
-      10: "Clique no analÃ³gico esquerdo",
-      11: "Clique no analÃ³gico direito",
+      10: "Clique no analógico esquerdo",
+      11: "Clique no analógico direito",
       12: "Direcional para cima",
       13: "Direcional para baixo",
       14: "Direcional para a esquerda",
       15: "Direcional para a direita",
-      16: "InÃ­cio",
+      16: "Início",
     },
     axisLabels: {
-      0: "AnalÃ³gico esquerdo X",
-      1: "AnalÃ³gico esquerdo Y",
-      2: "AnalÃ³gico direito X",
-      3: "AnalÃ³gico direito Y",
+      0: "Analógico esquerdo X",
+      1: "Analógico esquerdo Y",
+      2: "Analógico direito X",
+      3: "Analógico direito Y",
     },
     directions: {
-      leftStickLeft: "AnalÃ³gico esquerdo para a esquerda",
-      leftStickRight: "AnalÃ³gico esquerdo para a direita",
-      leftStickUp: "AnalÃ³gico esquerdo para cima",
-      leftStickDown: "AnalÃ³gico esquerdo para baixo",
-      rightStickLeft: "AnalÃ³gico direito para a esquerda",
-      rightStickRight: "AnalÃ³gico direito para a direita",
-      rightStickUp: "AnalÃ³gico direito para cima",
-      rightStickDown: "AnalÃ³gico direito para baixo",
+      leftStickLeft: "Analógico esquerdo para a esquerda",
+      leftStickRight: "Analógico esquerdo para a direita",
+      leftStickUp: "Analógico esquerdo para cima",
+      leftStickDown: "Analógico esquerdo para baixo",
+      rightStickLeft: "Analógico direito para a esquerda",
+      rightStickRight: "Analógico direito para a direita",
+      rightStickUp: "Analógico direito para cima",
+      rightStickDown: "Analógico direito para baixo",
     },
-    unbound: "Sem atribuiÃ§Ã£o",
+    unbound: "Sem atribuição",
     axisFallback: (axisIndex: number) => `Eixo ${axisIndex}`,
-    buttonFallback: (buttonIndex: number) => `BotÃ£o ${buttonIndex}`,
+    buttonFallback: (buttonIndex: number) => `Botão ${buttonIndex}`,
     slotLabel: (slotIndex: number) => `Slot ${slotIndex + 1}`,
     listening: "Aguardando entrada...",
     clear: "Limpar",
@@ -180,42 +180,42 @@ export const ptBrOverrides = {
   },
   startupInitOptions: {
     accordion: {
-      summary: "OpÃ§Ãµes de inicializaÃ§Ã£o (opcional)",
+      summary: "Opções de inicialização (opcional)",
       description:
-        "Entradas extras de `OPTIONS` do NetHack aplicadas na inicializaÃ§Ã£o. OpÃ§Ãµes especÃ­ficas de plataforma e de window-port foram omitidas de propÃ³sito.",
-      resetToDefaults: "Restaurar padrÃµes",
+        "Entradas extras de `OPTIONS` do NetHack aplicadas na inicialização. Opções específicas de plataforma e de window-port foram omitidas de propósito.",
+      resetToDefaults: "Restaurar padrões",
     },
     options: {
       playmode: {
         label: "Modo de jogo",
         description:
-          "Escolha o modo inicial. O modo assistente Ã© o modo de depuraÃ§Ã£o do NetHack (`playmode:debug`).",
+          "Escolha o modo inicial. O modo assistente é o modo de depuração do NetHack (`playmode:debug`).",
         options: {
           normal: "Normal",
-          explore: "ExploraÃ§Ã£o",
-          debug: "Assistente/DepuraÃ§Ã£o",
+          explore: "Exploração",
+          debug: "Assistente/Depuração",
         },
       },
       autopickup: {
-        label: "Coleta automÃ¡tica",
+        label: "Coleta automática",
         description:
           "Coleta automaticamente as classes de itens selecionadas em tipos de coleta.",
       },
       pickup_types: {
         label: "Tipos de coleta",
         description:
-          'SÃ­mbolos de classes de objeto para coleta automÃ¡tica (exemplo: $"=/!?+). Deixe em branco para usar o padrÃ£o do jogo.',
+          'Símbolos de classes de objeto para coleta automática (exemplo: $"=/!?+). Deixe em branco para usar o padrão do jogo.',
         placeholder: '$"=/!?+',
       },
       pickup_thrown: {
         label: "Coletar itens arremessados",
         description:
-          "Coleta automaticamente itens arremessados quando eles caem no chÃ£o.",
+          "Coleta automaticamente itens arremessados quando eles caem no chão.",
       },
       pickup_burden: {
         label: "Limite de carga para coleta",
         description:
-          "Pergunta antes de coletar quando esse nÃ­vel de carga seria ultrapassado.",
+          "Pergunta antes de coletar quando esse nível de carga seria ultrapassado.",
         options: {
           u: "Sem carga (u)",
           b: "Carregado (b)",
@@ -228,31 +228,31 @@ export const ptBrOverrides = {
       pile_limit: {
         label: "Limite de pilha",
         description:
-          "Quantidade de itens que aciona uma lista em popup para pilhas no chÃ£o.",
+          "Quantidade de itens que aciona uma lista em popup para pilhas no chão.",
       },
       autoquiver: {
-        label: "Aljava automÃ¡tica",
+        label: "Aljava automática",
         description:
           "Preenche a aljava automaticamente ou prepara uma arma adequada ao atirar.",
       },
       autoopen: {
         label: "Abrir automaticamente",
         description:
-          "Tenta abrir portas automaticamente ao se mover em direÃ§Ã£o a elas.",
+          "Tenta abrir portas automaticamente ao se mover em direção a elas.",
       },
       autodig: {
         label: "Escavar automaticamente",
         description:
-          "Escava automaticamente paredes quando possÃ­vel ao se mover contra elas.",
+          "Escava automaticamente paredes quando possível ao se mover contra elas.",
       },
       cmdassist: {
-        label: "AssistÃªncia de comandos",
+        label: "Assistência de comandos",
         description:
-          "Mostra texto de ajuda extra quando comandos sÃ£o digitados incorretamente.",
+          "Mostra texto de ajuda extra quando comandos são digitados incorretamente.",
       },
       confirm: {
         label: "Confirmar ataques",
-        description: "Pergunta antes de atacar criaturas pacÃ­ficas.",
+        description: "Pergunta antes de atacar criaturas pacíficas.",
       },
       safe_pet: {
         label: "Proteger mascote",
@@ -261,33 +261,33 @@ export const ptBrOverrides = {
       help: {
         label: "Ajuda no jogo",
         description:
-          "Pergunta se deve mostrar detalhes extras de observaÃ§Ã£o/ajuda quando houver mais informaÃ§Ãµes.",
+          "Pergunta se deve mostrar detalhes extras de observação/ajuda quando houver mais informações.",
       },
       legacy: {
-        label: "IntroduÃ§Ã£o clÃ¡ssica",
-        description: "Mostra a introduÃ§Ã£o da histÃ³ria ao iniciar um novo jogo.",
+        label: "Introdução clássica",
+        description: "Mostra a introdução da história ao iniciar um novo jogo.",
       },
       rest_on_space: {
-        label: "Descansar com espaÃ§o",
-        description: "Trata a tecla de espaÃ§o como esperar/descansar.",
+        label: "Descansar com espaço",
+        description: "Trata a tecla de espaço como esperar/descansar.",
       },
       pushweapon: {
         label: "Empurrar arma",
-        description: "Move a arma empunhada para a mÃ£o secundÃ¡ria ao trocar.",
+        description: "Move a arma empunhada para a mão secundária ao trocar.",
       },
       extmenu: {
         label: "Menu de comandos estendidos",
         description: "Usa um menu popup para comandos estendidos.",
       },
       fixinv: {
-        label: "Fixar letras do inventÃ¡rio",
+        label: "Fixar letras do inventário",
         description:
-          "Tenta preservar as letras do inventÃ¡rio conforme os itens mudam.",
+          "Tenta preservar as letras do inventário conforme os itens mudam.",
       },
       implicit_uncursed: {
-        label: "Mostrar 'nÃ£o amaldiÃ§oado'",
+        label: "Mostrar 'não amaldiçoado'",
         description:
-          "Sempre inclui a expressÃ£o 'nÃ£o amaldiÃ§oado' nas descriÃ§Ãµes do inventÃ¡rio.",
+          "Sempre inclui a expressão 'não amaldiçoado' nas descrições do inventário.",
       },
       mention_walls: {
         label: "Mencionar paredes",
@@ -296,7 +296,7 @@ export const ptBrOverrides = {
       sortloot: {
         label: "Ordenar listas de saque",
         description:
-          "Comportamento de ordenaÃ§Ã£o para listas de coleta e seleÃ§Ã£o do inventÃ¡rio.",
+          "Comportamento de ordenação para listas de coleta e seleção do inventário.",
         options: {
           f: "Completo",
           l: "Apenas saque",
@@ -304,36 +304,36 @@ export const ptBrOverrides = {
         },
       },
       sortpack: {
-        label: "Ordenar inventÃ¡rio",
+        label: "Ordenar inventário",
         description:
-          "Ordena o conteÃºdo da mochila por tipo ao exibir o inventÃ¡rio.",
+          "Ordena o conteúdo da mochila por tipo ao exibir o inventário.",
       },
       msghistory: {
-        label: "Tamanho do histÃ³rico de mensagens",
+        label: "Tamanho do histórico de mensagens",
         description:
-          "NÃºmero de mensagens da linha superior mantidas para consulta.",
+          "Número de mensagens da linha superior mantidas para consulta.",
       },
       dogname: {
         label: "Nome do cachorro",
-        description: "Nome padrÃ£o para seu primeiro cachorro.",
+        description: "Nome padrão para seu primeiro cachorro.",
         placeholder: "Fido",
       },
       catname: {
         label: "Nome do gato",
-        description: "Nome padrÃ£o para seu primeiro gato.",
+        description: "Nome padrão para seu primeiro gato.",
         placeholder: "Morris",
       },
       horsename: {
         label: "Nome do cavalo",
-        description: "Nome padrÃ£o para seu primeiro cavalo.",
+        description: "Nome padrão para seu primeiro cavalo.",
         placeholder: "Silver",
       },
       pettype: {
         label: "Mascote preferido",
         description:
-          "Tipo de mascote inicial preferido para papÃ©is que podem variar.",
+          "Tipo de mascote inicial preferido para papéis que podem variar.",
         options: {
-          default: "PadrÃ£o do jogo",
+          default: "Padrão do jogo",
           cat: "Gato",
           dog: "Cachorro",
           horse: "Cavalo",
@@ -347,32 +347,32 @@ export const ptBrOverrides = {
       },
       packorder: {
         label: "Ordem da mochila",
-        description: "Ordem das classes de itens exibidas no inventÃ¡rio.",
+        description: "Ordem das classes de itens exibidas no inventário.",
         placeholder: '")[%?+/=!(*0_`',
       },
       paranoid_confirmation: {
-        label: "ConfirmaÃ§Ã£o paranoica",
+        label: "Confirmação paranoica",
         description:
-          "ConfirmaÃ§Ãµes extras separadas por espaÃ§o (exemplo: confirm quit attack pray).",
+          "Confirmações extras separadas por espaço (exemplo: confirm quit attack pray).",
         placeholder: "confirm quit attack pray",
       },
       sparkle: {
-        label: "Brilho da resistÃªncia mÃ¡gica",
+        label: "Brilho da resistência mágica",
         description:
-          "Mostra efeitos especiais de brilho para resistÃªncia mÃ¡gica.",
+          "Mostra efeitos especiais de brilho para resistência mágica.",
       },
       standout: {
         label: "Monstros/--More-- destacados",
         description: "Destaca monstros e prompts de --More-- em negrito.",
       },
       tombstone: {
-        label: "LÃ¡pide",
-        description: "Mostra a lÃ¡pide ao morrer.",
+        label: "Lápide",
+        description: "Mostra a lápide ao morrer.",
       },
       verbose: {
         label: "Mensagens detalhadas",
         description:
-          "Usa textos mais completos para mensagens de status e aÃ§Ãµes.",
+          "Usa textos mais completos para mensagens de status e ações.",
       },
     },
   },
@@ -394,50 +394,50 @@ export const ptBrOverrides = {
       "walk-up-stairs": "Subir escadas",
       eating: "Comendo",
       drink: "Beber",
-      "quaff-potion": "Beber uma poÃ§Ã£o",
+      "quaff-potion": "Beber uma poção",
       "pickup-gold": "Pegar ouro",
       "pickup-item": "Pegar item",
       "find-hidden": "Encontrar porta/passagem secreta",
-      "level-up": "Subir de nÃ­vel",
+      "level-up": "Subir de nível",
       unlock: "Destrancar",
       "boulder-push": "Empurrar pedra",
       "boulder-blocked": "Pedra bloqueada",
       splash: "Respingo",
       searching: "Procurando",
-      "magic-cast": "LanÃ§ar magia",
-      "magic-heal": "Cura mÃ¡gica",
-      "magic-buff": "BÃ´nus mÃ¡gico",
+      "magic-cast": "Lançar magia",
+      "magic-heal": "Cura mágica",
+      "magic-buff": "Bônus mágico",
     },
   },
   characterSheet: {
     titleFallback: "Ficha do personagem",
     sectionTitles: {
-      overview: "VisÃ£o geral",
-      background: "HistÃ³rico",
-      basics: "BÃ¡sico",
-      characteristics: "CaracterÃ­sticas atuais",
+      overview: "Visão geral",
+      background: "Histórico",
+      basics: "Básico",
+      characteristics: "Características atuais",
       status: "Estado atual",
       attributes: "Atributos atuais",
     },
     statLabels: {
-      strength: "ForÃ§a",
+      strength: "Força",
       dexterity: "Destreza",
-      constitution: "ConstituiÃ§Ã£o",
-      intelligence: "InteligÃªncia",
+      constitution: "Constituição",
+      intelligence: "Inteligência",
       wisdom: "Sabedoria",
       charisma: "Carisma",
     },
     commands: {
       enhance: {
         label: "Aprimorar",
-        detail: "Evoluir perÃ­cias",
+        detail: "Evoluir perícias",
       },
       conduct: {
         label: "Conduta",
         detail: "Mostrar progresso do desafio",
       },
       overview: {
-        label: "VisÃ£o geral",
+        label: "Visão geral",
         detail: "Mostrar progresso na masmorra",
       },
       spells: {
@@ -446,7 +446,7 @@ export const ptBrOverrides = {
       },
       seespells: {
         label: "Livro de magias",
-        detail: "Listar inventÃ¡rio de magias",
+        detail: "Listar inventário de magias",
       },
       technique: {
         label: "Tecnica",
@@ -466,16 +466,16 @@ export const ptBrOverrides = {
     schoolLabel: "Escola:",
     headings: {
       name: "Nome",
-      level: "NÃ­vel",
+      level: "Nível",
       category: "Categoria",
       fail: "Falha",
-      retention: "RetenÃ§Ã£o",
+      retention: "Retenção",
     },
     summary: {
       known: (count: number) => `${count} conhecidas`,
-      castable: (count: number) => `${count} lanÃ§Ã¡veis`,
+      castable: (count: number) => `${count} lançáveis`,
       bestSuccess: (percent: number) => `Melhor sucesso ${percent}%`,
-      averageFail: (percent: number) => `Falha mÃ©dia ${percent}%`,
+      averageFail: (percent: number) => `Falha média ${percent}%`,
       schoolCount: (count: number) =>
         `${count} escola${count === 1 ? "" : "s"}`,
     },
@@ -486,26 +486,26 @@ export const ptBrOverrides = {
     },
   },
   enhanceMenu: {
-    defaultGroupTitle: "PerÃ­cias",
+    defaultGroupTitle: "Perícias",
     availability: {
-      available_now: "DisponÃ­vel",
+      available_now: "Disponível",
       needs_experience: "Exp./Slots",
-      needs_practice: "PrÃ¡tica",
-      maxed_out: "No mÃ¡ximo",
+      needs_practice: "Prática",
+      maxed_out: "No máximo",
     },
     summary: {
-      available: (count: number) => `${count} disponÃ­veis`,
-      gated: (count: number) => `${count} bloqueadas por experiÃªncia/slots`,
-      practice: (count: number) => `${count} precisam de prÃ¡tica`,
-      maxed: (count: number) => `${count} no mÃ¡ximo`,
+      available: (count: number) => `${count} disponíveis`,
+      gated: (count: number) => `${count} bloqueadas por experiência/slots`,
+      practice: (count: number) => `${count} precisam de prática`,
+      maxed: (count: number) => `${count} no máximo`,
     },
-    maxLabel: "MÃ¡x",
+    maxLabel: "Máx",
     slotCount: (count: number) => `${count} slot${count === 1 ? "" : "s"}`,
   },
   app: {
-    unknownTime: "HorÃ¡rio desconhecido",
+    unknownTime: "Horário desconhecido",
     debugSession: {
-      possibleCrash: "possÃ­vel falha",
+      possibleCrash: "possível falha",
       active: "ativa",
     },
     debugLogs: {
@@ -514,12 +514,12 @@ export const ptBrOverrides = {
         currentCount: number,
         requiredCount: number,
       ) =>
-        `Build ${buildLabel}. Progresso do alternador oculto de logs de depuraÃ§Ã£o: ${currentCount} de ${requiredCount}.`,
-      enabledToast: "Log de depuraÃ§Ã£o ativado",
+        `Build ${buildLabel}. Progresso do alternador oculto de logs de depuração: ${currentCount} de ${requiredCount}.`,
+      enabledToast: "Log de depuração ativado",
       enabledLogEntry:
-        "Log de depuraÃ§Ã£o ativado pelo easter egg do rÃ³tulo da build inicial.",
-      openLink: "Ver logs de depuraÃ§Ã£o",
-      clearedLogEntry: "Logs de depuraÃ§Ã£o salvos foram limpos pelo usuÃ¡rio.",
+        "Log de depuração ativado pelo easter egg do rótulo da build inicial.",
+      openLink: "Ver logs de depuração",
+      clearedLogEntry: "Logs de depuração salvos foram limpos pelo usuário.",
     },
     statusEffects: {
       turningToStone: "Virando pedra",
@@ -538,7 +538,7 @@ export const ptBrOverrides = {
       barehanded: "Desarmado",
       busy: "Ocupado",
       iron: "Ferro",
-      glowingHands: "MÃ£os brilhantes",
+      glowingHands: "Mãos brilhantes",
       grabbed: "Agarrado",
       held: "Preso",
       icy: "Congelado",
@@ -556,29 +556,29 @@ export const ptBrOverrides = {
     characterStats: {
       descriptions: {
         strength:
-          "Afeta dano corpo a corpo, capacidade de carga e aÃ§Ãµes de forÃ§a.",
+          "Afeta dano corpo a corpo, capacidade de carga e ações de força.",
         dexterity:
-          "Afeta chance de acerto, interaÃ§Ã£o com armadilhas e agilidade defensiva.",
+          "Afeta chance de acerto, interação com armadilhas e agilidade defensiva.",
         constitution:
-          "Afeta crescimento de PV e resistÃªncia a veneno e drenagem.",
+          "Afeta crescimento de PV e resistência a veneno e drenagem.",
         intelligence:
-          "Afeta leitura e sucesso em muitas aÃ§Ãµes relacionadas a magia.",
+          "Afeta leitura e sucesso em muitas ações relacionadas a magia.",
         wisdom:
-          "Afeta crescimento de energia mÃ¡gica e confiabilidade ao lanÃ§ar magias.",
+          "Afeta crescimento de energia mágica e confiabilidade ao lançar magias.",
         charisma:
-          "Afeta interaÃ§Ãµes em lojas, manejo de mascotes e resultados sociais.",
+          "Afeta interações em lojas, manejo de mascotes e resultados sociais.",
       },
       armorClassDescription:
-        "Quanto menor, melhor. A classe de armadura reduz a chance de o inimigo acertar vocÃª.",
+        "Quanto menor, melhor. A classe de armadura reduz a chance de o inimigo acertar você.",
     },
     directionHelp: {
       controller:
-        "Clique em uma direÃ§Ã£o ou use o analÃ³gico esquerdo/DPAD para prÃ©-visualizar e solte para confirmar. O cÃ­rculo central mira em vocÃª. Use < ou > para escadas. Pressione ESC para cancelar.",
+        "Clique em uma direção ou use o analógico esquerdo/DPAD para pré-visualizar e solte para confirmar. O círculo central mira em você. Use < ou > para escadas. Pressione ESC para cancelar.",
       numpad:
-        "Clique em uma direÃ§Ã£o. O cÃ­rculo central mira em vocÃª. VocÃª tambÃ©m pode usar o teclado numÃ©rico (1-4,6-9), setas, <, > ou s. Pressione ESC para cancelar.",
+        "Clique em uma direção. O círculo central mira em você. Você também pode usar o teclado numérico (1-4,6-9), setas, <, > ou s. Pressione ESC para cancelar.",
       viKeys:
-        "Clique em uma direÃ§Ã£o. O cÃ­rculo central mira em vocÃª. VocÃª tambÃ©m pode usar hjkl/yubn, setas, <, > ou s. Pressione ESC para cancelar.",
-      fps: "Olhe para mirar. Clique esquerdo ou W confirma. S mira em vocÃª. A/D ou clique direito cancela.",
+        "Clique em uma direção. O círculo central mira em você. Você também pode usar hjkl/yubn, setas, <, > ou s. Pressione ESC para cancelar.",
+      fps: "Olhe para mirar. Clique esquerdo ou W confirma. S mira em você. A/D ou clique direito cancela.",
     },
     inventoryContextActions: {
       apply: "Aplicar",
@@ -605,13 +605,13 @@ export const ptBrOverrides = {
       adjust: "Ajustar",
       engrave: "Gravar",
       dip: "Mergulhar",
-      info: "InformaÃ§Ãµes",
+      info: "Informações",
       unwield: "Desequipar",
     },
     mobileActions: {
       wait: "Esperar",
       zap: "Disparar",
-      cast: "LanÃ§ar",
+      cast: "Lançar",
       kick: "Chutar",
       read: "Ler",
       quaff: "Beber",
@@ -632,48 +632,48 @@ export const ptBrOverrides = {
         controllerEnabled: {
           label: "Ativar suporte a controle",
           description:
-            "Ativa entrada de gamepad para a jogabilidade e diÃ¡logos da interface.",
+            "Ativa entrada de gamepad para a jogabilidade e diálogos da interface.",
         },
-        sectionControlsLook: "VisÃ£o e cÃ¢mera",
+        sectionControlsLook: "Visão e câmera",
         invertLookYAxis: {
-          label: "Inverter visÃ£o no eixo Y",
+          label: "Inverter visão no eixo Y",
           description:
-            "Inverte a direÃ§Ã£o vertical do mouselook e do olhar por toque.",
+            "Inverte a direção vertical do mouselook e do olhar por toque.",
         },
         fpsLookSensitivityX: {
-          label: "Sensibilidade de visÃ£o FPS X",
+          label: "Sensibilidade de visão FPS X",
           description: "Sensibilidade horizontal do mouselook/olhar por toque.",
         },
         fpsLookSensitivityY: {
-          label: "Sensibilidade de visÃ£o FPS Y",
+          label: "Sensibilidade de visão FPS Y",
           description: "Sensibilidade vertical do mouselook/olhar por toque.",
         },
         snapCameraYawToNearest45: {
-          label: "Ajustar rotaÃ§Ã£o da cÃ¢mera para 45 graus",
+          label: "Ajustar rotação da câmera para 45 graus",
           description:
-            "Quando a entrada de rotaÃ§Ã£o da cÃ¢mera Ã© solta, ajusta suavemente o Ã¢ngulo para o mÃºltiplo de 45 graus mais prÃ³ximo.",
+            "Quando a entrada de rotação da câmera é solta, ajusta suavemente o ângulo para o múltiplo de 45 graus mais próximo.",
         },
         sectionControlsMovement: "Comportamento de movimento",
         cameraRelativeMovement: {
-          label: "Movimento e gestos relativos Ã  cÃ¢mera",
+          label: "Movimento e gestos relativos à câmera",
           description:
-            "Gira teclas de movimento e direÃ§Ãµes de gesto com base no Ã¢ngulo do eixo Y da cÃ¢mera.",
+            "Gira teclas de movimento e direções de gesto com base no ângulo do eixo Y da câmera.",
         },
         controllerFpsMoveRepeatMs: {
-          label: "RepetiÃ§Ã£o de movimento FPS no analÃ³gico esquerdo",
+          label: "Repetição de movimento FPS no analógico esquerdo",
           description:
-            "Atraso de repetiÃ§Ã£o de movimento do analÃ³gico esquerdo no modo FPS (menor Ã© mais rÃ¡pido).",
+            "Atraso de repetição de movimento do analógico esquerdo no modo FPS (menor é mais rápido).",
         },
         groupInterface: "Interface do jogo",
         locale: {
           label: "Idioma",
           description:
-            "Escolha o idioma da interface. O padrÃ£o usa a regiÃ£o do navegador quando houver suporte, com inglÃªs como fallback.",
+            "Escolha o idioma da interface. O padrão usa a região do navegador quando houver suporte, com inglês como fallback.",
           options: {
-            en: "InglÃªs",
+            en: "Inglês",
           },
         },
-        sectionDisplayCamera: "CÃ¢mera e perspectiva",
+        sectionDisplayCamera: "Câmera e perspectiva",
         fpsMode: {
           label: "Modo em primeira pessoa",
           description: "Usa controles em primeira pessoa e mouselook.",
@@ -681,21 +681,21 @@ export const ptBrOverrides = {
         fpsFlattenEntityBillboards: {
           label: "Achatar sprites de tiles sobrepostos",
           description:
-            "Achata sprites de tiles de saque ou elementos da masmorra quando monstros, mascotes ou o jogador ficam sobre eles. Desative para manter sprites sobrepostos como billboards em pÃ©. Tiles de Vulture sempre permanecem em pÃ©.",
+            "Achata sprites de tiles de saque ou elementos da masmorra quando monstros, mascotes ou o jogador ficam sobre eles. Desative para manter sprites sobrepostos como billboards em pé. Tiles de Vulture sempre permanecem em pé.",
         },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "Mostrar itens sob o jogador em tiles superiores",
           description:
-            "Mostra itens e elementos do chÃ£o sob o jogador no modo de tiles superiores usando dados de glifos de camada inferior em tempo de execuÃ§Ã£o.",
+            "Mostra itens e elementos do chão sob o jogador no modo de tiles superiores usando dados de glifos de camada inferior em tempo de execução.",
         },
         fpsFov: {
-          label: "Campo de visÃ£o do FPS",
-          description: "Ajusta o campo de visÃ£o da cÃ¢mera em primeira pessoa.",
+          label: "Campo de visão do FPS",
+          description: "Ajusta o campo de visão da câmera em primeira pessoa.",
         },
-        sectionDisplayGraphics: "GrÃ¡ficos e renderizaÃ§Ã£o",
+        sectionDisplayGraphics: "Gráficos e renderização",
         tilesetMode: {
-          label: "ExibiÃ§Ã£o",
-          description: "Usa tiles grÃ¡ficos em vez de ASCII.",
+          label: "Exibição",
+          description: "Usa tiles gráficos em vez de ASCII.",
           options: {
             ascii: "ASCII",
             tiles: "Tiles",
@@ -706,20 +706,20 @@ export const ptBrOverrides = {
           description: "Tilesets internos e enviados.",
         },
         antialiasing: {
-          label: "SuavizaÃ§Ã£o de bordas",
-          description: "Modo de suavizaÃ§Ã£o de bordas para renderizaÃ§Ã£o 3D.",
+          label: "Suavização de bordas",
+          description: "Modo de suavização de bordas para renderização 3D.",
           options: {
             taa: "TAA",
             fxaa: "FXAA",
           },
         },
         lightingEnabled: {
-          label: "IluminaÃ§Ã£o",
+          label: "Iluminação",
           description:
-            "Ativa iluminaÃ§Ã£o dinÃ¢mica da cena e escurecimento da masmorra. Desative para uma renderizaÃ§Ã£o plana e sempre iluminada.",
+            "Ativa iluminação dinâmica da cena e escurecimento da masmorra. Desative para uma renderização plana e sempre iluminada.",
         },
         blockAmbientOcclusion: {
-          label: "OclusÃ£o de ambiente",
+          label: "Oclusão de ambiente",
           description:
             "Adiciona um sombreado sutil de contato entre blocos de piso e parede.",
         },
@@ -729,27 +729,27 @@ export const ptBrOverrides = {
         },
         contrast: {
           label: "Contraste",
-          description: "Ajusta o contraste global do conteÃºdo renderizado.",
+          description: "Ajusta o contraste global do conteúdo renderizado.",
         },
         gamma: {
           label: "Gama",
-          description: "Ajusta a gama de exibiÃ§Ã£o do conteÃºdo renderizado.",
+          description: "Ajusta a gama de exibição do conteúdo renderizado.",
         },
         sectionDisplayInterface: "Interface do jogo",
         uiFontScale: {
           label: "Escala da fonte da interface",
           description:
-            "Escala todos os tamanhos de fonte da interface do jogo a partir dos valores padrÃ£o.",
+            "Escala todos os tamanhos de fonte da interface do jogo a partir dos valores padrão.",
         },
         disableAnimatedTransitions: {
-          label: "Desativar transiÃ§Ãµes animadas",
+          label: "Desativar transições animadas",
           description:
-            "Desativa animaÃ§Ãµes de fade, movimento e transiÃ§Ã£o da interface para mudanÃ§as mais rÃ¡pidas.",
+            "Desativa animações de fade, movimento e transição da interface para mudanças mais rápidas.",
         },
         uiTileBackgroundRemoval: {
           label: "Remover fundos de tiles na interface",
           description:
-            "Aplica remoÃ§Ã£o de fundo por tile/chroma aos Ã­cones exibidos nos painÃ©is da interface.",
+            "Aplica remoção de fundo por tile/chroma aos ícones exibidos nos painéis da interface.",
         },
         desktopTouchInterfaceMode: {
           label: "Interface de toque no desktop",
@@ -769,21 +769,21 @@ export const ptBrOverrides = {
         },
         liveMessageLog: {
           label: "Registro de mensagens ao vivo",
-          description: "Exibe o registro de mensagens rolÃ¡vel dentro do jogo.",
+          description: "Exibe o registro de mensagens rolável dentro do jogo.",
         },
         liveMessageDisplayTimeMs: {
-          label: "Tempo de exibiÃ§Ã£o das mensagens ao vivo",
+          label: "Tempo de exibição das mensagens ao vivo",
           description:
-            "Tempo em que uma mensagem flutuante permanece totalmente visÃ­vel antes de desaparecer.",
+            "Tempo em que uma mensagem flutuante permanece totalmente visível antes de desaparecer.",
         },
         liveMessageFadeOutTimeMs: {
           label: "Tempo de fade das mensagens ao vivo",
-          description: "DuraÃ§Ã£o da animaÃ§Ã£o de desaparecimento das mensagens.",
+          description: "Duração da animação de desaparecimento das mensagens.",
         },
         liveMessageLogFontScale: {
           label: "Escala da fonte das mensagens ao vivo",
           description:
-            "Escala as mensagens flutuantes de aÃ§Ã£o a partir do tamanho padrÃ£o.",
+            "Escala as mensagens flutuantes de ação a partir do tamanho padrão.",
         },
         sectionDisplayMinimap: "Minimapa",
         minimap: {
@@ -792,27 +792,27 @@ export const ptBrOverrides = {
         },
         minimapScale: {
           label: "Escala do minimapa",
-          description: "Escala o tamanho do minimapa a partir do padrÃ£o.",
+          description: "Escala o tamanho do minimapa a partir do padrão.",
         },
-        sectionDisplayInventory: "ApresentaÃ§Ã£o do inventÃ¡rio",
+        sectionDisplayInventory: "Apresentação do inventário",
         reduceInventoryMotion: {
-          label: "Reduzir movimento do inventÃ¡rio",
+          label: "Reduzir movimento do inventário",
           description:
-            "Desativa a expansÃ£o animada das linhas do inventÃ¡rio e usa interaÃ§Ãµes mais simples.",
+            "Desativa a expansão animada das linhas do inventário e usa interações mais simples.",
         },
         inventoryTileOnlyMotion: {
-          label: "Animar apenas os tiles do inventÃ¡rio",
+          label: "Animar apenas os tiles do inventário",
           description:
-            "Anima os Ã­cones dos tiles enquanto mantÃ©m altura e espaÃ§amento das linhas fixos.",
+            "Anima os ícones dos tiles enquanto mantém altura e espaçamento das linhas fixos.",
         },
         inventoryFixedTileSize: {
-          label: "Tamanho fixo dos tiles do inventÃ¡rio",
+          label: "Tamanho fixo dos tiles do inventário",
           description:
-            "Aplica-se apenas quando Reduzir movimento do inventÃ¡rio estiver ativado. Escolha um tamanho fixo para os Ã­cones.",
+            "Aplica-se apenas quando Reduzir movimento do inventário estiver ativado. Escolha um tamanho fixo para os ícones.",
           options: {
             none: "Nenhum",
             small: "Pequeno",
-            medium: "MÃ©dio",
+            medium: "Médio",
             large: "Grande",
           },
         },
@@ -820,27 +820,27 @@ export const ptBrOverrides = {
         soundEnabled: {
           label: "Ativar som",
           description:
-            "Liga ou desliga o Ã¡udio FMOD. Desativar reduz o processamento de Ã¡udio em dispositivos mais fracos.",
+            "Liga ou desliga o áudio FMOD. Desativar reduz o processamento de áudio em dispositivos mais fracos.",
         },
-        groupMobileControls: "Controles mÃ³veis",
+        groupMobileControls: "Controles móveis",
         invertTouchPanningDirection: {
           label: "Inverter direção do deslocamento",
           description: "Inverte a direção do arrasto para mover a câmera após iniciar o gesto de segurar para mover.",
         },
         groupCombat: "Feedback de combate",
         damageNumbers: {
-          label: "NÃºmeros de dano",
-          description: "Mostra nÃºmeros flutuantes de dano e cura.",
+          label: "Números de dano",
+          description: "Mostra números flutuantes de dano e cura.",
         },
         displayStatChangesAbovePlayer: {
-          label: "Mostrar mudanÃ§as de atributos acima do jogador",
+          label: "Mostrar mudanças de atributos acima do jogador",
           description:
-            "Mostra rÃ³tulos flutuantes para mudanÃ§as de atributos como ForÃ§a e CA.",
+            "Mostra rótulos flutuantes para mudanças de atributos como Força e CA.",
         },
         displayXpGainsAbovePlayer: {
           label: "Mostrar ganhos de XP acima do jogador",
           description:
-            "Mostra rÃ³tulos flutuantes de XP quando a experiÃªncia aumenta.",
+            "Mostra rótulos flutuantes de XP quando a experiência aumenta.",
         },
         tileShakeOnHit: {
           label: "Tremor do tile ao acertar",
@@ -849,58 +849,58 @@ export const ptBrOverrides = {
         sectionCombatBlood: "Efeitos de sangue",
         blood: {
           label: "Sangue",
-          description: "Renderiza efeitos de nÃ©voa de sangue nos impactos.",
+          description: "Renderiza efeitos de névoa de sangue nos impactos.",
         },
         bloodMist: {
-          label: "NÃ©voa de sangue",
+          label: "Névoa de sangue",
           description:
-            "Renderiza partÃ­culas de nÃ©voa de sangue suspensas nos impactos.",
+            "Renderiza partículas de névoa de sangue suspensas nos impactos.",
         },
         bloodGround: {
           label: "Respingos de sangue",
           description:
-            "Renderiza respingos de sangue no chÃ£o da masmorra apÃ³s impactos.",
+            "Renderiza respingos de sangue no chão da masmorra após impactos.",
         },
         bloodStrength: {
           label: "Intensidade do sangue",
           description:
-            "Controla a intensidade visual das texturas e da coloraÃ§Ã£o do sangue.",
+            "Controla a intensidade visual das texturas e da coloração do sangue.",
         },
         bloodDetail: {
           label: "Detalhe do sangue",
           description:
-            "Escolhe a resoluÃ§Ã£o da textura de manchas de sangue por tile da masmorra.",
+            "Escolhe a resolução da textura de manchas de sangue por tile da masmorra.",
           options: {
             veryLow: "Muito baixo",
             low: "Baixo",
-            medium: "MÃ©dio",
+            medium: "Médio",
             high: "Alto",
           },
         },
         bloodColorLightHex: {
-          label: "Tonalidade clara do sangue no chÃ£o",
+          label: "Tonalidade clara do sangue no chão",
           description:
-            "Escolhe a tonalidade mais clara usada em manchas frescas de sangue no chÃ£o.",
+            "Escolhe a tonalidade mais clara usada em manchas frescas de sangue no chão.",
         },
         bloodColorDarkHex: {
-          label: "Tonalidade escura do sangue no chÃ£o",
+          label: "Tonalidade escura do sangue no chão",
           description:
-            "Escolhe a tonalidade mais escura usada em Ã¡reas densas de sangue no chÃ£o.",
+            "Escolhe a tonalidade mais escura usada em áreas densas de sangue no chão.",
         },
         bloodMistColorHex: {
-          label: "Tonalidade da nÃ©voa de sangue",
+          label: "Tonalidade da névoa de sangue",
           description:
-            "Escolhe a tonalidade base usada na nÃ©voa de sangue no ar.",
+            "Escolhe a tonalidade base usada na névoa de sangue no ar.",
         },
         monsterShatter: {
-          label: "EstilhaÃ§ar monstros",
+          label: "Estilhaçar monstros",
           description:
-            "Divide billboards de monstros derrotados em fragmentos fÃ­sicos.",
+            "Divide billboards de monstros derrotados em fragmentos físicos.",
         },
         monsterShatterBloodBorders: {
-          label: "Bordas sangrentas nos estilhaÃ§os",
+          label: "Bordas sangrentas nos estilhaços",
           description:
-            "Tinge pixels prÃ³ximos Ã s linhas de divisÃ£o com bordas vermelho-sangue aleatÃ³rias.",
+            "Tinge pixels próximos às linhas de divisão com bordas vermelho-sangue aleatórias.",
         },
         groupCompatibility: "Compatibilidade de runtime",
         darkCorridorWalls367: {
@@ -911,7 +911,7 @@ export const ptBrOverrides = {
         overrideNh37DarkCorridorWallTiles: {
           label: "Substituir tiles de paredes escuras do NetHack 3.7",
           description:
-            "Aplica configuraÃ§Ãµes de substituiÃ§Ã£o de paredes escuras aos tiles de corredor escuro do NetHack 3.7.",
+            "Aplica configurações de substituição de paredes escuras aos tiles de corredor escuro do NetHack 3.7.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Substituir tile de parede escura",
@@ -919,27 +919,27 @@ export const ptBrOverrides = {
             "Usa um tile personalizado do atlas para paredes escuras, salvo por tileset.",
         },
         darkCorridorWallSolidColorOverrideEnabled: {
-          label: "Usar cor sÃ³lida para paredes escuras",
+          label: "Usar cor sólida para paredes escuras",
           description:
             "Usa uma cor RGB escolhida em vez de um tile do tileset.",
         },
       },
       tabs: {
         display: {
-          label: "ExibiÃ§Ã£o",
-          description: "ConfiguraÃ§Ãµes de interface e exibiÃ§Ã£o.",
+          label: "Exibição",
+          description: "Configurações de interface e exibição.",
         },
         mobile: {
           label: "Celular",
-          description: "ConfiguraÃ§Ãµes de toque para jogar no celular.",
+          description: "Configurações de toque para jogar no celular.",
         },
         controls: {
           label: "Controles",
-          description: "Mapeamentos do controle, modo FPS e comportamento de visÃ£o.",
+          description: "Mapeamentos do controle, modo FPS e comportamento de visão.",
         },
         sound: {
           label: "Som",
-          description: "SaÃ­da de Ã¡udio e controles de som relacionados ao desempenho.",
+          description: "Saída de áudio e controles de som relacionados ao desempenho.",
         },
         combat: {
           label: "Combate",
@@ -947,12 +947,12 @@ export const ptBrOverrides = {
         },
         compatibility: {
           label: "Compatibilidade",
-          description: "Compatibilidade de runtime e alternÃ¢ncias de comportamento do NetHack.",
+          description: "Compatibilidade de runtime e alternâncias de comportamento do NetHack.",
         },
         updates: {
-          label: "AtualizaÃ§Ãµes",
+          label: "Atualizações",
           description:
-            "Verifique atualizaÃ§Ãµes online do jogo e revise mudanÃ§as pendentes.",
+            "Verifique atualizações online do jogo e revise mudanças pendentes.",
         },
       },
     },
@@ -963,59 +963,59 @@ export const ptBrOverrides = {
         runtime: "Iniciando runtime local...",
       },
       runtimeStoppedBeforeStartup:
-        "O runtime local do NetHack parou antes de a inicializaÃ§Ã£o terminar.",
-      preparingDownload: "Preparando download da atualizaÃ§Ã£o do jogo...",
-      idleStatus: "O status da atualizaÃ§Ã£o estÃ¡ ocioso.",
+        "O runtime local do NetHack parou antes de a inicialização terminar.",
+      preparingDownload: "Preparando download da atualização do jogo...",
+      idleStatus: "O status da atualização está ocioso.",
       fileProgress: (index: number, count: number) =>
         `Arquivo ${index} de ${count}`,
-      unexpectedCheckFailure: "Falha inesperada ao verificar atualizaÃ§Ã£o.",
+      unexpectedCheckFailure: "Falha inesperada ao verificar atualização.",
       cancelRequested: "Cancelamento solicitado.",
       stoppingActiveDownloadTask: "Interrompendo tarefa de download ativa.",
       unableToCancelDownload:
-        "NÃ£o foi possÃ­vel cancelar o download da atualizaÃ§Ã£o.",
+        "Não foi possível cancelar o download da atualização.",
       noActiveDownloadToCancel:
-        "NÃ£o hÃ¡ download de atualizaÃ§Ã£o ativo para cancelar.",
-      startingDownload: "Iniciando download da atualizaÃ§Ã£o do jogo.",
-      canceled: "O download da atualizaÃ§Ã£o foi cancelado.",
+        "Não há download de atualização ativo para cancelar.",
+      startingDownload: "Iniciando download da atualização do jogo.",
+      canceled: "O download da atualização foi cancelado.",
       unableToDownloadAndApply:
-        "NÃ£o foi possÃ­vel baixar e aplicar as atualizaÃ§Ãµes.",
-      failed: "A atualizaÃ§Ã£o falhou.",
-      latestAlreadyInstalled: "A atualizaÃ§Ã£o mais recente jÃ¡ estÃ¡ instalada.",
-      downloadComplete: "Download da atualizaÃ§Ã£o concluÃ­do.",
+        "Não foi possível baixar e aplicar as atualizações.",
+      failed: "A atualização falhou.",
+      latestAlreadyInstalled: "A atualização mais recente já está instalada.",
+      downloadComplete: "Download da atualização concluído.",
       nothingAppliedTryAgain:
-        "Nenhuma atualizaÃ§Ã£o foi aplicada. Tente verificar novamente.",
-      noFilesApplied: "Nenhum arquivo de atualizaÃ§Ã£o foi aplicado.",
-      unexpectedFailure: "Falha inesperada na atualizaÃ§Ã£o.",
-      checkingForUpdates: "Verificando lanÃ§amentos do GitHub...",
+        "Nenhuma atualização foi aplicada. Tente verificar novamente.",
+      noFilesApplied: "Nenhum arquivo de atualização foi aplicado.",
+      unexpectedFailure: "Falha inesperada na atualização.",
+      checkingForUpdates: "Verificando lançamentos do GitHub...",
       unsupportedPlatform:
-        "NÃ£o Ã© possÃ­vel verificar lanÃ§amentos do GitHub nesta plataforma.",
+        "Não é possível verificar lançamentos do GitHub nesta plataforma.",
       latestAlreadyInstalledOptions:
-        "VocÃª jÃ¡ tem a versÃ£o mais recente do jogo.",
+        "Você já tem a versão mais recente do jogo.",
       oneUpdateAvailable:
-        "Uma nova versÃ£o do jogo estÃ¡ disponÃ­vel. Deseja atualizar?",
+        "Uma nova versão do jogo está disponível. Deseja atualizar?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} versÃµes mais recentes do jogo estÃ£o disponÃ­veis. Deseja atualizar?`,
+        `${count} versões mais recentes do jogo estão disponíveis. Deseja atualizar?`,
       updateCheckFailed: (message: string) =>
-        `Falha ao verificar lanÃ§amentos do GitHub: ${message}`,
+        `Falha ao verificar lançamentos do GitHub: ${message}`,
     },
     saves: {
       sections: {
         manual: "Salvamentos manuais",
-        autosave: "Salvamentos automÃ¡ticos",
+        autosave: "Salvamentos automáticos",
       },
       deleteTitle: "Excluir jogo salvo?",
       deleteMessage: (name: string) =>
         `Tem certeza de que deseja excluir ${name}?`,
       overwriteTitle: "Sobrescrever jogo salvo?",
       overwriteMessage: (name: string) =>
-        `JÃ¡ existe um jogo salvo chamado "${name}". Deseja sobrescrevÃª-lo com um novo personagem?`,
+        `Já existe um jogo salvo chamado "${name}". Deseja sobrescrevê-lo com um novo personagem?`,
       errorLoading: "Erro ao carregar salvamentos",
       loading: "Carregando salvamentos...",
       noneFound: "Nenhum jogo salvo encontrado.",
       savedAt: (date: string) => `Salvo em: ${date}`,
     },
     tilesets: {
-      userTileset: "Tileset do usuÃ¡rio",
+      userTileset: "Tileset do usuário",
       currentSelectionFallback: "este tileset",
       deleteUploadedTitle: "Excluir tileset enviado?",
       deleteUploadedMessage: (label: string) =>
@@ -1025,20 +1025,20 @@ export const ptBrOverrides = {
       provideName: "Informe um nome para este tileset.",
       failedToSave: "Falha ao salvar tileset.",
       failedToLoadUploaded: "Falha ao carregar tilesets enviados:",
-      userTilesetSuffix: "Tileset do usuÃ¡rio (usuÃ¡rio)",
+      userTilesetSuffix: "Tileset do usuário (usuário)",
       noTilesetsFound: "Nenhum tileset encontrado",
       failedToReadImage: "Falha ao ler a imagem do tileset.",
     },
     tilePicker: {
-      noAtlasAvailable: "Nenhum atlas de tiles disponÃ­vel.",
-      unableToLoadAtlas: "NÃ£o foi possÃ­vel carregar o atlas de tiles.",
+      noAtlasAvailable: "Nenhum atlas de tiles disponível.",
+      unableToLoadAtlas: "Não foi possível carregar o atlas de tiles.",
       atlasLoaded: "Atlas de tiles carregado.",
       loadingAtlas: "Carregando atlas de tiles...",
       selectedTile: (tileId: number) => `Selecionado: tile #${tileId}`,
       glyph: (label: string) => `Glifo ${label}`,
       tile: (tileId: number) => `Tile ${tileId}`,
-      defaultBadge: "PadrÃ£o",
-      resetToDefault: "Restaurar padrÃ£o",
+      defaultBadge: "Padrão",
+      resetToDefault: "Restaurar padrão",
       darkWallTitle: "Seletor de tile de parede escura",
       closeDarkWall: "Fechar seletor de tile de parede escura",
       closeBackground: "Fechar seletor de tile de fundo do tileset",
@@ -1047,15 +1047,15 @@ export const ptBrOverrides = {
       backgroundTitle: "Seletor de tile de fundo do tileset",
       backgroundTitleWithLabel: (label: string) =>
         `Seletor de tile de fundo do tileset: ${label}`,
-      closeSolidColor: "Fechar seletor de cor sÃ³lida para chroma key",
-      solidColorTitle: "Seletor de chroma key de cor sÃ³lida",
+      closeSolidColor: "Fechar seletor de cor sólida para chroma key",
+      solidColorTitle: "Seletor de chroma key de cor sólida",
       solidColorTitleWithLabel: (label: string) =>
-        `Seletor de chroma key de cor sÃ³lida: ${label}`,
+        `Seletor de chroma key de cor sólida: ${label}`,
     },
     soundPack: {
-      discardChangesTitle: "Descartar alteraÃ§Ãµes do pacote de som?",
+      discardChangesTitle: "Descartar alterações do pacote de som?",
       discardChangesMessage:
-        "Descartar alteraÃ§Ãµes nÃ£o salvas do pacote de som e continuar?",
+        "Descartar alterações não salvas do pacote de som e continuar?",
       discard: "Descartar",
       keepEditing: "Continuar editando",
       failedToLoadIndexedDb: "Falha ao carregar pacotes de som do IndexedDB.",
@@ -1072,18 +1072,18 @@ export const ptBrOverrides = {
       imported: (name: string) => `Pacote de som "${name}" importado.`,
       deleteTitle: "Excluir pacote de som?",
       deleteMessage: (name: string) =>
-        `Excluir pacote de som "${name}"? Isso nÃ£o pode ser desfeito.`,
-      deleted: (name: string) => `Pacote de som "${name}" excluÃ­do.`,
+        `Excluir pacote de som "${name}"? Isso não pode ser desfeito.`,
+      deleted: (name: string) => `Pacote de som "${name}" excluído.`,
       failedToDelete: "Falha ao excluir pacote de som.",
-      noPreviewSource: "Nenhuma fonte de prÃ©via disponÃ­vel para este som.",
-      unableToPreview: "NÃ£o foi possÃ­vel reproduzir a prÃ©via deste som.",
+      noPreviewSource: "Nenhuma fonte de prévia disponível para este som.",
+      unableToPreview: "Não foi possível reproduzir a prévia deste som.",
       title: "Pacotes de som",
       activePack: "Pacote de som ativo",
       activePackDescription:
         "Selecione o pacote de som ativo usado para resolver caminhos de som.",
       createNew: "Criar novo pacote de som",
       createDescription:
-        "Crie um pacote de som personalizado que sobrescreva os padrÃµes.",
+        "Crie um pacote de som personalizado que sobrescreva os padrões.",
       createNameLabel: "Nome do novo pacote de som",
       createPlaceholder: "Meu pacote de som",
       createAndSave: "Criar e salvar",
@@ -1094,112 +1094,112 @@ export const ptBrOverrides = {
       export: "Exportar pacote de som",
       import: "Importar pacote de som",
       deletePack: "Excluir pacote de som",
-      stopPreview: "Parar prÃ©via",
+      stopPreview: "Parar prévia",
       loading: "Carregando pacotes de som...",
       pendingSaveSuffix: " (salvamento pendente)",
-      defaultSuffix: " (padrÃ£o)",
+      defaultSuffix: " (padrão)",
       customSuffix: " (personalizado)",
       noBundledSound: "Sem som embutido",
       enableSoundAria: (label: string) => `Ativar ${label}`,
       volumeAria: (label: string) => `Volume para ${label}`,
       play: "Reproduzir",
       playing: "Reproduzindo...",
-      volume: "NÃ­vel do volume",
+      volume: "Nível do volume",
       remove: "Remover",
       replace: "Substituir",
       soundFile: "Arquivo de som",
       reset: "Redefinir",
-      attribution: "AtribuiÃ§Ã£o",
-      attributionAria: (label: string) => `AtribuiÃ§Ã£o de ${label}`,
-      attributionPlaceholder: "Fonte, criador ou detalhes de licenÃ§a",
-      addVariation: "+ Adicionar variaÃ§Ã£o",
+      attribution: "Atribuição",
+      attributionAria: (label: string) => `Atribuição de ${label}`,
+      attributionPlaceholder: "Fonte, criador ou detalhes de licença",
+      addVariation: "+ Adicionar variação",
     },
     dialogs: {
       pauseMenu: {
         saveBeforeQuit: "Deseja salvar antes de sair?",
         title: "Jogo pausado",
         resume: "Retomar",
-        options: "OpÃ§Ãµes",
+        options: "Opções",
         saveGame: "Salvar jogo",
         exitToMainMenu: "Voltar ao menu principal",
         quitGame: "Sair do jogo",
       },
       debugLogs: {
-        closeLabel: "Fechar logs de depuraÃ§Ã£o",
-        title: "Logs de depuraÃ§Ã£o salvos",
-        hint: "Os logs sÃ³ sÃ£o capturados depois que o alternador oculto de logs de depuraÃ§Ã£o Ã© ativado.",
+        closeLabel: "Fechar logs de depuração",
+        title: "Logs de depuração salvos",
+        hint: "Os logs só são capturados depois que o alternador oculto de logs de depuração é ativado.",
         showingEntries: (count: number, startedAt: string) =>
           `Mostrando ${count} registros desde ${startedAt}.`,
-        noneSaved: "Ainda nÃ£o hÃ¡ logs de depuraÃ§Ã£o salvos.",
+        noneSaved: "Ainda não há logs de depuração salvos.",
         refresh: "Atualizar",
         clearLogs: "Limpar logs",
       },
       startupUpdate: {
         maintenanceNotice:
-          "Nenhum lanÃ§amento mais recente do GitHub foi encontrado.",
+          "Nenhum lançamento mais recente do GitHub foi encontrado.",
         summaryAvailable:
-          "Uma nova versÃ£o do jogo estÃ¡ disponÃ­vel. Deseja atualizar?",
+          "Uma nova versão do jogo está disponível. Deseja atualizar?",
         summaryNone:
-          "VocÃª jÃ¡ tem a versÃ£o mais recente do jogo.",
-        currentVersion: (version: string) => `VersÃ£o atual: ${version}`,
+          "Você já tem a versão mais recente do jogo.",
+        currentVersion: (version: string) => `Versão atual: ${version}`,
         latestVersion: (version: string) =>
-          `Ãšltimo lanÃ§amento do GitHub: ${version}`,
+          `Último lançamento do GitHub: ${version}`,
         disableAtStartup:
-          "NÃ£o mostrar mais essas notificaÃ§Ãµes ao iniciar.",
+          "Não mostrar mais essas notificações ao iniciar.",
         disabledNotice:
-          "As notificaÃ§Ãµes de lanÃ§amento ao iniciar agora estÃ£o desativadas. VocÃª pode ativÃ¡-las novamente em OpÃ§Ãµes.",
+          "As notificações de lançamento ao iniciar agora estão desativadas. Você pode ativá-las novamente em Opções.",
         clientUpgradeRequired:
-          "TambÃ©m Ã© necessÃ¡ria uma atualizaÃ§Ã£o completa do cliente para os aprimoramentos mais recentes da plataforma.",
-        progressTitle: "Status do download da atualizaÃ§Ã£o",
-        canceling: "Cancelando download da atualizaÃ§Ã£o...",
-        noActiveTransfer: "Nenhuma transferÃªncia de arquivo ativa.",
+          "Também é necessária uma atualização completa do cliente para os aprimoramentos mais recentes da plataforma.",
+        progressTitle: "Status do download da atualização",
+        canceling: "Cancelando download da atualização...",
+        noActiveTransfer: "Nenhuma transferência de arquivo ativa.",
         waitingForUpdater: "Aguardando atividade do atualizador.",
-        pendingUpdates: "AtualizaÃ§Ãµes pendentes",
-        payloadAvailable: "O pacote da atualizaÃ§Ã£o estÃ¡ disponÃ­vel.",
-        downloadUpdates: "Baixar atualizaÃ§Ãµes",
+        pendingUpdates: "Atualizações pendentes",
+        payloadAvailable: "O pacote da atualização está disponível.",
+        downloadUpdates: "Baixar atualizações",
         hideDetails: "Ocultar detalhes",
         moreDetails: "Mais detalhes",
         cancelDownload: "Cancelar download",
       },
       startup: {
         chooseVariant: "Escolha sua variante de NetHack:",
-        options: "OpÃ§Ãµes do NetHack 3D",
+        options: "Opções do NetHack 3D",
         quitGame: "Sair do jogo",
-        chooseSetup: "Escolha a configuraÃ§Ã£o do seu personagem:",
-        randomCharacter: "Personagem aleatÃ³rio",
+        chooseSetup: "Escolha a configuração do seu personagem:",
+        randomCharacter: "Personagem aleatório",
         createCharacter: "Criar personagem",
         loadGame: "Carregar jogo",
         selectSavedGame: "Selecione um jogo salvo:",
-        enterRandomName: "Digite um nome para seu personagem aleatÃ³rio:",
+        enterRandomName: "Digite um nome para seu personagem aleatório:",
         createCharacterPrompt: "Crie seu personagem:",
         name: "Nome",
         role: "Classe",
-        race: "RaÃ§a",
-        gender: "GÃªnero",
+        race: "Raça",
+        gender: "Gênero",
         alignment: "Alinhamento",
         startGame: "Iniciar jogo",
       },
       clientOptions: {
-        closeLabel: "Fechar opÃ§Ãµes do NetHack 3D",
-        title: "OpÃ§Ãµes do cliente NetHack 3D",
-        categoriesLabel: "Categorias de configuraÃ§Ã£o",
+        closeLabel: "Fechar opções do NetHack 3D",
+        title: "Opções do cliente NetHack 3D",
+        categoriesLabel: "Categorias de configuração",
         updates: {
           checkOnLaunchLabel:
-            "Mostrar notificaÃ§Ãµes de lanÃ§amentos do GitHub ao iniciar",
+            "Mostrar notificações de lançamentos do GitHub ao iniciar",
           checkOnLaunchDescription:
-            "Verifica lanÃ§amentos do GitHub ao iniciar e avisa quando houver uma versÃ£o mais recente.",
-          title: "LanÃ§amentos do GitHub",
+            "Verifica lançamentos do GitHub ao iniciar e avisa quando houver uma versão mais recente.",
+          title: "Lançamentos do GitHub",
           description:
-            "Compare esta build com os lanÃ§amentos publicados no GitHub.",
+            "Compare esta build com os lançamentos publicados no GitHub.",
           idle:
-            "Pressione Verificar atualizaÃ§Ãµes para comparar esta build com os lanÃ§amentos do GitHub.",
-          button: "Verificar atualizaÃ§Ãµes",
-          openGitHubReleases: "Abrir lanÃ§amentos do GitHub",
+            "Pressione Verificar atualizações para comparar esta build com os lançamentos do GitHub.",
+          button: "Verificar atualizações",
+          openGitHubReleases: "Abrir lançamentos do GitHub",
         },
         buttons: {
           manageTileSets: "Gerenciar tilesets",
           remapController: "Remapear controle",
-          resetControllerDefaults: "Restaurar mapeamentos padrÃ£o do controle",
+          resetControllerDefaults: "Restaurar mapeamentos padrão do controle",
         },
         hints: {
           darkWallsAlwaysEnabled:
@@ -1207,66 +1207,66 @@ export const ptBrOverrides = {
           darkWallsDisabledByVulture:
             " Desativado enquanto os tiles de Vulture estiverem ativos.",
           enableDarkWallsFirst:
-            " Ative primeiro as paredes escuras de corredor legadas ou as substituiÃ§Ãµes de paredes escuras do NetHack 3.7.",
+            " Ative primeiro as paredes escuras de corredor legadas ou as substituições de paredes escuras do NetHack 3.7.",
           enableFpsFirst:
-            " Ative primeiro o modo em primeira pessoa em ExibiÃ§Ã£o.",
+            " Ative primeiro o modo em primeira pessoa em Exibição.",
         },
         darkWallControls: {
-          normal: "PadrÃ£o",
+          normal: "Padrão",
           fps: "Modo FPS",
-          normalAria: "Cor sÃ³lida da parede escura (modo normal)",
-          fpsAria: "Cor sÃ³lida da parede escura (modo FPS)",
+          normalAria: "Cor sólida da parede escura (modo normal)",
+          fpsAria: "Cor sólida da parede escura (modo FPS)",
           gridLines: "Linhas de grade",
           intensity: "Intensidade",
         },
         controllerRemap: {
           title: "Remapeamento do controle",
           closeLabel: "Fechar remapeamento do controle",
-          hint: "Selecione um slot e depois pressione um botÃ£o ou mova um analÃ³gico. Cada aÃ§Ã£o tem dois slots.",
+          hint: "Selecione um slot e depois pressione um botão ou mova um analógico. Cada ação tem dois slots.",
           listeningFor: (label: string, slot: number) =>
             `Aguardando ${label} (slot ${slot}). Pressione ESC para cancelar.`,
         },
         resetPrompt:
-          "Restaurar as opÃ§Ãµes do NetHack 3D para os padrÃµes? Seus tilesets personalizados serÃ£o mantidos.",
+          "Restaurar as opções do NetHack 3D para os padrões? Seus tilesets personalizados serão mantidos.",
       },
       tilesetManager: {
         closeLabel: "Fechar gerenciador de tilesets",
         title: "Gerenciar tilesets",
         description:
-          "Adicione tilesets e edite configuraÃ§Ãµes de fundo/chroma por tileset.",
+          "Adicione tilesets e edite configurações de fundo/chroma por tileset.",
         createTitle: "Criar novo tileset",
         editTitle: "Editar tileset",
         editTitleWithName: (label: string) => `Editar tileset: ${label}`,
         tileSetName: "Nome do tileset",
         tileSetPlaceholder: "Meu tileset",
         builtInNamesLocked:
-          "Os nomes dos tilesets internos nÃ£o podem ser alterados.",
-        tileLayoutVersion: "VersÃ£o do layout dos tiles",
+          "Os nomes dos tilesets internos não podem ser alterados.",
+        tileLayoutVersion: "Versão do layout dos tiles",
         layout367: "Layout do NetHack 3.6.7",
         layout37: "Layout do NetHack 3.7",
         tileLayoutDescription:
-          "Escolha o layout de Ã­ndices de tile usado por este atlas enviado.",
+          "Escolha o layout de índices de tile usado por este atlas enviado.",
         tileImage: "Imagem do tileset",
-        tileImageOptional: "Imagem do tileset (substituiÃ§Ã£o opcional)",
+        tileImageOptional: "Imagem do tileset (substituição opcional)",
         selectedFile: (fileName: string) => `Selecionado: ${fileName}`,
         currentFile: (fileName: string) => `Atual: ${fileName}`,
         uploadedImage: "imagem enviada",
         backgroundRemovalDescription:
-          "Configure a remoÃ§Ã£o de fundo dos billboards para este tileset, ou deixe os dois modos desativados para manter os fundos do atlas intactos.",
-        backgroundTileRemoval: "RemoÃ§Ã£o por tile de fundo",
+          "Configure a remoção de fundo dos billboards para este tileset, ou deixe os dois modos desativados para manter os fundos do atlas intactos.",
+        backgroundTileRemoval: "Remoção por tile de fundo",
         backgroundTileRemovalDescription:
           "Usa um tile selecionado do atlas para remover o fundo dos billboards.",
-        solidChromaKey: "Chroma key de cor sÃ³lida",
+        solidChromaKey: "Chroma key de cor sólida",
         solidChromaKeyDescription:
-          "Usa uma Ãºnica cor RGB sÃ³lida para remover o fundo dos billboards.",
+          "Usa uma única cor RGB sólida para remover o fundo dos billboards.",
         clickToPickFromAtlas: "clique para escolher no atlas",
         saveFirstThenEdit:
-          "Salve primeiro o novo tileset e depois edite as configuraÃ§Ãµes de fundo/chroma.",
+          "Salve primeiro o novo tileset e depois edite as configurações de fundo/chroma.",
         createTileSet: "Criar tileset",
         saveTileSet: "Salvar tileset",
-        saveTileSettings: "Salvar configuraÃ§Ãµes de tile",
+        saveTileSettings: "Salvar configurações de tile",
         importNewTileSet: "+ Importar novo tileset",
-        noUploadedTilesets: "Nenhum tileset enviado disponÃ­vel.",
+        noUploadedTilesets: "Nenhum tileset enviado disponível.",
         selectedSuffix: " (selecionado)",
         editingSuffix: " (editando)",
         uploadedDetails: (fileName: string, layout: string) =>
@@ -1283,17 +1283,17 @@ export const ptBrOverrides = {
         selectAll: "Selecionar tudo",
         deselectAll: "Desmarcar tudo",
         page: (current: number, total: number) =>
-          `PÃ¡gina ${current} / ${total}`,
+          `Página ${current} / ${total}`,
         pageHintMultiple:
-          "Use < e > para trocar de pÃ¡gina. Pressione ESC para cancelar",
+          "Use < e > para trocar de página. Pressione ESC para cancelar",
         pageHintSingle: "Pressione ESC para cancelar",
         choices: {
           leftRingFinger: "Dedo anelar esquerdo",
           rightRingFinger: "Dedo anelar direito",
           here: "Aqui",
-          onGround: "No chÃ£o",
-          eligibleItems: "Itens vÃ¡lidos",
-          allInventory: "InventÃ¡rio completo",
+          onGround: "No chão",
+          eligibleItems: "Itens válidos",
+          allInventory: "Inventário completo",
         },
       },
       runtimeStartError: {
@@ -1307,37 +1307,37 @@ export const ptBrOverrides = {
         reasonFallback: "Fim de jogo",
       },
       direction: {
-        cancelLabel: "Cancelar prompt de direÃ§Ã£o",
+        cancelLabel: "Cancelar prompt de direção",
       },
       info: {
         closeCharacter: "Fechar janela do personagem",
-        closeInformation: "Fechar janela de informaÃ§Ãµes",
+        closeInformation: "Fechar janela de informações",
         characterTitle: "Personagem",
-        experienceProgress: "Progresso de experiÃªncia",
-        levelLabel: (level: number) => `NÃ­vel ${level}`,
-        xpAtMaxLevel: (xp: string) => `XP ${xp} (nÃ­vel mÃ¡ximo alcanÃ§ado)`,
+        experienceProgress: "Progresso de experiência",
+        levelLabel: (level: number) => `Nível ${level}`,
+        xpAtMaxLevel: (xp: string) => `XP ${xp} (nível máximo alcançado)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `XP ${xp} / ${next} â€¢ faltam ${remaining} para o prÃ³ximo nÃ­vel`,
+          `XP ${xp} / ${next} • faltam ${remaining} para o próximo nível`,
         vitals: "Vitais",
-        characteristics: "CaracterÃ­sticas",
+        characteristics: "Características",
         currentLimit: "Atual / Limite",
         armorClass: "Classe de armadura",
         currentStatus: "Estado atual",
         noActiveStatus: "Nenhum estado ativo.",
         currentAttributes: "Atributos atuais",
-        noTemporaryAttributes: "Nenhum efeito temporÃ¡rio de atributo.",
-        characterActions: "AÃ§Ãµes do personagem",
-        inventory: "InventÃ¡rio",
+        noTemporaryAttributes: "Nenhum efeito temporário de atributo.",
+        characterActions: "Ações do personagem",
+        inventory: "Inventário",
         inventoryDetail: "Abrir itens carregados",
         closeHint:
-          "Pressione ESPAÃ‡O, ENTER ou ESC para fechar. Pressione Ctrl+M para reabrir.",
-        infoTitleFallback: "InformaÃ§Ãµes do NetHack",
+          "Pressione ESPAÇO, ENTER ou ESC para fechar. Pressione Ctrl+M para reabrir.",
+        infoTitleFallback: "Informações do NetHack",
         noDetails: "(Sem detalhes)",
       },
       inventory: {
-        closeLabel: "Fechar inventÃ¡rio",
-        title: "INVENTÃRIO",
-        empty: "Seu inventÃ¡rio estÃ¡ vazio.",
+        closeLabel: "Fechar inventário",
+        title: "INVENTÁRIO",
+        empty: "Seu inventário está vazio.",
         unknownItem: "Item desconhecido",
         closeHint: "Pressione ENTER, ESC ou 'i' para fechar.",
         closeHintWithContext:
@@ -1347,38 +1347,38 @@ export const ptBrOverrides = {
         title: "Largar",
         dropType: "Tipo de descarte",
         dropAmount: "Quantidade a largar",
-        dropSpecificAmount: "Largar uma quantidade especÃ­fica",
-        onlyStackedItems: "DisponÃ­vel apenas para itens empilhados",
+        dropSpecificAmount: "Largar uma quantidade específica",
+        onlyStackedItems: "Disponível apenas para itens empilhados",
       },
       inventoryDropCount: {
         title: "Quantos desta pilha deseja largar?",
         chooseAmount: (max: number) =>
           `Escolha uma quantidade entre 1 e ${max}.`,
         ariaLabel: "Quantidade a largar",
-        setMinimum: "Definir a quantidade mÃ­nima para largar",
+        setMinimum: "Definir a quantidade mínima para largar",
         decrease: "Diminuir a quantidade em um",
         increase: "Aumentar a quantidade em um",
-        setMaximum: "Definir a quantidade mÃ¡xima para largar",
+        setMaximum: "Definir a quantidade máxima para largar",
       },
       mobileActions: {
         extendedCommands: "Comandos estendidos",
         commonCommands: "Comandos comuns",
         allCommands: "Todos os comandos",
-        actions: "AÃ§Ãµes",
+        actions: "Ações",
         menu: "Menu geral",
         close: "Fechar",
         wizardCommands: "Comandos de assistente",
         wizard: "Assistente",
         repeat: "Repetir",
         character: "Personagem",
-        inventory: "InventÃ¡rio",
+        inventory: "Inventário",
         log: "Registro",
         pickUp: "Pegar",
         search: "Procurar",
         closeMessageLog: "Fechar registro de mensagens",
       },
       positionPrompt: {
-        closeLabel: "Fechar prompt de posiÃ§Ã£o",
+        closeLabel: "Fechar prompt de posição",
       },
       controllerSupport: {
         prompt: "Controle detectado. Ativar suporte a controle?",

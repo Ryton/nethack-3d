@@ -1319,7 +1319,7 @@
         levelLabel: (level: number) => `Level ${level}`,
         xpAtMaxLevel: (xp: string) => `XP ${xp} (max level reached)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `XP ${xp} / ${next} â€¢ ${remaining} to next level`,
+          `XP ${xp} / ${next} • ${remaining} to next level`,
         vitals: "Signes vitaux",
         characteristics: "Caracteristiques",
         currentLimit: "Actuel / Limite",

@@ -11,17 +11,17 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
     cancel: "Peruuta",
     close: "Sulje",
     back: "Takaisin",
-    yes: "KyllÃ¤",
+    yes: "Kyllä",
     no: "Ei",
     delete: "Poista",
     edit: "Muokkaa",
     done: "Valmis",
     resetToDefaults: "Palauta oletukset",
-    later: "MyÃ¶hemmin",
+    later: "Myöhemmin",
     checking: "Tarkistetaan...",
     downloading: "Ladataan...",
     canceling: "Peruutetaan...",
-    none: "Ei mitÃ¤Ã¤n",
+    none: "Ei mitään",
     off: "Pois",
     normal: "Normaali",
     fps: "FPS-tila",
@@ -32,18 +32,18 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       lookAndCamera: "Katse ja kamera",
       actions: "Toiminnot",
       dialogs: "Valintaikkunat",
-      system: "JÃ¤rjestelmÃ¤",
+      system: "Järjestelmä",
     },
     actions: {
       dpad_up: {
-        label: "Ohjausristi ylÃ¶s",
+        label: "Ohjausristi ylös",
         description:
-          "Siirry ylÃ¶spÃ¤in valintaikkunoissa ja liikkumisen korostuksessa.",
+          "Siirry ylöspäin valintaikkunoissa ja liikkumisen korostuksessa.",
       },
       dpad_down: {
         label: "Ohjausristi alas",
         description:
-          "Siirry alaspÃ¤in valintaikkunoissa ja liikkumisen korostuksessa.",
+          "Siirry alaspäin valintaikkunoissa ja liikkumisen korostuksessa.",
       },
       dpad_left: {
         label: "Ohjausristi vasemmalle",
@@ -56,8 +56,8 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           "Siirry oikealle valintaikkunoissa ja liikkumisen korostuksessa.",
       },
       left_stick_up: {
-        label: "Vasen sauva ylÃ¶s",
-        description: "Liikkumisen korostus ja virtuaalikohdistin ylÃ¶s.",
+        label: "Vasen sauva ylös",
+        description: "Liikkumisen korostus ja virtuaalikohdistin ylös.",
       },
       left_stick_down: {
         label: "Vasen sauva alas",
@@ -73,8 +73,8 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         description: "Liikkumisen korostus ja virtuaalikohdistin oikealle.",
       },
       right_stick_up: {
-        label: "Oikea sauva ylÃ¶s",
-        description: "Katse, kameran panorointi ja valintaikkunan vieritys ylÃ¶s.",
+        label: "Oikea sauva ylös",
+        description: "Katse, kameran panorointi ja valintaikkunan vieritys ylös.",
       },
       right_stick_down: {
         label: "Oikea sauva alas",
@@ -96,7 +96,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       search: {
         label: "Etsi",
         description:
-          "Etsi nykyisestÃ¤ ruudusta, kun liikkeen esikatselu ei ole aktiivinen.",
+          "Etsi nykyisestä ruudusta, kun liikkeen esikatselu ei ole aktiivinen.",
       },
       cancel_or_context: {
         label: "Peruuta / Konteksti",
@@ -104,24 +104,24 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       },
       action_menu: {
         label: "Toimintovalikko",
-        description: "Avaa ohjaimen sÃ¤teittÃ¤inen toimintovalikko.",
+        description: "Avaa ohjaimen säteittäinen toimintovalikko.",
       },
       run_modifier: {
         label: "Juoksumuokkain",
-        description: "PidÃ¤ painettuna lÃ¤hettÃ¤Ã¤ksesi juoksuetuliitteen ennen liikettÃ¤.",
+        description: "Pidä painettuna lähettääksesi juoksuetuliitteen ennen liikettä.",
       },
       zoom_in: {
-        label: "Zoomaa (pidÃ¤)",
+        label: "Zoomaa (pidä)",
         description:
-          "PidÃ¤ painettuna, ja kÃ¤ytÃ¤ sitten vasenta tai oikeaa sauvaa ylÃ¶s/alas zoomataksesi sisÃ¤Ã¤n tai ulos.",
+          "Pidä painettuna, ja käytä sitten vasenta tai oikeaa sauvaa ylös/alas zoomataksesi sisään tai ulos.",
       },
       recenter_camera: {
-        label: "KeskitÃ¤ kamera",
+        label: "Keskitä kamera",
         description: "Palauta kamera pelaajan keskelle.",
       },
       toggle_large_minimap: {
         label: "Vaihda suuri minimikartta",
-        description: "Vaihda erittÃ¤in suuren minimikartan koko.",
+        description: "Vaihda erittäin suuren minimikartan koko.",
       },
       pause_menu: {
         label: "Taukovalikko",
@@ -145,11 +145,11 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       5: "Oikea olkanappi",
       6: "Vasen liipaisin",
       7: "Oikea liipaisin",
-      8: "Takaisin / NÃ¤ytÃ¤",
+      8: "Takaisin / Näytä",
       9: "Start / Valikko",
       10: "Vasen sauva painallus",
       11: "Oikea sauva painallus",
-      12: "Ohjausristi ylÃ¶s",
+      12: "Ohjausristi ylös",
       13: "Ohjausristi alas",
       14: "Ohjausristi vasemmalle",
       15: "Ohjausristi oikealle",
@@ -164,19 +164,19 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
     directions: {
       leftStickLeft: "Vasen sauva vasemmalle",
       leftStickRight: "Vasen sauva oikealle",
-      leftStickUp: "Vasen sauva ylÃ¶s",
+      leftStickUp: "Vasen sauva ylös",
       leftStickDown: "Vasen sauva alas",
       rightStickLeft: "Oikea sauva vasemmalle",
       rightStickRight: "Oikea sauva oikealle",
-      rightStickUp: "Oikea sauva ylÃ¶s",
+      rightStickUp: "Oikea sauva ylös",
       rightStickDown: "Oikea sauva alas",
     },
     unbound: "Ei sidottu",
     axisFallback: (axisIndex: number) => `Akseli ${axisIndex}`,
     buttonFallback: (buttonIndex: number) => `Painike ${buttonIndex}`,
     slotLabel: (slotIndex: number) => `Paikka ${slotIndex + 1}`,
-    listening: "Paina syÃ¶tettÃ¤...",
-    clear: "TyhjennÃ¤",
+    listening: "Paina syötettä...",
+    clear: "Tyhjennä",
     controllerDetected: (count: number) =>
       `${count} ohjain${count === 1 ? "" : "ta"} havaittu.`,
     noControllerDetected: "Ohjainta ei havaittu.",
@@ -185,14 +185,14 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
     accordion: {
       summary: "Alustusasetukset (valinnainen)",
       description:
-        "KÃ¤ynnistyksessÃ¤ kÃ¤ytettÃ¤vÃ¤t ylimÃ¤Ã¤rÃ¤iset NetHack `OPTIONS` -mÃ¤Ã¤ritykset. Ikkunaporttiin ja alustaan liittyvÃ¤t asetukset on jÃ¤tetty tarkoituksella pois.",
+        "Käynnistyksessä käytettävät ylimääräiset NetHack `OPTIONS` -määritykset. Ikkunaporttiin ja alustaan liittyvät asetukset on jätetty tarkoituksella pois.",
       resetToDefaults: "Palauta oletukset",
     },
     options: {
       playmode: {
         label: "Pelitila",
         description:
-          "Valitse kÃ¤ynnistystila. Wizard-tila on NetHackin debug-tila (`playmode:debug`).",
+          "Valitse käynnistystila. Wizard-tila on NetHackin debug-tila (`playmode:debug`).",
         options: {
           normal: "Normaali",
           explore: "Tutki",
@@ -207,7 +207,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       pickup_types: {
         label: "Poimintatyypit",
         description:
-          'Automaattisesti poimittavien esineluokkien symbolit (esimerkki: $"=/!?+). JÃ¤tÃ¤ tyhjÃ¤ksi kÃ¤yttÃ¤Ã¤ksesi pelin oletusta.',
+          'Automaattisesti poimittavien esineluokkien symbolit (esimerkki: $"=/!?+). Jätä tyhjäksi käyttääksesi pelin oletusta.',
         placeholder: '$"/=!+?',
       },
       pickup_thrown: {
@@ -218,118 +218,118 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       pickup_burden: {
         label: "Poiminnan kuormaraja",
         description:
-          "Kysy ennen poimintaa, jos tÃ¤mÃ¤ kuormitustaso ylittyisi.",
+          "Kysy ennen poimintaa, jos tämä kuormitustaso ylittyisi.",
         options: {
           u: "Kuormittamaton (u)",
           b: "Kuormitettu (b)",
           s: "Rasittunut (s)",
-          n: "JÃ¤nnittynyt (n)",
+          n: "Jännittynyt (n)",
           t: "Ylikuormitettu (t)",
-          l: "TÃ¤ysin ylikuormitettu (l)",
+          l: "Täysin ylikuormitettu (l)",
         },
       },
       pile_limit: {
         label: "Kasakoko",
         description:
-          "EsinemÃ¤Ã¤rÃ¤n raja, joka avaa ponnahdusluettelon lattialla oleville kasoille.",
+          "Esinemäärän raja, joka avaa ponnahdusluettelon lattialla oleville kasoille.",
       },
       autoquiver: {
         label: "Automaattinen viini",
         description:
-          "TÃ¤ytÃ¤ viini automaattisesti tai valmistele sopiva ase ammuttaessa.",
+          "Täytä viini automaattisesti tai valmistele sopiva ase ammuttaessa.",
       },
       autoopen: {
         label: "Avaa automaattisesti",
         description:
-          "YritÃ¤ avata ovet automaattisesti liikkuessa niitÃ¤ kohti.",
+          "Yritä avata ovet automaattisesti liikkuessa niitä kohti.",
       },
       autodig: {
         label: "Kaiva automaattisesti",
         description:
-          "Kaiva automaattisesti seiniin, kun se on mahdollista ja liikut niitÃ¤ kohti.",
+          "Kaiva automaattisesti seiniin, kun se on mahdollista ja liikut niitä kohti.",
       },
       cmdassist: {
         label: "Komentojen avustus",
         description:
-          "NÃ¤ytÃ¤ ylimÃ¤Ã¤rÃ¤istÃ¤ ohjetekstiÃ¤, kun komennot kirjoitetaan vÃ¤Ã¤rin.",
+          "Näytä ylimääräistä ohjetekstiä, kun komennot kirjoitetaan väärin.",
       },
       confirm: {
-        label: "Vahvista hyÃ¶kkÃ¤ykset",
-        description: "Kysy ennen rauhanomaisten olentojen hyÃ¶kkÃ¤Ã¤mistÃ¤.",
+        label: "Vahvista hyökkäykset",
+        description: "Kysy ennen rauhanomaisten olentojen hyökkäämistä.",
       },
       safe_pet: {
         label: "Turvallinen lemmikki",
         description: "Kysy ennen kuin osut lemmikkiisi.",
       },
       help: {
-        label: "PelinsisÃ¤inen ohje",
+        label: "Pelinsisäinen ohje",
         description:
-          "Kysy lisÃ¤tietojen nÃ¤yttÃ¤misestÃ¤ look/help-toiminnossa, kun tietoa on enemmÃ¤n saatavilla.",
+          "Kysy lisätietojen näyttämisestä look/help-toiminnossa, kun tietoa on enemmän saatavilla.",
       },
       legacy: {
         label: "Legacy-intro",
-        description: "NÃ¤ytÃ¤ tarinan aloitus, kun uusi peli alkaa.",
+        description: "Näytä tarinan aloitus, kun uusi peli alkaa.",
       },
       rest_on_space: {
-        label: "LepÃ¤Ã¤ vÃ¤lilyÃ¶nnillÃ¤",
-        description: "KÃ¤sittele vÃ¤lilyÃ¶ntiÃ¤ odottamisena/lepohetkenÃ¤.",
+        label: "Lepää välilyönnillä",
+        description: "Käsittele välilyöntiä odottamisena/lepohetkenä.",
       },
       pushweapon: {
-        label: "SiirrÃ¤ ase",
+        label: "Siirrä ase",
         description:
-          "SiirrÃ¤ tÃ¤llÃ¤ hetkellÃ¤ kÃ¤ytÃ¶ssÃ¤ oleva ase sivukÃ¤teen vaihdettaessa.",
+          "Siirrä tällä hetkellä käytössä oleva ase sivukäteen vaihdettaessa.",
       },
       extmenu: {
         label: "Laajennettu komentovalikko",
-        description: "KÃ¤ytÃ¤ ponnahdusvalikkoa laajennetuille komennoille.",
+        description: "Käytä ponnahdusvalikkoa laajennetuille komennoille.",
       },
       fixinv: {
-        label: "KiinnitÃ¤ tavarapaikat",
+        label: "Kiinnitä tavarapaikat",
         description:
-          "YritÃ¤ sÃ¤ilyttÃ¤Ã¤ tavarapaikkojen kirjaimet, kun esineet liikkuvat.",
+          "Yritä säilyttää tavarapaikkojen kirjaimet, kun esineet liikkuvat.",
       },
       implicit_uncursed: {
-        label: "NÃ¤ytÃ¤ uncursed",
+        label: "Näytä uncursed",
         description:
-          "SisÃ¤llytÃ¤ sana 'uncursed' aina tavarakuvauksiin.",
+          "Sisällytä sana 'uncursed' aina tavarakuvauksiin.",
       },
       mention_walls: {
-        label: "Mainitse seinÃ¤t",
-        description: "NÃ¤ytÃ¤ viesti liikkuessa seinÃ¤Ã¤ pÃ¤in.",
+        label: "Mainitse seinät",
+        description: "Näytä viesti liikkuessa seinää päin.",
       },
       sortloot: {
-        label: "JÃ¤rjestÃ¤ saalisluettelot",
+        label: "Järjestä saalisluettelot",
         description:
           "Lajittelutapa poiminta- ja tavaravalintaluetteloille.",
         options: {
-          f: "TÃ¤ysi",
+          f: "Täysi",
           l: "Vain saalis",
-          n: "Ei mitÃ¤Ã¤n",
+          n: "Ei mitään",
         },
       },
       sortpack: {
-        label: "JÃ¤rjestÃ¤ tavarat",
-        description: "JÃ¤rjestÃ¤ repun sisÃ¤ltÃ¶ tyypin mukaan tavaroita nÃ¤ytettÃ¤essÃ¤.",
+        label: "Järjestä tavarat",
+        description: "Järjestä repun sisältö tyypin mukaan tavaroita näytettäessä.",
       },
       msghistory: {
         label: "Viestihistorian koko",
         description:
-          "Muistiin sÃ¤ilytettÃ¤vien ylÃ¤rivin viestien lukumÃ¤Ã¤rÃ¤.",
+          "Muistiin säilytettävien ylärivin viestien lukumäärä.",
       },
       dogname: {
         label: "Koiran nimi",
-        description: "EnsimmÃ¤isen koirasi oletusnimi.",
+        description: "Ensimmäisen koirasi oletusnimi.",
         placeholder: "Rekku",
       },
       catname: {
         label: "Kissan nimi",
-        description: "EnsimmÃ¤isen kissasi oletusnimi.",
+        description: "Ensimmäisen kissasi oletusnimi.",
         placeholder: "Mirri",
       },
       horsename: {
         label: "Hevosen nimi",
-        description: "EnsimmÃ¤isen hevosesi oletusnimi.",
-        placeholder: "TÃ¤hti",
+        description: "Ensimmäisen hevosesi oletusnimi.",
+        placeholder: "Tähti",
       },
       pettype: {
         label: "Suosittu lemmikki",
@@ -339,40 +339,40 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           cat: "Kissa",
           dog: "Koira",
           horse: "Hevonen",
-          none: "Ei mitÃ¤Ã¤n",
+          none: "Ei mitään",
         },
       },
       fruit: {
-        label: "SuosikkihedelmÃ¤",
-        description: "HedelmÃ¤tyypin nimi, josta hahmosi pitÃ¤Ã¤.",
+        label: "Suosikkihedelmä",
+        description: "Hedelmätyypin nimi, josta hahmosi pitää.",
         placeholder: "limasieni",
       },
       packorder: {
-        label: "Repun jÃ¤rjestys",
-        description: "Tavaroissa nÃ¤ytettÃ¤vien esineluokkien jÃ¤rjestys.",
+        label: "Repun järjestys",
+        description: "Tavaroissa näytettävien esineluokkien järjestys.",
         placeholder: '")[%+/!?=(*0_`',
       },
       paranoid_confirmation: {
         label: "Varmistukset",
         description:
-          "VÃ¤lilyÃ¶nneillÃ¤ erotetut lisÃ¤vahvistukset (esim. confirm quit attack pray).",
+          "Välilyönneillä erotetut lisävahvistukset (esim. confirm quit attack pray).",
         placeholder: "attack confirm pray quit",
       },
       sparkle: {
-        label: "Taikavastuksen sÃ¤ihke",
-        description: "NÃ¤ytÃ¤ erityiset sÃ¤ihketehosteet taikavastukselle.",
+        label: "Taikavastuksen säihke",
+        description: "Näytä erityiset säihketehosteet taikavastukselle.",
       },
       standout: {
-        label: "Korostetut hirviÃ¶t/More",
-        description: "Lihavoi hirviÃ¶t ja --More-- -kehotteet.",
+        label: "Korostetut hirviöt/More",
+        description: "Lihavoi hirviöt ja --More-- -kehotteet.",
       },
       tombstone: {
         label: "Hautakivi",
-        description: "NÃ¤ytÃ¤ hautakivigrafiikka kuoleman yhteydessÃ¤.",
+        description: "Näytä hautakivigrafiikka kuoleman yhteydessä.",
       },
       verbose: {
         label: "Yksityiskohtaiset viestit",
-        description: "KÃ¤ytÃ¤ tÃ¤ydempÃ¤Ã¤ sanamuotoa tila- ja toimintaviesteissÃ¤.",
+        description: "Käytä täydempää sanamuotoa tila- ja toimintaviesteissä.",
       },
     },
   },
@@ -380,26 +380,26 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
     byKey: {
       "player-walk": "Pelaajan askel",
       hit: "Osuma",
-      "monster-killed": "HirviÃ¶ tapettu (pelaaja)",
-      "monster-killed-other": "HirviÃ¶ tapettu (muu)",
+      "monster-killed": "Hirviö tapettu (pelaaja)",
+      "monster-killed-other": "Hirviö tapettu (muu)",
       "missed-attack": "Huti",
       "door-opens": "Ovi avautuu",
       "door-closes": "Ovi sulkeutuu",
       "door-kick": "Oven potku",
       "door-smash": "Oven murskaus",
       "door-resists": "Ovi vastustaa",
-      "door-distant": "Ovi etÃ¤isyydessÃ¤",
+      "door-distant": "Ovi etäisyydessä",
       "walk-down-stairs": "Kulje portaat alas",
-      "walk-up-stairs": "Kulje portaat ylÃ¶s",
-      eating: "SyÃ¶minen",
+      "walk-up-stairs": "Kulje portaat ylös",
+      eating: "Syöminen",
       drink: "Juominen",
       "quaff-potion": "Juo juoma",
       "pickup-gold": "Poimi kultaa",
       "pickup-item": "Poimi esine",
-      "find-hidden": "LÃ¶ydÃ¤ piilo-ovi/kÃ¤ytÃ¤vÃ¤",
+      "find-hidden": "Löydä piilo-ovi/käytävä",
       "level-up": "Tasonnousu",
       unlock: "Avaa lukitus",
-      "boulder-push": "Lohkareen tyÃ¶ntÃ¶",
+      "boulder-push": "Lohkareen työntö",
       "boulder-blocked": "Lohkare estetty",
       splash: "Roiske",
       searching: "Etsiminen",
@@ -421,8 +421,8 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
     statLabels: {
       strength: "Voima",
       dexterity: "Ketteryys",
-      constitution: "KestÃ¤vyys",
-      intelligence: "Ã„lykkyys",
+      constitution: "Kestävyys",
+      intelligence: "Älykkyys",
       wisdom: "Viisaus",
       charisma: "Karisma",
     },
@@ -433,11 +433,11 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       },
       conduct: {
         label: "Haaste",
-        detail: "NÃ¤ytÃ¤ haasteen edistyminen",
+        detail: "Näytä haasteen edistyminen",
       },
       overview: {
         label: "Yleiskuva",
-        detail: "NÃ¤ytÃ¤ luolaston edistyminen",
+        detail: "Näytä luolaston edistyminen",
       },
       spells: {
         label: "Loitsut",
@@ -452,12 +452,12 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         detail: "Kayta rooli-/rotukykyja",
       },
       known: {
-        label: "LÃ¶ydÃ¶kset",
+        label: "Löydökset",
         detail: "Tunnettujen esineiden luettelo",
       },
       pray: {
         label: "Rukoile",
-        detail: "YritÃ¤ rukousta",
+        detail: "Yritä rukousta",
       },
     },
   },
@@ -467,21 +467,21 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       name: "Nimi",
       level: "Taso",
       category: "Luokka",
-      fail: "EpÃ¤onn.",
-      retention: "SÃ¤ilyvyys",
+      fail: "Epäonn.",
+      retention: "Säilyvyys",
     },
     summary: {
       known: (count: number) => `${count} tunnettua`,
       castable: (count: number) => `${count} loitsittavaa`,
       bestSuccess: (percent: number) => `Paras onnistuminen ${percent}%`,
-      averageFail: (percent: number) => `Keskim. epÃ¤onn. ${percent}%`,
+      averageFail: (percent: number) => `Keskim. epäonn. ${percent}%`,
       schoolCount: (count: number) =>
         `${count} koulukunta${count === 1 ? "" : "a"}`,
     },
     retention: {
       unknown: "Tuntematon",
       gone: "Poissa",
-      full: "TÃ¤ysi",
+      full: "Täysi",
     },
   },
   enhanceMenu: {
@@ -514,14 +514,14 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         requiredCount: number,
       ) =>
         `Build ${buildLabel}. Hidden debug logging toggle progress ${currentCount} of ${requiredCount}.`,
-      enabledToast: "Debug-loki kÃ¤ytÃ¶ssÃ¤",
+      enabledToast: "Debug-loki käytössä",
       enabledLogEntry:
-        "Debug-loki otettiin kÃ¤yttÃ¶Ã¶n kÃ¤ynnistyksen build-etiketin easter eggillÃ¤.",
-      openLink: "NÃ¤ytÃ¤ debug-lokit",
-      clearedLogEntry: "Tallennetut debug-lokit poistettiin kÃ¤yttÃ¤jÃ¤n toimesta.",
+        "Debug-loki otettiin käyttöön käynnistyksen build-etiketin easter eggillä.",
+      openLink: "Näytä debug-lokit",
+      clearedLogEntry: "Tallennetut debug-lokit poistettiin käyttäjän toimesta.",
     },
     statusEffects: {
-      turningToStone: "KivettymÃ¤ssÃ¤",
+      turningToStone: "Kivettymässä",
       slimed: "Limautunut",
       strangled: "Kuristettu",
       foodPoisoning: "Ruokamyrkytys",
@@ -532,15 +532,15 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       confused: "Sekava",
       hallucinating: "Hallusinoi",
       levitating: "Leijuu",
-      flying: "LentÃ¤Ã¤",
+      flying: "Lentää",
       riding: "Ratsastaa",
-      barehanded: "Paljain kÃ¤sin",
+      barehanded: "Paljain käsin",
       busy: "Varattu",
       iron: "Rautainen",
-      glowingHands: "Hehkuvat kÃ¤det",
+      glowingHands: "Hehkuvat kädet",
       grabbed: "Napattu",
       held: "Pidetty paikallaan",
-      icy: "JÃ¤inen",
+      icy: "Jäinen",
       inLava: "Laavassa",
       paralyzed: "Halvaantunut",
       sleeping: "Nukkuu",
@@ -555,89 +555,89 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
     characterStats: {
       descriptions: {
         strength:
-          "Vaikuttaa lÃ¤hitaisteluvahinkoon, kantokykyyn ja voimaa vaativiin toimiin.",
+          "Vaikuttaa lähitaisteluvahinkoon, kantokykyyn ja voimaa vaativiin toimiin.",
         dexterity:
-          "Vaikuttaa osumatodennÃ¤kÃ¶isyyteen, ansoihin ja puolustavaan ketteryyteen.",
+          "Vaikuttaa osumatodennäköisyyteen, ansoihin ja puolustavaan ketteryyteen.",
         constitution:
-          "Vaikuttaa HP:n kasvuun sekÃ¤ myrkky- ja imemisvaikutusten kestoon.",
+          "Vaikuttaa HP:n kasvuun sekä myrkky- ja imemisvaikutusten kestoon.",
         intelligence:
           "Vaikuttaa lukemiseen ja monien loitsuihin liittyvien toimintojen onnistumiseen.",
         wisdom:
           "Vaikuttaa loitsuenergian kasvuun ja loitsimisen luotettavuuteen.",
         charisma:
-          "Vaikuttaa kauppatilanteisiin, lemmikkien kÃ¤sittelyyn ja sosiaalisiin lopputuloksiin.",
+          "Vaikuttaa kauppatilanteisiin, lemmikkien käsittelyyn ja sosiaalisiin lopputuloksiin.",
       },
       armorClassDescription:
-        "Pienempi on parempi. Panssariluokka vÃ¤hentÃ¤Ã¤ vihollisten osumatodennÃ¤kÃ¶isyyttÃ¤ sinuun.",
+        "Pienempi on parempi. Panssariluokka vähentää vihollisten osumatodennäköisyyttä sinuun.",
     },
     directionHelp: {
       controller:
-        "Napsauta suuntaa tai kÃ¤ytÃ¤ vasenta sauvaa/ohjausristiÃ¤ esikatseluun ja vapauta vahvistaaksesi. KeskimmÃ¤inen ympyrÃ¤ kohdistaa itseen. KÃ¤ytÃ¤ < tai > portaisiin. Paina ESC peruuttaaksesi.",
+        "Napsauta suuntaa tai käytä vasenta sauvaa/ohjausristiä esikatseluun ja vapauta vahvistaaksesi. Keskimmäinen ympyrä kohdistaa itseen. Käytä < tai > portaisiin. Paina ESC peruuttaaksesi.",
       numpad:
-        "Napsauta suuntaa. KeskimmÃ¤inen ympyrÃ¤ kohdistaa itseen. Voit myÃ¶s kÃ¤yttÃ¤Ã¤ numeronÃ¤ppÃ¤imistÃ¶Ã¤ (1-4,6-9), nuolinÃ¤ppÃ¤imiÃ¤, <, > tai s. Paina ESC peruuttaaksesi.",
+        "Napsauta suuntaa. Keskimmäinen ympyrä kohdistaa itseen. Voit myös käyttää numeronäppäimistöä (1-4,6-9), nuolinäppäimiä, <, > tai s. Paina ESC peruuttaaksesi.",
       viKeys:
-        "Napsauta suuntaa. KeskimmÃ¤inen ympyrÃ¤ kohdistaa itseen. Voit myÃ¶s kÃ¤yttÃ¤Ã¤ hjkl/yubn-nÃ¤ppÃ¤imiÃ¤, nuolinÃ¤ppÃ¤imiÃ¤, <, > tai s. Paina ESC peruuttaaksesi.",
+        "Napsauta suuntaa. Keskimmäinen ympyrä kohdistaa itseen. Voit myös käyttää hjkl/yubn-näppäimiä, nuolinäppäimiä, <, > tai s. Paina ESC peruuttaaksesi.",
       fps:
-        "Katso tÃ¤hdÃ¤tÃ¤ksesi. Vasen napsautus tai W vahvistaa. S kohdistaa itseen. A/D tai oikea napsautus peruuttaa.",
+        "Katso tähdätäksesi. Vasen napsautus tai W vahvistaa. S kohdistaa itseen. A/D tai oikea napsautus peruuttaa.",
     },
     inventoryContextActions: {
-      apply: "KÃ¤ytÃ¤",
+      apply: "Käytä",
       invoke: "Manaa",
       tip: "Kippaa",
-      loot: "RyÃ¶stÃ¤",
+      loot: "Ryöstä",
       drop: "Pudota",
-      eat: "SyÃ¶",
+      eat: "Syö",
       quaff: "Juo",
       read: "Lue",
       rub: "Hankaa",
-      throw: "HeitÃ¤",
-      wield: "Kanna kÃ¤dessÃ¤",
+      throw: "Heitä",
+      wield: "Kanna kädessä",
       quiver: "Aseta viineen",
       wear: "Pue",
       takeOff: "Riisu",
-      putOn: "Laita pÃ¤Ã¤lle",
+      putOn: "Laita päälle",
       remove: "Poista",
-      zap: "SÃ¤ihkytÃ¤",
+      zap: "Säihkytä",
       untrap: "Poista ansa",
       offer: "Uhraa",
-      name: "NimeÃ¤",
+      name: "Nimeä",
       call: "Kutsu",
-      adjust: "JÃ¤rjestÃ¤",
+      adjust: "Järjestä",
       engrave: "Kaiverra",
       dip: "Upota",
       info: "Tiedot",
-      unwield: "Laske kÃ¤destÃ¤",
+      unwield: "Laske kädestä",
     },
     mobileActions: {
       wait: "Odota",
-      zap: "SÃ¤ihkytÃ¤",
+      zap: "Säihkytä",
       cast: "Loitsi",
       kick: "Potkaise",
       read: "Lue",
       quaff: "Juo",
-      eat: "SyÃ¶",
+      eat: "Syö",
       glance: "Vilkaise",
-      loot: "RyÃ¶stÃ¤",
+      loot: "Ryöstä",
       open: "Avaa",
-      wield: "Kanna kÃ¤dessÃ¤",
+      wield: "Kanna kädessä",
       wear: "Pue",
-      putOn: "Laita pÃ¤Ã¤lle",
+      putOn: "Laita päälle",
       takeOff: "Riisu",
       extended: "Laajennetut",
     },
     clientOptions: {
       config: {
-        groupControls: "Ohjain ja ensimmÃ¤isen persoonan tila",
+        groupControls: "Ohjain ja ensimmäisen persoonan tila",
         sectionControlsController: "Ohjain",
         controllerEnabled: {
-          label: "Ota ohjain kÃ¤yttÃ¶Ã¶n",
+          label: "Ota ohjain käyttöön",
           description:
-            "Ota peliohjaimen syÃ¶te kÃ¤yttÃ¶Ã¶n pelaamisessa ja kÃ¤yttÃ¶liittymÃ¤n valintaikkunoissa.",
+            "Ota peliohjaimen syöte käyttöön pelaamisessa ja käyttöliittymän valintaikkunoissa.",
         },
         sectionControlsLook: "Katse ja kamera",
         invertLookYAxis: {
-          label: "KÃ¤Ã¤nnÃ¤ Y-akselin katsesuunta",
-          description: "KÃ¤Ã¤nnÃ¤ pystysuuntainen hiirikatselu ja kosketuskatselun suunta.",
+          label: "Käännä Y-akselin katsesuunta",
+          description: "Käännä pystysuuntainen hiirikatselu ja kosketuskatselun suunta.",
         },
         fpsLookSensitivityX: {
           label: "FPS-katselun herkkyys X",
@@ -648,53 +648,53 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description: "Pystysuuntainen hiiri-/kosketuskatselun herkkyys.",
         },
         snapCameraYawToNearest45: {
-          label: "Napsauta kameran suunta lÃ¤himpÃ¤Ã¤n 45 asteeseen",
+          label: "Napsauta kameran suunta lähimpään 45 asteeseen",
           description:
-            "Kun kameran kiertosyÃ¶te vapautetaan, suunta napsahtaa pehmeÃ¤sti lÃ¤himpÃ¤Ã¤n 45 asteen kulmaan.",
+            "Kun kameran kiertosyöte vapautetaan, suunta napsahtaa pehmeästi lähimpään 45 asteen kulmaan.",
         },
         sectionControlsMovement: "Liikkumisen toiminta",
         cameraRelativeMovement: {
-          label: "Kameraan suhteutettu liike ja pyyhkÃ¤isyt",
+          label: "Kameraan suhteutettu liike ja pyyhkäisyt",
           description:
-            "KierrÃ¤ liikenÃ¤ppÃ¤imiÃ¤ ja pyyhkÃ¤isysuuntia kameran Y-akselin kulman perusteella.",
+            "Kierrä liikenäppäimiä ja pyyhkäisysuuntia kameran Y-akselin kulman perusteella.",
         },
         controllerFpsMoveRepeatMs: {
           label: "FPS-vasemman sauvan liikkeen toisto",
           description:
             "Vasemman sauvan liikkeen toistoviive FPS-tilassa (pienempi on nopeampi).",
         },
-        groupInterface: "KÃ¤yttÃ¶liittymÃ¤",
+        groupInterface: "Käyttöliittymä",
         locale: {
           label: "Kieli",
           description:
-            "Valitse kÃ¤yttÃ¶liittymÃ¤n kieli. Oletuksena kÃ¤ytetÃ¤Ã¤n selaimesi aluetta, jos sitÃ¤ tuetaan, ja muuten englantia.",
+            "Valitse käyttöliittymän kieli. Oletuksena käytetään selaimesi aluetta, jos sitä tuetaan, ja muuten englantia.",
           options: {
             en: "Englanti",
           },
         },
-        sectionDisplayCamera: "Kamera ja nÃ¤kÃ¶kulma",
+        sectionDisplayCamera: "Kamera ja näkökulma",
         fpsMode: {
-          label: "EnsimmÃ¤isen persoonan tila",
-          description: "KÃ¤ytÃ¤ ensimmÃ¤isen persoonan ohjausta ja hiirikatselua.",
+          label: "Ensimmäisen persoonan tila",
+          description: "Käytä ensimmäisen persoonan ohjausta ja hiirikatselua.",
         },
         fpsFlattenEntityBillboards: {
-          label: "LitistÃ¤ pÃ¤Ã¤llekkÃ¤iset ruutuspritit",
+          label: "Litistä päällekkäiset ruutuspritit",
           description:
-            "LitistÃ¤ saaliin tai luolaston kohteiden ruutuspritit, kun niiden pÃ¤Ã¤llÃ¤ seisoo hirviÃ¶, lemmikki tai pelaaja. Poista kÃ¤ytÃ¶stÃ¤ pitÃ¤Ã¤ksesi pÃ¤Ã¤llekkÃ¤iset spritet pystyssÃ¤ olevina billboardeina. Vulture-ruudut pysyvÃ¤t aina pystyssÃ¤.",
+            "Litistä saaliin tai luolaston kohteiden ruutuspritit, kun niiden päällä seisoo hirviö, lemmikki tai pelaaja. Poista käytöstä pitääksesi päällekkäiset spritet pystyssä olevina billboardeina. Vulture-ruudut pysyvät aina pystyssä.",
         },
         showItemsUnderPlayerInOverheadTilesMode: {
-          label: "NÃ¤ytÃ¤ pelaajan alla olevat esineet ylÃ¤kuvaruuduissa",
+          label: "Näytä pelaajan alla olevat esineet yläkuvaruuduissa",
           description:
-            "NÃ¤ytÃ¤ pelaajan alla olevat esineet ja lattiaominaisuudet ylÃ¤kuvaruututilassa ajonaikaisella aluskarttadatalla.",
+            "Näytä pelaajan alla olevat esineet ja lattiaominaisuudet yläkuvaruututilassa ajonaikaisella aluskarttadatalla.",
         },
         fpsFov: {
-          label: "FPS-nÃ¤kÃ¶kenttÃ¤",
-          description: "SÃ¤Ã¤dÃ¤ ensimmÃ¤isen persoonan kameran nÃ¤kÃ¶kenttÃ¤Ã¤.",
+          label: "FPS-näkökenttä",
+          description: "Säädä ensimmäisen persoonan kameran näkökenttää.",
         },
-        sectionDisplayGraphics: "Grafiikka ja renderÃ¶inti",
+        sectionDisplayGraphics: "Grafiikka ja renderöinti",
         tilesetMode: {
-          label: "NÃ¤yttÃ¶",
-          description: "KÃ¤ytÃ¤ graafisia ruutuja ASCII:n sijaan.",
+          label: "Näyttö",
+          description: "Käytä graafisia ruutuja ASCII:n sijaan.",
           options: {
             ascii: "ASCII-grafiikka",
             tiles: "Ruudut",
@@ -702,11 +702,11 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         tilesetPath: {
           label: "Ruutusetti",
-          description: "SisÃ¤Ã¤nrakennetut ja ladatut ruutusetit.",
+          description: "Sisäänrakennetut ja ladatut ruutusetit.",
         },
         antialiasing: {
           label: "Reunojen pehmennys",
-          description: "3D-renderÃ¶innin reunojen pehmennystila.",
+          description: "3D-renderöinnin reunojen pehmennystila.",
           options: {
             taa: "TAA-pehmennys",
             fxaa: "FXAA-pehmennys",
@@ -715,79 +715,79 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         lightingEnabled: {
           label: "Valaistus",
           description:
-            "Ota kÃ¤yttÃ¶Ã¶n dynaaminen kohtausvalaistus ja luolaston tummennus. Poista kÃ¤ytÃ¶stÃ¤ saadaksesi tasaisemman aina valaistun renderÃ¶innin.",
+            "Ota käyttöön dynaaminen kohtausvalaistus ja luolaston tummennus. Poista käytöstä saadaksesi tasaisemman aina valaistun renderöinnin.",
         },
         blockAmbientOcclusion: {
-          label: "YmpÃ¤ristÃ¶n varjostus",
+          label: "Ympäristön varjostus",
           description:
-            "LisÃ¤Ã¤ hienovaraista kontaktivarjostusta lattia- ja seinÃ¤lohkojen vÃ¤liin.",
+            "Lisää hienovaraista kontaktivarjostusta lattia- ja seinälohkojen väliin.",
         },
         brightness: {
           label: "Kirkkaus",
-          description: "SÃ¤Ã¤dÃ¤ koko nÃ¤kymÃ¤n kirkkautta.",
+          description: "Säädä koko näkymän kirkkautta.",
         },
         contrast: {
           label: "Kontrasti",
-          description: "SÃ¤Ã¤dÃ¤ renderÃ¶idyn nÃ¤kymÃ¤n yleistÃ¤ kontrastia.",
+          description: "Säädä renderöidyn näkymän yleistä kontrastia.",
         },
         gamma: {
-          label: "GammasÃ¤Ã¤tÃ¶",
-          description: "SÃ¤Ã¤dÃ¤ renderÃ¶idyn nÃ¤kymÃ¤n nÃ¤ytÃ¶n gammaa.",
+          label: "Gammasäätö",
+          description: "Säädä renderöidyn näkymän näytön gammaa.",
         },
-        sectionDisplayInterface: "KÃ¤yttÃ¶liittymÃ¤",
+        sectionDisplayInterface: "Käyttöliittymä",
         uiFontScale: {
-          label: "KÃ¤yttÃ¶liittymÃ¤n fonttikoko",
+          label: "Käyttöliittymän fonttikoko",
           description:
-            "Skaalaa kaikkien pelin kÃ¤yttÃ¶liittymÃ¤fonttien kokoa oletusarvoista.",
+            "Skaalaa kaikkien pelin käyttöliittymäfonttien kokoa oletusarvoista.",
         },
         disableAnimatedTransitions: {
-          label: "Poista animoidut siirtymÃ¤t kÃ¤ytÃ¶stÃ¤",
+          label: "Poista animoidut siirtymät käytöstä",
           description:
-            "Poista kÃ¤yttÃ¶liittymÃ¤n hÃ¤ivytys-, liike- ja siirtymÃ¤animaatiot kÃ¤ytÃ¶stÃ¤ nopeampia muutoksia varten.",
+            "Poista käyttöliittymän häivytys-, liike- ja siirtymäanimaatiot käytöstä nopeampia muutoksia varten.",
         },
         uiTileBackgroundRemoval: {
-          label: "Poista ruutujen taustat kÃ¤yttÃ¶liittymÃ¤ssÃ¤",
+          label: "Poista ruutujen taustat käyttöliittymässä",
           description:
-            "KÃ¤ytÃ¤ ruutu-/kromaattitaustan poistoa kÃ¤yttÃ¶liittymÃ¤paneeleissa nÃ¤ytettÃ¤viin ruutukuvakkeisiin.",
+            "Käytä ruutu-/kromaattitaustan poistoa käyttöliittymäpaneeleissa näytettäviin ruutukuvakkeisiin.",
         },
         desktopTouchInterfaceMode: {
-          label: "TyÃ¶pÃ¶ydÃ¤n kosketuskÃ¤yttÃ¶liittymÃ¤",
+          label: "Työpöydän kosketuskäyttöliittymä",
           description:
-            "NÃ¤ytÃ¤ kosketusohjaimet tyÃ¶pÃ¶ydÃ¤llÃ¤ ja valitse pysty- tai vaakasuuntainen asettelu.",
+            "Näytä kosketusohjaimet työpöydällä ja valitse pysty- tai vaakasuuntainen asettelu.",
           options: {
             off: "Pois",
-            portrait: "KÃ¤ytÃ¤ pystysuuntaista kosketuskÃ¤yttÃ¶liittymÃ¤Ã¤",
-            landscape: "KÃ¤ytÃ¤ vaakasuuntaista kosketuskÃ¤yttÃ¶liittymÃ¤Ã¤",
+            portrait: "Käytä pystysuuntaista kosketuskäyttöliittymää",
+            landscape: "Käytä vaakasuuntaista kosketuskäyttöliittymää",
           },
         },
         sectionDisplayMessages: "Viestit ja loki",
         desktopMessageLogWindowScale: {
-          label: "TyÃ¶pÃ¶ydÃ¤n viestiloki-ikkunan koko",
+          label: "Työpöydän viestiloki-ikkunan koko",
           description:
-            "Skaalaa kehystetyn tyÃ¶pÃ¶ydÃ¤n viestiloki-ikkunan kokoa muuttamatta fonttikokoa.",
+            "Skaalaa kehystetyn työpöydän viestiloki-ikkunan kokoa muuttamatta fonttikokoa.",
         },
         liveMessageLog: {
           label: "Live-viestiloki",
-          description: "NÃ¤ytÃ¤ vierivÃ¤ pelinsisÃ¤inen viestiloki.",
+          description: "Näytä vierivä pelinsisäinen viestiloki.",
         },
         liveMessageDisplayTimeMs: {
-          label: "Live-viestin nÃ¤yttÃ¶aika",
+          label: "Live-viestin näyttöaika",
           description:
-            "Kuinka kauan kelluva viesti pysyy tÃ¤ysin nÃ¤kyvÃ¤nÃ¤ ennen hÃ¤ivytystÃ¤.",
+            "Kuinka kauan kelluva viesti pysyy täysin näkyvänä ennen häivytystä.",
         },
         liveMessageFadeOutTimeMs: {
-          label: "Live-viestin hÃ¤ivytysaika",
-          description: "Kelluvan viestin hÃ¤ivytysanimaation kesto.",
+          label: "Live-viestin häivytysaika",
+          description: "Kelluvan viestin häivytysanimaation kesto.",
         },
         liveMessageLogFontScale: {
           label: "Live-viestien fonttikoko",
           description:
-            "Skaalaa ylÃ¶s nousevien kelluvien toimintaviestien kokoa oletusarvosta.",
+            "Skaalaa ylös nousevien kelluvien toimintaviestien kokoa oletusarvosta.",
         },
         sectionDisplayMinimap: "Minikartta",
         minimap: {
           label: "Minikartta",
-          description: "NÃ¤ytÃ¤ tai piilota luolaston minikartta.",
+          description: "Näytä tai piilota luolaston minikartta.",
         },
         minimapScale: {
           label: "Minikartan koko",
@@ -795,31 +795,31 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         sectionDisplayInventory: "Tavaroiden esitystapa",
         reduceInventoryMotion: {
-          label: "VÃ¤hennÃ¤ tavaroiden liikettÃ¤",
+          label: "Vähennä tavaroiden liikettä",
           description:
-            "Poista animoitu tavararivien laajeneminen ja kÃ¤ytÃ¤ yksinkertaisempia vuorovaikutuksia.",
+            "Poista animoitu tavararivien laajeneminen ja käytä yksinkertaisempia vuorovaikutuksia.",
         },
         inventoryTileOnlyMotion: {
           label: "Animoi vain tavararuudut",
           description:
-            "Animoi kuvakeruudut pitÃ¤en tavararivien korkeus ja vÃ¤listys kiinteinÃ¤.",
+            "Animoi kuvakeruudut pitäen tavararivien korkeus ja välistys kiinteinä.",
         },
         inventoryFixedTileSize: {
-          label: "KiinteÃ¤ tavararuudun koko",
+          label: "Kiinteä tavararuudun koko",
           description:
-            "Koskee vain, kun tavaroiden liikkeen vÃ¤hennys on kÃ¤ytÃ¶ssÃ¤. Valitse kiinteÃ¤ kuvakkeen koko.",
+            "Koskee vain, kun tavaroiden liikkeen vähennys on käytössä. Valitse kiinteä kuvakkeen koko.",
           options: {
-            none: "Ei mitÃ¤Ã¤n",
+            none: "Ei mitään",
             small: "Pieni",
             medium: "Keskikokoinen",
             large: "Suuri",
           },
         },
-        groupSound: "Ã„Ã¤ni",
+        groupSound: "Ääni",
         soundEnabled: {
-          label: "Ota Ã¤Ã¤ni kÃ¤yttÃ¶Ã¶n",
+          label: "Ota ääni käyttöön",
           description:
-            "Ota FMOD-Ã¤Ã¤ni kÃ¤yttÃ¶Ã¶n tai pois kÃ¤ytÃ¶stÃ¤. Poistaminen vÃ¤hentÃ¤Ã¤ Ã¤Ã¤nenkÃ¤sittelyn kuormaa heikommilla laitteilla.",
+            "Ota FMOD-ääni käyttöön tai pois käytöstä. Poistaminen vähentää äänenkäsittelyn kuormaa heikommilla laitteilla.",
         },
         groupMobileControls: "Mobiiliohjaimet",
         invertTouchPanningDirection: {
@@ -829,76 +829,76 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         groupCombat: "Taistelupalaute",
         damageNumbers: {
           label: "Vahinkoluvut",
-          description: "NÃ¤ytÃ¤ kelluvat vahinko- ja parannusluvut.",
+          description: "Näytä kelluvat vahinko- ja parannusluvut.",
         },
         displayStatChangesAbovePlayer: {
-          label: "NÃ¤ytÃ¤ ominaisuusmuutokset pelaajan ylÃ¤puolella",
+          label: "Näytä ominaisuusmuutokset pelaajan yläpuolella",
           description:
-            "NÃ¤ytÃ¤ kelluvat merkinnÃ¤t ominaisuusmuutoksille, kuten Voima ja AC.",
+            "Näytä kelluvat merkinnät ominaisuusmuutoksille, kuten Voima ja AC.",
         },
         displayXpGainsAbovePlayer: {
-          label: "NÃ¤ytÃ¤ XP-nousut pelaajan ylÃ¤puolella",
+          label: "Näytä XP-nousut pelaajan yläpuolella",
           description:
-            "NÃ¤ytÃ¤ kelluvat XP-lisÃ¤ysmerkinnÃ¤t kokemuksen kasvaessa.",
+            "Näytä kelluvat XP-lisäysmerkinnät kokemuksen kasvaessa.",
         },
         tileShakeOnHit: {
-          label: "Ruudun tÃ¤rÃ¤hdys osumasta",
-          description: "TÃ¤rÃ¤ytÃ¤ osumaruutuja, kun isku osuu.",
+          label: "Ruudun tärähdys osumasta",
+          description: "Täräytä osumaruutuja, kun isku osuu.",
         },
         blood: {
           label: "Veri",
-          description: "RenderÃ¶i verisumutyyppiset hiukkastehosteet osumissa.",
+          description: "Renderöi verisumutyyppiset hiukkastehosteet osumissa.",
         },
         bloodMist: {
           label: "Verisumu",
           description:
-            "RenderÃ¶i ilmassa leijuvat verisumuhitukkaset osumissa.",
+            "Renderöi ilmassa leijuvat verisumuhitukkaset osumissa.",
         },
         bloodGround: {
           label: "Veriroiskeet",
           description:
-            "RenderÃ¶i veriroiskeet luolaston lattialle osumien jÃ¤lkeen.",
+            "Renderöi veriroiskeet luolaston lattialle osumien jälkeen.",
         },
         bloodDetail: {
           options: {
-            veryLow: "ErittÃ¤in matala",
+            veryLow: "Erittäin matala",
           },
         },
         monsterShatter: {
-          label: "HirviÃ¶n pirstoutuminen",
+          label: "Hirviön pirstoutuminen",
           description:
-            "Jaa kukistetut hirviÃ¶billboardit fyysisiksi sirpaleiksi.",
+            "Jaa kukistetut hirviöbillboardit fyysisiksi sirpaleiksi.",
         },
         monsterShatterBloodBorders: {
           label: "Pirstaleiden verireunat",
           description:
-            "SÃ¤vytÃ¤ sirpaleiden pikseleitÃ¤ jakoviivojen lÃ¤heltÃ¤ satunnaisilla verenpunaisilla reunoilla.",
+            "Sävytä sirpaleiden pikseleitä jakoviivojen läheltä satunnaisilla verenpunaisilla reunoilla.",
         },
         groupCompatibility: "Ajonaikainen yhteensopivuus",
         darkCorridorWalls367: {
-          label: "Perinteiset tummat kÃ¤ytÃ¤vÃ¤seinÃ¤t",
+          label: "Perinteiset tummat käytäväseinät",
           description:
-            "PÃ¤Ã¤ttele ja vÃ¤limuistita tummien kÃ¤ytÃ¤vÃ¤seinien ruudut vanhoille NetHack 3.4.3/3.6.x -ajoalustoille, mukaan lukien Slash'EM.",
+            "Päättele ja välimuistita tummien käytäväseinien ruudut vanhoille NetHack 3.4.3/3.6.x -ajoalustoille, mukaan lukien Slash'EM.",
         },
         overrideNh37DarkCorridorWallTiles: {
-          label: "Ohita NetHack 3.7:n tummat seinÃ¤ruudut",
+          label: "Ohita NetHack 3.7:n tummat seinäruudut",
           description:
-            "KÃ¤ytÃ¤ tumman seinÃ¤n ohitusasetuksia NetHack 3.7:n tummiin kÃ¤ytÃ¤vÃ¤seinÃ¤n ruutuihin.",
+            "Käytä tumman seinän ohitusasetuksia NetHack 3.7:n tummiin käytäväseinän ruutuihin.",
         },
         darkCorridorWallTileOverrideEnabled: {
-          label: "Ohita tumma seinÃ¤ruutu",
+          label: "Ohita tumma seinäruutu",
           description:
-            "KÃ¤ytÃ¤ mukautettua atlasruutua tummien seinien ohituksiin, tallennettuna ruutusetin mukaan.",
+            "Käytä mukautettua atlasruutua tummien seinien ohituksiin, tallennettuna ruutusetin mukaan.",
         },
         darkCorridorWallSolidColorOverrideEnabled: {
-          label: "KÃ¤ytÃ¤ tummin seinin yksivÃ¤riÃ¤",
-          description: "KÃ¤ytÃ¤ valittua RGB-vÃ¤riÃ¤ ruutusetin ruudun sijaan.",
+          label: "Käytä tummin seinin yksiväriä",
+          description: "Käytä valittua RGB-väriä ruutusetin ruudun sijaan.",
         },
       },
       tabs: {
         display: {
-          label: "NÃ¤yttÃ¶",
-          description: "KÃ¤yttÃ¶liittymÃ¤- ja nÃ¤yttÃ¶asetukset.",
+          label: "Näyttö",
+          description: "Käyttöliittymä- ja näyttöasetukset.",
         },
         mobile: {
           label: "Mobiili",
@@ -909,8 +909,8 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description: "Ohjainsidonnat, FPS-tila ja katselun toiminta.",
         },
         sound: {
-          label: "Ã„Ã¤ni",
-          description: "Ã„Ã¤nentoisto ja suorituskykyyn liittyvÃ¤t Ã¤Ã¤niasetukset.",
+          label: "Ääni",
+          description: "Äänentoisto ja suorituskykyyn liittyvät ääniasetukset.",
         },
         combat: {
           label: "Taistelu",
@@ -918,52 +918,52 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         compatibility: {
           label: "Yhteensopivuus",
-          description: "Ajonaikainen yhteensopivuus ja NetHack-kÃ¤ytÃ¶ksen valinnat.",
+          description: "Ajonaikainen yhteensopivuus ja NetHack-käytöksen valinnat.",
         },
         updates: {
-          label: "PÃ¤ivitykset",
+          label: "Päivitykset",
           description:
-            "Tarkista pelin verkkopÃ¤ivitykset ja tarkastele odottavia muutoksia.",
+            "Tarkista pelin verkkopäivitykset ja tarkastele odottavia muutoksia.",
         },
       },
     },
     update: {
       loading: {
-        startupData: "Ladataan kÃ¤ynnistystietoja...",
-        tileset: "Ladataan ruutusettiÃ¤...",
-        runtime: "KÃ¤ynnistetÃ¤Ã¤n paikallista runtimea...",
+        startupData: "Ladataan käynnistystietoja...",
+        tileset: "Ladataan ruutusettiä...",
+        runtime: "Käynnistetään paikallista runtimea...",
       },
       runtimeStoppedBeforeStartup:
-        "Paikallinen NetHack-runtime pysÃ¤htyi ennen kÃ¤ynnistyksen valmistumista.",
-      preparingDownload: "Valmistellaan pelipÃ¤ivityksen latausta...",
-      idleStatus: "PÃ¤ivityksen tila on joutokÃ¤ynnillÃ¤.",
+        "Paikallinen NetHack-runtime pysähtyi ennen käynnistyksen valmistumista.",
+      preparingDownload: "Valmistellaan pelipäivityksen latausta...",
+      idleStatus: "Päivityksen tila on joutokäynnillä.",
       fileProgress: (index: number, count: number) =>
         `File ${index} of ${count}`,
-      unexpectedCheckFailure: "Odottamaton virhe pÃ¤ivityksen tarkistuksessa.",
+      unexpectedCheckFailure: "Odottamaton virhe päivityksen tarkistuksessa.",
       cancelRequested: "Peruutusta pyydetty.",
-      stoppingActiveDownloadTask: "PysÃ¤ytetÃ¤Ã¤n aktiivista lataustehtÃ¤vÃ¤Ã¤.",
-      unableToCancelDownload: "PÃ¤ivityslatausta ei voitu peruuttaa.",
-      noActiveDownloadToCancel: "Ei aktiivista pÃ¤ivityslatausta peruutettavaksi.",
-      startingDownload: "Aloitetaan pelipÃ¤ivityksen lataus.",
-      canceled: "PÃ¤ivityslataus peruutettiin.",
-      unableToDownloadAndApply: "PÃ¤ivityksiÃ¤ ei voitu ladata ja ottaa kÃ¤yttÃ¶Ã¶n.",
-      failed: "PÃ¤ivitys epÃ¤onnistui.",
-      latestAlreadyInstalled: "Uusin pÃ¤ivitys on jo asennettu.",
-      downloadComplete: "PÃ¤ivityslataus valmis.",
+      stoppingActiveDownloadTask: "Pysäytetään aktiivista lataustehtävää.",
+      unableToCancelDownload: "Päivityslatausta ei voitu peruuttaa.",
+      noActiveDownloadToCancel: "Ei aktiivista päivityslatausta peruutettavaksi.",
+      startingDownload: "Aloitetaan pelipäivityksen lataus.",
+      canceled: "Päivityslataus peruutettiin.",
+      unableToDownloadAndApply: "Päivityksiä ei voitu ladata ja ottaa käyttöön.",
+      failed: "Päivitys epäonnistui.",
+      latestAlreadyInstalled: "Uusin päivitys on jo asennettu.",
+      downloadComplete: "Päivityslataus valmis.",
       nothingAppliedTryAgain:
-        "PÃ¤ivityksiÃ¤ ei otettu kÃ¤yttÃ¶Ã¶n. YritÃ¤ tarkistaa uudelleen.",
-      noFilesApplied: "PÃ¤ivitystiedostoja ei otettu kÃ¤yttÃ¶Ã¶n.",
-      unexpectedFailure: "Odottamaton pÃ¤ivitysvirhe.",
+        "Päivityksiä ei otettu käyttöön. Yritä tarkistaa uudelleen.",
+      noFilesApplied: "Päivitystiedostoja ei otettu käyttöön.",
+      unexpectedFailure: "Odottamaton päivitysvirhe.",
       checkingForUpdates: "Tarkistetaan GitHub-julkaisuja...",
       unsupportedPlatform:
-        "GitHub-julkaisujen tarkistus ei ole saatavilla tÃ¤llÃ¤ alustalla.",
+        "GitHub-julkaisujen tarkistus ei ole saatavilla tällä alustalla.",
       latestAlreadyInstalledOptions: "Sinulla on jo pelin uusin versio.",
       oneUpdateAvailable:
-        "Uudempi peliversio on saatavilla. Haluatko pÃ¤ivittÃ¤Ã¤?",
+        "Uudempi peliversio on saatavilla. Haluatko päivittää?",
       manyUpdatesAvailable: (count: number) =>
-        `${count} uudempaa peliversiota on saatavilla. Haluatko pÃ¤ivittÃ¤Ã¤?`,
+        `${count} uudempaa peliversiota on saatavilla. Haluatko päivittää?`,
       updateCheckFailed: (message: string) =>
-        `GitHub-julkaisujen tarkistus epÃ¤onnistui: ${message}`,
+        `GitHub-julkaisujen tarkistus epäonnistui: ${message}`,
     },
     saves: {
       sections: {
@@ -978,23 +978,23 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         `A saved game named "${name}" already exists. Do you want to overwrite it with a new character?`,
       errorLoading: "Virhe tallennusten lataamisessa",
       loading: "Ladataan tallennuksia...",
-      noneFound: "Tallennettuja pelejÃ¤ ei lÃ¶ytynyt.",
+      noneFound: "Tallennettuja pelejä ei löytynyt.",
       savedAt: (date: string) => `Saved: ${date}`,
     },
     tilesets: {
-      userTileset: "KÃ¤yttÃ¤jÃ¤n ruutusetti",
-      currentSelectionFallback: "tÃ¤mÃ¤ ruutusetti",
+      userTileset: "Käyttäjän ruutusetti",
+      currentSelectionFallback: "tämä ruutusetti",
       deleteUploadedTitle: "Poistetaanko ladattu ruutusetti?",
       deleteUploadedMessage: (label: string) =>
         `Delete '${label}' from uploaded tilesets?`,
-      failedToDelete: "Ruutusetin poistaminen epÃ¤onnistui.",
+      failedToDelete: "Ruutusetin poistaminen epäonnistui.",
       chooseFile: "Valitse PNG/BMP/GIF/JPEG-ruutusetin tiedosto.",
-      provideName: "Anna tÃ¤lle ruutusetille nimi.",
-      failedToSave: "Ruutusetin tallentaminen epÃ¤onnistui.",
-      failedToLoadUploaded: "Ladattujen ruutusettien lataaminen epÃ¤onnistui:",
-      userTilesetSuffix: "KÃ¤yttÃ¤jÃ¤n ruutusetti (kÃ¤yttÃ¤jÃ¤)",
-      noTilesetsFound: "RuutusettejÃ¤ ei lÃ¶ytynyt",
-      failedToReadImage: "Ruutusetin kuvan lukeminen epÃ¤onnistui.",
+      provideName: "Anna tälle ruutusetille nimi.",
+      failedToSave: "Ruutusetin tallentaminen epäonnistui.",
+      failedToLoadUploaded: "Ladattujen ruutusettien lataaminen epäonnistui:",
+      userTilesetSuffix: "Käyttäjän ruutusetti (käyttäjä)",
+      noTilesetsFound: "Ruutusettejä ei löytynyt",
+      failedToReadImage: "Ruutusetin kuvan lukeminen epäonnistui.",
     },
     tilePicker: {
       noAtlasAvailable: "Ruutusetin atlasta ei ole saatavilla.",
@@ -1006,78 +1006,78 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       tile: (tileId: number) => `Tile ${tileId}`,
       defaultBadge: "Oletus",
       resetToDefault: "Palauta oletus",
-      darkWallTitle: "Tumman seinÃ¤ruudun valitsin",
-      closeDarkWall: "Sulje tumman seinÃ¤ruudun valitsin",
+      darkWallTitle: "Tumman seinäruudun valitsin",
+      closeDarkWall: "Sulje tumman seinäruudun valitsin",
       closeBackground: "Sulje ruutusetin taustaruudun valitsin",
       backgroundHelper:
-        "KÃ¤ytetÃ¤Ã¤n poistamaan jaettu ruutusetin tausta hirviÃ¶-/saalisbillboardeista.",
+        "Käytetään poistamaan jaettu ruutusetin tausta hirviö-/saalisbillboardeista.",
       backgroundTitle: "Ruutusetin taustaruudun valitsin",
       backgroundTitleWithLabel: (label: string) =>
         `Tileset Background Tile Picker: ${label}`,
-      closeSolidColor: "Sulje yksivÃ¤risen kroma-avaimen vÃ¤rivalitsin",
-      solidColorTitle: "YksivÃ¤risen kroma-avaimen valitsin",
+      closeSolidColor: "Sulje yksivärisen kroma-avaimen värivalitsin",
+      solidColorTitle: "Yksivärisen kroma-avaimen valitsin",
       solidColorTitleWithLabel: (label: string) =>
         `Solid Color Chroma Key Picker: ${label}`,
     },
     soundPack: {
-      discardChangesTitle: "HylÃ¤tÃ¤Ã¤nkÃ¶ Ã¤Ã¤nipaketin muutokset?",
+      discardChangesTitle: "Hylätäänkö äänipaketin muutokset?",
       discardChangesMessage:
-        "HylÃ¤tÃ¤Ã¤nkÃ¶ tallentamattomat Ã¤Ã¤nipaketin muutokset ja jatketaan?",
-      discard: "HylkÃ¤Ã¤",
+        "Hylätäänkö tallentamattomat äänipaketin muutokset ja jatketaan?",
+      discard: "Hylkää",
       keepEditing: "Jatka muokkausta",
-      failedToLoadIndexedDb: "Ã„Ã¤nipakettien lataaminen IndexedDB:stÃ¤ epÃ¤onnistui.",
-      failedToSelectRequested: "PyydettyÃ¤ Ã¤Ã¤nipakettia ei voitu valita.",
-      provideName: "Anna Ã¤Ã¤nipaketille nimi.",
+      failedToLoadIndexedDb: "Äänipakettien lataaminen IndexedDB:stä epäonnistui.",
+      failedToSelectRequested: "Pyydettyä äänipakettia ei voitu valita.",
+      provideName: "Anna äänipaketille nimi.",
       created: (name: string) => `Created sound pack '${name}'.`,
-      failedToCreate: "Ã„Ã¤nipaketin luonti epÃ¤onnistui.",
+      failedToCreate: "Äänipaketin luonti epäonnistui.",
       saved: (name: string) => `Saved sound pack '${name}'.`,
-      failedToSave: "Ã„Ã¤nipaketin tallennus epÃ¤onnistui.",
-      failedToExportZip: "Ã„Ã¤nipaketin ZIP-vienti epÃ¤onnistui.",
+      failedToSave: "Äänipaketin tallennus epäonnistui.",
+      failedToExportZip: "Äänipaketin ZIP-vienti epäonnistui.",
       exported: (name: string) => `Exported '${name}'.`,
-      failedToImportZip: "Ã„Ã¤nipaketin ZIP-tuonti epÃ¤onnistui.",
+      failedToImportZip: "Äänipaketin ZIP-tuonti epäonnistui.",
       imported: (name: string) => `Imported sound pack '${name}'.`,
-      deleteTitle: "Poistetaanko Ã¤Ã¤nipaketti?",
+      deleteTitle: "Poistetaanko äänipaketti?",
       deleteMessage: (name: string) =>
         `Delete sound pack '${name}'? This cannot be undone.`,
       deleted: (name: string) => `Deleted sound pack '${name}'.`,
-      failedToDelete: "Ã„Ã¤nipaketin poistaminen epÃ¤onnistui.",
-      noPreviewSource: "TÃ¤lle Ã¤Ã¤nelle ei ole esikatselulÃ¤hdettÃ¤.",
-      unableToPreview: "TÃ¤mÃ¤n Ã¤Ã¤nen esikatselu ei onnistu.",
-      title: "Ã„Ã¤nipaketit",
-      activePack: "Aktiivinen Ã¤Ã¤nipaketti",
+      failedToDelete: "Äänipaketin poistaminen epäonnistui.",
+      noPreviewSource: "Tälle äänelle ei ole esikatselulähdettä.",
+      unableToPreview: "Tämän äänen esikatselu ei onnistu.",
+      title: "Äänipaketit",
+      activePack: "Aktiivinen äänipaketti",
       activePackDescription:
-        "Valitse aktiivinen Ã¤Ã¤nipaketti, jota kÃ¤ytetÃ¤Ã¤n Ã¤Ã¤nipolkujen ratkaisuun.",
-      createNew: "Luo uusi Ã¤Ã¤nipaketti",
-      createDescription: "Luo mukautettu Ã¤Ã¤nipaketti, joka ohittaa oletukset.",
-      createNameLabel: "Uuden Ã¤Ã¤nipaketin nimi",
-      createPlaceholder: "Oma Ã¤Ã¤nipakettini",
+        "Valitse aktiivinen äänipaketti, jota käytetään äänipolkujen ratkaisuun.",
+      createNew: "Luo uusi äänipaketti",
+      createDescription: "Luo mukautettu äänipaketti, joka ohittaa oletukset.",
+      createNameLabel: "Uuden äänipaketin nimi",
+      createPlaceholder: "Oma äänipakettini",
       createAndSave: "Luo ja tallenna",
       packName: "Paketin nimi",
       packNameDescription:
-        "NimeÃ¤ tÃ¤mÃ¤ paketti uudelleen ja tallenna pÃ¤ivittÃ¤Ã¤ksesi sen Ã¤Ã¤nitiedostojen nimiavaruuden.",
-      savePack: "Tallenna Ã¤Ã¤nipaketti",
-      export: "Vie Ã¤Ã¤nipaketti",
-      import: "Tuo Ã¤Ã¤nipaketti",
-      deletePack: "Poista Ã¤Ã¤nipaketti",
-      stopPreview: "PysÃ¤ytÃ¤ esikatselu",
-      loading: "Ladataan Ã¤Ã¤nipaketteja...",
+        "Nimeä tämä paketti uudelleen ja tallenna päivittääksesi sen äänitiedostojen nimiavaruuden.",
+      savePack: "Tallenna äänipaketti",
+      export: "Vie äänipaketti",
+      import: "Tuo äänipaketti",
+      deletePack: "Poista äänipaketti",
+      stopPreview: "Pysäytä esikatselu",
+      loading: "Ladataan äänipaketteja...",
       pendingSaveSuffix: " (odottaa tallennusta)",
       defaultSuffix: " (oletus)",
       customSuffix: " (mukautettu)",
-      noBundledSound: "Ei mukana tulevaa Ã¤Ã¤ntÃ¤",
+      noBundledSound: "Ei mukana tulevaa ääntä",
       enableSoundAria: (label: string) => `Enable ${label}`,
       volumeAria: (label: string) => `Volume for ${label}`,
       play: "Toista",
       playing: "Toistetaan...",
-      volume: "Ã„Ã¤nenvoimakkuus",
+      volume: "Äänenvoimakkuus",
       remove: "Poista",
       replace: "Korvaa",
-      soundFile: "Ã„Ã¤nitiedosto",
+      soundFile: "Äänitiedosto",
       reset: "Palauta",
-      attribution: "LÃ¤hdemerkintÃ¤",
+      attribution: "Lähdemerkintä",
       attributionAria: (label: string) => `Attribution for ${label}`,
-      attributionPlaceholder: "LÃ¤hde, tekijÃ¤ tai lisenssitiedot",
-      addVariation: "+ LisÃ¤Ã¤ variaatio",
+      attributionPlaceholder: "Lähde, tekijä tai lisenssitiedot",
+      addVariation: "+ Lisää variaatio",
     },
     dialogs: {
       pauseMenu: {
@@ -1086,42 +1086,42 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         resume: "Jatka",
         options: "Asetukset",
         saveGame: "Tallenna peli",
-        exitToMainMenu: "Palaa pÃ¤Ã¤valikkoon",
+        exitToMainMenu: "Palaa päävalikkoon",
         quitGame: "Lopeta peli",
       },
       debugLogs: {
         closeLabel: "Sulje debug-lokit",
         title: "Tallennetut debug-lokit",
-        hint: "Lokeja tallennetaan vasta, kun piilotettu debug-lokikytkin on otettu kÃ¤yttÃ¶Ã¶n.",
+        hint: "Lokeja tallennetaan vasta, kun piilotettu debug-lokikytkin on otettu käyttöön.",
         showingEntries: (count: number, startedAt: string) =>
           `Showing ${count} entries from ${startedAt}.`,
-        noneSaved: "Tallennettuja debug-lokeja ei vielÃ¤ ole.",
-        refresh: "PÃ¤ivitÃ¤",
-        clearLogs: "TyhjennÃ¤ lokit",
+        noneSaved: "Tallennettuja debug-lokeja ei vielä ole.",
+        refresh: "Päivitä",
+        clearLogs: "Tyhjennä lokit",
       },
       startupUpdate: {
-        maintenanceNotice: "Uudempia GitHub-julkaisuja ei lÃ¶ytynyt.",
+        maintenanceNotice: "Uudempia GitHub-julkaisuja ei löytynyt.",
         summaryAvailable:
-          "Uudempi peliversio on saatavilla. Haluatko pÃ¤ivittÃ¤Ã¤?",
+          "Uudempi peliversio on saatavilla. Haluatko päivittää?",
         summaryNone: "Sinulla on jo pelin uusin versio.",
         currentVersion: (version: string) => `Nykyinen versio: ${version}`,
         latestVersion: (version: string) =>
           `Uusin GitHub-julkaisu: ${version}`,
         disableAtStartup:
-          "Ã„lÃ¤ nÃ¤ytÃ¤ nÃ¤itÃ¤ ilmoituksia enÃ¤Ã¤ kÃ¤ynnistyksessÃ¤.",
+          "Älä näytä näitä ilmoituksia enää käynnistyksessä.",
         disabledNotice:
-          "KÃ¤ynnistyksen julkaisu-ilmoitukset on nyt poistettu kÃ¤ytÃ¶stÃ¤. Voit ottaa ne uudelleen kÃ¤yttÃ¶Ã¶n asetuksissa.",
+          "Käynnistyksen julkaisu-ilmoitukset on nyt poistettu käytöstä. Voit ottaa ne uudelleen käyttöön asetuksissa.",
         clientUpgradeRequired:
-          "Uusimpien alustaparannusten kÃ¤yttÃ¶ vaatii myÃ¶s tÃ¤yden asiakasohjelman pÃ¤ivityksen.",
-        progressTitle: "PÃ¤ivityslatauksen tila",
-        canceling: "Peruutetaan pÃ¤ivityslatausta...",
+          "Uusimpien alustaparannusten käyttö vaatii myös täyden asiakasohjelman päivityksen.",
+        progressTitle: "Päivityslatauksen tila",
+        canceling: "Peruutetaan päivityslatausta...",
         noActiveTransfer: "Ei aktiivista tiedostosiirtoa.",
-        waitingForUpdater: "Odotetaan pÃ¤ivittÃ¤jÃ¤n toimintaa.",
-        pendingUpdates: "Odottavat pÃ¤ivitykset",
-        payloadAvailable: "PÃ¤ivityspaketti on saatavilla.",
-        downloadUpdates: "Lataa pÃ¤ivitykset",
+        waitingForUpdater: "Odotetaan päivittäjän toimintaa.",
+        pendingUpdates: "Odottavat päivitykset",
+        payloadAvailable: "Päivityspaketti on saatavilla.",
+        downloadUpdates: "Lataa päivitykset",
         hideDetails: "Piilota tiedot",
-        moreDetails: "LisÃ¤Ã¤ tietoja",
+        moreDetails: "Lisää tietoja",
         cancelDownload: "Peruuta lataus",
       },
       startup: {
@@ -1148,36 +1148,36 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         categoriesLabel: "Asetusluokat",
         updates: {
           checkOnLaunchLabel:
-            "NÃ¤ytÃ¤ GitHub-julkaisu-ilmoitukset kÃ¤ynnistyksessÃ¤",
+            "Näytä GitHub-julkaisu-ilmoitukset käynnistyksessä",
           checkOnLaunchDescription:
-            "Tarkistaa GitHub-julkaisut kÃ¤ynnistyksessÃ¤ ja ilmoittaa, jos uudempi versio on saatavilla.",
+            "Tarkistaa GitHub-julkaisut käynnistyksessä ja ilmoittaa, jos uudempi versio on saatavilla.",
           title: "GitHub-julkaisut",
           description:
-            "Vertaa tÃ¤tÃ¤ buildia julkaistuihin GitHub-julkaisuihin.",
+            "Vertaa tätä buildia julkaistuihin GitHub-julkaisuihin.",
           idle:
-            "Paina Tarkista pÃ¤ivitykset vertaillaksesi tÃ¤tÃ¤ buildia GitHub-julkaisuihin.",
-          button: "Tarkista pÃ¤ivitykset",
+            "Paina Tarkista päivitykset vertaillaksesi tätä buildia GitHub-julkaisuihin.",
+          button: "Tarkista päivitykset",
           openGitHubReleases: "Avaa GitHub-julkaisut",
         },
         buttons: {
-          manageTileSets: "Hallitse ruutusettejÃ¤",
-          remapController: "MÃ¤Ã¤ritÃ¤ ohjain uudelleen",
+          manageTileSets: "Hallitse ruutusettejä",
+          remapController: "Määritä ohjain uudelleen",
           resetControllerDefaults: "Palauta ohjaimen oletukset",
         },
         hints: {
           darkWallsAlwaysEnabled:
-            " Aina kÃ¤ytÃ¶ssÃ¤, kun Vulture-ruudut ovat aktiivisia.",
+            " Aina käytössä, kun Vulture-ruudut ovat aktiivisia.",
           darkWallsDisabledByVulture:
-            " Pois kÃ¤ytÃ¶stÃ¤, kun Vulture-ruudut ovat aktiivisia.",
+            " Pois käytöstä, kun Vulture-ruudut ovat aktiivisia.",
           enableDarkWallsFirst:
-            " Ota ensin kÃ¤yttÃ¶Ã¶n perinteiset tummat kÃ¤ytÃ¤vÃ¤seinÃ¤t tai NetHack 3.7:n tummien seinien ohitukset.",
-          enableFpsFirst: " Ota ensin kÃ¤yttÃ¶Ã¶n ensimmÃ¤isen persoonan tila NÃ¤yttÃ¶-osiossa.",
+            " Ota ensin käyttöön perinteiset tummat käytäväseinät tai NetHack 3.7:n tummien seinien ohitukset.",
+          enableFpsFirst: " Ota ensin käyttöön ensimmäisen persoonan tila Näyttö-osiossa.",
         },
         darkWallControls: {
           normal: "Normaalitila",
           fps: "FPS-tila",
-          normalAria: "Tumman seinÃ¤n yksivÃ¤ri (normaalitila)",
-          fpsAria: "Tumman seinÃ¤n yksivÃ¤ri (FPS-tila)",
+          normalAria: "Tumman seinän yksiväri (normaalitila)",
+          fpsAria: "Tumman seinän yksiväri (FPS-tila)",
           gridLines: "Ruudukkoviivat",
           intensity: "Voimakkuus",
         },
@@ -1189,37 +1189,37 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
             `Listening for ${label} (slot ${slot}). Press ESC to cancel.`,
         },
         resetPrompt:
-          "Palautetaanko NetHack 3D:n asetukset oletuksiin? Mukautetut ruutusetit sÃ¤ilyvÃ¤t.",
+          "Palautetaanko NetHack 3D:n asetukset oletuksiin? Mukautetut ruutusetit säilyvät.",
       },
       tilesetManager: {
         closeLabel: "Sulje ruutusetinhallinta",
-        title: "Hallitse ruutusettejÃ¤",
+        title: "Hallitse ruutusettejä",
         description:
-          "LisÃ¤Ã¤ ruutusettejÃ¤ ja muokkaa ruutusetti-kohtaisia tausta-/kroma-asetuksia.",
+          "Lisää ruutusettejä ja muokkaa ruutusetti-kohtaisia tausta-/kroma-asetuksia.",
         createTitle: "Luo uusi ruutusetti",
-        editTitle: "Muokkaa ruutusettiÃ¤",
+        editTitle: "Muokkaa ruutusettiä",
         editTitleWithName: (label: string) => `Edit Tile Set: ${label}`,
         tileSetName: "Ruutusetin nimi",
         tileSetPlaceholder: "Oma ruutusetti",
-        builtInNamesLocked: "SisÃ¤Ã¤nrakennettujen ruutusettien nimiÃ¤ ei voi muuttaa.",
+        builtInNamesLocked: "Sisäänrakennettujen ruutusettien nimiä ei voi muuttaa.",
         tileLayoutVersion: "Ruutuasettelun versio",
         layout367: "NetHack 3.6.7 -asettelu",
         layout37: "NetHack 3.7 -asettelu",
         tileLayoutDescription:
-          "Valitse tÃ¤mÃ¤n ladatun atlaksen kÃ¤yttÃ¤mÃ¤ ruutuindeksien asettelu.",
+          "Valitse tämän ladatun atlaksen käyttämä ruutuindeksien asettelu.",
         tileImage: "Ruutusetin kuva",
         tileImageOptional: "Ruutusetin kuva (valinnainen korvaus)",
         selectedFile: (fileName: string) => `Selected: ${fileName}`,
         currentFile: (fileName: string) => `Current: ${fileName}`,
         uploadedImage: "ladattu kuva",
         backgroundRemovalDescription:
-          "MÃ¤Ã¤ritÃ¤ tÃ¤mÃ¤n ruutusetin billboard-taustan poisto tai jÃ¤tÃ¤ molemmat tilat pois pÃ¤Ã¤ltÃ¤ pitÃ¤Ã¤ksesi atlaksen taustat ennallaan.",
+          "Määritä tämän ruutusetin billboard-taustan poisto tai jätä molemmat tilat pois päältä pitääksesi atlaksen taustat ennallaan.",
         backgroundTileRemoval: "Taustaruudun poisto",
         backgroundTileRemovalDescription:
-          "KÃ¤ytÃ¤ valittua atlasruutua billboard-taustan poistoon.",
-        solidChromaKey: "YksivÃ¤rinen kroma-avain",
+          "Käytä valittua atlasruutua billboard-taustan poistoon.",
+        solidChromaKey: "Yksivärinen kroma-avain",
         solidChromaKeyDescription:
-          "KÃ¤ytÃ¤ yhtÃ¤ yhtenÃ¤istÃ¤ RGB-vÃ¤riÃ¤ billboard-taustan poistoon.",
+          "Käytä yhtä yhtenäistä RGB-väriä billboard-taustan poistoon.",
         clickToPickFromAtlas: "napsauta valitaksesi atlaksesta",
         saveFirstThenEdit:
           "Tallenna uusi ruutusetti ensin ja muokkaa sitten tausta-/kroma-asetuksia.",
@@ -1227,7 +1227,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         saveTileSet: "Tallenna ruutusetti",
         saveTileSettings: "Tallenna ruutuasetukset",
         importNewTileSet: "+ Tuo uusi ruutusetti",
-        noUploadedTilesets: "Ladattuja ruutusettejÃ¤ ei ole saatavilla.",
+        noUploadedTilesets: "Ladattuja ruutusettejä ei ole saatavilla.",
         selectedSuffix: " (valittu)",
         editingSuffix: " (muokataan)",
         uploadedDetails: (fileName: string, layout: string) =>
@@ -1235,34 +1235,34 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         builtInDetails: (path: string) => `${path} | built-in`,
       },
       textInput: {
-        cancelLabel: "Peruuta tekstinsyÃ¶ttÃ¶",
-        placeholder: "SyÃ¶tÃ¤ teksti",
-        ok: "HyvÃ¤ksy",
+        cancelLabel: "Peruuta tekstinsyöttö",
+        placeholder: "Syötä teksti",
+        ok: "Hyväksy",
       },
       question: {
         cancelPrompt: "Peruuta kehote",
         selectAll: "Valitse kaikki",
         deselectAll: "Poista kaikkien valinta",
         page: (current: number, total: number) => `Page ${current} / ${total}`,
-        pageHintMultiple: "KÃ¤ytÃ¤ < ja > vaihtaaksesi sivua. Paina ESC peruuttaaksesi",
+        pageHintMultiple: "Käytä < ja > vaihtaaksesi sivua. Paina ESC peruuttaaksesi",
         pageHintSingle: "Paina ESC peruuttaaksesi",
         choices: {
-          leftRingFinger: "Vasen nimetÃ¶n",
-          rightRingFinger: "Oikea nimetÃ¶n",
-          here: "TÃ¤ssÃ¤",
+          leftRingFinger: "Vasen nimetön",
+          rightRingFinger: "Oikea nimetön",
+          here: "Tässä",
           onGround: "Maassa",
           eligibleItems: "Kelvolliset esineet",
           allInventory: "Koko inventaario",
         },
       },
       runtimeStartError: {
-        closeLabel: "Palaa pÃ¤Ã¤valikkoon",
-        title: "NetHackin alustaminen epÃ¤onnistui.",
-        returnToMainMenu: "Palaa pÃ¤Ã¤valikkoon",
+        closeLabel: "Palaa päävalikkoon",
+        title: "NetHackin alustaminen epäonnistui.",
+        returnToMainMenu: "Palaa päävalikkoon",
       },
       newGamePrompt: {
         closeLabel: "Sulje uuden pelin kehote",
-        title: "Palataanko pÃ¤Ã¤valikkoon?",
+        title: "Palataanko päävalikkoon?",
         reasonFallback: "Peli ohi",
       },
       direction: {
@@ -1276,7 +1276,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         levelLabel: (level: number) => `Level ${level}`,
         xpAtMaxLevel: (xp: string) => `XP ${xp} (max level reached)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `XP ${xp} / ${next} â€¢ ${remaining} to next level`,
+          `XP ${xp} / ${next} • ${remaining} to next level`,
         vitals: "Perustiedot",
         characteristics: "Ominaisuudet",
         currentLimit: "Nykyinen / Raja",
@@ -1284,39 +1284,39 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         currentStatus: "Nykyinen tila",
         noActiveStatus: "Ei aktiivisia tiloja.",
         currentAttributes: "Nykyiset attribuutit",
-        noTemporaryAttributes: "Ei tilapÃ¤isiÃ¤ attribuuttivaikutuksia.",
+        noTemporaryAttributes: "Ei tilapäisiä attribuuttivaikutuksia.",
         characterActions: "Hahmon toiminnot",
         inventory: "Tavarat",
         inventoryDetail: "Avaa kannetut esineet",
         closeHint:
-          "Sulje painamalla VÃ„LILYÃ–NTIÃ„, ENTERIÃ„ tai ESCIÃ„. Avaa uudelleen painamalla Ctrl+M.",
+          "Sulje painamalla VÄLILYÖNTIÄ, ENTERIÄ tai ESCIÄ. Avaa uudelleen painamalla Ctrl+M.",
         infoTitleFallback: "NetHack-tiedot",
         noDetails: "(Ei tietoja)",
       },
       inventory: {
         closeLabel: "Sulje tavarat",
         title: "TAVARAT",
-        empty: "Tavarasi ovat tyhjÃ¤t.",
+        empty: "Tavarasi ovat tyhjät.",
         unknownItem: "Tuntematon esine",
-        closeHint: "Sulje painamalla ENTERIÃ„, ESCIÃ„ tai 'i'.",
+        closeHint: "Sulje painamalla ENTERIÄ, ESCIÄ tai 'i'.",
         closeHintWithContext:
-          "Valitse esine avataksesi kontekstikomennot. Sulje painamalla ENTERIÃ„, ESCIÃ„ tai 'i'",
+          "Valitse esine avataksesi kontekstikomennot. Sulje painamalla ENTERIÄ, ESCIÄ tai 'i'",
       },
       inventoryDropMenu: {
         title: "Pudota",
         dropType: "Pudotustapa",
-        dropAmount: "PudotusmÃ¤Ã¤rÃ¤",
-        dropSpecificAmount: "Pudota tietty mÃ¤Ã¤rÃ¤",
+        dropAmount: "Pudotusmäärä",
+        dropSpecificAmount: "Pudota tietty määrä",
         onlyStackedItems: "Saatavilla vain pinotuille esineille",
       },
       inventoryDropCount: {
-        title: "Kuinka monta tÃ¤stÃ¤ pinosta pudotetaan?",
+        title: "Kuinka monta tästä pinosta pudotetaan?",
         chooseAmount: (max: number) => `Choose an amount from 1 to ${max}.`,
-        ariaLabel: "PudotusmÃ¤Ã¤rÃ¤",
-        setMinimum: "Aseta pudotusmÃ¤Ã¤rÃ¤ minimiin",
-        decrease: "VÃ¤hennÃ¤ pudotusmÃ¤Ã¤rÃ¤Ã¤ yhdellÃ¤",
-        increase: "Kasvata pudotusmÃ¤Ã¤rÃ¤Ã¤ yhdellÃ¤",
-        setMaximum: "Aseta pudotusmÃ¤Ã¤rÃ¤ maksimiin",
+        ariaLabel: "Pudotusmäärä",
+        setMinimum: "Aseta pudotusmäärä minimiin",
+        decrease: "Vähennä pudotusmäärää yhdellä",
+        increase: "Kasvata pudotusmäärää yhdellä",
+        setMaximum: "Aseta pudotusmäärä maksimiin",
       },
       mobileActions: {
         extendedCommands: "Laajennetut komennot",
@@ -1339,7 +1339,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         closeLabel: "Sulje sijaintikehote",
       },
       controllerSupport: {
-        prompt: "Ohjain havaittu. Otetaanko ohjaintuki kÃ¤yttÃ¶Ã¶n?",
+        prompt: "Ohjain havaittu. Otetaanko ohjaintuki käyttöön?",
       },
     },
   },

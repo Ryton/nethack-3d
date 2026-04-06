@@ -1288,7 +1288,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           rightRingFinger: "Rechter Ringfinger",
           here: "Hier",
           onGround: "Am Boden",
-          eligibleItems: "Passende GegenstÃ¤nde",
+          eligibleItems: "Passende Gegenstände",
           allInventory: "Ganzes Inventar",
         },
       },
@@ -1313,7 +1313,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         levelLabel: (level: number) => `Stufe ${level}`,
         xpAtMaxLevel: (xp: string) => `EP ${xp} (maximale Stufe erreicht)`,
         xpToNextLevel: (xp: string, next: string, remaining: string) =>
-          `EP ${xp} / ${next} â€¢ ${remaining} bis zur n\u00e4chsten Stufe`,
+          `EP ${xp} / ${next} • ${remaining} bis zur n\u00e4chsten Stufe`,
         vitals: "Vitalwerte",
         characteristics: "Eigenschaften",
         currentLimit: "Aktuell / Limit",
