@@ -3659,7 +3659,7 @@ function getControllerFocusableElements(root: HTMLElement): HTMLElement[] {
     "button:not(:disabled)",
     "summary",
     "a[href]",
-    "input:not(:disabled)",
+    "input:not(:disabled):not([tabindex='-1'])",
     "select:not(:disabled)",
     "textarea:not(:disabled)",
     '[role="button"][tabindex]:not([tabindex="-1"])',
@@ -4014,7 +4014,7 @@ function clickControllerDialogElementAtPoint(
     "summary",
     "[role='button']",
     "a",
-    "input",
+    "input:not([tabindex='-1'])",
     "select",
     "textarea",
     "label",
@@ -9925,7 +9925,7 @@ export default function App(): JSX.Element {
       "button:not(:disabled):not(.nh3d-mobile-dialog-close)",
       "summary",
       "a[href]",
-      "input:not(:disabled)",
+      "input:not(:disabled):not([tabindex='-1'])",
       "select:not(:disabled)",
       "textarea:not(:disabled)",
       '[role="button"][tabindex="0"]',
@@ -9933,7 +9933,7 @@ export default function App(): JSX.Element {
     ].join(", ");
 
     const explicitActiveTarget = topOverlay.querySelector<HTMLElement>(
-      ".nh3d-menu-button.nh3d-menu-button-active, button.nh3d-enhance-skill-card.nh3d-menu-button-active, .nh3d-menu-action-button.nh3d-action-button-active, .nh3d-pickup-action-button.nh3d-action-button-active, .nh3d-pickup-item.nh3d-pickup-item-active .nh3d-pickup-checkbox:not(:disabled)",
+      ".nh3d-menu-button.nh3d-menu-button-active, button.nh3d-enhance-skill-card.nh3d-menu-button-active, .nh3d-menu-action-button.nh3d-action-button-active, .nh3d-pickup-action-button.nh3d-action-button-active",
     );
     const firstContextActionButton = topOverlay.classList.contains(
       "nh3d-context-menu",
@@ -13767,7 +13767,7 @@ export default function App(): JSX.Element {
       const highlightedCandidate =
         target instanceof HTMLElement
           ? ((target.closest(
-              "button, summary, [role='button'], a, input, select, textarea, label, [tabindex]",
+              "button, summary, [role='button'], a, input:not([tabindex='-1']), select, textarea, label, [tabindex]",
             ) as HTMLElement | null) ?? target)
           : null;
       const previousHighlight =
@@ -16958,18 +16958,33 @@ export default function App(): JSX.Element {
                             getMenuSelectionInput(item),
                           )
                         }
+                        onKeyDown={(event) => {
+                          if (
+                            event.key === " " ||
+                            event.key === "Space" ||
+                            event.key === "Spacebar"
+                          ) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            controller?.togglePickupChoice(
+                              getMenuSelectionInput(item),
+                            );
+                          }
+                        }}
+                        role="checkbox"
+                        aria-checked={question.selectedAccelerators.includes(
+                          String(item.accelerator),
+                        )}
+                        tabIndex={0}
                       >
                         <input
                           checked={question.selectedAccelerators.includes(
                             String(item.accelerator),
                           )}
+                          aria-hidden="true"
                           className="nh3d-pickup-checkbox"
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={() =>
-                            controller?.togglePickupChoice(
-                              getMenuSelectionInput(item),
-                            )
-                          }
+                          readOnly
+                          tabIndex={-1}
                           type="checkbox"
                         />
                         <span className="nh3d-question-item-leading">

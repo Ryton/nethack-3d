@@ -25647,7 +25647,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const selectableCount = this.getVisiblePickupSelectableMenuItems().length;
     if (this.activeQuestionIsPickupDialog) {
       if (selectableCount > 1) {
-        return ["select-all", "confirm", "cancel"];
+        return ["confirm", "select-all", "cancel"];
       }
       if (selectableCount === 1) {
         return ["confirm", "cancel"];
