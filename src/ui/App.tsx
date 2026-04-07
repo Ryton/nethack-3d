@@ -13814,6 +13814,10 @@ export default function App(): JSX.Element {
         return;
       }
 
+      if (positionInputActive) {
+        return;
+      }
+
       if ((!isDesktopGameRunning && !isMobileGameRunning) || hasGameplayOverlayOpen) {
         return;
       }
@@ -13838,6 +13842,7 @@ export default function App(): JSX.Element {
     hasGameplayOverlayOpen,
     isClientOptionsVisible,
     inventoryDropCountDialog,
+    positionInputActive,
     isControllerSupportPromptVisible,
     isControllerRemapVisible,
     isDarkWallTilePickerVisible,

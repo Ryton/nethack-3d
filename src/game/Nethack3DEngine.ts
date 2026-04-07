@@ -816,6 +816,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private activeQuestionActionFocusIndex: number = -1;
   private positionHideTimerId: number | null = null;
   private positionInputModeActive: boolean = false;
+  private positionInputOrigin: string | null = null;
   private positionCursor = { x: 0, y: 0 };
   private hasRuntimePositionCursor: boolean = false;
   private positionCursorOutline: THREE.Group | null = null;
@@ -967,6 +968,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsDiagonalAimBias = 0.035;
   private fpsPointerLockActive: boolean = false;
   private fpsPointerLockRestorePending: boolean = false;
+  private fpsEscapeKeyboardLockActive: boolean = false;
+  private fpsEscapeKeyboardLockPending: boolean = false;
+  private fpsEscapeKeyboardLockGeneration: number = 0;
   private fpsForwardHighlight: THREE.Mesh | null = null;
   private fpsForwardHighlightMaterial: THREE.MeshBasicMaterial | null = null;
   private fpsForwardHighlightTexture: THREE.CanvasTexture | null = null;
@@ -9132,7 +9136,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         break;
 
       case "position_input_state":
-        this.setPositionInputMode(Boolean(data.active));
+        this.setPositionInputMode(
+          Boolean(data.active),
+          typeof data.origin === "string" ? data.origin : null,
+        );
         break;
 
       case "position_cursor":
@@ -21075,7 +21082,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return group;
   }
 
-  private setPositionInputMode(active: boolean): void {
+  private setPositionInputMode(active: boolean, origin: string | null = null): void {
     if (!active) {
       if (this.fpsCrosshairGlancePending?.sawPositionInput) {
         this.fpsCrosshairGlancePending.positionResolvedAtMs = Date.now();
@@ -21094,6 +21101,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ),
       );
       this.positionInputModeActive = false;
+      this.positionInputOrigin = null;
       this.uiAdapter.setPositionInputActive(false);
       this.hasRuntimePositionCursor = false;
       this.fpsPositionCursorCameraInitialized = false;
@@ -21106,11 +21114,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearPositionCursor();
       this.uiAdapter.setPositionRequest(null);
       this.refreshCurrentPlayerTileVisualFromStateCache();
+      this.syncFpsEscapeKeyboardLock();
       this.syncFpsPointerLockForUiState(true);
       return;
     }
 
     if (this.positionInputModeActive === active) {
+      this.positionInputOrigin = active ? origin : null;
+      this.syncFpsEscapeKeyboardLock();
       return;
     }
 
@@ -21119,6 +21130,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.positionHideTimerId = null;
     }
     this.positionInputModeActive = true;
+    this.positionInputOrigin = origin;
     this.uiAdapter.setPositionInputActive(true);
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
@@ -21145,6 +21157,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsCrosshairGlancePending.sawPositionInput = true;
     }
     this.syncFpsPointerLockForUiState(false);
+    this.syncFpsEscapeKeyboardLock();
 
     // Preserve any cursor published before the active-state event arrives.
     if (!this.hasRuntimePositionCursor) {
@@ -29063,6 +29076,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return ".";
     }
+    if (
+      this.resolveRuntimeVersion() === "slashem" &&
+      this.positionInputOrigin === "legacy_cursor_prompt" &&
+      event.key === ","
+    ) {
+      return ",";
+    }
     if (event.key === "s" || event.key === "S") {
       return "s";
     }
@@ -29102,14 +29122,105 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
-  private cancelPositionInputMode(): void {
+  private cancelPositionInputMode(reason: string = "unknown"): void {
+    console.log(`Cancelling position input mode (${reason})`);
     this.sendInput("Escape");
+    if (this.isInfoDialogVisible) {
+      this.hideInfoMenuDialog();
+    }
     this.setPositionInputMode(false);
     if (this.positionHideTimerId !== null) {
       window.clearTimeout(this.positionHideTimerId);
       this.positionHideTimerId = null;
     }
     this.uiAdapter.setPositionRequest(null);
+  }
+
+  private getKeyboardLockApi():
+    | {
+        lock?: (keys?: string[]) => Promise<void>;
+        unlock?: () => void;
+      }
+    | null {
+    if (typeof navigator === "undefined" || !navigator) {
+      return null;
+    }
+    const keyboardApi = (navigator as any).keyboard;
+    if (!keyboardApi || typeof keyboardApi !== "object") {
+      return null;
+    }
+    return keyboardApi;
+  }
+
+  private releaseFpsEscapeKeyboardLock(): void {
+    this.fpsEscapeKeyboardLockGeneration += 1;
+    this.fpsEscapeKeyboardLockActive = false;
+    this.fpsEscapeKeyboardLockPending = false;
+    const keyboardApi = this.getKeyboardLockApi();
+    if (!keyboardApi || typeof keyboardApi.unlock !== "function") {
+      return;
+    }
+    try {
+      keyboardApi.unlock();
+    } catch {
+      // Best-effort cleanup only.
+    }
+  }
+
+  private requestFpsEscapeKeyboardLock(): void {
+    if (
+      !this.isFpsMode() ||
+      !this.positionInputModeActive ||
+      !this.fpsPointerLockActive ||
+      this.fpsEscapeKeyboardLockActive ||
+      this.fpsEscapeKeyboardLockPending
+    ) {
+      return;
+    }
+    const keyboardApi = this.getKeyboardLockApi();
+    if (!keyboardApi || typeof keyboardApi.lock !== "function") {
+      return;
+    }
+
+    const generation = this.fpsEscapeKeyboardLockGeneration + 1;
+    this.fpsEscapeKeyboardLockGeneration = generation;
+    this.fpsEscapeKeyboardLockPending = true;
+    Promise.resolve(keyboardApi.lock(["Escape"]))
+      .then(() => {
+        if (generation !== this.fpsEscapeKeyboardLockGeneration) {
+          return;
+        }
+        this.fpsEscapeKeyboardLockActive = true;
+      })
+      .catch(() => {
+        if (generation !== this.fpsEscapeKeyboardLockGeneration) {
+          return;
+        }
+        this.fpsEscapeKeyboardLockActive = false;
+      })
+      .finally(() => {
+        if (generation !== this.fpsEscapeKeyboardLockGeneration) {
+          return;
+        }
+        this.fpsEscapeKeyboardLockPending = false;
+        if (
+          !this.isFpsMode() ||
+          !this.positionInputModeActive ||
+          !this.fpsPointerLockActive
+        ) {
+          this.releaseFpsEscapeKeyboardLock();
+        }
+      });
+  }
+
+  private syncFpsEscapeKeyboardLock(): void {
+    if (this.isFpsMode() && this.positionInputModeActive && this.fpsPointerLockActive) {
+      this.requestFpsEscapeKeyboardLock();
+      return;
+    }
+    if (this.fpsEscapeKeyboardLockActive || this.fpsEscapeKeyboardLockPending) {
+      this.releaseFpsEscapeKeyboardLock();
+    }
   }
 
   private isFpsMode(): boolean {
@@ -29600,13 +29711,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private handlePointerLockChange(): void {
+    const wasPointerLockActive = this.fpsPointerLockActive;
     this.fpsPointerLockActive =
       document.pointerLockElement === this.renderer.domElement;
     if (this.fpsPointerLockActive) {
       this.fpsPointerLockRestorePending = false;
       this.clearVultureMouseHoverHighlight();
     }
+    this.syncFpsEscapeKeyboardLock();
+    if (
+      wasPointerLockActive &&
+      !this.fpsPointerLockActive &&
+      this.positionInputModeActive &&
+      !this.isFpsPointerLockBlockedByUi()
+    ) {
+      this.cancelPositionInputMode("pointer lock lost during active look mode");
+      return;
+    }
     this.syncFpsPointerLockForUiState(false);
+    this.syncFpsEscapeKeyboardLock();
   }
 
   private isFpsPointerLockBlockedByUi(): boolean {
@@ -30099,8 +30222,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     // Handle escape key to close dialogs
     if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
       if (this.isTextInputActive) {
         this.submitTextInput("");
+        return;
+      }
+      if (this.positionInputModeActive) {
+        this.cancelPositionInputMode("keyboard escape");
+        this.hideQuestion();
+        this.hideDirectionQuestion();
         return;
       }
       if (this.isInventoryDialogVisible) {
@@ -30117,8 +30248,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       // runtime can cancel the active flow (question, direction, far-look, etc.).
       if (
         this.isInQuestion ||
-        this.isInDirectionQuestion ||
-        this.positionInputModeActive
+        this.isInDirectionQuestion
       ) {
         console.log("🔄 Sending Escape to NetHack to cancel active prompt");
         this.sendInput("Escape");

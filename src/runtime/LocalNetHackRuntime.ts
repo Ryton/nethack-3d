@@ -99,8 +99,9 @@ class LocalNetHackRuntime {
 
     this.inputBroker = new RuntimeInputBroker();
     this.farLookMode = "none"; // none | armed | active
-    this.farLookOrigin = null; // null | "direct" | "look_menu"
+    this.farLookOrigin = null; // null | "direct" | "look_menu" | "legacy_cursor_prompt"
     this.pendingLookMenuFarLookArm = false;
+    this.pendingLegacySlashEmCursorPromptFarLook = false;
     this.pendingTextResponses = [];
     this.pendingStdinByteQueue = [];
     this.didAutoQueueRawRecoverChoice = false;
@@ -1807,6 +1808,7 @@ class LocalNetHackRuntime {
     this.farLookMode = "none";
     this.farLookOrigin = null;
     this.pendingLookMenuFarLookArm = false;
+    this.pendingLegacySlashEmCursorPromptFarLook = false;
     this.contextualGlanceProbeMouseDeadlineMs = 0;
     this.contextualGlanceAutoCancelPositionUntilMs = 0;
     this.contextualLookInfoProbeMouseDeadlineMs = 0;
@@ -1948,12 +1950,18 @@ class LocalNetHackRuntime {
       if (
         this.activeInputRequest?.kind === "position" &&
         this.farLookMode === "active" &&
-        this.farLookOrigin !== "look_menu"
+        this.farLookOrigin !== "look_menu" &&
+        this.farLookOrigin !== "legacy_cursor_prompt"
       ) {
         this.farLookMode = "none";
         this.farLookOrigin = null;
         this.setPositionInputActive(false);
       }
+      const legacyCursorPromptMouseExamineActive =
+        this.runtimeVersion === "slashem" &&
+        this.activeInputRequest?.kind === "position" &&
+        this.farLookMode === "active" &&
+        this.farLookOrigin === "legacy_cursor_prompt";
       const playerX = Number(this.playerPosition?.x);
       const playerY = Number(this.playerPosition?.y);
       const clickedCurrentPlayerTile =
@@ -1961,7 +1969,11 @@ class LocalNetHackRuntime {
         Number.isFinite(playerY) &&
         tileX === Math.trunc(playerX) &&
         tileY === Math.trunc(playerY);
-      if (clickedCurrentPlayerTile) {
+      if (legacyCursorPromptMouseExamineActive) {
+        console.log(
+          `Preserving legacy Slash'EM cursor far-look mouse examine at (${tileX}, ${tileY})`,
+        );
+      } else if (clickedCurrentPlayerTile) {
         this.maybeArmPendingPostActionPlayerTileRefreshForCurrentPlayerLoot(
           `for mouse pickup intent on current player tile (${tileX}, ${tileY})`,
         );
@@ -2363,6 +2375,20 @@ class LocalNetHackRuntime {
       return;
     }
 
+    const normalizedAnsweredYnInput = String(normalizedInput || "")
+      .trim()
+      .toLowerCase();
+    if (this.awaitingQuestionInput && this.pendingLegacySlashEmCursorPromptFarLook) {
+      if (normalizedAnsweredYnInput === "y") {
+        console.log(
+          'Arming far-look mode for legacy Slash\'EM cursor prompt on answered "y"',
+        );
+        this.farLookMode = "armed";
+        this.farLookOrigin = "legacy_cursor_prompt";
+        this.pendingLookMenuFarLookArm = false;
+      }
+      this.pendingLegacySlashEmCursorPromptFarLook = false;
+    }
     if (this.awaitingQuestionInput && this.activeYnPrompt) {
       this.armPendingPostActionPlayerTileRefreshForAnsweredYnQuestion(
         this.lastQuestionText,
@@ -4192,7 +4218,11 @@ class LocalNetHackRuntime {
       }
       // "/" -> "/" look mode can stay active after a click while NetHack asks
       // for additional description details. Keep UI position mode aligned.
-      if (this.farLookMode === "active" && this.farLookOrigin !== "look_menu") {
+      if (
+        this.farLookMode === "active" &&
+        this.farLookOrigin !== "look_menu" &&
+        this.farLookOrigin !== "legacy_cursor_prompt"
+      ) {
         this.farLookMode = "none";
         this.farLookOrigin = null;
         this.setPositionInputActive(false);
@@ -4240,7 +4270,11 @@ class LocalNetHackRuntime {
         ? "look_menu"
         : "direct";
       this.pendingLookMenuFarLookArm = false;
-    } else if (requestKind === "event" && this.farLookMode === "armed") {
+    } else if (
+      requestKind === "event" &&
+      this.farLookMode === "armed" &&
+      this.farLookOrigin !== "legacy_cursor_prompt"
+    ) {
       this.farLookMode = "none";
       this.farLookOrigin = null;
       this.pendingLookMenuFarLookArm = false;
@@ -4250,7 +4284,8 @@ class LocalNetHackRuntime {
 
     if (requestKind === "position" && this.farLookMode === "active") {
       const shouldExitFarLook =
-        this.isFarLookExitInput(key) || !this.isDirectionalMovementInput(key);
+        this.isFarLookExitInput(key) ||
+        !this.isFarLookContinuationInput(key);
       if (shouldExitFarLook) {
         this.farLookMode = "none";
         this.farLookOrigin = null;
@@ -5262,6 +5297,7 @@ class LocalNetHackRuntime {
       this.emit({
         type: "position_input_state",
         active: normalized,
+        origin: normalized ? this.farLookOrigin : null,
       });
     }
   }
@@ -5446,13 +5482,29 @@ class LocalNetHackRuntime {
     if (typeof normalized !== "string" || normalized.length === 0) {
       return false;
     }
-    if (this.isDirectionalMovementInput(normalized)) {
+    if (this.isFarLookContinuationInput(normalized)) {
       return true;
     }
     if (this.isFarLookExitInput(normalized)) {
       return true;
     }
-    return normalized === "." || normalized === "5" || normalized === "Numpad5";
+    return false;
+  }
+
+  isFarLookContinuationInput(input) {
+    const normalized = this.normalizeInputKey(input);
+    if (typeof normalized !== "string" || normalized.length === 0) {
+      return false;
+    }
+    if (this.isDirectionalMovementInput(normalized)) {
+      return true;
+    }
+    return (
+      normalized === "," ||
+      normalized === "." ||
+      normalized === "5" ||
+      normalized === "Numpad5"
+    );
   }
 
   normalizeFarLookPositionInput(input) {
@@ -5462,7 +5514,10 @@ class LocalNetHackRuntime {
 
     // NetHack look mode uses ';' for detailed object description.
     // Treat Enter as that confirm key to avoid leaving far-look in a bad state.
-    if (input === "Enter" || input === "\r" || input === "\n") {
+    if (
+      this.farLookOrigin !== "legacy_cursor_prompt" &&
+      (input === "Enter" || input === "\r" || input === "\n")
+    ) {
       return ";";
     }
 
@@ -6390,6 +6445,23 @@ class LocalNetHackRuntime {
     }
 
     return null;
+  }
+
+  isLegacySlashEmCursorPromptQuestion(question, choices, defaultChoice) {
+    if (this.runtimeVersion !== "slashem") {
+      return false;
+    }
+
+    const normalizedQuestion = this.normalizeQuestionText(question);
+    if (normalizedQuestion !== "specify unknown object by cursor?") {
+      return false;
+    }
+
+    const normalizedChoices =
+      typeof choices === "string" ? choices.trim().toLowerCase() : "";
+    const normalizedDefaultChoice =
+      this.normalizeYnDefaultChoice(defaultChoice);
+    return normalizedChoices === "ynq" && normalizedDefaultChoice === "q";
   }
 
   isGameOverPossessionsIdentifyQuestion(question) {
@@ -10147,6 +10219,18 @@ class LocalNetHackRuntime {
       );
     if (contextualLookInfoAutoAnswer) {
       return this.processKey(contextualLookInfoAutoAnswer);
+    }
+
+    this.pendingLegacySlashEmCursorPromptFarLook =
+      this.isLegacySlashEmCursorPromptQuestion(
+        question,
+        normalizedChoices,
+        defaultChoice,
+      );
+    if (this.pendingLegacySlashEmCursorPromptFarLook) {
+      console.log(
+        "Tracking legacy Slash'EM cursor yn prompt for far-look activation",
+      );
     }
 
     if (question && question.toLowerCase().includes("direction")) {
