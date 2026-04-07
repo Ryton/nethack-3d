@@ -826,11 +826,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly positionCursorBottomOutlineThickness: number =
     TILE_SIZE * 0.05;
   private readonly positionCursorBottomOutlineLiftZ: number = TILE_SIZE * 0.002;
-  private readonly positionCursorBottomOutlineGlowInset: number =
-    TILE_SIZE * 0.025;
   private readonly positionCursorBottomOutlineGlowLiftZ: number =
     TILE_SIZE * 0.004;
-  private readonly positionCursorBottomOutlineGlowOpacity: number = 0.18;
+  private readonly positionCursorBottomOutlineOpacity: number = 0.54;
   private readonly positionCursorGroundZ: number = 0.03;
   private readonly positionCursorColumnHeight: number = WALL_HEIGHT * 1.42;
   private readonly positionCursorFarLookOrbitDistance: number = TILE_SIZE * 4.4;
@@ -20828,15 +20826,36 @@ class Nethack3DEngine implements Nethack3DEngineController {
     console.log("🧹 Scene cleared - ready for new level");
   }
 
+  private getPositionCursorRoundedSquareCornerRadius(inset: number): number {
+    const radius = TILE_SIZE / 2 - inset;
+    const outerRadius = TILE_SIZE / 2 - this.positionCursorOutlineInset;
+    const outerCornerRadius = Math.min(
+      this.positionCursorFarLookCornerRadius,
+      outerRadius * 0.64,
+    );
+    const insetDelta = Math.max(0, inset - this.positionCursorOutlineInset);
+    return THREE.MathUtils.clamp(
+      outerCornerRadius - insetDelta,
+      0,
+      radius * 0.64,
+    );
+  }
+
   private tracePositionCursorRoundedSquarePath(
     path: THREE.Path | THREE.Shape,
     inset: number,
   ): void {
     const radius = TILE_SIZE / 2 - inset;
-    const cornerRadius = Math.min(
-      this.positionCursorFarLookCornerRadius,
-      radius * 0.64,
-    );
+    const cornerRadius = this.getPositionCursorRoundedSquareCornerRadius(inset);
+    if (cornerRadius <= 0.0001) {
+      path.moveTo(-radius, radius);
+      path.lineTo(radius, radius);
+      path.lineTo(radius, -radius);
+      path.lineTo(-radius, -radius);
+      path.lineTo(-radius, radius);
+      path.closePath();
+      return;
+    }
     const inner = radius - cornerRadius;
     path.moveTo(-inner, radius);
     path.lineTo(inner, radius);
@@ -20961,37 +20980,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     column.renderOrder = 1000;
     group.add(column);
 
-    const bottomOutlineGlowMaterial = new THREE.MeshBasicMaterial({
-      color: this.positionCursorOutlineColorHex,
-      transparent: true,
-      opacity: this.positionCursorBottomOutlineGlowOpacity,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-    });
-    const bottomOutlineGlow = new THREE.Mesh(
-      new THREE.ShapeGeometry(
-        this.buildPositionCursorBottomOutlineShape(
-          this.positionCursorBottomOutlineGlowInset,
-        ),
-      ),
-      bottomOutlineGlowMaterial,
-    );
-    bottomOutlineGlow.position.z = this.positionCursorBottomOutlineGlowLiftZ;
-    bottomOutlineGlow.scale.set(
-      this.positionCursorColumnScale,
-      this.positionCursorColumnScale,
-      1,
-    );
-    bottomOutlineGlow.renderOrder = outlineRenderOrderBase + 0.05;
-    group.add(bottomOutlineGlow);
-
     const bottomOutlineMaterial = new THREE.MeshBasicMaterial({
       color: this.positionCursorOutlineColorHex,
-      transparent: false,
-      opacity: 1,
+      transparent: true,
+      opacity: this.positionCursorBottomOutlineOpacity,
       side: THREE.DoubleSide,
       depthTest: false,
       depthWrite: false,
@@ -21001,7 +20993,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       bottomOutlineGeometry,
       bottomOutlineMaterial,
     );
-    bottomOutline.position.z = this.positionCursorBottomOutlineLiftZ;
+    bottomOutline.position.z = this.positionCursorBottomOutlineGlowLiftZ;
     bottomOutline.scale.set(
       this.positionCursorColumnScale,
       this.positionCursorColumnScale,
@@ -21013,8 +21005,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     bottomOutlineLoop.renderOrder = outlineRenderOrderBase + 0.15;
     const bottomOutlineLoopMaterial = bottomOutlineLoop.material;
     if (bottomOutlineLoopMaterial instanceof THREE.LineBasicMaterial) {
-      bottomOutlineLoopMaterial.transparent = false;
-      bottomOutlineLoopMaterial.opacity = 1;
+      bottomOutlineLoopMaterial.transparent = true;
+      bottomOutlineLoopMaterial.opacity = this.positionCursorBottomOutlineOpacity;
       bottomOutlineLoopMaterial.depthTest = false;
       bottomOutlineLoopMaterial.depthWrite = false;
     }
