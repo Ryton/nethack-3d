@@ -1127,10 +1127,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
   > = createControllerBooleanActionMap(false);
   private controllerMoveHighlightTile: { x: number; y: number } | null = null;
   private controllerDpadMovePreviewInput: string | null = null;
+  private controllerDpadDiagonalReleasePreviewInput: string | null = null;
+  private controllerDpadDiagonalReleaseFallbackInput: string | null = null;
+  private controllerDpadDiagonalReleaseUntilMs: number = 0;
   private controllerLeftStickMovePreviewInput: string | null = null;
   private controllerDirectionPromptPreviewInput: string | null = null;
-  private controllerDirectionPromptPreviewSource: "left_stick" | "dpad" | null =
-    null;
+  private controllerDirectionPromptPreviewSource:
+    | "left_stick"
+    | "dpad"
+    | "right_stick"
+    | "neutral"
+    | null = null;
   private controllerConfirmRearmPending: boolean = false;
   private controllerCancelRearmPending: boolean = false;
   private controllerFpsLeftStickLastMoveInput: string | null = null;
@@ -1155,6 +1162,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private controllerVirtualCursorX: number = Number.NaN;
   private controllerVirtualCursorY: number = Number.NaN;
   private readonly controllerAxisDeadzone: number = 0.35;
+  private readonly controllerDpadDiagonalReleaseConfirmWindowMs: number = 150;
   private readonly controllerDialogCursorDeadzone: number = 0.21;
   private readonly controllerLookSpeedPxPerSec: number = 700;
   private readonly controllerCameraPanTilesPerSec: number = 9.2;
@@ -33188,6 +33196,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private clearControllerMovePreview(): void {
     this.controllerDpadMovePreviewInput = null;
+    this.controllerDpadDiagonalReleasePreviewInput = null;
+    this.controllerDpadDiagonalReleaseFallbackInput = null;
+    this.controllerDpadDiagonalReleaseUntilMs = 0;
     this.controllerLeftStickMovePreviewInput = null;
     this.controllerMoveHighlightTile = null;
   }
@@ -33426,12 +33437,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private handleControllerDirectionQuestionInput(
     snapshot: ControllerActionSnapshot,
   ): void {
+    const previousPreviewInput = this.controllerDirectionPromptPreviewInput;
+    const previousPreviewSource = this.controllerDirectionPromptPreviewSource;
     const leftX =
       snapshot.values.left_stick_right - snapshot.values.left_stick_left;
     const leftY =
       snapshot.values.left_stick_down - snapshot.values.left_stick_up;
     const dpadX = snapshot.values.dpad_right - snapshot.values.dpad_left;
     const dpadY = snapshot.values.dpad_down - snapshot.values.dpad_up;
+    const rightX =
+      snapshot.values.right_stick_right - snapshot.values.right_stick_left;
+    const rightY =
+      snapshot.values.right_stick_down - snapshot.values.right_stick_up;
 
     const leftDirectionInput = this.getDirectionInputFromControllerAxes(
       leftX,
@@ -33449,6 +33466,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const resolvedDpadDirectionInput = dpadDirectionInput
       ? this.resolveDirectionQuestionInputForCurrentCamera(dpadDirectionInput)
       : null;
+    const rightStickVerticalInput =
+      this.getVerticalDirectionPromptInputFromControllerAxes(
+        rightX,
+        rightY,
+        this.controllerAxisDeadzone,
+      );
+
+    const releasedAnyDpad =
+      snapshot.released.dpad_up ||
+      snapshot.released.dpad_down ||
+      snapshot.released.dpad_left ||
+      snapshot.released.dpad_right;
+
+    if (
+      releasedAnyDpad &&
+      !dpadDirectionInput &&
+      previousPreviewSource === "dpad" &&
+      previousPreviewInput
+    ) {
+      this.submitDirectionAnswer(previousPreviewInput);
+      this.clearControllerDirectionPromptPreview();
+      return;
+    }
 
     if (resolvedLeftDirectionInput) {
       this.controllerDirectionPromptPreviewInput = resolvedLeftDirectionInput;
@@ -33456,13 +33496,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
     } else if (resolvedDpadDirectionInput) {
       this.controllerDirectionPromptPreviewInput = resolvedDpadDirectionInput;
       this.controllerDirectionPromptPreviewSource = "dpad";
+    } else if (rightStickVerticalInput) {
+      this.controllerDirectionPromptPreviewInput = rightStickVerticalInput;
+      this.controllerDirectionPromptPreviewSource = "right_stick";
+    } else {
+      this.controllerDirectionPromptPreviewInput = "s";
+      this.controllerDirectionPromptPreviewSource = "neutral";
     }
     this.updateDirectionPromptOverlayState();
 
-    if (this.controllerDirectionPromptPreviewInput) {
+    if (
+      this.controllerDirectionPromptPreviewInput &&
+      this.getMovementDeltaFromInput(this.controllerDirectionPromptPreviewInput)
+    ) {
       this.setControllerMovePreviewDirection(
         this.controllerDirectionPromptPreviewInput,
       );
+    } else {
+      this.controllerMoveHighlightTile = null;
     }
 
     if (snapshot.pressed.search) {
@@ -33473,22 +33524,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     if (
       snapshot.released.confirm &&
-      this.controllerDirectionPromptPreviewInput
-    ) {
-      this.submitDirectionAnswer(this.controllerDirectionPromptPreviewInput);
-      this.clearControllerDirectionPromptPreview();
-      return;
-    }
-
-    const releasedAnyDpad =
-      snapshot.released.dpad_up ||
-      snapshot.released.dpad_down ||
-      snapshot.released.dpad_left ||
-      snapshot.released.dpad_right;
-    if (
-      releasedAnyDpad &&
-      !dpadDirectionInput &&
-      this.controllerDirectionPromptPreviewSource === "dpad" &&
       this.controllerDirectionPromptPreviewInput
     ) {
       this.submitDirectionAnswer(this.controllerDirectionPromptPreviewInput);
@@ -33506,6 +33541,159 @@ class Nethack3DEngine implements Nethack3DEngineController {
       x: this.playerPos.x + movementDelta.dx,
       y: this.playerPos.y + movementDelta.dy,
     };
+  }
+
+  private isDiagonalMovementInput(input: string | null): boolean {
+    if (!input) {
+      return false;
+    }
+    const movementDelta = this.getMovementDeltaFromInput(input);
+    return Boolean(
+      movementDelta && movementDelta.dx !== 0 && movementDelta.dy !== 0,
+    );
+  }
+
+  private isCardinalDirectionPartOfDiagonal(
+    cardinalInput: string | null,
+    diagonalInput: string | null,
+  ): boolean {
+    if (!cardinalInput || !diagonalInput) {
+      return false;
+    }
+    const cardinalDelta = this.getMovementDeltaFromInput(cardinalInput);
+    const diagonalDelta = this.getMovementDeltaFromInput(diagonalInput);
+    if (!cardinalDelta || !diagonalDelta) {
+      return false;
+    }
+    const cardinalIsDiagonal =
+      cardinalDelta.dx !== 0 && cardinalDelta.dy !== 0;
+    const diagonalIsDiagonal =
+      diagonalDelta.dx !== 0 && diagonalDelta.dy !== 0;
+    if (cardinalIsDiagonal || !diagonalIsDiagonal) {
+      return false;
+    }
+    const xMatches =
+      cardinalDelta.dx === 0 || cardinalDelta.dx === diagonalDelta.dx;
+    const yMatches =
+      cardinalDelta.dy === 0 || cardinalDelta.dy === diagonalDelta.dy;
+    return xMatches && yMatches;
+  }
+
+  private restoreControllerMovePreviewAfterDpadClear(): void {
+    if (this.controllerLeftStickMovePreviewInput) {
+      this.setControllerMovePreviewDirection(
+        this.controllerLeftStickMovePreviewInput,
+      );
+    } else {
+      this.controllerMoveHighlightTile = null;
+    }
+  }
+
+  private clearControllerDpadDiagonalReleaseGrace(): void {
+    this.controllerDpadDiagonalReleasePreviewInput = null;
+    this.controllerDpadDiagonalReleaseFallbackInput = null;
+    this.controllerDpadDiagonalReleaseUntilMs = 0;
+  }
+
+  private submitControllerDpadPreviewInput(
+    directionInput: string,
+    runModifierActive: boolean,
+  ): void {
+    this.submitControllerDirectionalInput(directionInput, runModifierActive, {
+      preferMouseMove: true,
+    });
+    this.controllerDpadMovePreviewInput = null;
+    this.clearControllerDpadDiagonalReleaseGrace();
+    this.restoreControllerMovePreviewAfterDpadClear();
+  }
+
+  private updateControllerDpadMovePreview(
+    dpadDirectionInput: string | null,
+    runModifierActive: boolean,
+  ): void {
+    const nowMs = Date.now();
+    const previewInput = this.controllerDpadMovePreviewInput;
+    const pendingDiagonalInput = this.controllerDpadDiagonalReleasePreviewInput;
+
+    if (pendingDiagonalInput) {
+      const withinWindow = nowMs <= this.controllerDpadDiagonalReleaseUntilMs;
+      if (dpadDirectionInput === pendingDiagonalInput) {
+        this.clearControllerDpadDiagonalReleaseGrace();
+        this.controllerDpadMovePreviewInput = pendingDiagonalInput;
+        this.setControllerMovePreviewDirection(pendingDiagonalInput);
+        return;
+      }
+
+      if (
+        dpadDirectionInput &&
+        this.isCardinalDirectionPartOfDiagonal(
+          dpadDirectionInput,
+          pendingDiagonalInput,
+        )
+      ) {
+        this.controllerDpadDiagonalReleaseFallbackInput = dpadDirectionInput;
+        if (withinWindow) {
+          this.controllerDpadMovePreviewInput = pendingDiagonalInput;
+          this.setControllerMovePreviewDirection(pendingDiagonalInput);
+          return;
+        }
+        this.clearControllerDpadDiagonalReleaseGrace();
+        this.controllerDpadMovePreviewInput = dpadDirectionInput;
+        this.setControllerMovePreviewDirection(dpadDirectionInput);
+        return;
+      }
+
+      if (!dpadDirectionInput) {
+        const fallbackInput = this.controllerDpadDiagonalReleaseFallbackInput;
+        if (withinWindow) {
+          this.submitControllerDpadPreviewInput(
+            pendingDiagonalInput,
+            runModifierActive,
+          );
+          return;
+        }
+        if (fallbackInput) {
+          this.submitControllerDpadPreviewInput(
+            fallbackInput,
+            runModifierActive,
+          );
+          return;
+        }
+        this.clearControllerDpadDiagonalReleaseGrace();
+      } else {
+        this.clearControllerDpadDiagonalReleaseGrace();
+        this.controllerDpadMovePreviewInput = dpadDirectionInput;
+        this.setControllerMovePreviewDirection(dpadDirectionInput);
+        return;
+      }
+    }
+
+    if (dpadDirectionInput) {
+      if (
+        previewInput &&
+        this.isDiagonalMovementInput(previewInput) &&
+        this.isCardinalDirectionPartOfDiagonal(
+          dpadDirectionInput,
+          previewInput,
+        )
+      ) {
+        this.controllerDpadDiagonalReleasePreviewInput = previewInput;
+        this.controllerDpadDiagonalReleaseFallbackInput = dpadDirectionInput;
+        this.controllerDpadDiagonalReleaseUntilMs =
+          nowMs + this.controllerDpadDiagonalReleaseConfirmWindowMs;
+        this.controllerDpadMovePreviewInput = previewInput;
+        this.setControllerMovePreviewDirection(previewInput);
+        return;
+      }
+      this.clearControllerDpadDiagonalReleaseGrace();
+      this.controllerDpadMovePreviewInput = dpadDirectionInput;
+      this.setControllerMovePreviewDirection(dpadDirectionInput);
+      return;
+    }
+
+    if (previewInput) {
+      this.submitControllerDpadPreviewInput(previewInput, runModifierActive);
+    }
   }
 
   private submitControllerDirectionalInput(
@@ -33558,6 +33746,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return null;
     }
     return this.getDirectionInputFromMapDelta(direction.dx, direction.dy);
+  }
+
+  private getVerticalDirectionPromptInputFromControllerAxes(
+    axisX: number,
+    axisY: number,
+    deadzone: number,
+  ): string | null {
+    if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) {
+      return null;
+    }
+    const absX = Math.abs(axisX);
+    const absY = Math.abs(axisY);
+    if (absY < deadzone) {
+      return null;
+    }
+    if (absX > absY * 0.6) {
+      return null;
+    }
+    return axisY < 0
+      ? this.resolveDirectionPromptInputFromOverlayButton("up")
+      : this.resolveDirectionPromptInputFromOverlayButton("down");
   }
 
   private resolveControllerFpsMovementFromAxes(
@@ -34515,24 +34724,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       dpadY,
       this.controllerAxisDeadzone,
     );
-    if (dpadDirectionInput) {
-      this.controllerDpadMovePreviewInput = dpadDirectionInput;
-      this.setControllerMovePreviewDirection(dpadDirectionInput);
-    } else if (this.controllerDpadMovePreviewInput) {
-      this.submitControllerDirectionalInput(
-        this.controllerDpadMovePreviewInput,
-        runModifierActive,
-        { preferMouseMove: true },
-      );
-      this.controllerDpadMovePreviewInput = null;
-      if (this.controllerLeftStickMovePreviewInput) {
-        this.setControllerMovePreviewDirection(
-          this.controllerLeftStickMovePreviewInput,
-        );
-      } else {
-        this.controllerMoveHighlightTile = null;
-      }
-    }
+    this.updateControllerDpadMovePreview(dpadDirectionInput, runModifierActive);
 
     const leftDirectionInput = this.getDirectionInputFromControllerAxes(
       zoomModifierActive ? 0 : leftX,
