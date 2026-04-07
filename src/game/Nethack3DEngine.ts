@@ -844,8 +844,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly positionCursorFarLookCornerRadius: number =
     TILE_SIZE * 0.14;
   private readonly positionCursorFarLookFocusHeightRatio: number = 0.56;
-  private readonly fpsFarLookPlayerBillboardFadeOutHalfLifeMs: number = 90;
-  private readonly fpsFarLookPlayerBillboardMinOpacity: number = 0.018;
   private fpsPositionCursorCameraInitialized: boolean = false;
   private fpsPositionCursorCameraCurrent: THREE.Vector3 = new THREE.Vector3();
   private fpsPositionCursorLookCurrent: THREE.Vector3 = new THREE.Vector3();
@@ -855,7 +853,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsPositionCursorOrbitYaw: number = 0;
   private fpsPositionCursorOrbitPitch: number = 0;
   private fpsPositionCursorReturnActive: boolean = false;
-  private fpsFarLookPlayerBillboardOpacity: number = 0;
 
   // Player stats tracking
   private playerStats = {
@@ -5476,7 +5473,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsPredictedPlayerTile = null;
     this.asciiPendingPlayerTile = null;
     this.fpsRecentPlayerTilesForSuppression = [];
-    this.fpsFarLookPlayerBillboardOpacity = 0;
     this.asciiPlayerTileDebugLastLogAtByKey.clear();
     this.closeAnyTileContextMenu(false);
 
@@ -11446,92 +11442,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private shouldKeepFarLookPlayerBillboardVisible(): boolean {
-    return (
-      this.isFpsMode() &&
-      (this.isFpsFarLookViewActive() ||
-      this.fpsFarLookPlayerBillboardOpacity >
-        this.fpsFarLookPlayerBillboardMinOpacity)
-    );
-  }
-
-  private getPlayerBillboardOpacityForTile(isCurrentPlayerTile: boolean): number {
-    if (!isCurrentPlayerTile || !this.isFpsMode()) {
-      return 1;
-    }
-    if (this.isFpsFarLookViewActive()) {
-      return 1;
-    }
-    return THREE.MathUtils.clamp(this.fpsFarLookPlayerBillboardOpacity, 0, 1);
-  }
-
-  private setMonsterBillboardOpacity(
-    sprite: THREE.Sprite,
-    opacity: number,
-  ): void {
-    const clampedOpacity = THREE.MathUtils.clamp(opacity, 0, 1);
-    if (sprite.material instanceof THREE.SpriteMaterial) {
-      sprite.material.opacity = clampedOpacity;
-      sprite.material.needsUpdate = true;
-    }
-    const backdrop = this.getMonsterBillboardFlattenedBackdropSprite(sprite);
-    if (backdrop?.material instanceof THREE.SpriteMaterial) {
-      backdrop.material.opacity = clampedOpacity;
-      backdrop.material.needsUpdate = true;
-    }
-    const pitchLockedProxy = this.getMonsterBillboardPitchLockedProxyMesh(sprite);
-    if (pitchLockedProxy?.material instanceof THREE.MeshBasicMaterial) {
-      pitchLockedProxy.material.opacity = clampedOpacity;
-      pitchLockedProxy.material.needsUpdate = true;
-    }
-    const flatProxy = this.getMonsterBillboardFlatProxyMesh(sprite);
-    if (flatProxy?.material instanceof THREE.MeshBasicMaterial) {
-      flatProxy.material.opacity = clampedOpacity;
-      flatProxy.material.needsUpdate = true;
-    }
-    const billboardKey =
-      typeof sprite.userData?.billboardKey === "string"
-        ? sprite.userData.billboardKey
-        : "";
-    const shadow = billboardKey ? this.entityBlobShadows.get(billboardKey) : null;
-    if (shadow?.material instanceof THREE.MeshBasicMaterial) {
-      shadow.material.opacity = 0.58 * clampedOpacity;
-      shadow.material.needsUpdate = true;
-    }
-  }
-
-  private updateFarLookPlayerBillboardOpacity(deltaSeconds: number): void {
-    if (!this.isFpsMode()) {
-      this.fpsFarLookPlayerBillboardOpacity = 0;
-      return;
-    }
-    if (this.isFpsFarLookViewActive()) {
-      this.fpsFarLookPlayerBillboardOpacity = 1;
-      return;
-    }
-    if (this.fpsFarLookPlayerBillboardOpacity <= 0) {
-      this.fpsFarLookPlayerBillboardOpacity = 0;
-      return;
-    }
-    const previousOpacity = this.fpsFarLookPlayerBillboardOpacity;
-    const alpha =
-      1 -
-      Math.exp(
-        (-Math.LN2 * deltaSeconds * 1000) /
-          this.fpsFarLookPlayerBillboardFadeOutHalfLifeMs,
-      );
-    this.fpsFarLookPlayerBillboardOpacity = THREE.MathUtils.lerp(
-      previousOpacity,
-      0,
-      alpha,
-    );
-    if (
-      previousOpacity > this.fpsFarLookPlayerBillboardMinOpacity &&
-      this.fpsFarLookPlayerBillboardOpacity <=
-        this.fpsFarLookPlayerBillboardMinOpacity
-    ) {
-      this.fpsFarLookPlayerBillboardOpacity = 0;
-      this.refreshCurrentPlayerTileVisualFromStateCache();
-    }
+    return this.isFpsMode() && this.isFpsFarLookViewActive();
   }
 
   private refreshAsciiPlayerTilesAfterPositionUpdate(
@@ -20799,7 +20710,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.lightingCenterInitialized = false;
     this.positionInputModeActive = false;
     this.uiAdapter.setPositionInputActive(false);
-    this.fpsFarLookPlayerBillboardOpacity = 0;
     this.hasRuntimePositionCursor = false;
     this.fpsPositionCursorOrbitYaw = 0;
     this.fpsPositionCursorOrbitPitch = 0;
@@ -21168,7 +21078,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.positionInputModeActive = true;
     this.uiAdapter.setPositionInputActive(true);
-    this.fpsFarLookPlayerBillboardOpacity = 1;
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
     this.fpsPositionCursorReturnActive = false;
@@ -21675,9 +21584,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.isFpsMode() &&
       this.hasSeenPlayerPosition &&
       !this.isFpsFarLookViewActive();
-    const billboardOpacity =
-      this.getPlayerBillboardOpacityForTile(isCurrentPlayerTile);
-    this.setMonsterBillboardOpacity(sprite, billboardOpacity);
 
     const proxy = this.ensureMonsterBillboardPitchLockedProxyMesh(sprite);
     if (!proxy) {
@@ -28927,6 +28833,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     baseSensitivity: number,
   ): void {
     const farLookViewActive = this.isFpsFarLookViewActive();
+    if (farLookViewActive && this.isAnyModalVisible()) {
+      return;
+    }
     const farLookSensitivityScale = farLookViewActive
       ? this.positionCursorFarLookLookSensitivityScale
       : 1;
@@ -36572,7 +36481,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateControllerInput(deltaSeconds);
     this.updateCameraPanInertia(deltaSeconds);
     this.updateCamera(deltaSeconds);
-    this.updateFarLookPlayerBillboardOpacity(deltaSeconds);
     this.updateMonsterBillboardPitchLockState();
     this.syncDirectionPromptOverlayVisibility();
     this.directionPromptOverlay?.update(

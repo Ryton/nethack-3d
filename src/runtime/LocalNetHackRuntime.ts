@@ -1947,7 +1947,8 @@ class LocalNetHackRuntime {
     if (clickButton === 0) {
       if (
         this.activeInputRequest?.kind === "position" &&
-        this.farLookMode === "active"
+        this.farLookMode === "active" &&
+        this.farLookOrigin !== "look_menu"
       ) {
         this.farLookMode = "none";
         this.farLookOrigin = null;
