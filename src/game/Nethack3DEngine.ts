@@ -34561,12 +34561,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
         { preferMouseMove: true },
       );
       confirmConsumedMovement = true;
-      this.controllerLeftStickMovePreviewInput = null;
-      if (this.controllerDpadMovePreviewInput) {
+      if (leftDirectionInput) {
+        // Keep a held stick direction armed so the next move highlight can
+        // advance immediately after the player position updates.
+        this.controllerLeftStickMovePreviewInput = leftDirectionInput;
+        this.setControllerMovePreviewDirection(leftDirectionInput);
+      } else if (this.controllerDpadMovePreviewInput) {
+        this.controllerLeftStickMovePreviewInput = null;
         this.setControllerMovePreviewDirection(
           this.controllerDpadMovePreviewInput,
         );
       } else {
+        this.controllerLeftStickMovePreviewInput = null;
         this.controllerMoveHighlightTile = null;
       }
     }
