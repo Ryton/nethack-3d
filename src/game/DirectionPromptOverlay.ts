@@ -22,6 +22,8 @@ type DirectionPromptOverlayVisualState =
   | "hover"
   | "pressed";
 
+type DirectionPromptOverlayDisplayMode = "full" | "single_preview";
+
 type DirectionPromptOverlayTextures = Record<
   DirectionPromptOverlayIconKind,
   Record<DirectionPromptOverlayVisualState, THREE.CanvasTexture>
@@ -323,6 +325,7 @@ export class DirectionPromptOverlay {
   private textureReloadRetryTimerId: number | null = null;
   private readonly textureLoadMaxRetries = 6;
   private visible = false;
+  private displayMode: DirectionPromptOverlayDisplayMode = "full";
   private hoveredButtonId: DirectionPromptOverlayButtonId | null = null;
   private pressedButtonId: DirectionPromptOverlayButtonId | null = null;
   private previewedButtonId: DirectionPromptOverlayButtonId | null = null;
@@ -349,6 +352,15 @@ export class DirectionPromptOverlay {
       this.previewedButtonId = null;
       this.applyVisualState();
     }
+  }
+
+  public setDisplayMode(mode: DirectionPromptOverlayDisplayMode): void {
+    const normalizedMode = mode === "single_preview" ? mode : "full";
+    if (this.displayMode === normalizedMode) {
+      return;
+    }
+    this.displayMode = normalizedMode;
+    this.applyVisualState();
   }
 
   public setInteractionState(options: {
@@ -670,7 +682,10 @@ export class DirectionPromptOverlay {
       button.mesh.material.opacity = 1;
       const scaleFactor = directionPromptOverlayStateScale[visualState];
       button.mesh.scale.set(scaleFactor, scaleFactor, 1);
-      button.mesh.visible = this.visible;
+      const showSinglePreviewOnly = this.displayMode === "single_preview";
+      button.mesh.visible =
+        this.visible &&
+        (!showSinglePreviewOnly || button.id === this.previewedButtonId);
       button.mesh.material.needsUpdate = true;
     }
   }

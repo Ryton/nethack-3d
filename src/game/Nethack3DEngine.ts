@@ -1136,10 +1136,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     | "left_stick"
     | "dpad"
     | "right_stick"
-    | "neutral"
+    | "fps_aim"
     | null = null;
   private controllerConfirmRearmPending: boolean = false;
   private controllerCancelRearmPending: boolean = false;
+  private controllerFpsDirectionPromptUiUntilMs: number = 0;
+  private readonly controllerFpsDirectionPromptUiWindowMs: number = 3000;
   private controllerFpsLeftStickLastMoveInput: string | null = null;
   private controllerFpsLeftStickNextMoveAtMs: number = 0;
   private controllerDialogDpadRepeatDirection:
@@ -12527,6 +12529,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const ageMs = Date.now() - this.fpsContextAutoDirectionArmedAtMs;
     this.clearFpsContextAutoDirection();
     if (ageMs > this.fpsContextAutoDirectionWindowMs) {
+      return false;
+    }
+    if (this.consumeControllerFpsDirectionPromptUi()) {
       return false;
     }
     this.isInDirectionQuestion = true;
@@ -26557,10 +26562,33 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private syncDirectionPromptOverlayVisibility(): void {
-    this.directionPromptOverlay?.setVisible(
-      this.isInDirectionQuestion && !this.isFpsMode(),
+    this.directionPromptOverlay?.setDisplayMode(
+      this.isFpsMode() ? "single_preview" : "full",
     );
+    this.directionPromptOverlay?.setVisible(this.isInDirectionQuestion);
     this.updateDirectionPromptOverlayState();
+  }
+
+  private getFpsDirectionPromptOverlayPreviewInput(): string | null {
+    if (
+      (this.controllerDirectionPromptPreviewSource === "right_stick" ||
+        this.controllerDirectionPromptPreviewSource === "dpad") &&
+      (this.controllerDirectionPromptPreviewInput === "<" ||
+        this.controllerDirectionPromptPreviewInput === ">")
+    ) {
+      return this.controllerDirectionPromptPreviewInput;
+    }
+    return this.getFpsDirectionQuestionInputFromAim();
+  }
+
+  private getDirectionPromptOverlayPreviewInput(): string | null {
+    if (!this.isInDirectionQuestion) {
+      return null;
+    }
+    if (this.isFpsMode()) {
+      return this.getFpsDirectionPromptOverlayPreviewInput();
+    }
+    return this.controllerDirectionPromptPreviewInput;
   }
 
   private resolveDirectionPromptOverlayButtonFromInput(
@@ -26695,7 +26723,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       hoveredButtonId: this.directionPromptHoveredButtonId,
       pressedButtonId: this.directionPromptPressedButtonId,
       previewedButtonId: this.resolveDirectionPromptOverlayButtonFromInput(
-        this.controllerDirectionPromptPreviewInput,
+        this.getDirectionPromptOverlayPreviewInput(),
       ),
     });
   }
@@ -28915,6 +28943,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.minCameraPitch,
         this.maxCameraPitch,
       );
+      if (this.isInDirectionQuestion) {
+        this.updateDirectionPromptOverlayState();
+      }
       return;
     }
     this.cameraYaw = this.wrapAngle(this.cameraYaw + deltaX * sensitivityX);
@@ -28923,6 +28954,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.firstPersonPitchMin,
       this.firstPersonPitchMax,
     );
+    if (this.isInDirectionQuestion) {
+      this.updateDirectionPromptOverlayState();
+    }
   }
 
   private getActiveFpsAimYaw(): number {
@@ -29168,7 +29202,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.isFpsMode() && Date.now() < this.fpsFireSuppressionUntilMs;
   }
 
+  private shouldUseFpsSelfTileDirectionTarget(): boolean {
+    if (!this.isFpsMode()) {
+      return false;
+    }
+    if (this.cameraPitch > this.firstPersonPitchMin + 0.42) {
+      return false;
+    }
+    const playerTile =
+      this.tileMap.get(`${this.playerPos.x},${this.playerPos.y}`) ?? null;
+    return Boolean(playerTile) && !Boolean(playerTile?.userData?.isWall);
+  }
+
   private getFpsDirectionQuestionInputFromAim(): string | null {
+    if (this.shouldUseFpsSelfTileDirectionTarget()) {
+      return "s";
+    }
     const aim = this.getFpsAimDirectionFromCamera();
     return aim?.input ?? null;
   }
@@ -29220,10 +29269,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
 
-    // Keep this threshold aligned with the under-player highlight behavior.
-    const shouldPreferPlayerTileHighlight =
-      this.cameraPitch <= this.firstPersonPitchMin + 0.42;
-    if (!shouldPreferPlayerTileHighlight) {
+    if (!this.shouldUseFpsSelfTileDirectionTarget()) {
       return false;
     }
 
@@ -30936,9 +30982,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     let targetX = this.playerPos.x + aim.dx;
     let targetY = this.playerPos.y + aim.dy;
     let targetTile = this.tileMap.get(`${targetX},${targetY}`) ?? null;
-    const shouldPreferPlayerTileHighlight =
-      this.cameraPitch <= this.firstPersonPitchMin + 0.42;
-    if (shouldPreferPlayerTileHighlight) {
+    if (this.shouldUseFpsSelfTileDirectionTarget()) {
       const playerTile =
         this.tileMap.get(`${this.playerPos.x},${this.playerPos.y}`) ?? null;
       if (playerTile) {
@@ -33194,6 +33238,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return Boolean(this.session) && !this.isControllerUiInputContextActive();
   }
 
+  private armControllerFpsDirectionPromptUi(): void {
+    if (!this.isFpsMode()) {
+      return;
+    }
+    this.controllerFpsDirectionPromptUiUntilMs =
+      Date.now() + this.controllerFpsDirectionPromptUiWindowMs;
+  }
+
+  private consumeControllerFpsDirectionPromptUi(): boolean {
+    if (
+      !this.isFpsMode() ||
+      Date.now() > this.controllerFpsDirectionPromptUiUntilMs
+    ) {
+      this.controllerFpsDirectionPromptUiUntilMs = 0;
+      return false;
+    }
+    this.controllerFpsDirectionPromptUiUntilMs = 0;
+    return true;
+  }
+
   private clearControllerMovePreview(): void {
     this.controllerDpadMovePreviewInput = null;
     this.controllerDpadDiagonalReleasePreviewInput = null;
@@ -33436,6 +33500,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private handleControllerDirectionQuestionInput(
     snapshot: ControllerActionSnapshot,
+    deltaSeconds: number,
   ): void {
     const previousPreviewInput = this.controllerDirectionPromptPreviewInput;
     const previousPreviewSource = this.controllerDirectionPromptPreviewSource;
@@ -33466,12 +33531,71 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const resolvedDpadDirectionInput = dpadDirectionInput
       ? this.resolveDirectionQuestionInputForCurrentCamera(dpadDirectionInput)
       : null;
+    const dpadVerticalInput =
+      this.getVerticalDirectionPromptInputFromControllerAxes(
+        dpadX,
+        dpadY,
+        this.controllerAxisDeadzone,
+        { negativeYInput: "<", positiveYInput: ">" },
+      );
     const rightStickVerticalInput =
       this.getVerticalDirectionPromptInputFromControllerAxes(
         rightX,
         rightY,
         this.controllerAxisDeadzone,
       );
+
+    if (this.isFpsMode()) {
+      const rightStickMagnitude = Math.hypot(rightX, rightY);
+      if (rightStickMagnitude > this.controllerAxisDeadzone) {
+        const lookDeltaX =
+          rightX * this.controllerLookSpeedPxPerSec * deltaSeconds;
+        const lookDeltaY =
+          rightY * this.controllerLookSpeedPxPerSec * deltaSeconds;
+        this.applyFpsLookDelta(
+          lookDeltaX,
+          lookDeltaY,
+          this.firstPersonMouseSensitivity,
+        );
+      }
+
+      if (dpadVerticalInput) {
+        this.controllerDirectionPromptPreviewInput = dpadVerticalInput;
+        this.controllerDirectionPromptPreviewSource = "dpad";
+      } else {
+        this.controllerDirectionPromptPreviewInput =
+          this.getFpsDirectionQuestionInputFromAim();
+        this.controllerDirectionPromptPreviewSource =
+          this.controllerDirectionPromptPreviewInput ? "fps_aim" : null;
+      }
+      this.updateDirectionPromptOverlayState();
+
+      if (
+        this.controllerDirectionPromptPreviewInput &&
+        this.getMovementDeltaFromInput(this.controllerDirectionPromptPreviewInput)
+      ) {
+        this.setControllerMovePreviewDirection(
+          this.controllerDirectionPromptPreviewInput,
+        );
+      } else {
+        this.controllerMoveHighlightTile = null;
+      }
+
+      if (snapshot.pressed.search) {
+        this.submitDirectionAnswer("s");
+        this.clearControllerDirectionPromptPreview();
+        return;
+      }
+
+      if (
+        snapshot.released.confirm &&
+        this.controllerDirectionPromptPreviewInput
+      ) {
+        this.submitDirectionAnswer(this.controllerDirectionPromptPreviewInput);
+        this.clearControllerDirectionPromptPreview();
+      }
+      return;
+    }
 
     const releasedAnyDpad =
       snapshot.released.dpad_up ||
@@ -33500,8 +33624,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.controllerDirectionPromptPreviewInput = rightStickVerticalInput;
       this.controllerDirectionPromptPreviewSource = "right_stick";
     } else {
-      this.controllerDirectionPromptPreviewInput = "s";
-      this.controllerDirectionPromptPreviewSource = "neutral";
+      this.controllerDirectionPromptPreviewInput = null;
+      this.controllerDirectionPromptPreviewSource = null;
     }
     this.updateDirectionPromptOverlayState();
 
@@ -33752,6 +33876,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     axisX: number,
     axisY: number,
     deadzone: number,
+    options: {
+      negativeYInput?: string;
+      positiveYInput?: string;
+    } = {},
   ): string | null {
     if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) {
       return null;
@@ -33764,9 +33892,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (absX > absY * 0.6) {
       return null;
     }
-    return axisY < 0
-      ? this.resolveDirectionPromptInputFromOverlayButton("up")
-      : this.resolveDirectionPromptInputFromOverlayButton("down");
+    const negativeYInput = options.negativeYInput ?? ">";
+    const positiveYInput = options.positiveYInput ?? "<";
+    return axisY < 0 ? negativeYInput : positiveYInput;
   }
 
   private resolveControllerFpsMovementFromAxes(
@@ -33790,6 +33918,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private dispatchControllerKeyDown(key: string, code?: string): void {
+    if (key === "Enter" && !this.isInDirectionQuestion) {
+      this.armControllerFpsDirectionPromptUi();
+    }
     const event = new KeyboardEvent("keydown", {
       key,
       code: code ?? key,
@@ -34379,6 +34510,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ? document.activeElement
         : null;
     if (activeElement && typeof activeElement.click === "function") {
+      this.armControllerFpsDirectionPromptUi();
       activeElement.click();
       return true;
     }
@@ -34392,6 +34524,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
     first.focus();
+    this.armControllerFpsDirectionPromptUi();
     first.click();
     return true;
   }
@@ -34413,6 +34546,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           ) ?? target;
         if (clickable instanceof HTMLElement) {
           clickable.focus();
+          this.armControllerFpsDirectionPromptUi();
           clickable.click();
           this.pulseControllerVirtualCursor();
           return true;
@@ -34654,6 +34788,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
         );
       }
 
+      if (
+        snapshot.pressed.confirm &&
+        this.shouldUseFpsSelfTileDirectionTarget()
+      ) {
+        this.logClickLookTileDebug(
+          "controller-confirm-player",
+          this.playerPos.x,
+          this.playerPos.y,
+        );
+        this.sendMouseInput(this.playerPos.x, this.playerPos.y, 0);
+        return;
+      }
+
       const dpadPressed =
         snapshot.pressed.dpad_up ||
         snapshot.pressed.dpad_down ||
@@ -34834,7 +34981,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.isInDirectionQuestion) {
       this.clearControllerDialogDpadRepeat();
       this.setControllerVirtualCursorVisible(false);
-      this.handleControllerDirectionQuestionInput(snapshot);
+      this.handleControllerDirectionQuestionInput(snapshot, deltaSeconds);
       return;
     }
 
@@ -34942,6 +35089,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (snapshot.pressed.confirm) {
+      this.consumeControllerConfirmUntilRelease();
       const didClick = this.clickControllerVirtualCursorTarget();
       if (!didClick) {
         this.dispatchControllerKeyDown("Enter", "Enter");
@@ -34959,6 +35107,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearControllerDialogSliderInteraction();
       this.controllerConfirmRearmPending = false;
       this.controllerCancelRearmPending = false;
+      this.controllerFpsDirectionPromptUiUntilMs = 0;
       this.resetControllerVirtualCursor();
       return;
     }
