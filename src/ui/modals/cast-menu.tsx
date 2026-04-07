@@ -33,6 +33,7 @@ type CastSpellMenuProps = {
   menuData: CastSpellMenuData;
   activeSelectionInput?: string | null;
   onChooseSpell: (selectionInput: string) => void;
+  onFocusSpell?: ((selectionInput: string) => void) | null;
 };
 
 const sortSpellsMenuPattern = /^\[\s*sort spells\s*]$/i;
@@ -462,6 +463,7 @@ export function CastSpellMenu({
   menuData,
   activeSelectionInput,
   onChooseSpell,
+  onFocusSpell = null,
 }: CastSpellMenuProps): JSX.Element {
   const showRetentionColumn = menuData.hasRetentionData;
   return (
@@ -519,6 +521,7 @@ export function CastSpellMenu({
                 className={rowClassName}
                 key={entry.id}
                 onClick={() => onChooseSpell(entry.selectionInput)}
+                onFocus={() => onFocusSpell?.(entry.selectionInput)}
                 type="button"
               >
                 {renderSpellRowContent(entry, { showRetentionColumn })}

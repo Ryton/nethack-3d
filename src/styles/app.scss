@@ -1945,6 +1945,21 @@ canvas {
         )
     );
   }
+
+  &:focus-within {
+    .nh3d-choice-button:hover:not(:focus):not(:focus-visible),
+    .nh3d-menu-button:hover:not(:focus):not(:focus-visible):not(:disabled),
+    .nh3d-menu-action-button:hover:not(:focus):not(:focus-visible),
+    .nh3d-pickup-action-button:hover:not(:focus):not(:focus-visible),
+    .nh3d-question-page-button:hover:not(:focus):not(:focus-visible):not(:disabled),
+    .nh3d-enhance-skill-card:not(.is-disabled):hover:not(:focus):not(:focus-visible),
+    button.nh3d-cast-row:hover:not(:focus):not(:focus-visible),
+    button.nh3d-technique-row:hover:not(:focus):not(:focus-visible) {
+      box-shadow: none;
+      filter: none;
+      transform: none;
+    }
+  }
 }
 
 .nh3d-dialog-question.nh3d-dialog-question-enhance {
@@ -6487,7 +6502,9 @@ canvas {
     opacity: 0.78;
   }
 
-  &.nh3d-menu-button-active {
+  &:focus,
+  &:focus-visible {
+    outline: none;
     border-color: var(--nh3d-ui-border-strong);
     background: linear-gradient(
       180deg,
@@ -6820,7 +6837,9 @@ button.nh3d-cast-row {
     opacity: 0.78;
   }
 
-  &.nh3d-menu-button-active {
+  &:focus,
+  &:focus-visible {
+    outline: none;
     border-color: var(--nh3d-ui-border-strong);
     background: linear-gradient(
       180deg,
@@ -7270,7 +7289,9 @@ button.nh3d-technique-row {
     background: var(--nh3d-ui-button-bg);
   }
 
-  &.nh3d-pickup-item-active {
+  &:focus,
+  &:focus-visible {
+    outline: none;
     border-color: var(--nh3d-ui-border-strong);
     box-shadow:
       0 0 0 1px rgba(102, 204, 255, 0.55),
@@ -7482,15 +7503,6 @@ button.nh3d-technique-row {
       0 0 14px rgba(102, 204, 255, 0.26);
     filter: brightness(1.16);
   }
-
-  &.nh3d-action-button-active,
-  &.nh3d-menu-button-active {
-    outline: none;
-    box-shadow:
-      0 0 0 1px var(--nh3d-ui-button-warm-ring),
-      0 0 0 2px rgba(102, 204, 255, 0.22);
-    filter: brightness(1.08);
-  }
 }
 
 .nh3d-pickup-action-toggle-all {
@@ -7518,10 +7530,8 @@ button.nh3d-technique-row {
 
 .nh3d-menu-action-button.nh3d-menu-action-confirm:focus,
 .nh3d-menu-action-button.nh3d-menu-action-confirm:focus-visible,
-.nh3d-menu-action-button.nh3d-menu-action-confirm.nh3d-action-button-active,
 .nh3d-pickup-action-button.nh3d-pickup-action-confirm:focus,
-.nh3d-pickup-action-button.nh3d-pickup-action-confirm:focus-visible,
-.nh3d-pickup-action-button.nh3d-pickup-action-confirm.nh3d-action-button-active {
+.nh3d-pickup-action-button.nh3d-pickup-action-confirm:focus-visible {
   background: var(--nh3d-ui-confirm-bg-hover);
   border-color: var(--nh3d-ui-confirm-border);
   box-shadow:
@@ -7531,10 +7541,8 @@ button.nh3d-technique-row {
 
 .nh3d-menu-action-button.nh3d-menu-action-cancel:focus,
 .nh3d-menu-action-button.nh3d-menu-action-cancel:focus-visible,
-.nh3d-menu-action-button.nh3d-menu-action-cancel.nh3d-action-button-active,
 .nh3d-pickup-action-button.nh3d-pickup-action-cancel:focus,
-.nh3d-pickup-action-button.nh3d-pickup-action-cancel:focus-visible,
-.nh3d-pickup-action-button.nh3d-pickup-action-cancel.nh3d-action-button-active {
+.nh3d-pickup-action-button.nh3d-pickup-action-cancel:focus-visible {
   background: var(--nh3d-ui-cancel-bg-hover);
   border-color: var(--nh3d-ui-cancel-border);
   box-shadow:

@@ -1100,10 +1100,12 @@ function renderEnhanceMenuContent(
   options: {
     activeMenuSelectionInput?: string | null;
     onChooseSelectionInput?: ((selectionInput: string) => void) | null;
+    onFocusSelectionInput?: ((selectionInput: string) => void) | null;
   } = {},
 ): JSX.Element {
   const activeMenuSelectionInput = options.activeMenuSelectionInput ?? null;
   const onChooseSelectionInput = options.onChooseSelectionInput ?? null;
+  const onFocusSelectionInput = options.onFocusSelectionInput ?? null;
   return (
     <div className="nh3d-enhance-menu">
       <div className="nh3d-enhance-summary">
@@ -1167,6 +1169,7 @@ function renderEnhanceMenuContent(
                   }`}
                   key={`enhance-skill-${entry.id}`}
                   onClick={() => onChooseSelectionInput(selectionInput)}
+                  onFocus={() => onFocusSelectionInput?.(selectionInput)}
                   type="button"
                 >
                   <div className="nh3d-enhance-skill-head">
@@ -9984,7 +9987,7 @@ export default function App(): JSX.Element {
     ].join(", ");
 
     const explicitActiveTarget = topOverlay.querySelector<HTMLElement>(
-      ".nh3d-menu-button.nh3d-menu-button-active, button.nh3d-enhance-skill-card.nh3d-menu-button-active, .nh3d-menu-action-button.nh3d-action-button-active, .nh3d-pickup-action-button.nh3d-action-button-active",
+      ".nh3d-menu-button.nh3d-menu-button-active, button.nh3d-enhance-skill-card.nh3d-menu-button-active, button.nh3d-cast-row.nh3d-menu-button-active, button.nh3d-technique-row.nh3d-menu-button-active, .nh3d-pickup-item.nh3d-pickup-item-active, .nh3d-menu-action-button.nh3d-action-button-active, .nh3d-pickup-action-button.nh3d-action-button-active",
     );
     const firstContextActionButton = topOverlay.classList.contains(
       "nh3d-context-menu",
@@ -17089,6 +17092,11 @@ export default function App(): JSX.Element {
                             getMenuSelectionInput(item),
                           )
                         }
+                        onFocus={() =>
+                          controller?.syncQuestionSelectionFocus(
+                            getMenuSelectionInput(item),
+                          )
+                        }
                         onKeyDown={(event) => {
                           if (
                             event.key === " " ||
@@ -17152,6 +17160,9 @@ export default function App(): JSX.Element {
                             : ""
                         }`}
                         onClick={() => controller?.confirmPickupChoices()}
+                        onFocus={() =>
+                          controller?.syncQuestionActionFocus("confirm")
+                        }
                         type="button"
                       >
                         {commonStrings.confirm}
@@ -17164,6 +17175,9 @@ export default function App(): JSX.Element {
                               : ""
                           }`}
                           onClick={() => controller?.toggleAllPickupChoices()}
+                          onFocus={() =>
+                            controller?.syncQuestionActionFocus("select-all")
+                          }
                           type="button"
                         >
                           <span className="nh3d-pickup-action-button-label">
@@ -17186,6 +17200,9 @@ export default function App(): JSX.Element {
                             : ""
                         }`}
                         onClick={() => controller?.cancelActivePrompt()}
+                        onFocus={() =>
+                          controller?.syncQuestionActionFocus("cancel")
+                        }
                         type="button"
                       >
                         {commonStrings.cancel}
@@ -17199,6 +17216,8 @@ export default function App(): JSX.Element {
                     activeMenuSelectionInput: question.activeMenuSelectionInput,
                     onChooseSelectionInput: (selectionInput) =>
                       controller?.chooseQuestionChoice(selectionInput),
+                    onFocusSelectionInput: (selectionInput) =>
+                      controller?.syncQuestionSelectionFocus(selectionInput),
                   })}
                   <div className="nh3d-menu-actions">
                     <button
@@ -17208,6 +17227,9 @@ export default function App(): JSX.Element {
                           : ""
                       }`}
                       onClick={() => controller?.cancelActivePrompt()}
+                      onFocus={() =>
+                        controller?.syncQuestionActionFocus("cancel")
+                      }
                       type="button"
                     >
                       {commonStrings.cancel}
@@ -17219,6 +17241,9 @@ export default function App(): JSX.Element {
                   <CastSpellMenu
                     activeSelectionInput={question.activeMenuSelectionInput}
                     menuData={castMenuData}
+                    onFocusSpell={(selectionInput) =>
+                      controller?.syncQuestionSelectionFocus(selectionInput)
+                    }
                     onChooseSpell={(selectionInput) =>
                       controller?.chooseQuestionChoice(selectionInput)
                     }
@@ -17231,6 +17256,9 @@ export default function App(): JSX.Element {
                           : ""
                       }`}
                       onClick={() => controller?.cancelActivePrompt()}
+                      onFocus={() =>
+                        controller?.syncQuestionActionFocus("cancel")
+                      }
                       type="button"
                     >
                       {commonStrings.cancel}
@@ -17242,6 +17270,9 @@ export default function App(): JSX.Element {
                   <TechniqueMenu
                     activeSelectionInput={question.activeMenuSelectionInput}
                     menuData={techniqueMenuData}
+                    onFocusTechnique={(selectionInput) =>
+                      controller?.syncQuestionSelectionFocus(selectionInput)
+                    }
                     onChooseTechnique={(selectionInput) =>
                       controller?.chooseQuestionChoice(selectionInput)
                     }
@@ -17254,6 +17285,9 @@ export default function App(): JSX.Element {
                           : ""
                       }`}
                       onClick={() => controller?.cancelActivePrompt()}
+                      onFocus={() =>
+                        controller?.syncQuestionActionFocus("cancel")
+                      }
                       type="button"
                     >
                       {commonStrings.cancel}
@@ -17318,6 +17352,11 @@ export default function App(): JSX.Element {
                             getMenuSelectionInput(item),
                           )
                         }
+                        onFocus={() =>
+                          controller?.syncQuestionSelectionFocus(
+                            getMenuSelectionInput(item),
+                          )
+                        }
                         type="button"
                       >
                         <span className="nh3d-question-item-leading">
@@ -17356,6 +17395,9 @@ export default function App(): JSX.Element {
                             : ""
                         }`}
                         onClick={() => controller?.cancelActivePrompt()}
+                        onFocus={() =>
+                          controller?.syncQuestionActionFocus("cancel")
+                        }
                         type="button"
                       >
                         {commonStrings.cancel}
@@ -17471,6 +17513,9 @@ export default function App(): JSX.Element {
                           : ""
                       }`}
                       onClick={() => controller?.cancelActivePrompt()}
+                      onFocus={() =>
+                        controller?.syncQuestionActionFocus("cancel")
+                      }
                       type="button"
                     >
                       {commonStrings.cancel}

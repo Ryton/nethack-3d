@@ -1130,6 +1130,10 @@ export interface Nethack3DEngineController {
   chooseDirection(directionKey: string): void;
   confirmActiveDirectionQuestion(): void;
   chooseQuestionChoice(choice: string): void;
+  syncQuestionSelectionFocus(selectionInput: string): void;
+  syncQuestionActionFocus(
+    action: "select-all" | "confirm" | "cancel",
+  ): void;
   resolveLegacyQuestionChoicePreviewTileIndex(choice: string): number | null;
   confirmQuestionMenuChoice(): void;
   togglePickupChoice(accelerator: string): void;

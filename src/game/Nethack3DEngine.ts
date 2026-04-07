@@ -27207,6 +27207,40 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.hideQuestion();
   }
 
+  public syncQuestionSelectionFocus(selectionInput: string): void {
+    if (!this.isInQuestion || !selectionInput) {
+      return;
+    }
+    const resolvedSelection = this.resolveQuestionSelectionInput(selectionInput);
+    if (!resolvedSelection) {
+      return;
+    }
+    if (this.activeQuestionIsPickupDialog) {
+      this.setActivePickupFocusBySelectionInput(resolvedSelection);
+      this.updatePickupFocusVisualState();
+      return;
+    }
+    if (this.activeQuestionMenuItems.length < 1) {
+      return;
+    }
+    this.setActiveQuestionMenuFocusBySelectionInput(resolvedSelection);
+    this.updateQuestionMenuFocusVisualState();
+  }
+
+  public syncQuestionActionFocus(
+    action: "select-all" | "confirm" | "cancel",
+  ): void {
+    if (!this.isInQuestion) {
+      return;
+    }
+    const actions = this.getActiveQuestionActionButtons();
+    const actionIndex = actions.indexOf(action);
+    if (actionIndex < 0) {
+      return;
+    }
+    this.setQuestionActionFocusIndex(actionIndex);
+  }
+
   public resolveLegacyQuestionChoicePreviewTileIndex(
     choice: string,
   ): number | null {

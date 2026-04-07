@@ -24,6 +24,7 @@ type TechniqueMenuProps = {
   menuData: TechniqueMenuData;
   activeSelectionInput?: string | null;
   onChooseTechnique: (selectionInput: string) => void;
+  onFocusTechnique?: ((selectionInput: string) => void) | null;
 };
 
 const techniqueStatusPatterns: Array<{
@@ -266,6 +267,7 @@ export function TechniqueMenu({
   menuData,
   activeSelectionInput,
   onChooseTechnique,
+  onFocusTechnique = null,
 }: TechniqueMenuProps): JSX.Element {
   return (
     <div className="nh3d-technique-menu">
@@ -308,6 +310,7 @@ export function TechniqueMenu({
                 className={rowClassName}
                 key={entry.id}
                 onClick={() => onChooseTechnique(entry.selectionInput)}
+                onFocus={() => onFocusTechnique?.(entry.selectionInput)}
                 type="button"
               >
                 {renderTechniqueRowContent(entry)}
