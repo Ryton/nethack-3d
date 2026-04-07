@@ -7850,7 +7850,13 @@ class LocalNetHackRuntime {
       typeof options.reason === "string" && options.reason.trim()
         ? options.reason.trim()
         : "context action";
-    if (!this.hasPendingInventoryContextSelection()) {
+    const shouldRouteContextualLookMapSelection =
+      this.isLookAtMenuQuestion(menuQuestion) &&
+      this.pendingContextualLookMapRouteSelection;
+    if (
+      !this.hasPendingInventoryContextSelection() &&
+      !shouldRouteContextualLookMapSelection
+    ) {
       return false;
     }
 

@@ -7411,6 +7411,21 @@ button.nh3d-technique-row {
   }
 }
 
+.nh3d-menu-action-button.nh3d-message-history-nav-button {
+  min-width: 52px;
+  padding-inline: 12px;
+  font-weight: 700;
+
+  &:disabled {
+    background: rgba(24, 34, 46, 0.74);
+    border-color: var(--nh3d-ui-border);
+    color: var(--nh3d-ui-text-muted);
+    opacity: 0.55;
+    cursor: default;
+    box-shadow: none;
+  }
+}
+
 .nh3d-question-pagination {
   display: flex;
   align-items: center;

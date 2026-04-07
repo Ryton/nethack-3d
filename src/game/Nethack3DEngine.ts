@@ -785,7 +785,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private inventoryRefreshInFlight: boolean = false;
   private runtimeTerminationPromptShown: boolean = false;
   private runtimeConnectionState: NethackConnectionState = "disconnected";
-  private lastInfoMenu: { title: string; lines: string[] } | null = null;
+  private lastMessageInfoMenu: { title: string; lines: string[] } | null = null;
   private isInventoryDialogVisible: boolean = false;
   private inventoryContextActionsEnabled: boolean = true;
   private gameOverState: GameOverState = {
@@ -9342,9 +9342,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
         };
         const infoMenuSource =
           typeof data.source === "string" ? data.source : "";
-        const shouldRefreshCtrlMCache = infoMenuSource !== "doprev_message";
+        const shouldRefreshCtrlMCache =
+          infoMenuSource !== "doprev_message" &&
+          this.isNetHackMessageInfoMenuTitle(normalizedInfoMenu.title);
         if (shouldRefreshCtrlMCache) {
-          this.lastInfoMenu = normalizedInfoMenu;
+          this.lastMessageInfoMenu = normalizedInfoMenu;
         }
         this.showInfoMenuDialog(
           normalizedInfoMenu.title,
@@ -9559,6 +9561,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         .replace(/\r/g, "")
         .trimEnd(),
     );
+  }
+
+  private isNetHackMessageInfoMenuTitle(title: string): boolean {
+    return String(title || "").trim().toLowerCase() === "nethack message";
   }
 
   private setGameOverState(
@@ -26995,16 +27001,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    if (this.lastInfoMenu) {
+    if (this.lastMessageInfoMenu) {
       this.showInfoMenuDialog(
-        this.lastInfoMenu.title,
-        this.lastInfoMenu.lines,
+        this.lastMessageInfoMenu.title,
+        this.lastMessageInfoMenu.lines,
         {
           blocking: false,
         },
       );
     } else {
-      this.addGameMessage("No recent information panel to reopen.");
+      this.addGameMessage("No recent NetHack message to reopen.");
     }
   }
 

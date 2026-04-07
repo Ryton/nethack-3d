@@ -17,6 +17,7 @@ import { Nethack3DEngine } from "../game";
 import type {
   CharacterCreationConfig,
   FpsCrosshairContextState,
+  InfoMenuState,
   Nh3dClientOptions,
   NethackMenuItem,
   PlayerStatsSnapshot,
@@ -171,6 +172,25 @@ const translationStrings = getTranslationStrings();
 const commonStrings = translationStrings.common;
 const t = translationStrings.app;
 const supportedLocaleOptions = getSupportedLocaleOptions();
+const messageInfoMenuCacheLimit = 50;
+
+type MessageInfoMenuHistoryState = {
+  entries: InfoMenuState[];
+  index: number;
+};
+
+function isNetHackMessageInfoMenuTitle(
+  title: string | null | undefined,
+): boolean {
+  return String(title ?? "").trim().toLowerCase() === "nethack message";
+}
+
+function getInfoMenuHistoryEntryKey(menu: InfoMenuState): string {
+  return JSON.stringify([
+    String(menu.title ?? "").trim(),
+    Array.isArray(menu.lines) ? menu.lines : [],
+  ]);
+}
 
 function resolveTilesetLayoutShortLabel(
   tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
@@ -6562,9 +6582,69 @@ export default function App(): JSX.Element {
   const controller = useGameStore((state) => state.engineController);
   const newGamePrompt = useGameStore((state) => state.newGamePrompt);
   const gameOver = useGameStore((state) => state.gameOver);
+  const [messageInfoMenuHistory, setMessageInfoMenuHistory] =
+    useState<MessageInfoMenuHistoryState>({
+      entries: [],
+      index: 0,
+    });
+  useEffect(() => {
+    setMessageInfoMenuHistory({
+      entries: [],
+      index: 0,
+    });
+  }, [characterCreationConfig]);
+  useEffect(() => {
+    if (!infoMenu || !isNetHackMessageInfoMenuTitle(infoMenu.title)) {
+      return;
+    }
+
+    const normalizedMessageInfoMenu: InfoMenuState = {
+      title: String(infoMenu.title || "NetHack Message").trim(),
+      lines: Array.isArray(infoMenu.lines)
+        ? infoMenu.lines.map((line) => String(line ?? ""))
+        : [],
+    };
+    const nextEntryKey = getInfoMenuHistoryEntryKey(normalizedMessageInfoMenu);
+
+    setMessageInfoMenuHistory((previous) => {
+      const latestEntry = previous.entries[previous.entries.length - 1];
+      if (
+        latestEntry &&
+        getInfoMenuHistoryEntryKey(latestEntry) === nextEntryKey
+      ) {
+        const latestIndex = previous.entries.length - 1;
+        return previous.index === latestIndex
+          ? previous
+          : {
+              ...previous,
+              index: latestIndex,
+            };
+      }
+
+      const nextEntries = [
+        ...previous.entries,
+        normalizedMessageInfoMenu,
+      ].slice(-messageInfoMenuCacheLimit);
+      return {
+        entries: nextEntries,
+        index: nextEntries.length - 1,
+      };
+    });
+  }, [infoMenu]);
+  const displayedInfoMenu = useMemo<InfoMenuState | null>(() => {
+    if (!infoMenu) {
+      return null;
+    }
+    if (!isNetHackMessageInfoMenuTitle(infoMenu.title)) {
+      return infoMenu;
+    }
+    return (
+      messageInfoMenuHistory.entries[messageInfoMenuHistory.index] ?? infoMenu
+    );
+  }, [infoMenu, messageInfoMenuHistory]);
   const characterSheet = useMemo(
-    () => parseCharacterSheetInfoMenu(infoMenu),
-    [infoMenu],
+    () => parseCharacterSheetInfoMenu(displayedInfoMenu),
+    [displayedInfoMenu],
   );
   const isLegacySlashEmBaseAttributesSheet =
     activeRuntimeVersion === "slashem" &&
@@ -6587,7 +6667,7 @@ export default function App(): JSX.Element {
     });
   }, [characterSheet, isLegacySlashEmBaseAttributesSheet, playerStats]);
   const isCharacterSheetVisible = Boolean(
-    infoMenu && characterSheet && characterSheetInterceptionArmed,
+    displayedInfoMenu && characterSheet && characterSheetInterceptionArmed,
   );
   const hasCharacterStatValues = Boolean(
     displayedCharacterStatEntries.some((entry) =>
@@ -9863,8 +9943,11 @@ export default function App(): JSX.Element {
     [question],
   );
   const infoEnhanceMenuData = useMemo(
-    () => (infoMenu ? parseEnhanceMenu(infoMenu.title, infoMenu.lines) : null),
-    [infoMenu],
+    () =>
+      displayedInfoMenu
+        ? parseEnhanceMenu(displayedInfoMenu.title, displayedInfoMenu.lines)
+        : null,
+    [displayedInfoMenu],
   );
   const castMenuData = useMemo(
     () =>
@@ -10498,6 +10581,46 @@ export default function App(): JSX.Element {
     characterSheetAwaitingInfoRef.current = false;
     controller?.closeInfoMenuDialog();
   }, [controller]);
+  const showPreviousCachedMessageInfoMenu = useCallback((): void => {
+    setMessageInfoMenuHistory((previous) =>
+      previous.index <= 0
+        ? previous
+        : {
+            ...previous,
+            index: previous.index - 1,
+          },
+    );
+  }, []);
+  const showNextCachedMessageInfoMenu = useCallback((): void => {
+    setMessageInfoMenuHistory((previous) => {
+      const lastIndex = previous.entries.length - 1;
+      return previous.index >= lastIndex
+        ? previous
+        : {
+            ...previous,
+            index: previous.index + 1,
+          };
+    });
+  }, []);
+  const showLatestCachedMessageInfoMenu = useCallback((): void => {
+    setMessageInfoMenuHistory((previous) => {
+      const lastIndex = previous.entries.length - 1;
+      return previous.index >= lastIndex
+        ? previous
+        : {
+            ...previous,
+            index: lastIndex,
+          };
+    });
+  }, []);
+  const showMessageHistoryNavigation = Boolean(
+    displayedInfoMenu &&
+      isNetHackMessageInfoMenuTitle(displayedInfoMenu.title) &&
+      messageInfoMenuHistory.entries.length > 1,
+  );
+  const canShowPreviousCachedMessage = messageInfoMenuHistory.index > 0;
+  const canShowNextCachedMessage =
+    messageInfoMenuHistory.index < messageInfoMenuHistory.entries.length - 1;
 
   const submitTextInput = (value: string): void => {
     controller?.submitTextInput(value);
@@ -17694,7 +17817,7 @@ export default function App(): JSX.Element {
         id={isCharacterSheetVisible ? "character-dialog" : "info-menu-dialog"}
         onKeyDown={handleInfoMenuDialogKeyDown}
       >
-        {infoMenu ? (
+        {displayedInfoMenu ? (
           <>
             {renderMobileDialogCloseButton(
               closeInfoMenuDialog,
@@ -18110,13 +18233,52 @@ export default function App(): JSX.Element {
                   </div>
                 </div>
                 <div className="nh3d-menu-actions">
-                  <button
-                    className="nh3d-menu-action-button nh3d-menu-action-cancel"
-                    onClick={closeInfoMenuDialog}
-                    type="button"
-                  >
-                    {commonStrings.close}
-                  </button>
+                  {showMessageHistoryNavigation ? (
+                    <>
+                      <button
+                        aria-label="Show previous NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowPreviousCachedMessage}
+                        onClick={showPreviousCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {"<"}
+                      </button>
+                      <button
+                        className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                        onClick={closeInfoMenuDialog}
+                        type="button"
+                      >
+                        {commonStrings.close}
+                      </button>
+                      <button
+                        aria-label="Show next NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowNextCachedMessage}
+                        onClick={showNextCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {">"}
+                      </button>
+                      <button
+                        aria-label="Show latest NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowNextCachedMessage}
+                        onClick={showLatestCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {">>"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                      onClick={closeInfoMenuDialog}
+                      type="button"
+                    >
+                      {commonStrings.close}
+                    </button>
+                  )}
                 </div>
               </>
             ) : infoEnhanceMenuData ? (
@@ -18128,19 +18290,58 @@ export default function App(): JSX.Element {
                 >
                   <div className="nh3d-question-text">
                     {infoEnhanceMenuData.prompt ||
-                      infoMenu.title ||
+                      displayedInfoMenu.title ||
                       t.dialogs.info.infoTitleFallback}
                   </div>
                   {renderEnhanceMenuContent(infoEnhanceMenuData)}
                 </div>
                 <div className="nh3d-menu-actions">
-                  <button
-                    className="nh3d-menu-action-button nh3d-menu-action-cancel"
-                    onClick={closeInfoMenuDialog}
-                    type="button"
-                  >
-                    {commonStrings.close}
-                  </button>
+                  {showMessageHistoryNavigation ? (
+                    <>
+                      <button
+                        aria-label="Show previous NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowPreviousCachedMessage}
+                        onClick={showPreviousCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {"<"}
+                      </button>
+                      <button
+                        className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                        onClick={closeInfoMenuDialog}
+                        type="button"
+                      >
+                        {commonStrings.close}
+                      </button>
+                      <button
+                        aria-label="Show next NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowNextCachedMessage}
+                        onClick={showNextCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {">"}
+                      </button>
+                      <button
+                        aria-label="Show latest NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowNextCachedMessage}
+                        onClick={showLatestCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {">>"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                      onClick={closeInfoMenuDialog}
+                      type="button"
+                    >
+                      {commonStrings.close}
+                    </button>
+                  )}
                 </div>
               </>
             ) : (
@@ -18151,11 +18352,11 @@ export default function App(): JSX.Element {
                   data-nh3d-overflow-glow-host="parent"
                 >
                   <div className="nh3d-info-title">
-                    {infoMenu.title || t.dialogs.info.infoTitleFallback}
+                    {displayedInfoMenu.title || t.dialogs.info.infoTitleFallback}
                   </div>
                   <div className="nh3d-info-body">
-                    {infoMenu.lines.length > 0
-                      ? infoMenu.lines.join("\n")
+                    {displayedInfoMenu.lines.length > 0
+                      ? displayedInfoMenu.lines.join("\n")
                       : t.dialogs.info.noDetails}
                   </div>
                   <div className="nh3d-info-hint">
@@ -18163,13 +18364,52 @@ export default function App(): JSX.Element {
                   </div>
                 </div>
                 <div className="nh3d-menu-actions">
-                  <button
-                    className="nh3d-menu-action-button nh3d-menu-action-cancel"
-                    onClick={closeInfoMenuDialog}
-                    type="button"
-                  >
-                    {commonStrings.close}
-                  </button>
+                  {showMessageHistoryNavigation ? (
+                    <>
+                      <button
+                        aria-label="Show previous NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowPreviousCachedMessage}
+                        onClick={showPreviousCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {"<"}
+                      </button>
+                      <button
+                        className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                        onClick={closeInfoMenuDialog}
+                        type="button"
+                      >
+                        {commonStrings.close}
+                      </button>
+                      <button
+                        aria-label="Show next NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowNextCachedMessage}
+                        onClick={showNextCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {">"}
+                      </button>
+                      <button
+                        aria-label="Show latest NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowNextCachedMessage}
+                        onClick={showLatestCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {">>"}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                      onClick={closeInfoMenuDialog}
+                      type="button"
+                    >
+                      {commonStrings.close}
+                    </button>
+                  )}
                 </div>
               </>
             )}
