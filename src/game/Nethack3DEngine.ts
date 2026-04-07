@@ -21178,11 +21178,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const entryCameraPitch = Number.isFinite(this.cameraPitch)
       ? this.cameraPitch
       : this.positionCursorFarLookDefaultPitch;
+    const initialOrbitPitch = Math.max(
+      entryCameraPitch,
+      this.positionCursorFarLookDefaultPitch,
+    );
     this.fpsPositionCursorEntryCameraYaw = entryCameraYaw;
     this.fpsPositionCursorEntryCameraPitch = entryCameraPitch;
     this.fpsPositionCursorOrbitYaw = entryCameraYaw;
     this.fpsPositionCursorOrbitPitch = THREE.MathUtils.clamp(
-      entryCameraPitch,
+      initialOrbitPitch,
       this.minCameraPitch,
       this.maxCameraPitch,
     );
