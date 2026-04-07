@@ -518,6 +518,7 @@ export function CastSpellMenu({
             }`;
             return canChoose ? (
               <button
+                autoFocus={isActive}
                 className={rowClassName}
                 key={entry.id}
                 onClick={() => onChooseSpell(entry.selectionInput)}

@@ -129,15 +129,18 @@ const AnimatedDialog = forwardRef<HTMLDivElement, AnimatedDialogProps>(
         }
       : style;
 
+    const visibleChildren = open ? children : renderedChildren;
+    const visibleClassName = open ? className : renderedClassName;
+
     return (
       <div
         {...divProps}
         ref={ref}
-        className={`${renderedClassName} ${visibilityClassName}`.trim()}
+        className={`${visibleClassName} ${visibilityClassName}`.trim()}
         onAnimationEnd={handleAnimationEnd}
         style={resolvedStyle}
       >
-        {renderedChildren}
+        {visibleChildren}
       </div>
     );
   },

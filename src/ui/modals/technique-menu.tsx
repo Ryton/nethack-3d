@@ -307,6 +307,7 @@ export function TechniqueMenu({
             }${isActive ? " nh3d-menu-button-active" : ""}`;
             return canChoose ? (
               <button
+                autoFocus={isActive}
                 className={rowClassName}
                 key={entry.id}
                 onClick={() => onChooseTechnique(entry.selectionInput)}

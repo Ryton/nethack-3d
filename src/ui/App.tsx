@@ -116,7 +116,7 @@ import { useConfirmationDialog } from "./modals/useConfirmationDialog";
 import StartupInitOptionsAccordion from "./componenets/StartupInitOptionsAccordion";
 import ConfirmationModal from "./modals/ConfirmationModal";
 import AnimatedDialog from "./modals/AnimatedDialog";
-import { setLoggingEnabled } from "../logging";
+import { logWithOriginal, setLoggingEnabled } from "../logging";
 import {
   clearDebugSessionLogs,
   enableDebugSessionLogCapture,
@@ -1164,6 +1164,7 @@ function renderEnhanceMenuContent(
                   : "";
               return isSelectable ? (
                 <button
+                  autoFocus={isActive}
                   className={`nh3d-enhance-skill-card is-${entry.availability}${
                     isActive ? " nh3d-menu-button-active" : ""
                   }`}
@@ -9918,6 +9919,49 @@ export default function App(): JSX.Element {
     (questionSelectableMenuItemCount > 0 || isMobileViewport);
   const showPickupToggleAllButton =
     Boolean(question?.isPickupDialog) && questionSelectableMenuItemCount > 1;
+  const describeQuestionDialogDebugElement = useCallback(
+    (target: EventTarget | null): string => {
+      const element = target instanceof HTMLElement ? target : null;
+      if (!element) {
+        return "(none)";
+      }
+      const tagName = element.tagName.toLowerCase();
+      const className = String(element.className || "")
+        .trim()
+        .replace(/\s+/g, ".");
+      const selection = element.dataset.nh3dQuestionSelection;
+      const action = element.dataset.nh3dQuestionAction;
+      const text = String(element.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 120);
+      return [
+        tagName + (className ? `.${className}` : ""),
+        selection ? `selection=${selection}` : "",
+        action ? `action=${action}` : "",
+        text ? `text="${text}"` : "",
+      ]
+        .filter((part) => part.length > 0)
+        .join(" ");
+    },
+    [],
+  );
+  const logQuestionDialogDebug = useCallback(
+    (event: string, payload: Record<string, unknown> = {}): void => {
+      logWithOriginal(`[QUESTION_DIALOG_DEBUG] ${event}`, {
+        questionText: question?.text ?? null,
+        activeMenuSelectionInput: question?.activeMenuSelectionInput ?? null,
+        activeActionButton: question?.activeActionButton ?? null,
+        menuPageIndex: question?.menuPageIndex ?? null,
+        menuPageCount: question?.menuPageCount ?? null,
+        domActiveElement: describeQuestionDialogDebugElement(
+          typeof document !== "undefined" ? document.activeElement : null,
+        ),
+        ...payload,
+      });
+    },
+    [describeQuestionDialogDebugElement, question],
+  );
   const inventoryContextActionsEnabled =
     inventory.contextActionsEnabled !== false;
   const inventoryContextMenuOpen =
@@ -10020,6 +10064,15 @@ export default function App(): JSX.Element {
       topOverlay.id === "question-dialog" ||
       topOverlay.classList.contains("nh3d-dialog-question");
     if (shouldTrackExplicitActiveTarget && explicitActiveTarget) {
+      if (topOverlay.id === "question-dialog") {
+        logQuestionDialogDebug("focus-effect:explicit-active-target", {
+          activeElementInDialog:
+            describeQuestionDialogDebugElement(activeElementInDialog),
+          explicitActiveTarget:
+            describeQuestionDialogDebugElement(explicitActiveTarget),
+          willRefocus: activeElementInDialog !== explicitActiveTarget,
+        });
+      }
       if (activeElementInDialog !== explicitActiveTarget) {
         explicitActiveTarget.focus({ preventScroll: true });
         explicitActiveTarget.scrollIntoView({
@@ -10041,9 +10094,15 @@ export default function App(): JSX.Element {
     if (activeElementInDialog) {
       return;
     }
+    if (topOverlay.id === "question-dialog") {
+      logQuestionDialogDebug("focus-effect:fallback-target", {
+        targetButton: describeQuestionDialogDebugElement(targetButton),
+      });
+    }
     targetButton.focus({ preventScroll: true });
   }, [
     characterCreationConfig,
+    describeQuestionDialogDebugElement,
     directionQuestion,
     infoMenu,
     inventory.visible,
@@ -10067,6 +10126,7 @@ export default function App(): JSX.Element {
     isControllerActionWheelVisible,
     controllerActionWheelMode,
     globalConfirmationDialog,
+    logQuestionDialogDebug,
     loadingOverlayVisible,
   ]);
 
@@ -10503,8 +10563,8 @@ export default function App(): JSX.Element {
     setTextInputValue("");
   };
 
-  const pickupQuestionInitialFocusSeed = useMemo(() => {
-    if (!question?.isPickupDialog) {
+  const questionInitialFocusSeed = useMemo(() => {
+    if (!question) {
       return null;
     }
     const selectableKeys = question.menuItems
@@ -10516,26 +10576,30 @@ export default function App(): JSX.Element {
           : `${index}:${String(item.text || "").trim()}`;
       })
       .join("|");
-    return `${String(question.text || "").trim()}|${question.menuPageIndex ?? 0}|${selectableKeys}`;
+    return [
+      String(question.text || "").trim(),
+      String(question.menuPageIndex ?? 0),
+      question.activeMenuSelectionInput ?? "",
+      question.activeActionButton ?? "",
+      selectableKeys,
+      question.isPickupDialog ? "pickup" : "question",
+    ].join("|");
   }, [question]);
 
-  const pickupQuestionLastInitialFocusSeedRef = useRef<string | null>(null);
+  const questionLastInitialFocusSeedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") {
       return;
     }
-    if (!pickupQuestionInitialFocusSeed) {
-      pickupQuestionLastInitialFocusSeedRef.current = null;
+    if (!questionInitialFocusSeed) {
+      questionLastInitialFocusSeedRef.current = null;
       return;
     }
-    if (
-      pickupQuestionLastInitialFocusSeedRef.current ===
-      pickupQuestionInitialFocusSeed
-    ) {
+    if (questionLastInitialFocusSeedRef.current === questionInitialFocusSeed) {
       return;
     }
-    pickupQuestionLastInitialFocusSeedRef.current = pickupQuestionInitialFocusSeed;
+    questionLastInitialFocusSeedRef.current = questionInitialFocusSeed;
     const timerId = window.setTimeout(() => {
       const questionDialog = document.querySelector<HTMLElement>(
         "#question-dialog.nh3d-dialog.is-visible",
@@ -10543,19 +10607,23 @@ export default function App(): JSX.Element {
       if (!questionDialog) {
         return;
       }
-      const firstPickupItem = questionDialog.querySelector<HTMLElement>(
-        ".nh3d-pickup-item[tabindex='0']",
+      const activeQuestionTarget = questionDialog.querySelector<HTMLElement>(
+        ".nh3d-menu-button.nh3d-menu-button-active, button.nh3d-enhance-skill-card.nh3d-menu-button-active, button.nh3d-cast-row.nh3d-menu-button-active, button.nh3d-technique-row.nh3d-menu-button-active, .nh3d-pickup-item.nh3d-pickup-item-active, .nh3d-menu-action-button.nh3d-action-button-active, .nh3d-pickup-action-button.nh3d-action-button-active",
       );
-      if (!firstPickupItem) {
+      const firstQuestionTarget = questionDialog.querySelector<HTMLElement>(
+        ".nh3d-menu-button:not(:disabled), button.nh3d-enhance-skill-card:not(:disabled), button.nh3d-cast-row:not(:disabled), button.nh3d-technique-row:not(:disabled), .nh3d-pickup-item[tabindex='0'], .nh3d-choice-button:not(:disabled), .nh3d-menu-action-button:not(:disabled), .nh3d-pickup-action-button:not(:disabled)",
+      );
+      const focusTarget = activeQuestionTarget ?? firstQuestionTarget;
+      if (!focusTarget) {
         return;
       }
-      firstPickupItem.focus({ preventScroll: true });
-      firstPickupItem.scrollIntoView({ block: "nearest", inline: "nearest" });
+      focusTarget.focus({ preventScroll: true });
+      focusTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
     }, 0);
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [pickupQuestionInitialFocusSeed]);
+  }, [questionInitialFocusSeed]);
 
   const startNewGameFromPrompt = (): void => {
     setReopenNewGamePromptOnInteraction(false);
@@ -17036,6 +17104,34 @@ export default function App(): JSX.Element {
         }${techniqueMenuData ? " nh3d-dialog-question-technique" : ""}`}
         open={Boolean(question)}
         id="question-dialog"
+        onFocusCapture={(event) => {
+          if (event.target === event.currentTarget) {
+            return;
+          }
+          logQuestionDialogDebug("focus-capture", {
+            target: describeQuestionDialogDebugElement(event.target),
+          });
+        }}
+        onKeyDownCapture={(event) => {
+          if (
+            event.key !== "Tab" &&
+            event.key !== "Enter" &&
+            event.key !== " " &&
+            event.key !== "Space" &&
+            event.key !== "Spacebar" &&
+            event.key !== "ArrowUp" &&
+            event.key !== "ArrowDown" &&
+            event.key !== "ArrowLeft" &&
+            event.key !== "ArrowRight"
+          ) {
+            return;
+          }
+          logQuestionDialogDebug("keydown-capture", {
+            key: event.key,
+            code: event.code,
+            target: describeQuestionDialogDebugElement(event.target),
+          });
+        }}
       >
         {question ? (
           <>
@@ -17086,6 +17182,7 @@ export default function App(): JSX.Element {
                             ? " nh3d-pickup-item-active"
                             : ""
                         }`}
+                        data-nh3d-question-selection={getMenuSelectionInput(item)}
                         key={`pickup-${item.accelerator}-${index}`}
                         onClick={() =>
                           controller?.togglePickupChoice(
@@ -17159,6 +17256,8 @@ export default function App(): JSX.Element {
                             ? " nh3d-action-button-active"
                             : ""
                         }`}
+                        autoFocus={question.activeActionButton === "confirm"}
+                        data-nh3d-question-action="confirm"
                         onClick={() => controller?.confirmPickupChoices()}
                         onFocus={() =>
                           controller?.syncQuestionActionFocus("confirm")
@@ -17174,6 +17273,10 @@ export default function App(): JSX.Element {
                               ? " nh3d-action-button-active"
                               : ""
                           }`}
+                          autoFocus={
+                            question.activeActionButton === "select-all"
+                          }
+                          data-nh3d-question-action="select-all"
                           onClick={() => controller?.toggleAllPickupChoices()}
                           onFocus={() =>
                             controller?.syncQuestionActionFocus("select-all")
@@ -17199,6 +17302,8 @@ export default function App(): JSX.Element {
                             ? " nh3d-action-button-active"
                             : ""
                         }`}
+                        autoFocus={question.activeActionButton === "cancel"}
+                        data-nh3d-question-action="cancel"
                         onClick={() => controller?.cancelActivePrompt()}
                         onFocus={() =>
                           controller?.syncQuestionActionFocus("cancel")
@@ -17226,6 +17331,8 @@ export default function App(): JSX.Element {
                           ? " nh3d-action-button-active"
                           : ""
                       }`}
+                      autoFocus={question.activeActionButton === "cancel"}
+                      data-nh3d-question-action="cancel"
                       onClick={() => controller?.cancelActivePrompt()}
                       onFocus={() =>
                         controller?.syncQuestionActionFocus("cancel")
@@ -17255,6 +17362,8 @@ export default function App(): JSX.Element {
                           ? " nh3d-action-button-active"
                           : ""
                       }`}
+                      autoFocus={question.activeActionButton === "cancel"}
+                      data-nh3d-question-action="cancel"
                       onClick={() => controller?.cancelActivePrompt()}
                       onFocus={() =>
                         controller?.syncQuestionActionFocus("cancel")
@@ -17284,6 +17393,8 @@ export default function App(): JSX.Element {
                           ? " nh3d-action-button-active"
                           : ""
                       }`}
+                      autoFocus={question.activeActionButton === "cancel"}
+                      data-nh3d-question-action="cancel"
                       onClick={() => controller?.cancelActivePrompt()}
                       onFocus={() =>
                         controller?.syncQuestionActionFocus("cancel")
@@ -17338,24 +17449,23 @@ export default function App(): JSX.Element {
                       tileIndex,
                     );
                     const fallbackGlyph = resolveMenuItemFallbackGlyph(item);
+                    const selectionInput = getMenuSelectionInput(item);
+                    const isActiveSelection =
+                      question.activeActionButton === null &&
+                      question.activeMenuSelectionInput === selectionInput;
                     return (
                       <button
                         className={`nh3d-menu-button${
-                          question.activeMenuSelectionInput ===
-                          getMenuSelectionInput(item)
-                            ? " nh3d-menu-button-active"
-                            : ""
+                          isActiveSelection ? " nh3d-menu-button-active" : ""
                         }`}
-                        key={`menu-${getMenuSelectionInput(item)}-${index}`}
+                        autoFocus={isActiveSelection}
+                        data-nh3d-question-selection={selectionInput}
+                        key={`menu-${selectionInput}-${index}`}
                         onClick={() =>
-                          controller?.chooseQuestionChoice(
-                            getMenuSelectionInput(item),
-                          )
+                          controller?.chooseQuestionChoice(selectionInput)
                         }
                         onFocus={() =>
-                          controller?.syncQuestionSelectionFocus(
-                            getMenuSelectionInput(item),
-                          )
+                          controller?.syncQuestionSelectionFocus(selectionInput)
                         }
                         type="button"
                       >
@@ -17394,6 +17504,8 @@ export default function App(): JSX.Element {
                             ? " nh3d-action-button-active"
                             : ""
                         }`}
+                        autoFocus={question.activeActionButton === "cancel"}
+                        data-nh3d-question-action="cancel"
                         onClick={() => controller?.cancelActivePrompt()}
                         onFocus={() =>
                           controller?.syncQuestionActionFocus("cancel")
@@ -17420,7 +17532,7 @@ export default function App(): JSX.Element {
                     data-nh3d-overflow-glow
                     data-nh3d-overflow-glow-host="parent"
                   >
-                    {orderedQuestionChoices.map((choice) => {
+                    {orderedQuestionChoices.map((choice, index) => {
                       const normalizedChoice = choice.trim();
                       const choiceSourceItem = useInventoryChoiceLabels
                         ? getInventoryItemForQuestionChoice(
@@ -17467,6 +17579,11 @@ export default function App(): JSX.Element {
                           }${
                             tileApplicable ? " nh3d-choice-button-with-tile" : ""
                           }`}
+                          autoFocus={
+                            question.activeActionButton === null &&
+                            (choice === question.defaultChoice ||
+                              (question.defaultChoice === "" && index === 0))
+                          }
                           data-nh3d-choice-value={choice}
                           key={choice}
                           onClick={() =>
@@ -17512,6 +17629,8 @@ export default function App(): JSX.Element {
                           ? " nh3d-action-button-active"
                           : ""
                       }`}
+                      autoFocus={question.activeActionButton === "cancel"}
+                      data-nh3d-question-action="cancel"
                       onClick={() => controller?.cancelActivePrompt()}
                       onFocus={() =>
                         controller?.syncQuestionActionFocus("cancel")

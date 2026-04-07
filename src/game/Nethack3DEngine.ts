@@ -26118,6 +26118,315 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return true;
   }
 
+  private describeQuestionDebugElement(
+    element: Element | null | undefined,
+  ): string {
+    if (!(element instanceof HTMLElement)) {
+      return "(none)";
+    }
+    const tagName = element.tagName.toLowerCase();
+    const className = String(element.className || "")
+      .trim()
+      .replace(/\s+/g, ".");
+    const selection = element.dataset.nh3dQuestionSelection;
+    const action = element.dataset.nh3dQuestionAction;
+    const text = String(element.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+    return [
+      tagName + (className ? `.${className}` : ""),
+      selection ? `selection=${selection}` : "",
+      action ? `action=${action}` : "",
+      text ? `text="${text}"` : "",
+    ]
+      .filter((part) => part.length > 0)
+      .join(" ");
+  }
+
+  private getQuestionNavigationDebugState(): Record<string, unknown> {
+    const activeSelectionInput =
+      this.activeQuestionMenuItems.length > 0 &&
+      !this.isQuestionActionFocused()
+        ? this.activeQuestionIsPickupDialog
+          ? this.getActivePickupSelectionInput()
+          : this.getActiveQuestionMenuSelectionInput()
+        : null;
+    return {
+      questionText: this.activeQuestionText,
+      isPickupDialog: this.activeQuestionIsPickupDialog,
+      activeSelectionInput,
+      activeActionButton: this.getActiveQuestionActionButton(),
+      activePickupFocusIndex: this.activePickupFocusIndex,
+      activeQuestionMenuFocusIndex: this.activeQuestionMenuFocusIndex,
+      activeQuestionActionFocusIndex: this.activeQuestionActionFocusIndex,
+      documentActiveElement: this.describeQuestionDebugElement(
+        typeof document !== "undefined" ? document.activeElement : null,
+      ),
+    };
+  }
+
+  private logQuestionNavigationDebug(
+    event: string,
+    payload: Record<string, unknown> = {},
+  ): void {
+    logWithOriginal(`[QUESTION_NAV_DEBUG] ${event}`, {
+      ...this.getQuestionNavigationDebugState(),
+      ...payload,
+    });
+  }
+
+  private setQuestionSelectableFocusIndex(index: number): boolean {
+    const selectableItems = this.getVisiblePickupSelectableMenuItems();
+    if (selectableItems.length === 0) {
+      this.logQuestionNavigationDebug("setQuestionSelectableFocusIndex:empty", {
+        requestedIndex: index,
+      });
+      return false;
+    }
+
+    const clampedIndex = Math.max(
+      0,
+      Math.min(selectableItems.length - 1, Math.trunc(index)),
+    );
+    this.logQuestionNavigationDebug("setQuestionSelectableFocusIndex:start", {
+      requestedIndex: index,
+      clampedIndex,
+      selectableCount: selectableItems.length,
+    });
+    this.clearQuestionActionFocus();
+    if (this.activeQuestionIsPickupDialog) {
+      this.activePickupFocusIndex = clampedIndex;
+      this.updatePickupFocusVisualState();
+    } else {
+      this.activeQuestionMenuFocusIndex = clampedIndex;
+      this.updateQuestionMenuFocusVisualState();
+    }
+    this.logQuestionNavigationDebug("setQuestionSelectableFocusIndex:end", {
+      requestedIndex: index,
+      clampedIndex,
+    });
+    return true;
+  }
+
+  private focusLastQuestionSelectableItem(): boolean {
+    const selectableItems = this.getVisiblePickupSelectableMenuItems();
+    if (selectableItems.length === 0) {
+      return false;
+    }
+    return this.setQuestionSelectableFocusIndex(selectableItems.length - 1);
+  }
+
+  private moveActiveQuestionSelectableFocus(delta: number): boolean {
+    if (delta === 0) {
+      return false;
+    }
+    if (this.activeQuestionIsPickupDialog) {
+      this.movePickupFocus(delta);
+      return true;
+    }
+    if (this.activeQuestionMenuItems.length < 1) {
+      return false;
+    }
+    this.moveQuestionMenuFocus(delta);
+    return true;
+  }
+
+  private moveQuestionDialogMenuLikeFocus(
+    direction: "up" | "down" | "left" | "right",
+  ): boolean {
+    if (
+      !this.isInQuestion ||
+      this.isInDirectionQuestion ||
+      this.activeQuestionMenuItems.length < 1
+    ) {
+      this.logQuestionNavigationDebug("moveQuestionDialogMenuLikeFocus:ignored", {
+        direction,
+      });
+      return false;
+    }
+
+    const selectableItems = this.getVisiblePickupSelectableMenuItems();
+    const selectableCount = selectableItems.length;
+    const actions = this.getActiveQuestionActionButtons();
+    const actionCount = actions.length;
+    const isActionFocused = this.isQuestionActionFocused();
+    let effectiveDirection = direction;
+
+    if (!isActionFocused) {
+      if (direction === "left") {
+        effectiveDirection = "up";
+      } else if (direction === "right") {
+        effectiveDirection = "down";
+      }
+    }
+
+    const finish = (didMove: boolean, branch: string): boolean => {
+      this.logQuestionNavigationDebug("moveQuestionDialogMenuLikeFocus", {
+        direction,
+        effectiveDirection,
+        branch,
+        didMove,
+        selectableCount,
+        actionCount,
+      });
+      return didMove;
+    };
+
+    if (isActionFocused) {
+      if (effectiveDirection === "up") {
+        return finish(this.focusLastQuestionSelectableItem(), "action-up");
+      }
+      if (effectiveDirection === "left") {
+        if (this.activeQuestionActionFocusIndex <= 0) {
+          return finish(
+            this.focusLastQuestionSelectableItem(),
+            "action-left-wrap-to-list",
+          );
+        }
+        this.setQuestionActionFocusIndex(this.activeQuestionActionFocusIndex - 1);
+        return finish(true, "action-left");
+      }
+      if (effectiveDirection === "right" || effectiveDirection === "down") {
+        if (actionCount <= 0) {
+          return finish(false, "action-forward-no-actions");
+        }
+        const nextActionIndex = Math.min(
+          actionCount - 1,
+          this.activeQuestionActionFocusIndex + 1,
+        );
+        this.setQuestionActionFocusIndex(nextActionIndex);
+        return finish(true, "action-forward");
+      }
+      return finish(false, "action-noop");
+    }
+
+    if (effectiveDirection === "down") {
+      const currentIndex = this.activeQuestionIsPickupDialog
+        ? this.activePickupFocusIndex
+        : this.activeQuestionMenuFocusIndex;
+      const atBottom =
+        selectableCount > 0 && currentIndex >= selectableCount - 1;
+      if (atBottom && actionCount > 0) {
+        return finish(this.focusQuestionActionsStart(), "list-down-to-actions");
+      }
+      return finish(this.moveActiveQuestionSelectableFocus(1), "list-down");
+    }
+
+    if (effectiveDirection === "up" || effectiveDirection === "left") {
+      return finish(this.moveActiveQuestionSelectableFocus(-1), "list-backward");
+    }
+
+    if (effectiveDirection === "right") {
+      return finish(this.moveActiveQuestionSelectableFocus(1), "list-right");
+    }
+
+    return finish(false, "list-noop");
+  }
+
+  private moveQuestionDialogTabFocus(reverse: boolean): boolean {
+    if (
+      !this.isInQuestion ||
+      this.isInDirectionQuestion ||
+      this.activeQuestionMenuItems.length < 1
+    ) {
+      this.logQuestionNavigationDebug("moveQuestionDialogTabFocus:ignored", {
+        reverse,
+      });
+      return false;
+    }
+
+    const selectableItems = this.getVisiblePickupSelectableMenuItems();
+    const selectableCount = selectableItems.length;
+    const actions = this.getActiveQuestionActionButtons();
+    const actionCount = actions.length;
+    if (selectableCount === 0 && actionCount === 0) {
+      this.logQuestionNavigationDebug("moveQuestionDialogTabFocus:empty", {
+        reverse,
+      });
+      return false;
+    }
+
+    const finish = (didMove: boolean, branch: string): boolean => {
+      this.logQuestionNavigationDebug("moveQuestionDialogTabFocus", {
+        reverse,
+        branch,
+        didMove,
+        selectableCount,
+        actionCount,
+      });
+      return didMove;
+    };
+
+    if (this.isQuestionActionFocused()) {
+      const currentActionIndex = Math.max(
+        0,
+        Math.min(actionCount - 1, this.activeQuestionActionFocusIndex),
+      );
+      if (reverse) {
+        if (currentActionIndex > 0) {
+          this.setQuestionActionFocusIndex(currentActionIndex - 1);
+          return finish(true, "actions-backward");
+        }
+        if (selectableCount > 0) {
+          return finish(this.focusLastQuestionSelectableItem(), "actions-to-list");
+        }
+        this.setQuestionActionFocusIndex(actionCount - 1);
+        return finish(true, "actions-wrap-last");
+      }
+
+      if (currentActionIndex < actionCount - 1) {
+        this.setQuestionActionFocusIndex(currentActionIndex + 1);
+        return finish(true, "actions-forward");
+      }
+      if (selectableCount > 0) {
+        return finish(this.setQuestionSelectableFocusIndex(0), "actions-wrap-list");
+      }
+      this.setQuestionActionFocusIndex(0);
+      return finish(true, "actions-wrap-first");
+    }
+
+    if (selectableCount <= 0) {
+      if (actionCount <= 0) {
+        return finish(false, "no-targets");
+      }
+      this.setQuestionActionFocusIndex(reverse ? actionCount - 1 : 0);
+      return finish(true, "listless-to-actions");
+    }
+
+    const currentIndex = this.activeQuestionIsPickupDialog
+      ? this.activePickupFocusIndex
+      : this.activeQuestionMenuFocusIndex;
+    if (reverse) {
+      if (currentIndex > 0) {
+        return finish(
+          this.setQuestionSelectableFocusIndex(currentIndex - 1),
+          "list-backward",
+        );
+      }
+      if (actionCount > 0) {
+        this.setQuestionActionFocusIndex(actionCount - 1);
+        return finish(true, "list-to-last-action");
+      }
+      return finish(
+        this.setQuestionSelectableFocusIndex(selectableCount - 1),
+        "list-wrap-last",
+      );
+    }
+
+    if (currentIndex < selectableCount - 1) {
+      return finish(
+        this.setQuestionSelectableFocusIndex(currentIndex + 1),
+        "list-forward",
+      );
+    }
+    if (actionCount > 0) {
+      this.setQuestionActionFocusIndex(0);
+      return finish(true, "list-to-first-action");
+    }
+    return finish(this.setQuestionSelectableFocusIndex(0), "list-wrap-first");
+  }
+
   private activateFocusedQuestionAction(): boolean {
     const action = this.getActiveQuestionActionButton();
     if (!action) {
@@ -26487,6 +26796,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.setActiveQuestionState(question, choices, defaultChoice, menuItems);
     this.syncFpsPointerLockForUiState(false);
     this.syncQuestionDialogState();
+    this.logQuestionNavigationDebug("showQuestion", {
+      rawChoices: choices,
+      defaultChoice,
+      menuItemCount: Array.isArray(menuItems) ? menuItems.length : 0,
+    });
   }
 
   private syncQuestionDialogState(): void {
@@ -26532,6 +26846,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       menuPageIndex: this.activeQuestionMenuPageIndex,
       menuPageCount: this.activeQuestionMenuPageCount,
     };
+    this.logQuestionNavigationDebug("syncQuestionDialogState", {
+      uiActiveMenuSelectionInput: activeMenuSelectionInput,
+      uiActiveActionButton: activeActionButton,
+      uiSelectedAccelerators: selectedAccelerators,
+    });
     this.uiAdapter.setQuestion(state);
   }
 
@@ -26889,6 +27208,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private hideQuestion(): void {
+    this.logQuestionNavigationDebug("hideQuestion");
     this.isInQuestion = false;
     this.activeQuestionText = "";
     this.activeQuestionChoices = "";
@@ -27212,19 +27532,60 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     const resolvedSelection = this.resolveQuestionSelectionInput(selectionInput);
+    this.logQuestionNavigationDebug("syncQuestionSelectionFocus:start", {
+      selectionInput,
+      resolvedSelection,
+    });
     if (!resolvedSelection) {
+      this.logQuestionNavigationDebug("syncQuestionSelectionFocus:ignored", {
+        selectionInput,
+      });
       return;
     }
     if (this.activeQuestionIsPickupDialog) {
+      const activeSelectionInput = this.getActivePickupSelectionInput();
+      if (
+        !this.isQuestionActionFocused() &&
+        activeSelectionInput === resolvedSelection
+      ) {
+        this.logQuestionNavigationDebug("syncQuestionSelectionFocus:skip-same", {
+          selectionInput,
+          resolvedSelection,
+        });
+        return;
+      }
       this.setActivePickupFocusBySelectionInput(resolvedSelection);
       this.updatePickupFocusVisualState();
+      this.logQuestionNavigationDebug("syncQuestionSelectionFocus:pickup-applied", {
+        selectionInput,
+        resolvedSelection,
+      });
       return;
     }
     if (this.activeQuestionMenuItems.length < 1) {
+      this.logQuestionNavigationDebug("syncQuestionSelectionFocus:no-menu-items", {
+        selectionInput,
+        resolvedSelection,
+      });
+      return;
+    }
+    const activeSelectionInput = this.getActiveQuestionMenuSelectionInput();
+    if (
+      !this.isQuestionActionFocused() &&
+      activeSelectionInput === resolvedSelection
+    ) {
+      this.logQuestionNavigationDebug("syncQuestionSelectionFocus:skip-same", {
+        selectionInput,
+        resolvedSelection,
+      });
       return;
     }
     this.setActiveQuestionMenuFocusBySelectionInput(resolvedSelection);
     this.updateQuestionMenuFocusVisualState();
+    this.logQuestionNavigationDebug("syncQuestionSelectionFocus:menu-applied", {
+      selectionInput,
+      resolvedSelection,
+    });
   }
 
   public syncQuestionActionFocus(
@@ -27236,9 +27597,30 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const actions = this.getActiveQuestionActionButtons();
     const actionIndex = actions.indexOf(action);
     if (actionIndex < 0) {
+      this.logQuestionNavigationDebug("syncQuestionActionFocus:invalid", {
+        action,
+      });
       return;
     }
+    if (
+      this.isQuestionActionFocused() &&
+      this.activeQuestionActionFocusIndex === actionIndex
+    ) {
+      this.logQuestionNavigationDebug("syncQuestionActionFocus:skip-same", {
+        action,
+        actionIndex,
+      });
+      return;
+    }
+    this.logQuestionNavigationDebug("syncQuestionActionFocus:start", {
+      action,
+      actionIndex,
+    });
     this.setQuestionActionFocusIndex(actionIndex);
+    this.logQuestionNavigationDebug("syncQuestionActionFocus:applied", {
+      action,
+      actionIndex,
+    });
   }
 
   public resolveLegacyQuestionChoicePreviewTileIndex(
@@ -29966,6 +30348,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    if (
+      event.key === "Tab" &&
+      this.isInQuestion &&
+      !this.isInDirectionQuestion &&
+      this.activeQuestionMenuItems.length > 0
+    ) {
+      if (!this.isEditableModalKeyboardTarget(event.target)) {
+        if (this.moveQuestionDialogTabFocus(event.shiftKey)) {
+          event.preventDefault();
+          return;
+        }
+      }
+    }
+
     if (this.isTextInputActive) {
       return;
     }
@@ -30272,6 +30668,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const modalDirection = this.getModalNavigationDirection(event);
 
       if (
+        modalDirection ||
+        event.key === "Tab" ||
+        event.key === "Enter" ||
+        event.key === " " ||
+        event.key === "Space" ||
+        event.key === "Spacebar"
+      ) {
+        this.logQuestionNavigationDebug("handleKeyDown:question", {
+          key: event.key,
+          code: event.code,
+          modalDirection,
+          isPickupDialog,
+          isMenuQuestion,
+          eventTarget: this.describeQuestionDebugElement(
+            event.target instanceof Element ? event.target : null,
+          ),
+        });
+      }
+
+      if (
         !isMenuQuestion &&
         (modalDirection === "left" || modalDirection === "right")
       ) {
@@ -30332,65 +30748,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
         if (modalDirection) {
           event.preventDefault();
-          const isActionFocused = this.isQuestionActionFocused();
-          let effectiveDirection = modalDirection;
-          if (!isActionFocused) {
-            if (modalDirection === "left") {
-              effectiveDirection = "up";
-            } else if (modalDirection === "right") {
-              effectiveDirection = "down";
-            }
-          }
-          const selectableItems = this.getVisiblePickupSelectableMenuItems();
-          if (isActionFocused) {
-            if (effectiveDirection === "up") {
-              this.clearQuestionActionFocus();
-              if (selectableItems.length > 0) {
-                this.activePickupFocusIndex = selectableItems.length - 1;
-              }
-              this.updatePickupFocusVisualState();
-              return;
-            }
-            if (effectiveDirection === "left") {
-              if (this.activeQuestionActionFocusIndex <= 0) {
-                this.clearQuestionActionFocus();
-                if (selectableItems.length > 0) {
-                  this.activePickupFocusIndex = selectableItems.length - 1;
-                }
-                this.updatePickupFocusVisualState();
-                return;
-              }
-              this.moveQuestionActionFocus(-1);
-              return;
-            }
-            if (
-              effectiveDirection === "right" ||
-              effectiveDirection === "down"
-            ) {
-              this.moveQuestionActionFocus(1);
-              return;
-            }
-          } else {
-            if (effectiveDirection === "down") {
-              this.normalizeActivePickupFocusIndex();
-              const atBottom =
-                selectableItems.length > 0 &&
-                this.activePickupFocusIndex >= selectableItems.length - 1;
-              if (atBottom && this.focusQuestionActionsStart()) {
-                return;
-              }
-              this.movePickupFocus(1);
-              return;
-            }
-            if (effectiveDirection === "up" || effectiveDirection === "left") {
-              this.movePickupFocus(-1);
-              return;
-            }
-            if (effectiveDirection === "right") {
-              this.movePickupFocus(1);
-              return;
-            }
-          }
+          this.moveQuestionDialogMenuLikeFocus(modalDirection);
           return;
         }
 
@@ -30440,71 +30798,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (isMenuQuestion) {
           if (modalDirection) {
             event.preventDefault();
-            const isActionFocused = this.isQuestionActionFocused();
-            let effectiveDirection = modalDirection;
-            if (!isActionFocused) {
-              if (modalDirection === "left") {
-                effectiveDirection = "up";
-              } else if (modalDirection === "right") {
-                effectiveDirection = "down";
-              }
-            }
-            const selectableItems = this.getVisiblePickupSelectableMenuItems();
-            if (isActionFocused) {
-              if (effectiveDirection === "up") {
-                this.clearQuestionActionFocus();
-                if (selectableItems.length > 0) {
-                  this.activeQuestionMenuFocusIndex =
-                    selectableItems.length - 1;
-                }
-                this.updateQuestionMenuFocusVisualState();
-                return;
-              }
-              if (effectiveDirection === "left") {
-                if (this.activeQuestionActionFocusIndex <= 0) {
-                  this.clearQuestionActionFocus();
-                  if (selectableItems.length > 0) {
-                    this.activeQuestionMenuFocusIndex =
-                      selectableItems.length - 1;
-                  }
-                  this.updateQuestionMenuFocusVisualState();
-                  return;
-                }
-                this.moveQuestionActionFocus(-1);
-                return;
-              }
-              if (
-                effectiveDirection === "right" ||
-                effectiveDirection === "down"
-              ) {
-                this.moveQuestionActionFocus(1);
-                return;
-              }
-            } else {
-              if (effectiveDirection === "down") {
-                this.normalizeActiveQuestionMenuFocusIndex();
-                const atBottom =
-                  selectableItems.length > 0 &&
-                  this.activeQuestionMenuFocusIndex >=
-                    selectableItems.length - 1;
-                if (atBottom && this.focusQuestionActionsStart()) {
-                  return;
-                }
-                this.moveQuestionMenuFocus(1);
-                return;
-              }
-              if (
-                effectiveDirection === "up" ||
-                effectiveDirection === "left"
-              ) {
-                this.moveQuestionMenuFocus(-1);
-                return;
-              }
-              if (effectiveDirection === "right") {
-                this.moveQuestionMenuFocus(1);
-                return;
-              }
-            }
+            this.moveQuestionDialogMenuLikeFocus(modalDirection);
+            return;
           }
 
           if (
@@ -33952,6 +34247,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private dispatchControllerKeyDown(key: string, code?: string): void {
+    if (
+      (this.isInQuestion || this.isInDirectionQuestion) &&
+      (key === "Enter" ||
+        key === "Escape" ||
+        key === "Tab" ||
+        key.startsWith("Arrow"))
+    ) {
+      this.logQuestionNavigationDebug("dispatchControllerKeyDown", {
+        key,
+        code: code ?? key,
+      });
+    }
     if (key === "Enter" && !this.isInDirectionQuestion) {
       this.armControllerFpsDirectionPromptUi();
     }
