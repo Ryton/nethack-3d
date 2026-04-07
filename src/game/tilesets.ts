@@ -37,6 +37,7 @@ const fallbackTileSize = 32;
 const fallbackBackgroundTileId = 0;
 const fallbackBackgroundRemovalMode: Nh3dTilesetBackgroundRemovalMode = "tile";
 const fallbackSolidChromaKeyColorHex = "#466d6c";
+const fallbackWeaponSpriteFlipX = true;
 export const nh3dTilesetAtlasTileColumns = 40;
 const builtinSlashEmTilesetPathPrefix = "assets/slashem/";
 const builtinNh37TilesetPathPrefix = "assets/3.7/";
@@ -67,6 +68,8 @@ const tilesetAtlasTileColumnsPresetByPath: Readonly<Record<string, number>> = {
   "assets/slashem/Abigaba.bmp": 38,
   "assets/slashem/Absurd.png": 38,
 };
+const tilesetWeaponSpriteFlipXPresetByPath: Readonly<Record<string, boolean>> =
+  {};
 
 // Centralized per-tileset defaults. Add entries here to override fallback
 // behavior for any specific built-in tileset path.
@@ -591,6 +594,20 @@ export function resolveDefaultNh3dTilesetBackgroundRemovalMode(
     return "solid";
   }
   return fallbackBackgroundRemovalMode;
+}
+
+export function resolveDefaultNh3dTilesetWeaponSpriteFlipX(
+  path: string | null | undefined,
+): boolean {
+  const tileset = findNh3dTilesetByPath(path);
+  if (!tileset) {
+    return fallbackWeaponSpriteFlipX;
+  }
+  const preset = tilesetWeaponSpriteFlipXPresetByPath[tileset.path];
+  if (typeof preset === "boolean") {
+    return preset;
+  }
+  return fallbackWeaponSpriteFlipX;
 }
 
 export function isNh3dTilesetBackgroundRemovalModeForcedOff(

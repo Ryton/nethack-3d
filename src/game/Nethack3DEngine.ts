@@ -59,6 +59,7 @@ import type {
   GameOverState,
   InventoryDialogState,
   Nh3dClientOptions,
+  NethackMenuItem,
   Nethack3DEngineController,
   Nethack3DEngineOptions,
   Nethack3DEngineUIAdapter,
@@ -263,6 +264,12 @@ type CharacterCreationQuestionPayload = {
 
 type InventoryDialogOptions = {
   contextActionsEnabled?: boolean;
+};
+
+type FpsHeldWeaponTextureState = {
+  tileIndex: number;
+  sourceGlyph: number | null;
+  signature: string;
 };
 
 const MINIMAP_WIDTH_TILES = 79;
@@ -971,6 +978,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsForwardHighlight: THREE.Mesh | null = null;
   private fpsForwardHighlightMaterial: THREE.MeshBasicMaterial | null = null;
   private fpsForwardHighlightTexture: THREE.CanvasTexture | null = null;
+  private fpsHeldWeaponMesh: THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > | null = null;
+  private fpsHeldWeaponMaterial: THREE.MeshBasicMaterial | null = null;
+  private fpsHeldWeaponTexture: THREE.CanvasTexture | null = null;
+  private fpsHeldWeaponTextureSignature: string = "";
+  private fpsHeldWeaponLagYaw: number | null = null;
+  private fpsHeldWeaponLagPitch: number | null = null;
+  private readonly fpsHeldWeaponGeometry = new THREE.PlaneGeometry(1, 1);
+  private readonly fpsHeldWeaponBaseLocalOffset = new THREE.Vector3(
+    0.38,
+    -0.28,
+    -0.72,
+  );
+  private readonly fpsHeldWeaponLocalOffset = new THREE.Vector3();
+  private readonly fpsHeldWeaponWorldPosition = new THREE.Vector3();
+  private readonly fpsHeldWeaponYawLagHalfLifeMs: number = 84;
+  private readonly fpsHeldWeaponYawLagAmount: number = 0.38;
+  private readonly fpsHeldWeaponYawLagMax: number = 0.2;
+  private readonly fpsHeldWeaponPitchLagHalfLifeMs: number = 68;
+  private readonly fpsHeldWeaponPitchLagAmount: number = 0.48;
+  private readonly fpsHeldWeaponPitchLagMax: number = 0.12;
+  private readonly fpsHeldWeaponPitchOffsetRange: number = 0.11;
+  private readonly fpsHeldWeaponScaleY: number = 0.72;
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
   private readonly fpsFireSuppressionDurationMs: number = 1500;
@@ -5486,6 +5518,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.lastRunLikeInputAtMs = 0;
     this.fpsPredictedPlayerTile = null;
     this.asciiPendingPlayerTile = null;
+    this.fpsHeldWeaponLagYaw = null;
+    this.fpsHeldWeaponLagPitch = null;
+    if (this.fpsHeldWeaponMesh) {
+      this.fpsHeldWeaponMesh.visible = false;
+    }
     this.fpsRecentPlayerTilesForSuppression = [];
     this.asciiPlayerTileDebugLastLogAtByKey.clear();
     this.closeAnyTileContextMenu(false);
@@ -5520,6 +5557,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.cameraFollowInitialized = true;
       this.fpsStepCameraFrom.set(eyeX, eyeY, this.firstPersonEyeHeight);
       this.fpsStepCameraTo.set(eyeX, eyeY, this.firstPersonEyeHeight);
+      if (this.runtimeConnectionState === "running") {
+        this.requestSilentInventoryRefresh("fps-mode-enter");
+      }
     } else {
       this.closeAnyTileContextMenu(false);
       if (this.fpsForwardHighlight) {
@@ -5867,6 +5907,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       entry.texture.dispose();
     }
     this.monsterBillboardTextures.clear();
+    this.invalidateFpsHeldWeaponTexture();
     this.clearFpsWallChamferMaterialCaches();
     this.tilesetBackgroundTilePixelsCache.clear();
   }
@@ -5879,6 +5920,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       entry.texture.dispose();
     }
     this.monsterBillboardTextures.clear();
+    this.invalidateFpsHeldWeaponTexture();
     this.tilesetBackgroundTilePixelsCache.clear();
   }
 
@@ -9034,6 +9076,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         // Inventory mutation is a strong signal that floor stack order at the
         // player tile may have changed (pickup/drop/eat/use from floor).
         this.requestPlayerTileRefresh("inventory-updated-signal");
+        if (this.isFpsMode()) {
+          this.requestSilentInventoryRefresh("inventory-updated-signal");
+        }
         break;
 
       case "player_position":
@@ -20816,6 +20861,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsForwardHighlightTexture.dispose();
       this.fpsForwardHighlightTexture = null;
     }
+    this.clearFpsHeldWeaponVisual();
     this.fpsAimLinePulseUntilMs = 0;
     this.fpsFireSuppressionUntilMs = 0;
     this.fpsStepCameraActive = false;
@@ -25414,6 +25460,277 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return normalized >= 0 ? normalized : null;
   }
 
+  private ensureFpsHeldWeaponMesh(): THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > {
+    if (this.fpsHeldWeaponMesh && this.fpsHeldWeaponMaterial) {
+      return this.fpsHeldWeaponMesh;
+    }
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(this.fpsHeldWeaponGeometry, material);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 980;
+    mesh.visible = false;
+    this.scene.add(mesh);
+    this.fpsHeldWeaponMesh = mesh;
+    this.fpsHeldWeaponMaterial = material;
+    return mesh;
+  }
+
+  private invalidateFpsHeldWeaponTexture(): void {
+    if (this.fpsHeldWeaponMaterial) {
+      this.fpsHeldWeaponMaterial.map = null;
+      this.fpsHeldWeaponMaterial.needsUpdate = true;
+    }
+    if (this.fpsHeldWeaponTexture) {
+      this.fpsHeldWeaponTexture.dispose();
+      this.fpsHeldWeaponTexture = null;
+    }
+    this.fpsHeldWeaponTextureSignature = "";
+  }
+
+  private clearFpsHeldWeaponVisual(): void {
+    this.invalidateFpsHeldWeaponTexture();
+    if (this.fpsHeldWeaponMesh) {
+      this.scene.remove(this.fpsHeldWeaponMesh);
+      this.fpsHeldWeaponMesh = null;
+    }
+    if (this.fpsHeldWeaponMaterial) {
+      this.fpsHeldWeaponMaterial.dispose();
+      this.fpsHeldWeaponMaterial = null;
+    }
+    this.fpsHeldWeaponLagYaw = null;
+    this.fpsHeldWeaponLagPitch = null;
+  }
+
+  private isHeldWeaponInventoryItem(item: unknown): item is NethackMenuItem {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+    const candidate = item as NethackMenuItem;
+    if (candidate.isCategory) {
+      return false;
+    }
+    const text =
+      typeof candidate.text === "string" ? candidate.text.toLowerCase() : "";
+    return text.includes("(weapon in hand)");
+  }
+
+  private findHeldWeaponInventoryItem(): NethackMenuItem | null {
+    for (const item of this.currentInventory) {
+      if (this.isHeldWeaponInventoryItem(item)) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  private resolveFpsHeldWeaponTextureState(): FpsHeldWeaponTextureState | null {
+    if (
+      !this.isFpsMode() ||
+      this.clientOptions.tilesetMode !== "tiles" ||
+      this.isFpsFarLookViewActive()
+    ) {
+      return null;
+    }
+    const item = this.findHeldWeaponInventoryItem();
+    if (!item) {
+      return null;
+    }
+    const sourceGlyph = this.resolveNonNegativeMenuInteger(item.glyph);
+    const tileIndex = this.resolveNonNegativeMenuInteger(item.tileIndex);
+    const usingVultureTiles = this.shouldUseVultureTiles();
+    const canUseTranslatedTileWithoutAtlas =
+      usingVultureTiles && sourceGlyph !== null;
+    const assetReady = usingVultureTiles
+      ? this.vultureTilesetTranslator !== null
+      : this.resolveTilesetAtlasImageSource() !== null;
+    if (!assetReady || (tileIndex === null && !canUseTranslatedTileWithoutAtlas)) {
+      return null;
+    }
+    const backgroundRemovalKey =
+      this.clientOptions.tilesetBackgroundRemovalMode === "solid"
+        ? `solid:${this.clientOptions.tilesetSolidChromaKeyColorHex}`
+        : this.clientOptions.tilesetBackgroundRemovalMode === "none"
+          ? "none"
+          : `tile:${this.clientOptions.tilesetBackgroundTileId}`;
+    return {
+      tileIndex: tileIndex ?? -1,
+      sourceGlyph,
+      signature: `${this.clientOptions.tilesetPath}|rv:${this.resolveRuntimeVersion()}|ts:${this.tileSourceSize}|g:${sourceGlyph ?? -1}|ti:${tileIndex ?? -1}|bg:${backgroundRemovalKey}`,
+    };
+  }
+
+  private measureTextureOpaqueAspectRatio(texture: THREE.Texture): number {
+    const sourceInfo = this.resolveMonsterBillboardTextureSource(texture);
+    if (!sourceInfo || typeof document === "undefined") {
+      return 1;
+    }
+    const { source, width, height } = sourceInfo;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return width > 0 && height > 0 ? width / height : 1;
+    }
+    context.clearRect(0, 0, width, height);
+    context.drawImage(source, 0, 0, width, height);
+    const data = context.getImageData(0, 0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const alpha = data[(y * width + x) * 4 + 3];
+        if (alpha <= 4) {
+          continue;
+        }
+        if (x < minX) {
+          minX = x;
+        }
+        if (y < minY) {
+          minY = y;
+        }
+        if (x > maxX) {
+          maxX = x;
+        }
+        if (y > maxY) {
+          maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) {
+      return width > 0 && height > 0 ? width / height : 1;
+    }
+    const contentWidth = maxX - minX + 1;
+    const contentHeight = maxY - minY + 1;
+    return contentHeight > 0 ? contentWidth / contentHeight : 1;
+  }
+
+  private syncFpsHeldWeaponSprite(deltaSeconds: number): void {
+    const textureState = this.resolveFpsHeldWeaponTextureState();
+    if (!textureState) {
+      if (this.fpsHeldWeaponMesh) {
+        this.fpsHeldWeaponMesh.visible = false;
+      }
+      this.fpsHeldWeaponLagYaw = null;
+      this.fpsHeldWeaponLagPitch = null;
+      return;
+    }
+
+    const mesh = this.ensureFpsHeldWeaponMesh();
+    const material = this.fpsHeldWeaponMaterial;
+    if (!material) {
+      return;
+    }
+
+    if (
+      this.fpsHeldWeaponTextureSignature !== textureState.signature ||
+      !this.fpsHeldWeaponTexture ||
+      material.map !== this.fpsHeldWeaponTexture
+    ) {
+      this.invalidateFpsHeldWeaponTexture();
+      const texture = this.createTileTexture(textureState.tileIndex, 1, true, {
+        sourceGlyph: textureState.sourceGlyph,
+      });
+      const aspectRatio = THREE.MathUtils.clamp(
+        this.measureTextureOpaqueAspectRatio(texture),
+        0.45,
+        1.8,
+      );
+      this.fpsHeldWeaponTexture = texture;
+      this.fpsHeldWeaponTextureSignature = textureState.signature;
+      material.map = texture;
+      material.needsUpdate = true;
+      mesh.userData.aspectRatio = aspectRatio;
+    }
+
+    const aspectRatio =
+      typeof mesh.userData?.aspectRatio === "number" &&
+      Number.isFinite(mesh.userData.aspectRatio)
+        ? THREE.MathUtils.clamp(mesh.userData.aspectRatio, 0.45, 1.8)
+        : 1;
+    const horizontalScale =
+      aspectRatio *
+      this.fpsHeldWeaponScaleY *
+      (this.clientOptions.fpsHeldWeaponSpriteFlipX ? -1 : 1);
+    mesh.scale.set(horizontalScale, this.fpsHeldWeaponScaleY, 1);
+
+    if (
+      this.fpsHeldWeaponLagYaw === null ||
+      !Number.isFinite(this.fpsHeldWeaponLagYaw)
+    ) {
+      this.fpsHeldWeaponLagYaw = this.wrapAngle(this.cameraYaw);
+    }
+    const lagAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) / this.fpsHeldWeaponYawLagHalfLifeMs,
+      );
+    this.fpsHeldWeaponLagYaw = this.wrapAngle(
+      this.fpsHeldWeaponLagYaw +
+        this.wrapAngle(this.cameraYaw - this.fpsHeldWeaponLagYaw) * lagAlpha,
+    );
+    const yawLagOffset = THREE.MathUtils.clamp(
+      -this.wrapAngle(this.cameraYaw - this.fpsHeldWeaponLagYaw) *
+        this.fpsHeldWeaponYawLagAmount,
+      -this.fpsHeldWeaponYawLagMax,
+      this.fpsHeldWeaponYawLagMax,
+    );
+    if (
+      this.fpsHeldWeaponLagPitch === null ||
+      !Number.isFinite(this.fpsHeldWeaponLagPitch)
+    ) {
+      this.fpsHeldWeaponLagPitch = this.cameraPitch;
+    }
+    const pitchLagAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) /
+          this.fpsHeldWeaponPitchLagHalfLifeMs,
+      );
+    this.fpsHeldWeaponLagPitch +=
+      (this.cameraPitch - this.fpsHeldWeaponLagPitch) * pitchLagAlpha;
+    const pitchLagOffset = THREE.MathUtils.clamp(
+      -(this.cameraPitch - this.fpsHeldWeaponLagPitch) *
+        this.fpsHeldWeaponPitchLagAmount,
+      -this.fpsHeldWeaponPitchLagMax,
+      this.fpsHeldWeaponPitchLagMax,
+    );
+    const pitchT = THREE.MathUtils.inverseLerp(
+      this.firstPersonPitchMin,
+      this.firstPersonPitchMax,
+      THREE.MathUtils.clamp(
+        this.cameraPitch,
+        this.firstPersonPitchMin,
+        this.firstPersonPitchMax,
+      ),
+    );
+    const pitchOffset =
+      (0.5 - pitchT) * 2 * this.fpsHeldWeaponPitchOffsetRange + pitchLagOffset;
+
+    this.fpsHeldWeaponLocalOffset.copy(this.fpsHeldWeaponBaseLocalOffset);
+    this.fpsHeldWeaponLocalOffset.x += yawLagOffset;
+    this.fpsHeldWeaponLocalOffset.y += pitchOffset;
+    this.fromCameraLocalOffset(
+      this.fpsHeldWeaponLocalOffset,
+      this.fpsHeldWeaponWorldPosition,
+    );
+    mesh.position.copy(this.fpsHeldWeaponWorldPosition);
+    mesh.quaternion.copy(this.camera.quaternion);
+    mesh.visible = true;
+  }
+
   private updateInventoryDisplay(items: any[]): void {
     const nextInventory = this.normalizeMenuItemsForUi(items);
     this.currentInventory = nextInventory;
@@ -27035,6 +27352,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.syncFpsPointerLockForUiState(true);
   }
 
+  private requestSilentInventoryRefresh(reason: string): void {
+    if (
+      this.inventoryRefreshInFlight ||
+      this.isInventoryDialogVisible ||
+      this.isInQuestion ||
+      this.isInDirectionQuestion ||
+      this.positionInputModeActive ||
+      this.metaCommandModeActive ||
+      this.isInfoDialogVisible ||
+      this.gameOverState.active
+    ) {
+      return;
+    }
+    console.log(`Requesting silent inventory refresh (${reason})...`);
+    this.inventoryRefreshInFlight = true;
+    this.pendingInventoryDialog = false;
+    this.pendingInventoryDialogOptions = null;
+    this.sendInput("i");
+  }
+
   private toggleInventoryDialogState(): void {
     if (
       this.isInQuestion ||
@@ -27342,6 +27679,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.transparentWallGroundPlaneGeometry.dispose();
     this.vultureInvisibleSurfaceMaterial.dispose();
     this.fpsPitchLockedBillboardGeometry.dispose();
+    this.fpsHeldWeaponGeometry.dispose();
     Object.values(this.materials).forEach((material) => material.dispose());
   }
 
@@ -37450,6 +37788,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateControllerInput(deltaSeconds);
     this.updateCameraPanInertia(deltaSeconds);
     this.updateCamera(deltaSeconds);
+    this.syncFpsHeldWeaponSprite(deltaSeconds);
     this.updateMonsterBillboardPitchLockState();
     this.syncDirectionPromptOverlayVisibility();
     this.directionPromptOverlay?.update(

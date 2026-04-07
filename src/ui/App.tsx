@@ -76,6 +76,7 @@ import {
   resolveDefaultNh3dTilesetBackgroundTileId,
   resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
+  resolveDefaultNh3dTilesetWeaponSpriteFlipX,
   resolveNh3dTilesetAssetUrl,
   setNh3dUserTilesets,
   type Nh3dTilesetEntry,
@@ -8031,6 +8032,18 @@ export default function App(): JSX.Element {
       resolveDefaultNh3dTilesetSolidChromaKeyColorHex(tilesetPath),
     );
   };
+  const resolveDraftWeaponSpriteFlipXByTilesetPath = (
+    rawTilesetPath: string | null | undefined,
+  ): boolean => {
+    const tilesetPath = String(rawTilesetPath || "").trim();
+    const mappedEnabled = tilesetPath
+      ? clientOptionsDraft.fpsHeldWeaponSpriteFlipXByTileset[tilesetPath]
+      : undefined;
+    if (typeof mappedEnabled === "boolean") {
+      return mappedEnabled;
+    }
+    return resolveDefaultNh3dTilesetWeaponSpriteFlipX(tilesetPath);
+  };
   const selectedTilesetManagerEditPath = String(
     tilesetManagerEditPath || "",
   ).trim();
@@ -8076,6 +8089,15 @@ export default function App(): JSX.Element {
       resolveDraftSolidChromaKeyByTilesetPath(selectedTilesetManagerEditPath),
     [
       clientOptionsDraft.tilesetSolidChromaKeyColorHexByTileset,
+      selectedTilesetManagerEditPath,
+      tilesetCatalog,
+    ],
+  );
+  const tilesetManagerWeaponSpriteFlipX = useMemo(
+    () =>
+      resolveDraftWeaponSpriteFlipXByTilesetPath(selectedTilesetManagerEditPath),
+    [
+      clientOptionsDraft.fpsHeldWeaponSpriteFlipXByTileset,
       selectedTilesetManagerEditPath,
       tilesetCatalog,
     ],
@@ -11639,6 +11661,8 @@ export default function App(): JSX.Element {
         clientOptionsDraft.tilesetBackgroundRemovalModeByTileset,
       tilesetSolidChromaKeyColorHexByTileset:
         clientOptionsDraft.tilesetSolidChromaKeyColorHexByTileset,
+      fpsHeldWeaponSpriteFlipXByTileset:
+        clientOptionsDraft.fpsHeldWeaponSpriteFlipXByTileset,
     });
     setClientOptions(next);
     setClientOptionsDraft((previous) =>
@@ -11652,6 +11676,9 @@ export default function App(): JSX.Element {
         tilesetBackgroundTileId: next.tilesetBackgroundTileId,
         tilesetBackgroundRemovalMode: next.tilesetBackgroundRemovalMode,
         tilesetSolidChromaKeyColorHex: next.tilesetSolidChromaKeyColorHex,
+        fpsHeldWeaponSpriteFlipX: next.fpsHeldWeaponSpriteFlipX,
+        fpsHeldWeaponSpriteFlipXByTileset:
+          next.fpsHeldWeaponSpriteFlipXByTileset,
       }),
     );
     controller?.setClientOptions(next);
@@ -12040,6 +12067,9 @@ export default function App(): JSX.Element {
       const mappedSolidColorHex = tilesetPath
         ? previous.tilesetSolidChromaKeyColorHexByTileset[tilesetPath]
         : undefined;
+      const mappedWeaponSpriteFlipX = tilesetPath
+        ? previous.fpsHeldWeaponSpriteFlipXByTileset[tilesetPath]
+        : undefined;
       const nextDarkWallTileId =
         typeof mappedDarkWallTileId === "number" &&
         Number.isFinite(mappedDarkWallTileId)
@@ -12101,6 +12131,10 @@ export default function App(): JSX.Element {
           ? mappedSolidColorHex
           : resolveDefaultNh3dTilesetSolidChromaKeyColorHex(tilesetPath),
       );
+      const nextWeaponSpriteFlipX =
+        typeof mappedWeaponSpriteFlipX === "boolean"
+          ? mappedWeaponSpriteFlipX
+          : resolveDefaultNh3dTilesetWeaponSpriteFlipX(tilesetPath);
       return {
         ...previous,
         tilesetPath,
@@ -12117,6 +12151,7 @@ export default function App(): JSX.Element {
         tilesetBackgroundTileId: nextBackgroundTileId,
         tilesetBackgroundRemovalMode: nextBackgroundRemovalMode,
         tilesetSolidChromaKeyColorHex: nextSolidColorHex,
+        fpsHeldWeaponSpriteFlipX: nextWeaponSpriteFlipX,
       };
     });
   };
@@ -12471,6 +12506,29 @@ export default function App(): JSX.Element {
             ? normalizedHex
             : previous.tilesetSolidChromaKeyColorHex,
         tilesetSolidChromaKeyColorHexByTileset: nextByTileset,
+      };
+    });
+  };
+  const updateTilesetWeaponSpriteFlipXDraft = (
+    enabled: boolean,
+    rawTilesetPath?: string,
+  ): void => {
+    setClientOptionsDraft((previous) => {
+      const selectedTilesetPath = String(previous.tilesetPath || "").trim();
+      const tilesetPath = String(rawTilesetPath || selectedTilesetPath).trim();
+      const nextByTileset = {
+        ...previous.fpsHeldWeaponSpriteFlipXByTileset,
+      };
+      if (tilesetPath) {
+        nextByTileset[tilesetPath] = enabled;
+      }
+      return {
+        ...previous,
+        fpsHeldWeaponSpriteFlipX:
+          tilesetPath && tilesetPath === selectedTilesetPath
+            ? enabled
+            : previous.fpsHeldWeaponSpriteFlipX,
+        fpsHeldWeaponSpriteFlipXByTileset: nextByTileset,
       };
     });
   };
@@ -16710,6 +16768,35 @@ export default function App(): JSX.Element {
                 ) : null}
                 {selectedTilesetManagerEditEntry ? (
                   <Fragment>
+                    <div className="nh3d-option-row nh3d-option-row-inline-toggle">
+                      <div className="nh3d-option-copy">
+                        <div className="nh3d-option-label">
+                          {t.dialogs.tilesetManager.weaponSpriteFlip}
+                        </div>
+                        <div className="nh3d-option-description">
+                          {
+                            t.dialogs.tilesetManager
+                              .weaponSpriteFlipDescription
+                          }
+                        </div>
+                      </div>
+                      <button
+                        aria-checked={tilesetManagerWeaponSpriteFlipX}
+                        className={`nh3d-option-switch nh3d-option-inline-switch${
+                          tilesetManagerWeaponSpriteFlipX ? " is-on" : ""
+                        }`}
+                        onClick={() =>
+                          updateTilesetWeaponSpriteFlipXDraft(
+                            !tilesetManagerWeaponSpriteFlipX,
+                            selectedTilesetManagerEditPath,
+                          )
+                        }
+                        role="switch"
+                        type="button"
+                      >
+                        <span className="nh3d-option-switch-thumb" />
+                      </button>
+                    </div>
                     <div className="nh3d-option-description">
                       {t.dialogs.tilesetManager.backgroundRemovalDescription}
                     </div>

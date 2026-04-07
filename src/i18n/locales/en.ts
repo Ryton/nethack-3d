@@ -1211,6 +1211,9 @@
         selectedFile: (fileName: string) => `Selected: ${fileName}`,
         currentFile: (fileName: string) => `Current: ${fileName}`,
         uploadedImage: "uploaded image",
+        weaponSpriteFlip: "Flip FPS Weapon Sprite",
+        weaponSpriteFlipDescription:
+          "Flip the held weapon sprite horizontally for this tileset. Enabled by default.",
         backgroundRemovalDescription:
           "Configure billboard background removal for this tileset, or leave both modes off to keep atlas backgrounds intact.",
         backgroundTileRemoval: "Background Tile Removal",
