@@ -8011,6 +8011,27 @@ class LocalNetHackRuntime {
     return text === "something on the map";
   }
 
+  isFloorTargetPositionMenuSelection(menuItem) {
+    if (!menuItem || menuItem.isCategory) {
+      return false;
+    }
+
+    if (
+      !this.isNameRootQuestion(this.currentMenuQuestionText) &&
+      !this.isCallRootQuestion(this.currentMenuQuestionText)
+    ) {
+      return false;
+    }
+
+    const text = String(menuItem.text || "")
+      .trim()
+      .toLowerCase();
+    return (
+      text === "the type of an object upon the floor" ||
+      text.includes("object upon the floor")
+    );
+  }
+
   isMenuSelectionInput(input) {
     return (
       typeof input === "string" &&
@@ -8059,6 +8080,14 @@ class LocalNetHackRuntime {
       this.pendingLookMenuFarLookArm = true;
       console.log(
         "Look menu map selection detected; using ';' wake input to arm far-look mode",
+      );
+      return ";";
+    }
+
+    if (this.isFloorTargetPositionMenuSelection(menuItem)) {
+      this.pendingLookMenuFarLookArm = true;
+      console.log(
+        "Floor-target naming selection detected; using ';' wake input to arm far-look mode",
       );
       return ";";
     }
