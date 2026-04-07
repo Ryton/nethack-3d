@@ -5130,15 +5130,6 @@ canvas {
 }
 
 .nh3d-startup-update-dialog {
-  .nh3d-startup-update-summary {
-    color: var(--nh3d-ui-text-muted);
-    font-size: nh3d-scale-font(14px);
-    line-height: 1.45;
-    margin: 4px auto 0;
-    max-width: min(560px, 100%);
-    text-align: left;
-  }
-
   .nh3d-startup-update-client-warning,
   .nh3d-startup-update-error,
   .nh3d-startup-update-progress {
@@ -5150,9 +5141,32 @@ canvas {
   }
 
   .nh3d-startup-update-client-warning {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     border: 1px solid rgba(188, 161, 90, 0.74);
     background: rgba(92, 68, 22, 0.36);
     color: #ffe2a5;
+  }
+
+  .nh3d-startup-update-warning-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: nh3d-scale-font(14px);
+    line-height: 1.4;
+    color: inherit;
+    user-select: none;
+
+    input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      margin: 0;
+      cursor: pointer;
+      accent-color: var(--nh3d-ui-accent);
+      flex: 0 0 auto;
+    }
   }
 
   .nh3d-startup-update-error {

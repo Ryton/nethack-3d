@@ -32946,6 +32946,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return true;
   }
 
+  private canUseOverheadPositionInputTouchInput(event: TouchEvent): boolean {
+    if (!this.session || this.isFpsMode() || !this.positionInputModeActive) {
+      return false;
+    }
+    if (!this.isTouchEventOnGameCanvas(event)) {
+      return false;
+    }
+    if (this.isAnyModalVisible()) {
+      return false;
+    }
+    if (
+      this.isInQuestion ||
+      this.isInDirectionQuestion ||
+      this.metaCommandModeActive ||
+      this.isTextInputActive ||
+      this.isInventoryDialogOpen() ||
+      this.isInfoDialogOpen()
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   private canUseFpsTouchInput(event: TouchEvent): boolean {
     if (!this.session || !this.isFpsMode()) {
       return false;
@@ -32967,11 +32990,70 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return true;
   }
 
+  private canUseFpsPositionInputTouchInput(event: TouchEvent): boolean {
+    if (!this.session || !this.isFpsMode() || !this.positionInputModeActive) {
+      return false;
+    }
+    if (!this.isTouchEventOnGameCanvas(event)) {
+      return false;
+    }
+    if (this.isAnyModalVisible()) {
+      return false;
+    }
+    if (
+      this.isInQuestion ||
+      this.isInDirectionQuestion ||
+      this.metaCommandModeActive ||
+      this.isTextInputActive ||
+      this.isInventoryDialogOpen() ||
+      this.isInfoDialogOpen()
+    ) {
+      return false;
+    }
+    return true;
+  }
+
   private clearFpsTouchGestures(): void {
     this.fpsTouchMoveGesture = null;
     this.fpsTouchLookGesture = null;
     this.clearFpsTouchRunButtonHoldTimer();
     this.clearFpsTouchRunButtonState();
+  }
+
+  private sendMapTouchPrimaryClickInput(
+    clientX: number,
+    clientY: number,
+  ): boolean {
+    const target = this.resolvePointerTargetTileFromClientCoordinates(
+      clientX,
+      clientY,
+    );
+    if (!target) {
+      this.pendingPointerAttackTargetContext = null;
+      const gridTarget = this.getGridPositionFromClientCoordinates(clientX, clientY);
+      if (!gridTarget) {
+        return false;
+      }
+      const dx = gridTarget.x - this.playerPos.x;
+      const dy = gridTarget.y - this.playerPos.y;
+      const direction = this.resolveDirectionFromDelta(dx, dy);
+      if (!direction) {
+        return false;
+      }
+      this.onSwipeCommandExecuted();
+      this.sendForcedDirectionalInput(direction);
+      return true;
+    }
+
+    if (!this.hasPlayerMovedOnce) {
+      this.lastMovementInputAtMs = Date.now();
+    }
+    this.updateDirectionalAttackContextFromTarget(target.x, target.y);
+    this.setPendingPointerAttackTargetFromTile(target.x, target.y);
+    this.onSwipeCommandExecuted();
+    this.logClickLookTileDebug("touch-primary", target.x, target.y);
+    this.sendMouseInput(target.x, target.y, 0);
+    return true;
   }
 
   private clearMapTouchContextHoldTimer(): void {
@@ -35929,6 +36011,33 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    if (this.canUseOverheadPositionInputTouchInput(event)) {
+      this.pinchZoomStart = null;
+      this.cancelMapTouchContextHoldState();
+      if (event.touches.length !== 1) {
+        this.touchSwipeStart = null;
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
+
+      const touch = event.touches[0];
+      this.touchSwipeStart = {
+        touchId: touch.identifier,
+        x: touch.clientX,
+        y: touch.clientY,
+        lastX: touch.clientX,
+        lastY: touch.clientY,
+        startedAtMs: Date.now(),
+        panningActive: false,
+      };
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      return;
+    }
+
     if (this.isFpsMode()) {
       this.cancelMapTouchContextHoldState();
       if (this.isInDirectionQuestion) {
@@ -35949,6 +36058,45 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (this.fpsCrosshairContextMenuOpen) {
           this.closeFpsCrosshairContextMenu(false);
         }
+
+        for (let i = 0; i < event.changedTouches.length; i += 1) {
+          const touch = event.changedTouches.item(i);
+          if (!touch) {
+            continue;
+          }
+          const gesture: FpsTouchGestureState = {
+            touchId: touch.identifier,
+            startX: touch.clientX,
+            startY: touch.clientY,
+            lastX: touch.clientX,
+            lastY: touch.clientY,
+            startedAtMs: Date.now(),
+          };
+          if (touch.clientX < splitX) {
+            if (!this.fpsTouchMoveGesture) {
+              this.fpsTouchMoveGesture = gesture;
+            }
+          } else if (!this.fpsTouchLookGesture) {
+            this.fpsTouchLookGesture = gesture;
+          }
+        }
+
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
+
+      if (this.canUseFpsPositionInputTouchInput(event)) {
+        this.clearFpsTouchRunButtonHoldTimer();
+        this.clearFpsTouchRunButtonState();
+
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+          this.clearFpsTouchGestures();
+          return;
+        }
+        const splitX = rect.left + rect.width * 0.5;
 
         for (let i = 0; i < event.changedTouches.length; i += 1) {
           const touch = event.changedTouches.item(i);
@@ -36153,6 +36301,49 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return;
       }
 
+      if (this.canUseFpsPositionInputTouchInput(event)) {
+        let consumed = false;
+        if (this.fpsTouchLookGesture) {
+          const touch =
+            this.findTouchById(
+              event.changedTouches,
+              this.fpsTouchLookGesture.touchId,
+            ) ||
+            this.findTouchById(event.touches, this.fpsTouchLookGesture.touchId);
+          if (touch) {
+            const deltaX = touch.clientX - this.fpsTouchLookGesture.lastX;
+            const deltaY = touch.clientY - this.fpsTouchLookGesture.lastY;
+            this.applyFpsLookDelta(
+              deltaX,
+              deltaY,
+              this.fpsTouchLookSensitivity,
+            );
+            this.fpsTouchLookGesture.lastX = touch.clientX;
+            this.fpsTouchLookGesture.lastY = touch.clientY;
+            consumed = true;
+          }
+        }
+
+        if (this.fpsTouchMoveGesture) {
+          const touch =
+            this.findTouchById(
+              event.changedTouches,
+              this.fpsTouchMoveGesture.touchId,
+            ) ||
+            this.findTouchById(event.touches, this.fpsTouchMoveGesture.touchId);
+          if (touch) {
+            this.fpsTouchMoveGesture.lastX = touch.clientX;
+            this.fpsTouchMoveGesture.lastY = touch.clientY;
+            consumed = true;
+          }
+        }
+
+        if (consumed && event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
+
       if (!this.canUseFpsTouchInput(event)) {
         this.clearFpsTouchGestures();
         return;
@@ -36216,6 +36407,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
 
       if (consumed && event.cancelable) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    if (this.canUseOverheadPositionInputTouchInput(event)) {
+      const start = this.touchSwipeStart;
+      if (!start) {
+        return;
+      }
+      const touch =
+        this.findTouchById(event.touches, start.touchId) ||
+        this.findTouchById(event.changedTouches, start.touchId);
+      if (!touch) {
+        return;
+      }
+      start.lastX = touch.clientX;
+      start.lastY = touch.clientY;
+      if (event.cancelable) {
         event.preventDefault();
       }
       return;
@@ -36404,6 +36614,76 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return;
       }
 
+      if (this.canUseFpsPositionInputTouchInput(event)) {
+        this.clearFpsTouchRunButtonHoldTimer();
+        this.clearFpsTouchRunButtonState();
+        if (!event.changedTouches || event.changedTouches.length === 0) {
+          return;
+        }
+
+        let consumed = false;
+        const nowMs = Date.now();
+        for (let i = 0; i < event.changedTouches.length; i += 1) {
+          const touch = event.changedTouches.item(i);
+          if (!touch) {
+            continue;
+          }
+
+          if (
+            this.fpsTouchLookGesture &&
+            touch.identifier === this.fpsTouchLookGesture.touchId
+          ) {
+            const gesture = this.fpsTouchLookGesture;
+            this.fpsTouchLookGesture = null;
+            const dx = touch.clientX - gesture.startX;
+            const dy = touch.clientY - gesture.startY;
+            const distance = Math.hypot(dx, dy);
+            const durationMs = nowMs - gesture.startedAtMs;
+            const isTap =
+              distance < this.fpsTouchLookMoveThresholdPx &&
+              durationMs <= this.fpsTouchTapMaxDurationMs;
+            if (isTap) {
+              if (this.releaseDeferredGameOverUiReveal()) {
+                consumed = true;
+                continue;
+              }
+              this.logClickLookTileDebug(
+                "touch-primary",
+                this.positionCursor.x,
+                this.positionCursor.y,
+              );
+              this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+              consumed = true;
+            }
+          }
+
+          if (
+            this.fpsTouchMoveGesture &&
+            touch.identifier === this.fpsTouchMoveGesture.touchId
+          ) {
+            const gesture = this.fpsTouchMoveGesture;
+            this.fpsTouchMoveGesture = null;
+            const dx = touch.clientX - gesture.startX;
+            const dy = touch.clientY - gesture.startY;
+            const durationMs = nowMs - gesture.startedAtMs;
+            const fpsMoveInput =
+              durationMs <= this.touchSwipeMaxDurationMs
+                ? this.resolveFpsMovementInputFromSwipe(dx, dy)
+                : null;
+            if (fpsMoveInput) {
+              this.onSwipeCommandExecuted();
+              this.sendInput(fpsMoveInput);
+              consumed = true;
+            }
+          }
+        }
+
+        if (consumed && event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
+
       if (!event.changedTouches || event.changedTouches.length === 0) {
         return;
       }
@@ -36507,6 +36787,69 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    if (this.canUseOverheadPositionInputTouchInput(event)) {
+      const start = this.touchSwipeStart;
+      this.touchSwipeStart = null;
+      this.cancelMapTouchContextHoldState();
+      if (!start || !event.changedTouches || event.changedTouches.length === 0) {
+        return;
+      }
+
+      const touch =
+        this.findTouchById(event.changedTouches, start.touchId) ||
+        event.changedTouches[0];
+      if (!touch) {
+        return;
+      }
+
+      const dx = touch.clientX - start.x;
+      const dy = touch.clientY - start.y;
+      const distance = Math.hypot(dx, dy);
+      const durationMs = Date.now() - start.startedAtMs;
+      const swipeInput =
+        durationMs <= this.touchSwipeMaxDurationMs
+          ? this.resolveSwipeDirectionInput(dx, dy)
+          : null;
+
+      if (swipeInput && distance >= this.touchSwipeMinDistancePx) {
+        if (this.releaseDeferredGameOverUiReveal()) {
+          if (event.cancelable) {
+            event.preventDefault();
+          }
+          return;
+        }
+        this.onSwipeCommandExecuted();
+        this.sendInput(swipeInput);
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
+
+      if (this.releaseDeferredGameOverUiReveal()) {
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+        return;
+      }
+
+      if (
+        Number.isFinite(this.positionCursor.x) &&
+        Number.isFinite(this.positionCursor.y)
+      ) {
+        this.logClickLookTileDebug(
+          "touch-primary",
+          this.positionCursor.x,
+          this.positionCursor.y,
+        );
+        this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+      }
+      return;
+    }
+
     if (this.pinchZoomStart) {
       this.pinchZoomStart = null;
       this.cancelMapTouchContextHoldState();
@@ -36578,44 +36921,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       distance < this.touchSwipeMinDistancePx ||
       durationMs > this.touchSwipeMaxDurationMs
     ) {
-      const target = this.resolvePointerTargetTileFromClientCoordinates(
-        touch.clientX,
-        touch.clientY,
-      );
-      if (!target) {
-        this.pendingPointerAttackTargetContext = null;
-        const gridTarget = this.getGridPositionFromClientCoordinates(
-          touch.clientX,
-          touch.clientY,
-        );
-        if (!gridTarget) {
-          this.mapTouchContextHoldState = null;
-          return;
+      if (this.sendMapTouchPrimaryClickInput(touch.clientX, touch.clientY)) {
+        if (event.cancelable) {
+          event.preventDefault();
         }
-        const dx = gridTarget.x - this.playerPos.x;
-        const dy = gridTarget.y - this.playerPos.y;
-        const direction = this.resolveDirectionFromDelta(dx, dy);
-        if (direction) {
-          if (event.cancelable) {
-            event.preventDefault();
-          }
-          this.onSwipeCommandExecuted();
-          this.sendForcedDirectionalInput(direction);
-        }
-        this.mapTouchContextHoldState = null;
-        return;
       }
-      if (!this.hasPlayerMovedOnce) {
-        this.lastMovementInputAtMs = Date.now();
-      }
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-      this.updateDirectionalAttackContextFromTarget(target.x, target.y);
-      this.setPendingPointerAttackTargetFromTile(target.x, target.y);
-      this.onSwipeCommandExecuted();
-      this.logClickLookTileDebug("touch-primary", target.x, target.y);
-      this.sendMouseInput(target.x, target.y, 0);
       this.mapTouchContextHoldState = null;
       return;
     }

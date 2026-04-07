@@ -99,7 +99,7 @@ class LocalNetHackRuntime {
 
     this.inputBroker = new RuntimeInputBroker();
     this.farLookMode = "none"; // none | armed | active
-    this.farLookOrigin = null; // null | "direct" | "look_menu" | "legacy_cursor_prompt"
+    this.farLookOrigin = null; // null | "direct" | "look_menu" | "floor_target_menu" | "legacy_cursor_prompt"
     this.pendingLookMenuFarLookArm = false;
     this.pendingLegacySlashEmCursorPromptFarLook = false;
     this.pendingTextResponses = [];
@@ -1950,8 +1950,7 @@ class LocalNetHackRuntime {
       if (
         this.activeInputRequest?.kind === "position" &&
         this.farLookMode === "active" &&
-        this.farLookOrigin !== "look_menu" &&
-        this.farLookOrigin !== "legacy_cursor_prompt"
+        !this.shouldPreserveFarLookAfterMouseSelection()
       ) {
         this.farLookMode = "none";
         this.farLookOrigin = null;
@@ -4220,8 +4219,7 @@ class LocalNetHackRuntime {
       // for additional description details. Keep UI position mode aligned.
       if (
         this.farLookMode === "active" &&
-        this.farLookOrigin !== "look_menu" &&
-        this.farLookOrigin !== "legacy_cursor_prompt"
+        !this.shouldPreserveFarLookAfterMouseSelection()
       ) {
         this.farLookMode = "none";
         this.farLookOrigin = null;
@@ -4265,9 +4263,15 @@ class LocalNetHackRuntime {
 
     if (this.farLookMode === "none" && this.isPositionModeInitiatorInput(key)) {
       // ";" can be consumed through either event or position requests.
+      const armedFromNameOrCallFloorTarget =
+        this.pendingLookMenuFarLookArm &&
+        (this.isNameRootQuestion(this.currentMenuQuestionText) ||
+          this.isCallRootQuestion(this.currentMenuQuestionText));
       this.farLookMode = "armed";
       this.farLookOrigin = this.pendingLookMenuFarLookArm
-        ? "look_menu"
+        ? armedFromNameOrCallFloorTarget
+          ? "floor_target_menu"
+          : "look_menu"
         : "direct";
       this.pendingLookMenuFarLookArm = false;
     } else if (
@@ -5507,6 +5511,13 @@ class LocalNetHackRuntime {
     );
   }
 
+  shouldPreserveFarLookAfterMouseSelection() {
+    return (
+      this.farLookOrigin === "look_menu" ||
+      this.farLookOrigin === "legacy_cursor_prompt"
+    );
+  }
+
   normalizeFarLookPositionInput(input) {
     if (this.farLookMode !== "active") {
       return input;
@@ -5515,6 +5526,7 @@ class LocalNetHackRuntime {
     // NetHack look mode uses ';' for detailed object description.
     // Treat Enter as that confirm key to avoid leaving far-look in a bad state.
     if (
+      this.farLookOrigin !== "floor_target_menu" &&
       this.farLookOrigin !== "legacy_cursor_prompt" &&
       (input === "Enter" || input === "\r" || input === "\n")
     ) {
@@ -8105,6 +8117,24 @@ class LocalNetHackRuntime {
     );
   }
 
+  isMonsterTargetPositionMenuSelection(menuItem) {
+    if (!menuItem || menuItem.isCategory) {
+      return false;
+    }
+
+    if (
+      !this.isNameRootQuestion(this.currentMenuQuestionText) &&
+      !this.isCallRootQuestion(this.currentMenuQuestionText)
+    ) {
+      return false;
+    }
+
+    const text = String(menuItem.text || "")
+      .trim()
+      .toLowerCase();
+    return text === "a monster" || text.includes("monster");
+  }
+
   isMenuSelectionInput(input) {
     return (
       typeof input === "string" &&
@@ -8161,6 +8191,14 @@ class LocalNetHackRuntime {
       this.pendingLookMenuFarLookArm = true;
       console.log(
         "Floor-target naming selection detected; using ';' wake input to arm far-look mode",
+      );
+      return ";";
+    }
+
+    if (this.isMonsterTargetPositionMenuSelection(menuItem)) {
+      this.pendingLookMenuFarLookArm = true;
+      console.log(
+        "Monster-target naming/calling selection detected; using ';' wake input to arm far-look mode",
       );
       return ";";
     }

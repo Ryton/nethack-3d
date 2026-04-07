@@ -14695,11 +14695,6 @@ export default function App(): JSX.Element {
               ? t.update.oneUpdateAvailable
               : t.update.manyUpdatesAvailable(startupPendingUpdateCount)}
         </div>
-        <div className="nh3d-startup-update-summary">
-          {startupPendingUpdateCount > 0
-            ? t.dialogs.startupUpdate.summaryAvailable
-            : t.dialogs.startupUpdate.summaryNone}
-        </div>
         <div className="nh3d-startup-update-progress-pane-meta">
           <span>
             {t.dialogs.startupUpdate.currentVersion(startupCurrentVersionLabel)}
@@ -14731,7 +14726,7 @@ export default function App(): JSX.Element {
           </div>
         ) : null}
         <div className="nh3d-startup-update-client-warning">
-          <label className="nh3d-dark-wall-grid-toggle">
+          <label className="nh3d-startup-update-warning-toggle">
             <input
               checked={!clientOptions.showVersionNotificationsOnLaunch}
               onChange={(event) => {
