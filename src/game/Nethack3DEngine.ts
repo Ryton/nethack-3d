@@ -968,9 +968,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsDiagonalAimBias = 0.035;
   private fpsPointerLockActive: boolean = false;
   private fpsPointerLockRestorePending: boolean = false;
-  private fpsEscapeKeyboardLockActive: boolean = false;
-  private fpsEscapeKeyboardLockPending: boolean = false;
-  private fpsEscapeKeyboardLockGeneration: number = 0;
   private fpsForwardHighlight: THREE.Mesh | null = null;
   private fpsForwardHighlightMaterial: THREE.MeshBasicMaterial | null = null;
   private fpsForwardHighlightTexture: THREE.CanvasTexture | null = null;
@@ -21114,14 +21111,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearPositionCursor();
       this.uiAdapter.setPositionRequest(null);
       this.refreshCurrentPlayerTileVisualFromStateCache();
-      this.syncFpsEscapeKeyboardLock();
       this.syncFpsPointerLockForUiState(true);
       return;
     }
 
     if (this.positionInputModeActive === active) {
       this.positionInputOrigin = active ? origin : null;
-      this.syncFpsEscapeKeyboardLock();
       return;
     }
 
@@ -21157,7 +21152,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsCrosshairGlancePending.sawPositionInput = true;
     }
     this.syncFpsPointerLockForUiState(false);
-    this.syncFpsEscapeKeyboardLock();
 
     // Preserve any cursor published before the active-state event arrives.
     if (!this.hasRuntimePositionCursor) {
@@ -29136,93 +29130,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.uiAdapter.setPositionRequest(null);
   }
 
-  private getKeyboardLockApi():
-    | {
-        lock?: (keys?: string[]) => Promise<void>;
-        unlock?: () => void;
-      }
-    | null {
-    if (typeof navigator === "undefined" || !navigator) {
-      return null;
-    }
-    const keyboardApi = (navigator as any).keyboard;
-    if (!keyboardApi || typeof keyboardApi !== "object") {
-      return null;
-    }
-    return keyboardApi;
-  }
-
-  private releaseFpsEscapeKeyboardLock(): void {
-    this.fpsEscapeKeyboardLockGeneration += 1;
-    this.fpsEscapeKeyboardLockActive = false;
-    this.fpsEscapeKeyboardLockPending = false;
-    const keyboardApi = this.getKeyboardLockApi();
-    if (!keyboardApi || typeof keyboardApi.unlock !== "function") {
-      return;
-    }
-    try {
-      keyboardApi.unlock();
-    } catch {
-      // Best-effort cleanup only.
-    }
-  }
-
-  private requestFpsEscapeKeyboardLock(): void {
-    if (
-      !this.isFpsMode() ||
-      !this.positionInputModeActive ||
-      !this.fpsPointerLockActive ||
-      this.fpsEscapeKeyboardLockActive ||
-      this.fpsEscapeKeyboardLockPending
-    ) {
-      return;
-    }
-    const keyboardApi = this.getKeyboardLockApi();
-    if (!keyboardApi || typeof keyboardApi.lock !== "function") {
-      return;
-    }
-
-    const generation = this.fpsEscapeKeyboardLockGeneration + 1;
-    this.fpsEscapeKeyboardLockGeneration = generation;
-    this.fpsEscapeKeyboardLockPending = true;
-    Promise.resolve(keyboardApi.lock(["Escape"]))
-      .then(() => {
-        if (generation !== this.fpsEscapeKeyboardLockGeneration) {
-          return;
-        }
-        this.fpsEscapeKeyboardLockActive = true;
-      })
-      .catch(() => {
-        if (generation !== this.fpsEscapeKeyboardLockGeneration) {
-          return;
-        }
-        this.fpsEscapeKeyboardLockActive = false;
-      })
-      .finally(() => {
-        if (generation !== this.fpsEscapeKeyboardLockGeneration) {
-          return;
-        }
-        this.fpsEscapeKeyboardLockPending = false;
-        if (
-          !this.isFpsMode() ||
-          !this.positionInputModeActive ||
-          !this.fpsPointerLockActive
-        ) {
-          this.releaseFpsEscapeKeyboardLock();
-        }
-      });
-  }
-
-  private syncFpsEscapeKeyboardLock(): void {
-    if (this.isFpsMode() && this.positionInputModeActive && this.fpsPointerLockActive) {
-      this.requestFpsEscapeKeyboardLock();
-      return;
-    }
-    if (this.fpsEscapeKeyboardLockActive || this.fpsEscapeKeyboardLockPending) {
-      this.releaseFpsEscapeKeyboardLock();
-    }
-  }
-
   private isFpsMode(): boolean {
     return this.playMode === "fps";
   }
@@ -29718,7 +29625,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsPointerLockRestorePending = false;
       this.clearVultureMouseHoverHighlight();
     }
-    this.syncFpsEscapeKeyboardLock();
     if (
       wasPointerLockActive &&
       !this.fpsPointerLockActive &&
@@ -29729,7 +29635,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.syncFpsPointerLockForUiState(false);
-    this.syncFpsEscapeKeyboardLock();
   }
 
   private isFpsPointerLockBlockedByUi(): boolean {
