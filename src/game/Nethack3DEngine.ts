@@ -1348,6 +1348,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private cameraFollowInitialized: boolean = false;
   private cameraFollowTarget = new THREE.Vector3();
   private cameraFollowCurrent = new THREE.Vector3();
+  private readonly playModeCameraTransitionHalfLifeMs: number = 120;
+  private playModeCameraTransitionActive: boolean = false;
+  private playModeCameraTransitionCurrentPosition = new THREE.Vector3();
+  private playModeCameraTransitionCurrentLookTarget = new THREE.Vector3();
   private lastFrameTimeMs: number | null = null;
   private fpsDebugDisplayVisible: boolean = false;
   private fpsDebugDisplayElement: HTMLDivElement | null = null;
@@ -5445,6 +5449,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private applyPlayMode(nextPlayMode: PlayMode): void {
+    const previousPlayMode = this.playMode;
     const resolvedPlayMode: PlayMode =
       nextPlayMode === "fps" ? "fps" : "normal";
     if (this.playMode === resolvedPlayMode) {
@@ -5475,6 +5480,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.closeAnyTileContextMenu(false);
 
     if (this.playMode === "fps") {
+      if (previousPlayMode !== "fps") {
+        const currentLookDirection = this.camera.getWorldDirection(
+          new THREE.Vector3(),
+        );
+        this.playModeCameraTransitionCurrentPosition.copy(this.camera.position);
+        this.playModeCameraTransitionCurrentLookTarget
+          .copy(this.camera.position)
+          .add(
+            currentLookDirection.multiplyScalar(
+              Math.max(TILE_SIZE * 2, this.positionCursorFarLookOrbitDistance),
+            ),
+          );
+        this.playModeCameraTransitionActive = true;
+      } else {
+        this.playModeCameraTransitionActive = false;
+      }
       const eyeX = this.playerPos.x * TILE_SIZE;
       const eyeY = -this.playerPos.y * TILE_SIZE;
       const currentYaw = Number.isFinite(this.cameraYaw)
@@ -5503,6 +5524,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsPointerLockRestorePending = false;
       this.camera.fov = 75;
       this.camera.updateProjectionMatrix();
+      if (previousPlayMode === "fps") {
+        const currentLookDirection = this.camera.getWorldDirection(
+          new THREE.Vector3(),
+        );
+        this.playModeCameraTransitionCurrentPosition.copy(this.camera.position);
+        this.playModeCameraTransitionCurrentLookTarget
+          .copy(this.camera.position)
+          .add(
+            currentLookDirection.multiplyScalar(
+              Math.max(TILE_SIZE * 2, this.positionCursorFarLookOrbitDistance),
+            ),
+          );
+        this.playModeCameraTransitionActive = true;
+      } else {
+        this.playModeCameraTransitionActive = false;
+      }
       this.applyStandardCameraPresetForTopDownModes({ force: true });
       this.applyVultureIsometricCameraPresetIfNeeded({ force: true });
       this.cameraFollowInitialized = false;
@@ -21155,6 +21192,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.isFpsMode() && this.positionInputModeActive;
   }
 
+  private getOverheadCameraFollowTargetWorldPosition(): {
+    x: number;
+    y: number;
+  } {
+    if (this.positionInputModeActive) {
+      return {
+        x: this.positionCursor.x * TILE_SIZE,
+        y: -this.positionCursor.y * TILE_SIZE,
+      };
+    }
+
+    return {
+      x: this.playerPos.x * TILE_SIZE + this.cameraPanX,
+      y: -this.playerPos.y * TILE_SIZE + this.cameraPanY,
+    };
+  }
+
   private updatePositionCursorPulse(timeMs: number): void {
     const outline = this.positionCursorOutline;
     if (!outline || !outline.visible) {
@@ -30473,6 +30527,50 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         return;
       }
+      if (this.playModeCameraTransitionActive) {
+        const desiredForwardX = -Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch);
+        const desiredForwardY = -Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch);
+        const desiredForwardZ = Math.sin(this.cameraPitch);
+        const desiredCameraPosition = new THREE.Vector3(targetEyeX, targetEyeY, eyeZ);
+        const desiredLookTarget = new THREE.Vector3(
+          targetEyeX + desiredForwardX * (TILE_SIZE * 2.5),
+          targetEyeY + desiredForwardY * (TILE_SIZE * 2.5),
+          eyeZ + desiredForwardZ * (TILE_SIZE * 2.5),
+        );
+        const alpha =
+          1 -
+          Math.exp(
+            (-Math.LN2 * deltaSeconds * 1000) /
+              this.playModeCameraTransitionHalfLifeMs,
+          );
+        this.playModeCameraTransitionCurrentPosition.lerp(
+          desiredCameraPosition,
+          alpha,
+        );
+        this.playModeCameraTransitionCurrentLookTarget.lerp(
+          desiredLookTarget,
+          alpha,
+        );
+        this.camera.position.copy(this.playModeCameraTransitionCurrentPosition);
+        this.camera.lookAt(this.playModeCameraTransitionCurrentLookTarget);
+        if (
+          this.playModeCameraTransitionCurrentPosition.distanceToSquared(
+            desiredCameraPosition,
+          ) <=
+            0.006 &&
+          this.playModeCameraTransitionCurrentLookTarget.distanceToSquared(
+            desiredLookTarget,
+          ) <=
+            0.006
+        ) {
+          this.playModeCameraTransitionCurrentPosition.copy(
+            desiredCameraPosition,
+          );
+          this.playModeCameraTransitionCurrentLookTarget.copy(desiredLookTarget);
+          this.playModeCameraTransitionActive = false;
+        }
+        return;
+      }
       if (this.fpsStepCameraActive) {
         const progress = THREE.MathUtils.clamp(
           (performance.now() - this.fpsStepCameraStartMs) /
@@ -30577,9 +30675,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    const { x, y } = this.playerPos;
-    const targetX = x * TILE_SIZE + this.cameraPanX;
-    const targetY = -y * TILE_SIZE + this.cameraPanY;
+    const { x: targetX, y: targetY } =
+      this.getOverheadCameraFollowTargetWorldPosition();
     this.cameraFollowTarget.set(targetX, targetY, 0);
 
     if (!this.cameraFollowInitialized) {
@@ -30609,14 +30706,54 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const offsetX = this.cameraDistance * cosPitch * sinYaw;
     const offsetY = this.cameraDistance * cosPitch * cosYaw;
     const offsetZ = this.cameraDistance * sinPitch;
+    const desiredCameraPosition = new THREE.Vector3(
+      followX + offsetX,
+      followY + offsetY,
+      offsetZ,
+    );
+    const desiredLookTarget = new THREE.Vector3(followX, followY, 0);
+
+    if (this.playModeCameraTransitionActive) {
+      const alpha =
+        1 -
+        Math.exp(
+          (-Math.LN2 * deltaSeconds * 1000) /
+            this.playModeCameraTransitionHalfLifeMs,
+        );
+      this.playModeCameraTransitionCurrentPosition.lerp(
+        desiredCameraPosition,
+        alpha,
+      );
+      this.playModeCameraTransitionCurrentLookTarget.lerp(
+        desiredLookTarget,
+        alpha,
+      );
+      this.camera.position.copy(this.playModeCameraTransitionCurrentPosition);
+      this.camera.lookAt(this.playModeCameraTransitionCurrentLookTarget);
+      if (
+        this.playModeCameraTransitionCurrentPosition.distanceToSquared(
+          desiredCameraPosition,
+        ) <=
+          0.006 &&
+        this.playModeCameraTransitionCurrentLookTarget.distanceToSquared(
+          desiredLookTarget,
+        ) <=
+          0.006
+      ) {
+        this.playModeCameraTransitionCurrentPosition.copy(
+          desiredCameraPosition,
+        );
+        this.playModeCameraTransitionCurrentLookTarget.copy(desiredLookTarget);
+        this.playModeCameraTransitionActive = false;
+      }
+      return;
+    }
 
     // Position camera relative to player (with panning offset)
-    this.camera.position.x = followX + offsetX;
-    this.camera.position.y = followY + offsetY;
-    this.camera.position.z = offsetZ;
+    this.camera.position.copy(desiredCameraPosition);
 
     // Always look at the target position (player + pan offset)
-    this.camera.lookAt(followX, followY, 0);
+    this.camera.lookAt(desiredLookTarget);
   }
 
   private ensureFpsForwardHighlightTexture(): THREE.CanvasTexture {
