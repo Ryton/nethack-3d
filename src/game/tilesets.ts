@@ -80,7 +80,7 @@ const tilesetBackgroundRemovalModePresetByPath: Readonly<
   "assets/3.6/NetHack Modern.bmp": "solid",
   "assets/3.6/DawnHack.bmp": "tile",
   "assets/3.6/RZTiles.bmp": "tile",
-  "assets/3.6/Absurdly Evil.bmp": "none",
+  "assets/3.6/Absurdly Evil.png": "none",
   "assets/3.6/Vanilla NetHack Tiles.png": "solid",
 };
 
@@ -591,4 +591,10 @@ export function resolveDefaultNh3dTilesetBackgroundRemovalMode(
     return "solid";
   }
   return fallbackBackgroundRemovalMode;
+}
+
+export function isNh3dTilesetBackgroundRemovalModeForcedOff(
+  path: string | null | undefined,
+): boolean {
+  return resolveDefaultNh3dTilesetBackgroundRemovalMode(path) === "none";
 }

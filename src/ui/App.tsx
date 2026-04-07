@@ -70,6 +70,7 @@ import {
   getNh3dCompatibleTilesetCatalog,
   inferNh3dTilesetTileSizeFromAtlasWidthForPath,
   isNh3dTilesetPathAvailable,
+  isNh3dTilesetBackgroundRemovalModeForcedOff,
   getNh3dUserTilesetPath,
   resolveNh3dCompatibleTilesetPathForRuntime,
   resolveDefaultNh3dTilesetBackgroundTileId,
@@ -8001,6 +8002,9 @@ export default function App(): JSX.Element {
     rawTilesetPath: string | null | undefined,
   ): TilesetBackgroundRemovalMode => {
     const tilesetPath = String(rawTilesetPath || "").trim();
+    if (isNh3dTilesetBackgroundRemovalModeForcedOff(tilesetPath)) {
+      return "none";
+    }
     const mappedMode = tilesetPath
       ? clientOptionsDraft.tilesetBackgroundRemovalModeByTileset[tilesetPath]
       : undefined;
@@ -12426,6 +12430,9 @@ export default function App(): JSX.Element {
     setClientOptionsDraft((previous) => {
       const selectedTilesetPath = String(previous.tilesetPath || "").trim();
       const tilesetPath = String(rawTilesetPath || selectedTilesetPath).trim();
+      if (isNh3dTilesetBackgroundRemovalModeForcedOff(tilesetPath)) {
+        return previous;
+      }
       const nextByTileset = {
         ...previous.tilesetBackgroundRemovalModeByTileset,
       };
@@ -16763,6 +16770,9 @@ export default function App(): JSX.Element {
                             ? " is-on"
                             : ""
                         }`}
+                        disabled={isNh3dTilesetBackgroundRemovalModeForcedOff(
+                          selectedTilesetManagerEditPath,
+                        )}
                         onClick={() =>
                           updateTilesetBackgroundRemovalModeDraft(
                             tilesetManagerBackgroundRemovalMode === "tile"
@@ -16845,6 +16855,9 @@ export default function App(): JSX.Element {
                             ? " is-on"
                             : ""
                         }`}
+                        disabled={isNh3dTilesetBackgroundRemovalModeForcedOff(
+                          selectedTilesetManagerEditPath,
+                        )}
                         onClick={() =>
                           updateTilesetBackgroundRemovalModeDraft(
                             tilesetManagerBackgroundRemovalMode === "solid"

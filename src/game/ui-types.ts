@@ -2,6 +2,7 @@ import type { NethackRuntimeVersion } from "../runtime/types";
 import {
   defaultNh3dTilesetPath,
   isNh3dTilesetPathAvailable,
+  isNh3dTilesetBackgroundRemovalModeForcedOff,
   resolveDefaultNh3dTilesetBackgroundTileId,
   resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
@@ -559,6 +560,10 @@ function normalizeTilesetBackgroundRemovalModeByTileset(
     if (!tilesetPath || !isNh3dTilesetPathAvailable(tilesetPath)) {
       continue;
     }
+    if (isNh3dTilesetBackgroundRemovalModeForcedOff(tilesetPath)) {
+      normalized[tilesetPath] = "none";
+      continue;
+    }
     normalized[tilesetPath] = normalizeTilesetBackgroundRemovalMode(
       rawMode,
       resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath),
@@ -909,10 +914,13 @@ export function normalizeNh3dClientOptions(
     Number.isFinite(selectedTilesetBackgroundTileId)
       ? Math.max(0, Math.trunc(selectedTilesetBackgroundTileId))
       : resolveDefaultNh3dTilesetBackgroundTileId(tilesetPath);
-  const tilesetBackgroundRemovalMode = normalizeTilesetBackgroundRemovalMode(
-    selectedTilesetBackgroundRemovalMode,
-    resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath),
-  );
+  const tilesetBackgroundRemovalMode =
+    isNh3dTilesetBackgroundRemovalModeForcedOff(tilesetPath)
+      ? "none"
+      : normalizeTilesetBackgroundRemovalMode(
+          selectedTilesetBackgroundRemovalMode,
+          resolveDefaultNh3dTilesetBackgroundRemovalMode(tilesetPath),
+        );
   const defaultSolidChromaKeyForTileset =
     resolveDefaultNh3dTilesetSolidChromaKeyColorHex(tilesetPath);
   const tilesetSolidChromaKeyColorHex = normalizeTilesetSolidChromaKeyColorHex(
