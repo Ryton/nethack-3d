@@ -891,6 +891,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsCacheAssumptionRefreshLastRequestedAtByKey: Map<string, number> =
     new Map();
   private readonly movementUnlockWindowMs: number = 5000;
+  private readonly startupInventoryRefreshDelayMs: number = 1200;
   private statusConditionMask: number = 0;
   private statusDebugHistory: any[] = [];
   private latestRuntimeGlobalsSnapshot: unknown = null;
@@ -912,6 +913,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     shouldDeferPromptReady: boolean;
   } | null = null;
   private inventoryRefreshInFlight: boolean = false;
+  private pendingStartupInventoryRefresh: boolean = false;
+  private pendingStartupInventoryRefreshEarliestAtMs: number = 0;
   private runtimeTerminationPromptShown: boolean = false;
   private runtimeConnectionState: NethackConnectionState = "disconnected";
   private lastMessageInfoMenu: { title: string; lines: string[] } | null = null;
@@ -9163,8 +9166,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.runtimeTerminationPromptShown = false;
     this.setGameOverState(false, null);
     this.inventoryContextActionsEnabled = true;
+    this.currentInventory = [];
     this.pendingInventoryDialog = false;
     this.pendingInventoryDialogOptions = null;
+    this.inventoryRefreshInFlight = false;
+    this.pendingStartupInventoryRefresh = true;
+    this.pendingStartupInventoryRefreshEarliestAtMs =
+      Date.now() + this.startupInventoryRefreshDelayMs;
+    this.uiAdapter.setInventory(this.buildInventoryDialogState());
     this.statusConditionMask = 0;
     this.playerStats.conditionMask = 0;
     this.resetPlayerStatusDeltaTracking();
@@ -9278,7 +9287,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         // Inventory mutation is a strong signal that floor stack order at the
         // player tile may have changed (pickup/drop/eat/use from floor).
         this.requestPlayerTileRefresh("inventory-updated-signal");
-        if (this.isFpsMode()) {
+        if (this.isFpsMode() && !this.pendingStartupInventoryRefresh) {
           this.requestSilentInventoryRefresh("inventory-updated-signal");
         }
         break;
@@ -9542,6 +9551,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         const actualItems = nextInventory.filter(
           (item: any) => !item.isCategory,
         );
+        if (actualItems.length > 0) {
+          this.pendingStartupInventoryRefresh = false;
+        }
         console.log(
           `📦 Received inventory update with ${itemCount} total items (${actualItems.length} actual items)`,
         );
@@ -24730,6 +24742,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!this.hasSeenPlayerPosition) {
       this.hasSeenPlayerPosition = true;
       this.fpsLastPlayerMoveFromTile = null;
+      if (this.pendingStartupInventoryRefresh) {
+        this.pendingStartupInventoryRefreshEarliestAtMs = Math.max(
+          this.pendingStartupInventoryRefreshEarliestAtMs,
+          Date.now() + this.startupInventoryRefreshDelayMs,
+        );
+      }
       return;
     }
 
@@ -26118,12 +26136,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(options.durationScale) && options.durationScale
         ? Math.max(0.0001, options.durationScale)
         : 1;
+    const firstKeyframeSoundEffect = animation.keyframes[0]?.soundEffect;
     this.fpsHeldWeaponActiveAnimation = {
       animationId,
       startedAtMs: performance.now(),
       durationScale,
       lastProcessedKeyframeIndex: 0,
     };
+    if (firstKeyframeSoundEffect) {
+      this.playFpsHeldWeaponAnimationSoundEffect(firstKeyframeSoundEffect);
+    }
     return true;
   }
 
@@ -28040,7 +28062,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.syncFpsPointerLockForUiState(true);
   }
 
-  private requestSilentInventoryRefresh(reason: string): void {
+  private hasInventorySnapshot(): boolean {
+    return this.currentInventory.some(
+      (item) => item && typeof item === "object" && item.isCategory !== true,
+    );
+  }
+
+  private requestSilentInventoryRefresh(reason: string): boolean {
     if (
       this.inventoryRefreshInFlight ||
       this.isInventoryDialogVisible ||
@@ -28051,13 +28079,50 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.isInfoDialogVisible ||
       this.gameOverState.active
     ) {
-      return;
+      return false;
     }
     console.log(`Requesting silent inventory refresh (${reason})...`);
     this.inventoryRefreshInFlight = true;
     this.pendingInventoryDialog = false;
     this.pendingInventoryDialogOptions = null;
     this.sendInput("i");
+    return true;
+  }
+
+  private isStartupInventoryRefreshReady(): boolean {
+    return (
+      this.pendingStartupInventoryRefresh &&
+      this.runtimeConnectionState === "running" &&
+      this.hasSeenPlayerPosition &&
+      Date.now() >= this.pendingStartupInventoryRefreshEarliestAtMs &&
+      !this.inventoryRefreshInFlight &&
+      !this.isInventoryDialogVisible &&
+      !this.isInQuestion &&
+      !this.isInDirectionQuestion &&
+      !this.positionInputModeActive &&
+      !this.metaCommandModeActive &&
+      !this.isInfoDialogVisible &&
+      !this.infoMenuBlockingActive &&
+      !this.gameOverState.active
+    );
+  }
+
+  private maybeRequestPendingStartupInventoryRefresh(): void {
+    if (!this.pendingStartupInventoryRefresh) {
+      return;
+    }
+    if (this.hasInventorySnapshot()) {
+      this.pendingStartupInventoryRefresh = false;
+      this.pendingStartupInventoryRefreshEarliestAtMs = 0;
+      return;
+    }
+    if (!this.isStartupInventoryRefreshReady()) {
+      return;
+    }
+    if (this.requestSilentInventoryRefresh("game-start")) {
+      this.pendingStartupInventoryRefresh = false;
+      this.pendingStartupInventoryRefreshEarliestAtMs = 0;
+    }
   }
 
   private toggleInventoryDialogState(): void {
@@ -39476,6 +39541,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateControllerInput(deltaSeconds);
     this.updateCameraPanInertia(deltaSeconds);
     this.updateCamera(deltaSeconds);
+    this.maybeRequestPendingStartupInventoryRefresh();
     this.syncFpsHeldWeaponSprite(deltaSeconds);
     this.updateMonsterBillboardPitchLockState();
     this.syncDirectionPromptOverlayVisibility();

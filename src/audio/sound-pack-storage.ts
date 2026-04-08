@@ -100,7 +100,13 @@ export const nh3dSoundEffectDefinitions = [
   {
     key: "eating",
     label: soundEffectStrings.eating,
-    messageLogKeywords: ["you eat", "you finish eating", "tastes", "delicious"],
+    messageLogKeywords: [
+      "you eat",
+      "you finish eating",
+      "tastes",
+      "delicious",
+      "yummy",
+    ],
   },
   {
     key: "drink",
