@@ -112,6 +112,17 @@ import {
 import DirectionPromptOverlay, {
   type DirectionPromptOverlayButtonId,
 } from "./DirectionPromptOverlay";
+import {
+  FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID,
+  createDefaultFpsHeldWeaponAnimationLibrary,
+  sampleFpsHeldWeaponAnimation,
+  serializeFpsHeldWeaponAnimationDefinition,
+  type FpsHeldWeaponAnimationDefinition,
+  type FpsHeldWeaponAnimationKeyframe,
+  type FpsHeldWeaponAnimationLibrary,
+  type FpsHeldWeaponAnimationSoundEffect,
+  type FpsHeldWeaponAnimationVector3,
+} from "./fps-held-weapon-animations";
 import { sanitizeStartupInitOptionTokens } from "../runtime/startup-init-options";
 
 type PendingCharacterDamage = {
@@ -277,6 +288,39 @@ type FpsHeldWeaponTextureState = {
   sourceGlyph: number | null;
   signature: string;
 };
+
+type FpsHeldWeaponActiveAnimationState = {
+  animationId: string;
+  startedAtMs: number;
+  durationScale: number;
+  lastProcessedKeyframeIndex: number;
+};
+
+type FpsHeldWeaponAnimationEditorAxis = "x" | "y" | "z";
+
+type FpsHeldWeaponAnimationEditorInputMap = Record<
+  FpsHeldWeaponAnimationEditorAxis,
+  HTMLInputElement | null
+>;
+
+type FpsHeldWeaponAnimationEditorElements = {
+  panel: HTMLDivElement | null;
+  animationSelect: HTMLSelectElement | null;
+  keyframeSelect: HTMLSelectElement | null;
+  durationInput: HTMLInputElement | null;
+  slowMoCheckbox: HTMLInputElement | null;
+  statusLabel: HTMLDivElement | null;
+  pivotInputs: FpsHeldWeaponAnimationEditorInputMap;
+  translationInputs: FpsHeldWeaponAnimationEditorInputMap;
+  rotationInputs: FpsHeldWeaponAnimationEditorInputMap;
+};
+
+const createZeroFpsHeldWeaponAnimationVector =
+  (): FpsHeldWeaponAnimationVector3 => ({
+    x: 0,
+    y: 0,
+    z: 0,
+  });
 
 const MINIMAP_WIDTH_TILES = 79;
 const MINIMAP_HEIGHT_TILES = 21;
@@ -996,8 +1040,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsHeldWeaponSwayPhase: number = 0;
   private fpsHeldWeaponSwaySpeed: number = 0;
   private fpsHeldWeaponSwaySpeedTarget: number = 0;
-  private fpsHeldWeaponSwipeAnimationStartMs: number = 0;
-  private fpsHeldWeaponSwipeSwingSoundPlayed: boolean = false;
+  private readonly fpsHeldWeaponAnimations: FpsHeldWeaponAnimationLibrary =
+    createDefaultFpsHeldWeaponAnimationLibrary();
+  private fpsHeldWeaponActiveAnimation: FpsHeldWeaponActiveAnimationState | null =
+    null;
   private readonly fpsHeldWeaponGeometry = new THREE.PlaneGeometry(1, 1);
   private readonly fpsHeldWeaponBaseLocalOffset = new THREE.Vector3(
     0.38,
@@ -1007,22 +1053,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponLocalOffset = new THREE.Vector3();
   private readonly fpsHeldWeaponWorldPosition = new THREE.Vector3();
   private readonly fpsHeldWeaponWorldQuaternion = new THREE.Quaternion();
-  private readonly fpsHeldWeaponSwipeLocalOffset = new THREE.Vector3();
-  private readonly fpsHeldWeaponSwipePivotLocal = new THREE.Vector3();
-  private readonly fpsHeldWeaponSwipeCenterFromPivot = new THREE.Vector3();
-  private readonly fpsHeldWeaponSwipeRotatedCenter = new THREE.Vector3();
-  private readonly fpsHeldWeaponSwipeEuler = new THREE.Euler();
-  private readonly fpsHeldWeaponSwipeQuaternion = new THREE.Quaternion();
-  private readonly fpsHeldWeaponSwipeWindupOffset = new THREE.Vector3(
-    0.03,
-    -0.05,
-    -0.09,
-  );
-  private readonly fpsHeldWeaponSwipeSwingOffset = new THREE.Vector3(
-    -0.9,
-    0.015,
-    0.03,
-  );
+  private readonly fpsHeldWeaponAnimationPivotLocal = new THREE.Vector3();
+  private readonly fpsHeldWeaponAnimationCenterFromPivot = new THREE.Vector3();
+  private readonly fpsHeldWeaponAnimationRotatedCenter = new THREE.Vector3();
+  private readonly fpsHeldWeaponAnimationEuler = new THREE.Euler();
+  private readonly fpsHeldWeaponAnimationQuaternion = new THREE.Quaternion();
   private readonly fpsHeldWeaponYawLagHalfLifeMs: number = 84;
   private readonly fpsHeldWeaponYawLagAmount: number = 0.38;
   private readonly fpsHeldWeaponYawLagMax: number = 0.2;
@@ -1037,15 +1072,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponSwaySpeedMax: number = 4.07;
   private readonly fpsHeldWeaponSwaySpeedApproachHalfLifeMs: number = 90;
   private readonly fpsHeldWeaponSwaySpeedDecayHalfLifeMs: number = 650;
-  private readonly fpsHeldWeaponSwipeWindupMs: number = 60;
-  private readonly fpsHeldWeaponSwipeSwingMs: number = 100;
-  private readonly fpsHeldWeaponSwipeRecoverMs: number = 120;
-  private readonly fpsHeldWeaponSwipeWindupRollRad: number =
-    -THREE.MathUtils.degToRad(90);
-  private readonly fpsHeldWeaponSwipeWindupTiltRad: number =
-    THREE.MathUtils.degToRad(20);
-  private readonly fpsHeldWeaponSwipeSwingTiltRad: number =
-    THREE.MathUtils.degToRad(-80);
   private readonly fpsHeldWeaponScaleY: number = 0.72;
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
@@ -1447,6 +1473,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsDebugDisplaySmoothedRenderTimeMs: number | null = null;
   private fpsDebugDisplayLastRenderedSignature: string | null = null;
   private readonly fpsDebugDisplaySmoothingFactor: number = 0.16;
+  private fpsHeldWeaponAnimationDebugVisible: boolean = false;
+  private fpsHeldWeaponAnimationDebugSelectedAnimationId: string =
+    FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID;
+  private fpsHeldWeaponAnimationDebugSelectedKeyframeIndex: number = 0;
+  private fpsHeldWeaponAnimationDebugSlowMoEnabled: boolean = false;
+  private readonly fpsHeldWeaponAnimationDebugElements: FpsHeldWeaponAnimationEditorElements =
+    {
+      panel: null,
+      animationSelect: null,
+      keyframeSelect: null,
+      durationInput: null,
+      slowMoCheckbox: null,
+      statusLabel: null,
+      pivotInputs: { x: null, y: null, z: null },
+      translationInputs: { x: null, y: null, z: null },
+      rotationInputs: { x: null, y: null, z: null },
+    };
   private lastKnownPlayerHp: number | null = null;
   private lastKnownPlayerExperience: number | null = null;
   private lastKnownPlayerLevel: number | null = null;
@@ -2390,9 +2433,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateMinimapPresentation();
     if (!visible) {
       this.stopMinimapDrag();
+      this.syncFpsHeldWeaponAnimationDebugPanelPosition();
       return;
     }
     this.renderMinimapViewportOverlay();
+    this.syncFpsHeldWeaponAnimationDebugPanelPosition();
   }
 
   private updateMinimapPresentation(): void {
@@ -2405,6 +2450,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       "nh3d-minimap-controller-expanded",
       this.controllerMinimapExpanded,
     );
+    this.syncFpsHeldWeaponAnimationDebugPanelPosition();
   }
 
   private buildTileStateSignatureFromPayload(tile: {
@@ -5572,8 +5618,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponSwayPhase = 0;
     this.fpsHeldWeaponSwaySpeed = 0;
     this.fpsHeldWeaponSwaySpeedTarget = 0;
-    this.fpsHeldWeaponSwipeAnimationStartMs = 0;
-    this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
+    this.clearFpsHeldWeaponAnimationState();
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
     if (this.fpsHeldWeaponMesh) {
@@ -25685,8 +25730,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponSwayPhase = 0;
     this.fpsHeldWeaponSwaySpeed = 0;
     this.fpsHeldWeaponSwaySpeedTarget = 0;
-    this.fpsHeldWeaponSwipeAnimationStartMs = 0;
-    this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
+    this.clearFpsHeldWeaponAnimationState();
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
   }
@@ -25876,107 +25920,121 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.fpsHeldWeaponMovementOffset;
   }
 
-  private playFpsHeldWeaponSwipeAnimation(): void {
-    if (!this.isFpsMode()) {
-      return;
-    }
-    this.fpsHeldWeaponSwipeAnimationStartMs = performance.now();
-    this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
+  private clearFpsHeldWeaponAnimationState(): void {
+    this.fpsHeldWeaponActiveAnimation = null;
   }
 
-  private resolveFpsHeldWeaponSwipeAnimation(now: number = performance.now()): {
+  private getFpsHeldWeaponAnimation(
+    animationId: string,
+  ): FpsHeldWeaponAnimationDefinition | null {
+    return this.fpsHeldWeaponAnimations[animationId] ?? null;
+  }
+
+  private playFpsHeldWeaponAnimation(
+    animationId: string,
+    options: { durationScale?: number } = {},
+  ): boolean {
+    if (!this.isFpsMode()) {
+      return false;
+    }
+    const animation = this.getFpsHeldWeaponAnimation(animationId);
+    if (!animation || animation.keyframes.length <= 0) {
+      return false;
+    }
+    const durationScale =
+      Number.isFinite(options.durationScale) && options.durationScale
+        ? Math.max(0.0001, options.durationScale)
+        : 1;
+    this.fpsHeldWeaponActiveAnimation = {
+      animationId,
+      startedAtMs: performance.now(),
+      durationScale,
+      lastProcessedKeyframeIndex: 0,
+    };
+    return true;
+  }
+
+  private playFpsHeldWeaponSwipeAnimation(): void {
+    this.playFpsHeldWeaponAnimation(FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID);
+  }
+
+  private playFpsHeldWeaponAnimationSoundEffect(
+    soundEffect: FpsHeldWeaponAnimationSoundEffect,
+  ): void {
+    if (soundEffect === "missed_attack") {
+      this.messageSoundHooks.playMissedAttackSound();
+    }
+  }
+
+  private resolveFpsHeldWeaponAnimationPose(now: number = performance.now()): {
     active: boolean;
-    rollRad: number;
-    tiltRad: number;
+    translation: FpsHeldWeaponAnimationVector3;
+    rotationDeg: FpsHeldWeaponAnimationVector3;
+    pivotNormalized: FpsHeldWeaponAnimationVector3;
   } {
-    const totalMs =
-      this.fpsHeldWeaponSwipeWindupMs +
-      this.fpsHeldWeaponSwipeSwingMs +
-      this.fpsHeldWeaponSwipeRecoverMs;
-    if (this.fpsHeldWeaponSwipeAnimationStartMs <= 0) {
-      this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
-      this.fpsHeldWeaponSwipeLocalOffset.set(0, 0, 0);
-      return { active: false, rollRad: 0, tiltRad: 0 };
-    }
-    const elapsedMs = now - this.fpsHeldWeaponSwipeAnimationStartMs;
-    if (elapsedMs >= totalMs) {
-      this.fpsHeldWeaponSwipeAnimationStartMs = 0;
-      this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
-      this.fpsHeldWeaponSwipeLocalOffset.set(0, 0, 0);
-      return { active: false, rollRad: 0, tiltRad: 0 };
-    }
-
-    if (elapsedMs < this.fpsHeldWeaponSwipeWindupMs) {
-      const t = THREE.MathUtils.smoothstep(
-        elapsedMs / this.fpsHeldWeaponSwipeWindupMs,
-        0,
-        1,
-      );
-      this.fpsHeldWeaponSwipeLocalOffset
-        .set(0, 0, 0)
-        .lerp(this.fpsHeldWeaponSwipeWindupOffset, t);
-      return {
-        active: true,
-        rollRad: THREE.MathUtils.lerp(
-          0,
-          this.fpsHeldWeaponSwipeWindupRollRad,
-          t,
-        ),
-        tiltRad: THREE.MathUtils.lerp(
-          0,
-          this.fpsHeldWeaponSwipeWindupTiltRad,
-          t,
-        ),
-      };
-    }
-
-    if (
-      elapsedMs <
-      this.fpsHeldWeaponSwipeWindupMs + this.fpsHeldWeaponSwipeSwingMs
-    ) {
-      if (!this.fpsHeldWeaponSwipeSwingSoundPlayed) {
-        this.fpsHeldWeaponSwipeSwingSoundPlayed = true;
-        this.messageSoundHooks.playMissedAttackSound();
+    const zero = createZeroFpsHeldWeaponAnimationVector();
+    const activeAnimation = this.fpsHeldWeaponActiveAnimation;
+    if (activeAnimation) {
+      const animation = this.getFpsHeldWeaponAnimation(activeAnimation.animationId);
+      if (animation) {
+        const elapsedMs = now - activeAnimation.startedAtMs;
+        const sample = sampleFpsHeldWeaponAnimation(
+          animation,
+          elapsedMs,
+          activeAnimation.durationScale,
+        );
+        const currentKeyframeIndex = sample.currentKeyframeIndex;
+        if (
+          currentKeyframeIndex !== null &&
+          currentKeyframeIndex > activeAnimation.lastProcessedKeyframeIndex
+        ) {
+          for (
+            let index = activeAnimation.lastProcessedKeyframeIndex + 1;
+            index <= currentKeyframeIndex;
+            index += 1
+          ) {
+            const soundEffect = animation.keyframes[index]?.soundEffect;
+            if (soundEffect) {
+              this.playFpsHeldWeaponAnimationSoundEffect(soundEffect);
+            }
+          }
+          activeAnimation.lastProcessedKeyframeIndex = currentKeyframeIndex;
+        }
+        if (sample.active) {
+          return {
+            active: true,
+            translation: sample.translation,
+            rotationDeg: sample.rotationDeg,
+            pivotNormalized: animation.pivotNormalized,
+          };
+        }
       }
-      const t = THREE.MathUtils.smoothstep(
-        (elapsedMs - this.fpsHeldWeaponSwipeWindupMs) /
-          this.fpsHeldWeaponSwipeSwingMs,
-        0,
-        1,
-      );
-      this.fpsHeldWeaponSwipeLocalOffset
-        .copy(this.fpsHeldWeaponSwipeWindupOffset)
-        .lerp(this.fpsHeldWeaponSwipeSwingOffset, t);
-      return {
-        active: true,
-        rollRad: THREE.MathUtils.lerp(
-          this.fpsHeldWeaponSwipeWindupRollRad,
-          0,
-          t,
-        ),
-        tiltRad: THREE.MathUtils.lerp(
-          this.fpsHeldWeaponSwipeWindupTiltRad,
-          this.fpsHeldWeaponSwipeSwingTiltRad,
-          t,
-        ),
-      };
+      this.clearFpsHeldWeaponAnimationState();
     }
 
-    const t = THREE.MathUtils.smoothstep(
-      (elapsedMs -
-        this.fpsHeldWeaponSwipeWindupMs -
-        this.fpsHeldWeaponSwipeSwingMs) /
-        this.fpsHeldWeaponSwipeRecoverMs,
-      0,
-      1,
-    );
-    this.fpsHeldWeaponSwipeLocalOffset
-      .copy(this.fpsHeldWeaponSwipeSwingOffset)
-      .multiplyScalar(1 - t);
+    if (this.fpsHeldWeaponAnimationDebugVisible) {
+      const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+      if (animation && animation.keyframes.length > 0) {
+        const keyframeIndex = THREE.MathUtils.clamp(
+          this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
+          0,
+          animation.keyframes.length - 1,
+        );
+        const keyframe = animation.keyframes[keyframeIndex];
+        return {
+          active: true,
+          translation: keyframe.translation,
+          rotationDeg: keyframe.rotationDeg,
+          pivotNormalized: animation.pivotNormalized,
+        };
+      }
+    }
+
     return {
-      active: true,
-      rollRad: 0,
-      tiltRad: THREE.MathUtils.lerp(this.fpsHeldWeaponSwipeSwingTiltRad, 0, t),
+      active: false,
+      translation: zero,
+      rotationDeg: zero,
+      pivotNormalized: zero,
     };
   }
 
@@ -25992,8 +26050,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponSwayPhase = 0;
       this.fpsHeldWeaponSwaySpeed = 0;
       this.fpsHeldWeaponSwaySpeedTarget = 0;
-      this.fpsHeldWeaponSwipeAnimationStartMs = 0;
-      this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
+      this.clearFpsHeldWeaponAnimationState();
       this.pendingFpsHeldWeaponMeleeSwipeContext = null;
       this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
       return;
@@ -26091,44 +26148,51 @@ class Nethack3DEngine implements Nethack3DEngineController {
       (0.5 - pitchT) * 2 * this.fpsHeldWeaponPitchOffsetRange + pitchLagOffset;
     const movementOffset =
       this.resolveFpsHeldWeaponMovementOffset(deltaSeconds);
-    const swipeAnimation = this.resolveFpsHeldWeaponSwipeAnimation();
+    const animationPose = this.resolveFpsHeldWeaponAnimationPose();
 
     this.fpsHeldWeaponLocalOffset.copy(this.fpsHeldWeaponBaseLocalOffset);
     this.fpsHeldWeaponLocalOffset.x += yawLagOffset + movementOffset.x;
     this.fpsHeldWeaponLocalOffset.y += pitchOffset + movementOffset.y;
-    if (swipeAnimation.active) {
+    if (animationPose.active) {
       const width = Math.abs(horizontalScale);
       const height = this.fpsHeldWeaponScaleY;
-      this.fpsHeldWeaponSwipePivotLocal.copy(this.fpsHeldWeaponLocalOffset);
-      this.fpsHeldWeaponSwipePivotLocal.x += width * 0.5;
-      this.fpsHeldWeaponSwipePivotLocal.y -= height * 0.5;
-      this.fpsHeldWeaponSwipePivotLocal.add(this.fpsHeldWeaponSwipeLocalOffset);
-      this.fpsHeldWeaponSwipeCenterFromPivot.set(-width * 0.5, height * 0.5, 0);
-      this.fpsHeldWeaponSwipeEuler.set(
-        swipeAnimation.tiltRad,
-        0,
-        swipeAnimation.rollRad,
+      this.fpsHeldWeaponAnimationPivotLocal.copy(this.fpsHeldWeaponLocalOffset);
+      this.fpsHeldWeaponAnimationPivotLocal.x +=
+        width * animationPose.pivotNormalized.x + animationPose.translation.x;
+      this.fpsHeldWeaponAnimationPivotLocal.y +=
+        height * animationPose.pivotNormalized.y + animationPose.translation.y;
+      this.fpsHeldWeaponAnimationPivotLocal.z +=
+        animationPose.pivotNormalized.z + animationPose.translation.z;
+      this.fpsHeldWeaponAnimationCenterFromPivot.set(
+        -width * animationPose.pivotNormalized.x,
+        -height * animationPose.pivotNormalized.y,
+        -animationPose.pivotNormalized.z,
+      );
+      this.fpsHeldWeaponAnimationEuler.set(
+        THREE.MathUtils.degToRad(animationPose.rotationDeg.x),
+        THREE.MathUtils.degToRad(animationPose.rotationDeg.y),
+        THREE.MathUtils.degToRad(animationPose.rotationDeg.z),
         "XYZ",
       );
-      this.fpsHeldWeaponSwipeQuaternion.setFromEuler(
-        this.fpsHeldWeaponSwipeEuler,
+      this.fpsHeldWeaponAnimationQuaternion.setFromEuler(
+        this.fpsHeldWeaponAnimationEuler,
       );
-      this.fpsHeldWeaponSwipeRotatedCenter
-        .copy(this.fpsHeldWeaponSwipeCenterFromPivot)
-        .applyQuaternion(this.fpsHeldWeaponSwipeQuaternion);
+      this.fpsHeldWeaponAnimationRotatedCenter
+        .copy(this.fpsHeldWeaponAnimationCenterFromPivot)
+        .applyQuaternion(this.fpsHeldWeaponAnimationQuaternion);
       this.fpsHeldWeaponLocalOffset
-        .copy(this.fpsHeldWeaponSwipePivotLocal)
-        .add(this.fpsHeldWeaponSwipeRotatedCenter);
+        .copy(this.fpsHeldWeaponAnimationPivotLocal)
+        .add(this.fpsHeldWeaponAnimationRotatedCenter);
     }
     this.fromCameraLocalOffset(
       this.fpsHeldWeaponLocalOffset,
       this.fpsHeldWeaponWorldPosition,
     );
     mesh.position.copy(this.fpsHeldWeaponWorldPosition);
-    if (swipeAnimation.active) {
+    if (animationPose.active) {
       this.fpsHeldWeaponWorldQuaternion
         .copy(this.camera.quaternion)
-        .multiply(this.fpsHeldWeaponSwipeQuaternion);
+        .multiply(this.fpsHeldWeaponAnimationQuaternion);
       mesh.quaternion.copy(this.fpsHeldWeaponWorldQuaternion);
     } else {
       mesh.quaternion.copy(this.camera.quaternion);
@@ -28024,6 +28088,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.minimapCanvasContext = null;
     this.minimapViewportContext = null;
     this.removeFpsDebugDisplay();
+    this.removeFpsHeldWeaponAnimationDebugPanel();
 
     this.metaCommandModal?.remove();
     this.metaCommandModal = null;
@@ -29399,6 +29464,698 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsDebugDisplayLastRenderedSignature = null;
   }
 
+  private handleFpsHeldWeaponAnimationDebugShortcutKeyDown(
+    event: KeyboardEvent,
+  ): boolean {
+    if (event.metaKey) {
+      return false;
+    }
+    if (!event.ctrlKey || !event.altKey || !event.shiftKey) {
+      return false;
+    }
+    const isAKey =
+      event.code === "KeyA" ||
+      (typeof event.key === "string" && event.key.toLowerCase() === "a");
+    if (!isAKey) {
+      return false;
+    }
+
+    event.preventDefault();
+    if (event.repeat) {
+      return true;
+    }
+    this.setFpsHeldWeaponAnimationDebugVisible(
+      !this.fpsHeldWeaponAnimationDebugVisible,
+    );
+    return true;
+  }
+
+  private formatFpsHeldWeaponAnimationDebugNumber(
+    value: number,
+    decimals: number = 4,
+  ): string {
+    if (!Number.isFinite(value)) {
+      return "0";
+    }
+    return Number(value.toFixed(decimals)).toString();
+  }
+
+  private getFpsHeldWeaponAnimationDebugSelectedAnimation():
+    | FpsHeldWeaponAnimationDefinition
+    | null {
+    const selected = this.getFpsHeldWeaponAnimation(
+      this.fpsHeldWeaponAnimationDebugSelectedAnimationId,
+    );
+    if (selected) {
+      return selected;
+    }
+    const fallback = Object.values(this.fpsHeldWeaponAnimations)[0] ?? null;
+    if (!fallback) {
+      return null;
+    }
+    this.fpsHeldWeaponAnimationDebugSelectedAnimationId = fallback.id;
+    return fallback;
+  }
+
+  private getFpsHeldWeaponAnimationDebugSelectedKeyframe():
+    | FpsHeldWeaponAnimationKeyframe
+    | null {
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    if (!animation || animation.keyframes.length <= 0) {
+      return null;
+    }
+    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = THREE.MathUtils.clamp(
+      this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
+      0,
+      animation.keyframes.length - 1,
+    );
+    return (
+      animation.keyframes[this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex] ??
+      null
+    );
+  }
+
+  private setFpsHeldWeaponAnimationDebugStatus(message: string): void {
+    const statusLabel = this.fpsHeldWeaponAnimationDebugElements.statusLabel;
+    if (statusLabel) {
+      statusLabel.textContent = message;
+    }
+  }
+
+  private syncFpsHeldWeaponAnimationDebugAnimationOptions(): void {
+    const select = this.fpsHeldWeaponAnimationDebugElements.animationSelect;
+    if (!select) {
+      return;
+    }
+
+    const animations = Object.values(this.fpsHeldWeaponAnimations).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+    if (animations.length <= 0) {
+      select.replaceChildren();
+      return;
+    }
+    if (
+      !this.fpsHeldWeaponAnimations[
+        this.fpsHeldWeaponAnimationDebugSelectedAnimationId
+      ]
+    ) {
+      this.fpsHeldWeaponAnimationDebugSelectedAnimationId = animations[0].id;
+    }
+
+    select.replaceChildren();
+    for (const animation of animations) {
+      const option = document.createElement("option");
+      option.value = animation.id;
+      option.textContent = animation.label;
+      select.appendChild(option);
+    }
+    select.value = this.fpsHeldWeaponAnimationDebugSelectedAnimationId;
+  }
+
+  private syncFpsHeldWeaponAnimationDebugKeyframeOptions(): void {
+    const select = this.fpsHeldWeaponAnimationDebugElements.keyframeSelect;
+    if (!select) {
+      return;
+    }
+
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    select.replaceChildren();
+    if (!animation || animation.keyframes.length <= 0) {
+      return;
+    }
+    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = THREE.MathUtils.clamp(
+      this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
+      0,
+      animation.keyframes.length - 1,
+    );
+
+    animation.keyframes.forEach((keyframe, index) => {
+      const option = document.createElement("option");
+      option.value = `${index}`;
+      option.textContent = `Keyframe ${index + 1} (${Math.max(
+        1,
+        Math.round(keyframe.durationMs),
+      )} ms)`;
+      select.appendChild(option);
+    });
+    select.value = `${this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex}`;
+  }
+
+  private syncFpsHeldWeaponAnimationDebugFieldValues(): void {
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+    if (!animation || !keyframe) {
+      return;
+    }
+
+    const durationInput = this.fpsHeldWeaponAnimationDebugElements.durationInput;
+    if (durationInput) {
+      durationInput.value = `${Math.max(1, Math.round(keyframe.durationMs))}`;
+    }
+    const slowMoCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox;
+    if (slowMoCheckbox) {
+      slowMoCheckbox.checked = this.fpsHeldWeaponAnimationDebugSlowMoEnabled;
+    }
+    for (const axis of ["x", "y", "z"] as const) {
+      const pivotInput =
+        this.fpsHeldWeaponAnimationDebugElements.pivotInputs[axis];
+      if (pivotInput) {
+        pivotInput.value = this.formatFpsHeldWeaponAnimationDebugNumber(
+          animation.pivotNormalized[axis],
+        );
+      }
+      const translationInput =
+        this.fpsHeldWeaponAnimationDebugElements.translationInputs[axis];
+      if (translationInput) {
+        translationInput.value = this.formatFpsHeldWeaponAnimationDebugNumber(
+          keyframe.translation[axis],
+        );
+      }
+      const rotationInput =
+        this.fpsHeldWeaponAnimationDebugElements.rotationInputs[axis];
+      if (rotationInput) {
+        rotationInput.value = this.formatFpsHeldWeaponAnimationDebugNumber(
+          keyframe.rotationDeg[axis],
+        );
+      }
+    }
+  }
+
+  private syncFpsHeldWeaponAnimationDebugUi(): void {
+    this.syncFpsHeldWeaponAnimationDebugAnimationOptions();
+    this.syncFpsHeldWeaponAnimationDebugKeyframeOptions();
+    this.syncFpsHeldWeaponAnimationDebugFieldValues();
+  }
+
+  private getVisibleMinimapBounds(): DOMRect | null {
+    const minimap = this.minimapContainer;
+    if (!minimap) {
+      return null;
+    }
+    const computedStyle = window.getComputedStyle(minimap);
+    if (
+      computedStyle.display === "none" ||
+      computedStyle.visibility === "hidden" ||
+      computedStyle.pointerEvents === "none"
+    ) {
+      return null;
+    }
+    const rect = minimap.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    return rect;
+  }
+
+  private syncFpsHeldWeaponAnimationDebugPanelPosition(): void {
+    const panel = this.fpsHeldWeaponAnimationDebugElements.panel;
+    if (!panel) {
+      return;
+    }
+
+    const defaultTopPx = 72;
+    const viewportHeight = Math.max(1, window.innerHeight);
+    const gapPx = 12;
+    const minimapBounds = this.getVisibleMinimapBounds();
+    const topPx = minimapBounds
+      ? Math.max(defaultTopPx, Math.round(minimapBounds.bottom + gapPx))
+      : defaultTopPx;
+    const availableHeightPx = Math.max(160, viewportHeight - topPx - gapPx);
+
+    panel.style.top = `${topPx}px`;
+    panel.style.maxHeight = `${availableHeightPx}px`;
+    panel.style.overflowY = "auto";
+  }
+
+  private async copyFpsHeldWeaponAnimationDebugSelectionToClipboard(): Promise<void> {
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    if (!animation) {
+      this.setFpsHeldWeaponAnimationDebugStatus("No animation selected.");
+      return;
+    }
+
+    const payload = serializeFpsHeldWeaponAnimationDefinition(animation);
+    try {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === "function"
+      ) {
+        await navigator.clipboard.writeText(payload);
+        this.setFpsHeldWeaponAnimationDebugStatus(
+          `Copied ${animation.label} to clipboard.`,
+        );
+        return;
+      }
+    } catch (_error) {
+      // Fallback to textarea copy path below.
+    }
+
+    if (typeof document !== "undefined") {
+      const textarea = document.createElement("textarea");
+      textarea.value = payload;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-10000px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (copied) {
+        this.setFpsHeldWeaponAnimationDebugStatus(
+          `Copied ${animation.label} to clipboard.`,
+        );
+      } else {
+        this.setFpsHeldWeaponAnimationDebugStatus(
+          "Copy failed. Open console and copy manually.",
+        );
+        console.log(payload);
+      }
+      return;
+    }
+
+    this.setFpsHeldWeaponAnimationDebugStatus(
+      "Copy unavailable. Open console and copy manually.",
+    );
+    console.log(payload);
+  }
+
+  private previewSelectedFpsHeldWeaponAnimation(): void {
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    if (!animation) {
+      this.setFpsHeldWeaponAnimationDebugStatus("No animation selected.");
+      return;
+    }
+    if (!this.isFpsMode()) {
+      this.setFpsHeldWeaponAnimationDebugStatus(
+        "Enter FPS mode to preview held-weapon animations.",
+      );
+      return;
+    }
+    const didStart = this.playFpsHeldWeaponAnimation(animation.id, {
+      durationScale: this.fpsHeldWeaponAnimationDebugSlowMoEnabled ? 5 : 1,
+    });
+    this.setFpsHeldWeaponAnimationDebugStatus(
+      didStart
+        ? `Previewing ${animation.label}.`
+        : `Unable to preview ${animation.label}.`,
+    );
+  }
+
+  private cloneFpsHeldWeaponAnimationKeyframe(
+    keyframe: FpsHeldWeaponAnimationKeyframe,
+  ): FpsHeldWeaponAnimationKeyframe {
+    return {
+      durationMs: Math.max(1, Math.round(keyframe.durationMs)),
+      translation: {
+        x: keyframe.translation.x,
+        y: keyframe.translation.y,
+        z: keyframe.translation.z,
+      },
+      rotationDeg: {
+        x: keyframe.rotationDeg.x,
+        y: keyframe.rotationDeg.y,
+        z: keyframe.rotationDeg.z,
+      },
+      ...(keyframe.soundEffect
+        ? {
+            soundEffect: keyframe.soundEffect,
+          }
+        : {}),
+    };
+  }
+
+  private insertFpsHeldWeaponAnimationDebugKeyframe(
+    position: "before" | "after",
+  ): void {
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+    if (!animation || !keyframe) {
+      this.setFpsHeldWeaponAnimationDebugStatus("No keyframe selected.");
+      return;
+    }
+
+    const insertIndex =
+      position === "before"
+        ? this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex
+        : this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex + 1;
+    animation.keyframes.splice(
+      insertIndex,
+      0,
+      this.cloneFpsHeldWeaponAnimationKeyframe(keyframe),
+    );
+    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = insertIndex;
+    this.syncFpsHeldWeaponAnimationDebugUi();
+    this.setFpsHeldWeaponAnimationDebugStatus(
+      `Added keyframe ${position} ${insertIndex + 1}.`,
+    );
+  }
+
+  private ensureFpsHeldWeaponAnimationDebugPanel(): HTMLDivElement {
+    const existingPanel = this.fpsHeldWeaponAnimationDebugElements.panel;
+    if (existingPanel) {
+      return existingPanel;
+    }
+
+    const host = this.mountElement ?? document.body;
+    const panel = document.createElement("div");
+    panel.className = "nh3d-fps-held-weapon-animation-debug";
+    panel.style.position = "fixed";
+    panel.style.top = "72px";
+    panel.style.right = "12px";
+    panel.style.zIndex = "2147483647";
+    panel.style.width = "344px";
+    panel.style.padding = "10px";
+    panel.style.border = "1px solid rgba(196, 255, 208, 0.4)";
+    panel.style.borderRadius = "8px";
+    panel.style.background = "rgba(2, 10, 8, 0.94)";
+    panel.style.boxShadow = "0 10px 28px rgba(0, 0, 0, 0.35)";
+    panel.style.color = "#ecfff0";
+    panel.style.font = "12px monospace";
+    panel.style.lineHeight = "1.3";
+    panel.style.userSelect = "none";
+    panel.style.pointerEvents = "auto";
+    panel.style.display = "none";
+
+    const headerRow = document.createElement("div");
+    headerRow.style.display = "flex";
+    headerRow.style.justifyContent = "space-between";
+    headerRow.style.alignItems = "center";
+    headerRow.style.marginBottom = "8px";
+
+    const title = document.createElement("div");
+    title.textContent = "Weapon Animation";
+    title.style.fontWeight = "700";
+    headerRow.appendChild(title);
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.textContent = "Copy Animation";
+    copyButton.style.font = "11px monospace";
+    copyButton.style.padding = "3px 6px";
+    copyButton.addEventListener("click", () => {
+      void this.copyFpsHeldWeaponAnimationDebugSelectionToClipboard();
+    });
+    headerRow.appendChild(copyButton);
+    panel.appendChild(headerRow);
+
+    const createRow = (labelText: string): HTMLDivElement => {
+      const row = document.createElement("div");
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "112px minmax(0, 1fr)";
+      row.style.columnGap = "8px";
+      row.style.alignItems = "center";
+      row.style.marginBottom = "8px";
+
+      const label = document.createElement("div");
+      label.textContent = labelText;
+      row.appendChild(label);
+      panel.appendChild(row);
+      return row;
+    };
+
+    const animationRow = createRow("Animation");
+    const animationSelect = document.createElement("select");
+    animationSelect.style.font = "11px monospace";
+    animationSelect.style.padding = "2px 4px";
+    animationSelect.addEventListener("change", () => {
+      this.fpsHeldWeaponAnimationDebugSelectedAnimationId = animationSelect.value;
+      this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = 0;
+      this.syncFpsHeldWeaponAnimationDebugUi();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    animationRow.appendChild(animationSelect);
+    this.fpsHeldWeaponAnimationDebugElements.animationSelect = animationSelect;
+
+    const previewRow = createRow("Preview");
+    const previewControls = document.createElement("div");
+    previewControls.style.display = "flex";
+    previewControls.style.alignItems = "center";
+    previewControls.style.gap = "8px";
+
+    const playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.textContent = "Play";
+    playButton.style.font = "11px monospace";
+    playButton.style.padding = "3px 8px";
+    playButton.addEventListener("click", () => {
+      this.previewSelectedFpsHeldWeaponAnimation();
+    });
+    previewControls.appendChild(playButton);
+
+    const slowMoLabel = document.createElement("label");
+    slowMoLabel.style.display = "inline-flex";
+    slowMoLabel.style.alignItems = "center";
+    slowMoLabel.style.gap = "6px";
+    slowMoLabel.style.cursor = "pointer";
+
+    const slowMoCheckbox = document.createElement("input");
+    slowMoCheckbox.type = "checkbox";
+    slowMoCheckbox.checked = this.fpsHeldWeaponAnimationDebugSlowMoEnabled;
+    slowMoCheckbox.addEventListener("change", () => {
+      this.fpsHeldWeaponAnimationDebugSlowMoEnabled = slowMoCheckbox.checked;
+    });
+    slowMoLabel.appendChild(slowMoCheckbox);
+
+    const slowMoText = document.createElement("span");
+    slowMoText.textContent = "Slo-mo 5x";
+    slowMoLabel.appendChild(slowMoText);
+    previewControls.appendChild(slowMoLabel);
+
+    previewRow.appendChild(previewControls);
+    this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox =
+      slowMoCheckbox;
+
+    const keyframeRow = createRow("Keyframe");
+    const keyframeSelect = document.createElement("select");
+    keyframeSelect.style.font = "11px monospace";
+    keyframeSelect.style.padding = "2px 4px";
+    keyframeSelect.addEventListener("change", () => {
+      const parsed = Number.parseInt(keyframeSelect.value, 10);
+      if (!Number.isFinite(parsed)) {
+        return;
+      }
+      this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = parsed;
+      this.syncFpsHeldWeaponAnimationDebugUi();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    keyframeRow.appendChild(keyframeSelect);
+    this.fpsHeldWeaponAnimationDebugElements.keyframeSelect = keyframeSelect;
+
+    const addButtonsRow = createRow("Add");
+    const addButtons = document.createElement("div");
+    addButtons.style.display = "flex";
+    addButtons.style.gap = "8px";
+
+    const addBeforeButton = document.createElement("button");
+    addBeforeButton.type = "button";
+    addBeforeButton.textContent = "Add Before";
+    addBeforeButton.style.font = "11px monospace";
+    addBeforeButton.style.padding = "3px 8px";
+    addBeforeButton.addEventListener("click", () => {
+      this.insertFpsHeldWeaponAnimationDebugKeyframe("before");
+    });
+    addButtons.appendChild(addBeforeButton);
+
+    const addAfterButton = document.createElement("button");
+    addAfterButton.type = "button";
+    addAfterButton.textContent = "Add After";
+    addAfterButton.style.font = "11px monospace";
+    addAfterButton.style.padding = "3px 8px";
+    addAfterButton.addEventListener("click", () => {
+      this.insertFpsHeldWeaponAnimationDebugKeyframe("after");
+    });
+    addButtons.appendChild(addAfterButton);
+
+    addButtonsRow.appendChild(addButtons);
+
+    const durationRow = createRow("Duration");
+    const durationInput = document.createElement("input");
+    durationInput.type = "number";
+    durationInput.step = "1";
+    durationInput.min = "1";
+    durationInput.style.font = "11px monospace";
+    durationInput.style.padding = "2px 4px";
+    durationInput.addEventListener("input", () => {
+      const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+      const parsed = Number.parseFloat(durationInput.value);
+      if (!keyframe || !Number.isFinite(parsed)) {
+        return;
+      }
+      keyframe.durationMs = Math.max(1, Math.round(parsed));
+    });
+    durationInput.addEventListener("change", () => {
+      this.syncFpsHeldWeaponAnimationDebugKeyframeOptions();
+      this.syncFpsHeldWeaponAnimationDebugFieldValues();
+    });
+    durationInput.addEventListener("blur", () => {
+      this.syncFpsHeldWeaponAnimationDebugKeyframeOptions();
+      this.syncFpsHeldWeaponAnimationDebugFieldValues();
+    });
+    durationRow.appendChild(durationInput);
+    this.fpsHeldWeaponAnimationDebugElements.durationInput = durationInput;
+
+    const createAxisSection = (
+      titleText: string,
+      step: string,
+      inputs: FpsHeldWeaponAnimationEditorInputMap,
+      onValue: (axis: FpsHeldWeaponAnimationEditorAxis, value: number) => void,
+    ): void => {
+      const section = document.createElement("div");
+      section.style.marginTop = "6px";
+      section.style.marginBottom = "8px";
+
+      const titleElement = document.createElement("div");
+      titleElement.textContent = titleText;
+      titleElement.style.marginBottom = "4px";
+      titleElement.style.opacity = "0.86";
+      section.appendChild(titleElement);
+
+      const grid = document.createElement("div");
+      grid.style.display = "grid";
+      grid.style.gridTemplateColumns = "repeat(3, minmax(0, 1fr))";
+      grid.style.gap = "6px";
+
+      for (const axis of ["x", "y", "z"] as const) {
+        const wrapper = document.createElement("label");
+        wrapper.style.display = "grid";
+        wrapper.style.rowGap = "4px";
+
+        const axisLabel = document.createElement("span");
+        axisLabel.textContent = axis.toUpperCase();
+        axisLabel.style.opacity = "0.76";
+        wrapper.appendChild(axisLabel);
+
+        const input = document.createElement("input");
+        input.type = "number";
+        input.step = step;
+        input.style.font = "11px monospace";
+        input.style.padding = "2px 4px";
+        input.addEventListener("input", () => {
+          const parsed = Number.parseFloat(input.value);
+          if (!Number.isFinite(parsed)) {
+            return;
+          }
+          onValue(axis, parsed);
+        });
+        input.addEventListener("change", () => {
+          const parsed = Number.parseFloat(input.value);
+          if (Number.isFinite(parsed)) {
+            onValue(axis, parsed);
+          }
+          this.syncFpsHeldWeaponAnimationDebugFieldValues();
+        });
+        input.addEventListener("blur", () => {
+          this.syncFpsHeldWeaponAnimationDebugFieldValues();
+        });
+        wrapper.appendChild(input);
+        grid.appendChild(wrapper);
+        inputs[axis] = input;
+      }
+
+      section.appendChild(grid);
+      panel.appendChild(section);
+    };
+
+    createAxisSection(
+      "Pivot (relative to sprite center)",
+      "0.01",
+      this.fpsHeldWeaponAnimationDebugElements.pivotInputs,
+      (axis, value) => {
+        const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+        if (!animation) {
+          return;
+        }
+        animation.pivotNormalized[axis] = value;
+      },
+    );
+    createAxisSection(
+      "Translation",
+      "0.01",
+      this.fpsHeldWeaponAnimationDebugElements.translationInputs,
+      (axis, value) => {
+        const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+        if (!keyframe) {
+          return;
+        }
+        keyframe.translation[axis] = value;
+      },
+    );
+    createAxisSection(
+      "Rotation (deg)",
+      "0.1",
+      this.fpsHeldWeaponAnimationDebugElements.rotationInputs,
+      (axis, value) => {
+        const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+        if (!keyframe) {
+          return;
+        }
+        keyframe.rotationDeg[axis] = value;
+      },
+    );
+
+    const note = document.createElement("div");
+    note.textContent =
+      "Duration is the time from the previous keyframe into the current one.";
+    note.style.opacity = "0.72";
+    note.style.marginTop = "2px";
+    panel.appendChild(note);
+
+    const statusLabel = document.createElement("div");
+    statusLabel.style.minHeight = "16px";
+    statusLabel.style.marginTop = "6px";
+    statusLabel.style.opacity = "0.88";
+    panel.appendChild(statusLabel);
+    this.fpsHeldWeaponAnimationDebugElements.statusLabel = statusLabel;
+
+    host.appendChild(panel);
+    this.fpsHeldWeaponAnimationDebugElements.panel = panel;
+    this.syncFpsHeldWeaponAnimationDebugPanelPosition();
+    this.syncFpsHeldWeaponAnimationDebugUi();
+    return panel;
+  }
+
+  private setFpsHeldWeaponAnimationDebugVisible(visible: boolean): void {
+    this.fpsHeldWeaponAnimationDebugVisible = visible;
+    const panel = visible
+      ? this.ensureFpsHeldWeaponAnimationDebugPanel()
+      : this.fpsHeldWeaponAnimationDebugElements.panel;
+    if (!panel) {
+      return;
+    }
+    if (!visible) {
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement && panel.contains(activeElement)) {
+        activeElement.blur();
+      }
+    }
+    panel.style.display = visible ? "block" : "none";
+    if (visible) {
+      this.syncFpsHeldWeaponAnimationDebugPanelPosition();
+      this.syncFpsHeldWeaponAnimationDebugUi();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    }
+  }
+
+  private removeFpsHeldWeaponAnimationDebugPanel(): void {
+    this.fpsHeldWeaponAnimationDebugElements.panel?.remove();
+    this.fpsHeldWeaponAnimationDebugElements.panel = null;
+    this.fpsHeldWeaponAnimationDebugElements.animationSelect = null;
+    this.fpsHeldWeaponAnimationDebugElements.keyframeSelect = null;
+    this.fpsHeldWeaponAnimationDebugElements.durationInput = null;
+    this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox = null;
+    this.fpsHeldWeaponAnimationDebugElements.statusLabel = null;
+    for (const axis of ["x", "y", "z"] as const) {
+      this.fpsHeldWeaponAnimationDebugElements.pivotInputs[axis] = null;
+      this.fpsHeldWeaponAnimationDebugElements.translationInputs[axis] = null;
+      this.fpsHeldWeaponAnimationDebugElements.rotationInputs[axis] = null;
+    }
+    this.fpsHeldWeaponAnimationDebugVisible = false;
+  }
+
   private handleCtrlShortcutKeyDown(event: KeyboardEvent): boolean {
     if (!event.ctrlKey || event.altKey || event.metaKey) {
       return false;
@@ -29432,6 +30189,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (event.key === "Alt" || event.key === "Meta") {
       this.altOrMetaHeld = false;
     }
+  }
+
+  private isKeyboardEventFromInteractiveElement(
+    target: EventTarget | null,
+  ): boolean {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+    if (target.isContentEditable) {
+      return true;
+    }
+    if (
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
+      target.tagName === "BUTTON"
+    ) {
+      return true;
+    }
+    return Boolean(
+      target.closest("input, textarea, select, button, [contenteditable='true']"),
+    );
   }
 
   private handleModalPageScrollKeyDown(event: KeyboardEvent): boolean {
@@ -30843,19 +31622,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.handleFpsDebugShortcutKeyDown(event)) {
       return;
     }
+    if (this.handleFpsHeldWeaponAnimationDebugShortcutKeyDown(event)) {
+      return;
+    }
 
     if (this.isClientOptionsDialogOpen()) {
       return;
     }
 
-    if (this.isTextInputActive) {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
-      ) {
-        return;
-      }
+    if (this.isKeyboardEventFromInteractiveElement(event.target)) {
+      return;
     }
 
     if (this.handleMetaCommandKeyDown(event)) {
@@ -37938,6 +38714,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.camera.updateProjectionMatrix();
     this.updateRendererResolution();
     this.recenterCameraOnPlayerIfNeeded();
+    this.syncFpsHeldWeaponAnimationDebugPanelPosition();
   }
 
   private getRendererViewportSize(): { width: number; height: number } {
