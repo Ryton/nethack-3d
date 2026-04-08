@@ -87,14 +87,14 @@ export const defaultFpsHeldWeaponAnimationLibrary: FpsHeldWeaponAnimationLibrary
         {
           durationMs: 1,
           translation: {
-            x: -0.17,
-            y: 0.1,
-            z: 0.1,
+            x: -0.35,
+            y: 0.21,
+            z: -0.07,
           },
           rotationDeg: {
             x: -50,
-            y: -50,
-            z: -100,
+            y: -40,
+            z: -150,
           },
         },
         {
