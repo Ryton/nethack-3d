@@ -997,6 +997,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsHeldWeaponSwaySpeed: number = 0;
   private fpsHeldWeaponSwaySpeedTarget: number = 0;
   private fpsHeldWeaponSwipeAnimationStartMs: number = 0;
+  private fpsHeldWeaponSwipeSwingSoundPlayed: boolean = false;
   private readonly fpsHeldWeaponGeometry = new THREE.PlaneGeometry(1, 1);
   private readonly fpsHeldWeaponBaseLocalOffset = new THREE.Vector3(
     0.38,
@@ -1040,11 +1041,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponSwipeSwingMs: number = 100;
   private readonly fpsHeldWeaponSwipeRecoverMs: number = 120;
   private readonly fpsHeldWeaponSwipeWindupRollRad: number =
-    -THREE.MathUtils.degToRad(50);
+    -THREE.MathUtils.degToRad(90);
   private readonly fpsHeldWeaponSwipeWindupTiltRad: number =
-    THREE.MathUtils.degToRad(40);
+    THREE.MathUtils.degToRad(20);
   private readonly fpsHeldWeaponSwipeSwingTiltRad: number =
-    THREE.MathUtils.degToRad(-50);
+    THREE.MathUtils.degToRad(-80);
   private readonly fpsHeldWeaponScaleY: number = 0.72;
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
@@ -1497,6 +1498,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastParsedDamageAtMs: number = 0;
   private lastParsedDefeatMessage: string = "";
   private lastParsedDefeatAtMs: number = 0;
+  private suppressNextFpsHeldWeaponMissedAttackMessageSound: boolean = false;
   private lastDirectionalAttackContext: DirectionalAttackContext | null = null;
   private readonly directionalAttackContextMaxAgeMs: number = 900;
   private pendingFpsHeldWeaponMeleeSwipeContext: PendingFpsHeldWeaponMeleeSwipeContext | null =
@@ -5571,7 +5573,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponSwaySpeed = 0;
     this.fpsHeldWeaponSwaySpeedTarget = 0;
     this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+    this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+    this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
     if (this.fpsHeldWeaponMesh) {
       this.fpsHeldWeaponMesh.visible = false;
     }
@@ -10768,15 +10772,30 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    const isMissMessage = this.isPlayerMissMonsterMessage(normalized);
     const shouldPlaySwipe =
-      this.isPlayerMissMonsterMessage(normalized) ||
+      isMissMessage ||
       this.isPlayerMeleeAttackMessage(normalized) ||
       this.isMonsterDefeatMessage(normalized);
     if (!shouldPlaySwipe) {
       return;
     }
 
-    this.tryPlayFpsHeldWeaponSwipeFromPendingMeleeAttack();
+    if (!this.tryPlayFpsHeldWeaponSwipeFromPendingMeleeAttack()) {
+      return;
+    }
+
+    this.suppressNextFpsHeldWeaponMissedAttackMessageSound = isMissMessage;
+  }
+
+  private consumeFpsHeldWeaponMissedAttackMessageSoundSuppression(
+    message: string,
+  ): boolean {
+    const shouldSuppress =
+      this.suppressNextFpsHeldWeaponMissedAttackMessageSound &&
+      this.isPlayerMissMonsterMessage(message);
+    this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
+    return shouldSuppress;
   }
 
   private isMonsterAttackTargetTile(x: number, y: number): boolean {
@@ -17721,6 +17740,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.lastDirectionalAttackContext = null;
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.pendingPointerAttackTargetContext = null;
+    this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
     this.lastParsedDamageMessage = "";
     this.lastParsedDamageAtMs = 0;
     this.lastParsedDefeatMessage = "";
@@ -24210,7 +24230,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
   private addGameMessage(message: string): void {
     if (!message || message.trim() === "") return;
-    this.messageSoundHooks.playMessageLogSoundEffects(message);
+    const suppressMissedAttackSound =
+      this.consumeFpsHeldWeaponMissedAttackMessageSoundSuppression(message);
+    this.messageSoundHooks.playMessageLogSoundEffects(message, {
+      suppressKeys: suppressMissedAttackSound ? ["missed-attack"] : [],
+    });
 
     this.gameMessages.unshift(message);
     if (this.gameMessages.length > 100) {
@@ -25662,7 +25686,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponSwaySpeed = 0;
     this.fpsHeldWeaponSwaySpeedTarget = 0;
     this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+    this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+    this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
   }
 
   private isHeldWeaponInventoryItem(item: unknown): item is NethackMenuItem {
@@ -25855,6 +25881,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.fpsHeldWeaponSwipeAnimationStartMs = performance.now();
+    this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
   }
 
   private resolveFpsHeldWeaponSwipeAnimation(now: number = performance.now()): {
@@ -25867,12 +25894,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponSwipeSwingMs +
       this.fpsHeldWeaponSwipeRecoverMs;
     if (this.fpsHeldWeaponSwipeAnimationStartMs <= 0) {
+      this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
       this.fpsHeldWeaponSwipeLocalOffset.set(0, 0, 0);
       return { active: false, rollRad: 0, tiltRad: 0 };
     }
     const elapsedMs = now - this.fpsHeldWeaponSwipeAnimationStartMs;
     if (elapsedMs >= totalMs) {
       this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+      this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
       this.fpsHeldWeaponSwipeLocalOffset.set(0, 0, 0);
       return { active: false, rollRad: 0, tiltRad: 0 };
     }
@@ -25905,6 +25934,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       elapsedMs <
       this.fpsHeldWeaponSwipeWindupMs + this.fpsHeldWeaponSwipeSwingMs
     ) {
+      if (!this.fpsHeldWeaponSwipeSwingSoundPlayed) {
+        this.fpsHeldWeaponSwipeSwingSoundPlayed = true;
+        this.messageSoundHooks.playMissedAttackSound();
+      }
       const t = THREE.MathUtils.smoothstep(
         (elapsedMs - this.fpsHeldWeaponSwipeWindupMs) /
           this.fpsHeldWeaponSwipeSwingMs,
@@ -25960,7 +25993,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponSwaySpeed = 0;
       this.fpsHeldWeaponSwaySpeedTarget = 0;
       this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+      this.fpsHeldWeaponSwipeSwingSoundPlayed = false;
       this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+      this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
       return;
     }
 

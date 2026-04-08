@@ -85,8 +85,18 @@ export class MessageSoundHooks {
     void this.playSoundEffect("pickup-gold");
   }
 
-  public playMessageLogSoundEffects(messageLike: unknown): void {
-    const soundKeys = resolveNh3dMessageLogSoundEffectKeys(messageLike);
+  public playMissedAttackSound(): void {
+    void this.playSoundEffect("missed-attack");
+  }
+
+  public playMessageLogSoundEffects(
+    messageLike: unknown,
+    options: { suppressKeys?: readonly Nh3dSoundEffectKey[] } = {},
+  ): void {
+    const suppressedKeys = new Set(options.suppressKeys ?? []);
+    const soundKeys = resolveNh3dMessageLogSoundEffectKeys(messageLike).filter(
+      (soundKey) => !suppressedKeys.has(soundKey),
+    );
     for (const soundKey of soundKeys) {
       void this.playSoundEffect(soundKey);
     }
