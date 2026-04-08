@@ -3,7 +3,7 @@ import type { Nh3dVersionCheckResult, Nh3dVersionTag } from "./types";
 const githubRepoOwner = "JamesIV4";
 const githubRepoName = "nethack-3d";
 const githubRepoUrl = `https://github.com/${githubRepoOwner}/${githubRepoName}`;
-const githubTagsApiUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/tags?per_page=100`;
+const githubReleasesApiUrl = `https://api.github.com/repos/${githubRepoOwner}/${githubRepoName}/releases?per_page=100`;
 const versionCheckTimeoutMs = 20000;
 
 type ParsedSemver = {
@@ -19,6 +19,11 @@ type ParsedVersionTag = Nh3dVersionTag & {
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeNullableString(value: unknown): string | null {
+  const normalized = normalizeString(value);
+  return normalized.length > 0 ? normalized : null;
 }
 
 function resolveCurrentVersion(): string {
@@ -135,14 +140,41 @@ function parseVersionTag(value: unknown): ParsedVersionTag | null {
   };
 }
 
-async function fetchGitHubTags(): Promise<unknown> {
+function parseGitHubRelease(value: unknown): ParsedVersionTag | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const release = value as {
+    body?: unknown;
+    draft?: unknown;
+    html_url?: unknown;
+    tag_name?: unknown;
+  };
+  if (release.draft === true) {
+    return null;
+  }
+
+  const parsedTag = parseVersionTag({ name: release.tag_name });
+  if (!parsedTag) {
+    return null;
+  }
+
+  return {
+    ...parsedTag,
+    releaseNotesMarkdown: normalizeNullableString(release.body),
+    releasePageUrl: normalizeNullableString(release.html_url),
+  };
+}
+
+async function fetchGitHubReleases(): Promise<unknown> {
   const controller = new AbortController();
   const timeoutHandle = window.setTimeout(() => {
     controller.abort();
   }, versionCheckTimeoutMs);
 
   try {
-    const response = await fetch(githubTagsApiUrl, {
+    const response = await fetch(githubReleasesApiUrl, {
       cache: "no-store",
       signal: controller.signal,
     });
@@ -184,14 +216,14 @@ export async function checkForNh3dGitHubVersionUpdates(): Promise<Nh3dVersionChe
   }
 
   try {
-    const payload = await fetchGitHubTags();
+    const payload = await fetchGitHubReleases();
     if (!Array.isArray(payload)) {
       throw new Error("GitHub releases response was invalid.");
     }
 
     const uniqueTags = new Map<string, ParsedVersionTag>();
     for (const entry of payload) {
-      const parsedTag = parseVersionTag(entry);
+      const parsedTag = parseGitHubRelease(entry);
       if (!parsedTag || uniqueTags.has(parsedTag.name)) {
         continue;
       }
@@ -216,6 +248,8 @@ export async function checkForNh3dGitHubVersionUpdates(): Promise<Nh3dVersionChe
       .map<Nh3dVersionTag>((tag) => ({
         name: tag.name,
         version: tag.version,
+        releaseNotesMarkdown: tag.releaseNotesMarkdown ?? null,
+        releasePageUrl: tag.releasePageUrl ?? null,
       }));
 
     return {

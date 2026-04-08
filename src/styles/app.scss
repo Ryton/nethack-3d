@@ -5130,6 +5130,21 @@ canvas {
 }
 
 .nh3d-startup-update-dialog {
+  --nh3d-startup-update-fixed-actions-reserve: 104px;
+  --nh3d-startup-update-details-max-height: min(30vh, 280px);
+  scroll-padding-bottom: var(--nh3d-startup-update-fixed-actions-reserve);
+
+  .nh3d-overflow-glow-frame {
+    border-radius: 8px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+
+  .nh3d-overflow-glow-frame + .nh3d-startup-update-client-warning {
+    margin-top: 0;
+  }
+
   .nh3d-startup-update-client-warning,
   .nh3d-startup-update-error,
   .nh3d-startup-update-progress {
@@ -5147,6 +5162,10 @@ canvas {
     border: 1px solid rgba(188, 161, 90, 0.74);
     background: rgba(92, 68, 22, 0.36);
     color: #ffe2a5;
+  }
+
+  @media (pointer: coarse) {
+    --nh3d-startup-update-fixed-actions-reserve: 124px;
   }
 
   .nh3d-startup-update-warning-toggle {
@@ -5339,11 +5358,13 @@ canvas {
 
   .nh3d-startup-update-details {
     @extend %custom-scrollbar;
+    box-sizing: border-box;
     border: 1px solid rgba(75, 118, 165, 0.62);
     border-radius: 8px;
     background: rgba(8, 20, 34, 0.84);
-    margin-top: 10px;
-    max-height: min(30vh, 280px);
+    margin-top: 0;
+    max-height: var(--nh3d-startup-update-details-max-height);
+    overflow-x: hidden;
     overflow-y: auto;
     padding: 10px 12px;
     text-align: left;
@@ -5358,15 +5379,165 @@ canvas {
   }
 
   .nh3d-startup-update-details-list {
+    box-sizing: border-box;
     margin: 0;
-    padding-left: 20px;
+    max-width: 100%;
+    min-width: 0;
+    padding-left: 0;
+    list-style: none;
   }
 
-  .nh3d-startup-update-details-list li {
+  .nh3d-startup-update-details-list > li {
+    box-sizing: border-box;
     color: var(--nh3d-ui-text);
     font-size: nh3d-scale-font(13px);
     line-height: 1.45;
+    margin: 0;
+    max-width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .nh3d-startup-update-details-list > li + li {
+    border-top: 1px solid rgba(111, 161, 212, 0.18);
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  .nh3d-startup-update-details-release-link,
+  .nh3d-startup-update-details-release-name {
+    color: var(--nh3d-ui-accent-soft);
+    display: inline-block;
+    font-size: nh3d-scale-font(14px);
+    font-weight: 700;
     margin-bottom: 6px;
+    max-width: 100%;
+    word-break: break-word;
+  }
+
+  .nh3d-startup-update-details-release-link {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .nh3d-startup-update-release-notes {
+    box-sizing: border-box;
+    color: var(--nh3d-ui-text);
+    font-size: nh3d-scale-font(12px);
+    line-height: 1.5;
+    max-width: 100%;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .nh3d-startup-update-release-notes > * {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .nh3d-startup-update-release-notes > :first-child {
+    margin-top: 0;
+  }
+
+  .nh3d-startup-update-release-notes > :last-child {
+    margin-bottom: 0;
+  }
+
+  .nh3d-startup-update-release-notes p,
+  .nh3d-startup-update-release-notes ul,
+  .nh3d-startup-update-release-notes ol,
+  .nh3d-startup-update-release-notes pre,
+  .nh3d-startup-update-release-notes blockquote,
+  .nh3d-startup-update-release-notes table {
+    margin: 0 0 10px;
+  }
+
+  .nh3d-startup-update-release-notes ul,
+  .nh3d-startup-update-release-notes ol {
+    padding-left: 20px;
+  }
+
+  .nh3d-startup-update-release-notes li + li {
+    border-top: 0;
+    margin-top: 4px;
+    padding-top: 0;
+  }
+
+  .nh3d-startup-update-release-notes code {
+    background: rgba(18, 31, 47, 0.95);
+    border: 1px solid rgba(111, 161, 212, 0.2);
+    border-radius: 4px;
+    font-size: 0.95em;
+    padding: 1px 4px;
+  }
+
+  .nh3d-startup-update-release-notes pre {
+    @extend %custom-scrollbar;
+    background: rgba(10, 18, 29, 0.96);
+    border: 1px solid rgba(111, 161, 212, 0.24);
+    border-radius: 6px;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 10px;
+  }
+
+  .nh3d-startup-update-release-notes pre code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+  }
+
+  .nh3d-startup-update-release-notes blockquote {
+    border-left: 3px solid rgba(111, 161, 212, 0.36);
+    margin-left: 0;
+    padding-left: 10px;
+  }
+
+  .nh3d-startup-update-release-notes a {
+    color: var(--nh3d-ui-accent-soft);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .nh3d-startup-update-release-notes table {
+    border-collapse: collapse;
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    width: 100%;
+  }
+
+  .nh3d-startup-update-release-notes img {
+    height: auto;
+    max-width: 100%;
+  }
+
+  .nh3d-startup-update-release-notes th,
+  .nh3d-startup-update-release-notes td {
+    border: 1px solid rgba(111, 161, 212, 0.18);
+    padding: 4px 6px;
+    text-align: left;
+  }
+}
+
+.nh3d-startup-update-dialog.nh3d-startup-update-expanded {
+  top: var(--nh3d-modal-safe-center-y);
+  left: var(--nh3d-modal-safe-center-x);
+  bottom: auto;
+  transform: translate(-50%, -50%);
+  height: var(--nh3d-modal-safe-max-height);
+  max-height: var(--nh3d-modal-safe-max-height);
+
+  .nh3d-overflow-glow-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .nh3d-startup-update-details {
+    height: 100%;
+    max-height: none;
   }
 }
 

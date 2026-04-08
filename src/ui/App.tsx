@@ -13,6 +13,8 @@ import {
   type TouchEvent as ReactTouchEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Nethack3DEngine } from "../game";
 import type {
   CharacterCreationConfig,
@@ -175,6 +177,27 @@ const commonStrings = translationStrings.common;
 const t = translationStrings.app;
 const supportedLocaleOptions = getSupportedLocaleOptions();
 const messageInfoMenuCacheLimit = 50;
+
+function UpdateReleaseNotesMarkdown({
+  markdown,
+}: {
+  markdown: string;
+}): JSX.Element {
+  return (
+    <div className="nh3d-startup-update-release-notes">
+      <ReactMarkdown
+        components={{
+          a: ({ ...props }) => (
+            <a {...props} rel="noreferrer" target="_blank" />
+          ),
+        }}
+        remarkPlugins={[remarkGfm]}
+      >
+        {markdown}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
 type MessageInfoMenuHistoryState = {
   entries: InfoMenuState[];
@@ -9234,6 +9257,14 @@ export default function App(): JSX.Element {
       : t.update.loading.runtime;
   const startupInitialLoadingVisible =
     !hasShownStartupMenu && loadingOverlayVisible;
+  const startupMenuVisible =
+    startupUiVisible &&
+    characterCreationConfig === null &&
+    !startupInitialLoadingVisible;
+  const startupUpdateDialogOpen =
+    startupMenuVisible && isStartupUpdateDialogVisible;
+  const startupUpdateExpanded =
+    startupUpdateDialogOpen && startupUpdateDetailsVisible;
   const startupLogoVisible =
     startupUiVisible &&
     !startupInitialLoadingVisible &&
@@ -9249,10 +9280,6 @@ export default function App(): JSX.Element {
     isMobileGameRunning && !gameOverDialogShowsTombstone;
   const hideAllUiForDeferredGameOver =
     reopenNewGamePromptOnInteraction && !newGamePrompt.visible;
-  const startupMenuVisible =
-    startupUiVisible &&
-    characterCreationConfig === null &&
-    !startupInitialLoadingVisible;
   const latestGameMessage =
     gameMessages.length > 0 ? String(gameMessages[0] || "").trim() : "";
   const runtimeInitializationErrorVisible =
@@ -9269,8 +9296,6 @@ export default function App(): JSX.Element {
     startupMenuVisible && startupFlowStep !== "variant"
       ? resolveRuntimeVersionDisplayLabel(runtimeVersion)
       : null;
-  const startupUpdateDialogOpen =
-    startupMenuVisible && isStartupUpdateDialogVisible;
   useEffect(() => {
     if (startupMenuVisible) {
       return;
@@ -14874,7 +14899,9 @@ export default function App(): JSX.Element {
       )}
 
       <AnimatedDialog
-        className="nh3d-dialog nh3d-dialog-question nh3d-dialog-fixed-actions startup nh3d-character-setup-dialog nh3d-startup-update-dialog"
+        className={`nh3d-dialog nh3d-dialog-question nh3d-dialog-fixed-actions startup nh3d-character-setup-dialog nh3d-startup-update-dialog${
+          startupUpdateExpanded ? " nh3d-startup-update-expanded" : ""
+        }`}
         disableAnimations={startupInitialLoadingVisible}
         open={startupUpdateDialogOpen}
         id="nh3d-startup-update-dialog"
@@ -14911,7 +14938,27 @@ export default function App(): JSX.Element {
               <ul className="nh3d-startup-update-details-list">
                 {startupPendingUpdateTags.length > 0 ? (
                   startupPendingUpdateTags.map((entry, index) => (
-                    <li key={`${entry.name}-${index}`}>{entry.name}</li>
+                    <li key={`${entry.name}-${index}`}>
+                      {entry.releasePageUrl ? (
+                        <a
+                          className="nh3d-startup-update-details-release-link"
+                          href={entry.releasePageUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {entry.name}
+                        </a>
+                      ) : (
+                        <div className="nh3d-startup-update-details-release-name">
+                          {entry.name}
+                        </div>
+                      )}
+                      {entry.releaseNotesMarkdown ? (
+                        <UpdateReleaseNotesMarkdown
+                          markdown={entry.releaseNotesMarkdown}
+                        />
+                      ) : null}
+                    </li>
                   ))
                 ) : (
                   <li>{t.dialogs.startupUpdate.payloadAvailable}</li>

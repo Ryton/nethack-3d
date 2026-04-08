@@ -1,6 +1,8 @@
 export type Nh3dVersionTag = {
   name: string;
   version: string;
+  releaseNotesMarkdown?: string | null;
+  releasePageUrl?: string | null;
 };
 
 export type Nh3dVersionCheckResult = {
