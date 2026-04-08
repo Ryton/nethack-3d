@@ -987,6 +987,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsHeldWeaponTextureSignature: string = "";
   private fpsHeldWeaponLagYaw: number | null = null;
   private fpsHeldWeaponLagPitch: number | null = null;
+  private readonly fpsHeldWeaponMovementOffset = new THREE.Vector2();
+  private fpsHeldWeaponSwayPhase: number = 0;
+  private fpsHeldWeaponSwaySpeed: number = 0;
+  private fpsHeldWeaponSwaySpeedTarget: number = 0;
   private readonly fpsHeldWeaponGeometry = new THREE.PlaneGeometry(1, 1);
   private readonly fpsHeldWeaponBaseLocalOffset = new THREE.Vector3(
     0.38,
@@ -1002,6 +1006,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponPitchLagAmount: number = 0.48;
   private readonly fpsHeldWeaponPitchLagMax: number = 0.12;
   private readonly fpsHeldWeaponPitchOffsetRange: number = 0.11;
+  private readonly fpsHeldWeaponSwayHorizontalAmplitude: number = 0.04833333333333333;
+  private readonly fpsHeldWeaponSwayVerticalAmplitude: number = 0.055;
+  private readonly fpsHeldWeaponSwaySpeedImpulsePerTileFromRest: number = 2.9;
+  private readonly fpsHeldWeaponSwaySpeedImpulsePerTileWhileMoving: number = 0.95;
+  private readonly fpsHeldWeaponSwaySpeedMax: number = 4.07;
+  private readonly fpsHeldWeaponSwaySpeedApproachHalfLifeMs: number = 90;
+  private readonly fpsHeldWeaponSwaySpeedDecayHalfLifeMs: number = 650;
   private readonly fpsHeldWeaponScaleY: number = 0.72;
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
@@ -5520,6 +5531,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.asciiPendingPlayerTile = null;
     this.fpsHeldWeaponLagYaw = null;
     this.fpsHeldWeaponLagPitch = null;
+    this.fpsHeldWeaponMovementOffset.set(0, 0);
+    this.fpsHeldWeaponSwayPhase = 0;
+    this.fpsHeldWeaponSwaySpeed = 0;
+    this.fpsHeldWeaponSwaySpeedTarget = 0;
     if (this.fpsHeldWeaponMesh) {
       this.fpsHeldWeaponMesh.visible = false;
     }
@@ -24628,6 +24643,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
     }
     this.fpsStepCameraDurationMs = nextDurationMs;
+    this.applyFpsHeldWeaponSwayImpulse(fromX, fromY, toX, toY);
 
     this.fpsStepCameraTo.set(toEyeX, toEyeY, this.firstPersonEyeHeight);
     this.fpsStepCameraTargetTile = { x: toX, y: toY };
@@ -25509,6 +25525,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.fpsHeldWeaponLagYaw = null;
     this.fpsHeldWeaponLagPitch = null;
+    this.fpsHeldWeaponMovementOffset.set(0, 0);
+    this.fpsHeldWeaponSwayPhase = 0;
+    this.fpsHeldWeaponSwaySpeed = 0;
+    this.fpsHeldWeaponSwaySpeedTarget = 0;
   }
 
   private isHeldWeaponInventoryItem(item: unknown): item is NethackMenuItem {
@@ -25617,6 +25637,83 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return contentHeight > 0 ? contentWidth / contentHeight : 1;
   }
 
+  private applyFpsHeldWeaponSwayImpulse(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+  ): void {
+    const moveTileX = toX - fromX;
+    const moveTileY = toY - fromY;
+    const stepDistanceTiles = Math.hypot(moveTileX, moveTileY);
+    if (stepDistanceTiles <= 0.0001) {
+      return;
+    }
+
+    const currentSpeedT = THREE.MathUtils.clamp(
+      this.fpsHeldWeaponSwaySpeedTarget / this.fpsHeldWeaponSwaySpeedMax,
+      0,
+      1,
+    );
+    const impulsePerTile = THREE.MathUtils.lerp(
+      this.fpsHeldWeaponSwaySpeedImpulsePerTileFromRest,
+      this.fpsHeldWeaponSwaySpeedImpulsePerTileWhileMoving,
+      currentSpeedT,
+    );
+    this.fpsHeldWeaponSwaySpeedTarget = THREE.MathUtils.clamp(
+      this.fpsHeldWeaponSwaySpeedTarget + stepDistanceTiles * impulsePerTile,
+      0,
+      this.fpsHeldWeaponSwaySpeedMax,
+    );
+  }
+
+  private resolveFpsHeldWeaponMovementOffset(
+    deltaSeconds: number,
+  ): THREE.Vector2 {
+    const dt = Math.min(Math.max(0, deltaSeconds), 0.1);
+
+    if (!this.fpsStepCameraActive) {
+      this.fpsHeldWeaponSwaySpeedTarget *= Math.exp(
+        (-Math.LN2 * dt * 1000) /
+          this.fpsHeldWeaponSwaySpeedDecayHalfLifeMs,
+      );
+      if (Math.abs(this.fpsHeldWeaponSwaySpeedTarget) < 0.0001) {
+        this.fpsHeldWeaponSwaySpeedTarget = 0;
+      }
+    }
+    const swaySpeedAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * dt * 1000) / this.fpsHeldWeaponSwaySpeedApproachHalfLifeMs,
+      );
+    this.fpsHeldWeaponSwaySpeed +=
+      (this.fpsHeldWeaponSwaySpeedTarget - this.fpsHeldWeaponSwaySpeed) *
+      swaySpeedAlpha;
+    if (Math.abs(this.fpsHeldWeaponSwaySpeed) < 0.0001) {
+      this.fpsHeldWeaponSwaySpeed = 0;
+    }
+    this.fpsHeldWeaponSwayPhase = THREE.MathUtils.euclideanModulo(
+      this.fpsHeldWeaponSwayPhase + this.fpsHeldWeaponSwaySpeed * dt,
+      Math.PI * 2,
+    );
+    const swaySpeedT = THREE.MathUtils.clamp(
+      this.fpsHeldWeaponSwaySpeed / this.fpsHeldWeaponSwaySpeedMax,
+      0,
+      1,
+    );
+    const swayAmountT = swaySpeedT * swaySpeedT * (3 - 2 * swaySpeedT);
+    const swayHorizontal = Math.cos(this.fpsHeldWeaponSwayPhase);
+    const swayVertical =
+      -Math.sin(this.fpsHeldWeaponSwayPhase) *
+      Math.sin(this.fpsHeldWeaponSwayPhase);
+
+    this.fpsHeldWeaponMovementOffset.set(
+      swayHorizontal * this.fpsHeldWeaponSwayHorizontalAmplitude * swayAmountT,
+      swayVertical * this.fpsHeldWeaponSwayVerticalAmplitude * swayAmountT,
+    );
+    return this.fpsHeldWeaponMovementOffset;
+  }
+
   private syncFpsHeldWeaponSprite(deltaSeconds: number): void {
     const textureState = this.resolveFpsHeldWeaponTextureState();
     if (!textureState) {
@@ -25625,6 +25722,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
       this.fpsHeldWeaponLagYaw = null;
       this.fpsHeldWeaponLagPitch = null;
+      this.fpsHeldWeaponMovementOffset.set(0, 0);
+      this.fpsHeldWeaponSwayPhase = 0;
+      this.fpsHeldWeaponSwaySpeed = 0;
+      this.fpsHeldWeaponSwaySpeedTarget = 0;
       return;
     }
 
@@ -25718,10 +25819,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
     const pitchOffset =
       (0.5 - pitchT) * 2 * this.fpsHeldWeaponPitchOffsetRange + pitchLagOffset;
+    const movementOffset = this.resolveFpsHeldWeaponMovementOffset(
+      deltaSeconds,
+    );
 
     this.fpsHeldWeaponLocalOffset.copy(this.fpsHeldWeaponBaseLocalOffset);
-    this.fpsHeldWeaponLocalOffset.x += yawLagOffset;
-    this.fpsHeldWeaponLocalOffset.y += pitchOffset;
+    this.fpsHeldWeaponLocalOffset.x += yawLagOffset + movementOffset.x;
+    this.fpsHeldWeaponLocalOffset.y += pitchOffset + movementOffset.y;
     this.fromCameraLocalOffset(
       this.fpsHeldWeaponLocalOffset,
       this.fpsHeldWeaponWorldPosition,
