@@ -95,7 +95,7 @@ const createDefaultMeleeSwipe1Keyframes =
       durationMs: 1,
       translation: {
         x: -0.23,
-        y: 0.09,
+        y: 0.16,
         z: -0.07,
       },
       rotationDeg: {
@@ -103,12 +103,13 @@ const createDefaultMeleeSwipe1Keyframes =
         y: -29.4,
         z: -131,
       },
+      soundEffect: "missed_attack",
     },
     {
-      durationMs: 150,
+      durationMs: 170,
       translation: {
-        x: -1.19,
-        y: 0.38,
+        x: -1.15,
+        y: 0.25,
         z: 0.16,
       },
       rotationDeg: {
@@ -116,12 +117,19 @@ const createDefaultMeleeSwipe1Keyframes =
         y: 0,
         z: 67.1,
       },
-      soundEffect: "missed_attack",
     },
     {
-      durationMs: 260,
-      translation: createZeroVector3(),
-      rotationDeg: createZeroVector3(),
+      durationMs: 400,
+      translation: {
+        x: -0.401,
+        y: -0.026,
+        z: 0.055,
+      },
+      rotationDeg: {
+        x: -8.2,
+        y: 0,
+        z: -65.4,
+      },
     },
   ];
 
@@ -139,9 +147,10 @@ const createDefaultMeleeSwipe2Keyframes =
         y: 34.5,
         z: 71.1,
       },
+      soundEffect: "missed_attack",
     },
     {
-      durationMs: 150,
+      durationMs: 200,
       translation: {
         x: -0.12,
         y: 0,
@@ -150,14 +159,21 @@ const createDefaultMeleeSwipe2Keyframes =
       rotationDeg: {
         x: -53.8,
         y: -1.2,
-        z: -121.4,
+        z: -145.7,
       },
-      soundEffect: "missed_attack",
     },
     {
       durationMs: 350,
-      translation: createZeroVector3(),
-      rotationDeg: createZeroVector3(),
+      translation: {
+        x: -0.401,
+        y: -0.026,
+        z: 0.055,
+      },
+      rotationDeg: {
+        x: -8.2,
+        y: 0,
+        z: -65.4,
+      },
     },
   ];
 
@@ -175,9 +191,10 @@ const createDefaultMeleeSwipe3Keyframes =
         y: -100,
         z: -60,
       },
+      soundEffect: "missed_attack",
     },
     {
-      durationMs: 100,
+      durationMs: 110,
       translation: {
         x: -0.34,
         y: 0.08,
@@ -188,12 +205,63 @@ const createDefaultMeleeSwipe3Keyframes =
         y: -75.2,
         z: 70,
       },
+    },
+    {
+      durationMs: 400,
+      translation: {
+        x: -0.401,
+        y: -0.026,
+        z: 0.055,
+      },
+      rotationDeg: {
+        x: -8.2,
+        y: 0,
+        z: -65.4,
+      },
+    },
+  ];
+
+const createDefaultMeleeSwipe4Keyframes =
+  (): FpsHeldWeaponAnimationKeyframe[] => [
+    {
+      durationMs: 1,
+      translation: {
+        x: -0.49,
+        y: 0.3,
+        z: 0.5,
+      },
+      rotationDeg: {
+        x: -102.9,
+        y: -29.7,
+        z: -49.4,
+      },
       soundEffect: "missed_attack",
     },
     {
-      durationMs: 300,
-      translation: createZeroVector3(),
-      rotationDeg: createZeroVector3(),
+      durationMs: 75,
+      translation: {
+        x: -0.5,
+        y: 0.37,
+        z: 0.05,
+      },
+      rotationDeg: {
+        x: -93.5,
+        y: -34.2,
+        z: -37.4,
+      },
+    },
+    {
+      durationMs: 400,
+      translation: {
+        x: -0.401,
+        y: -0.026,
+        z: 0.055,
+      },
+      rotationDeg: {
+        x: -8.2,
+        y: 0,
+        z: -65.4,
+      },
     },
   ];
 
@@ -241,45 +309,7 @@ export const defaultFpsHeldWeaponAnimationLibrary: FpsHeldWeaponAnimationLibrary
         y: -0.5,
         z: 0,
       },
-      keyframes: [
-        {
-          durationMs: 1,
-          translation: {
-            x: -0.49,
-            y: 0.3,
-            z: 0.5,
-          },
-          rotationDeg: {
-            x: -102.9,
-            y: -29.7,
-            z: -49.4,
-          },
-        },
-        {
-          durationMs: 75,
-          translation: {
-            x: -0.5,
-            y: 0.37,
-            z: 0.05,
-          },
-          rotationDeg: {
-            x: -93.5,
-            y: -34.2,
-            z: -37.4,
-          },
-          soundEffect: "missed_attack",
-        },
-        {
-          durationMs: 400,
-          translation: createZeroVector3(),
-          rotationDeg: createZeroVector3(),
-        },
-        {
-          durationMs: 400,
-          translation: createZeroVector3(),
-          rotationDeg: createZeroVector3(),
-        },
-      ],
+      keyframes: createDefaultMeleeSwipe4Keyframes(),
     },
   };
 

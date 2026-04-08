@@ -307,14 +307,34 @@ type FpsHeldWeaponAnimationEditorInputMap = Record<
 type FpsHeldWeaponAnimationEditorElements = {
   panel: HTMLDivElement | null;
   animationSelect: HTMLSelectElement | null;
+  copyButton: HTMLButtonElement | null;
   weightInput: HTMLInputElement | null;
   keyframeSelect: HTMLSelectElement | null;
   durationInput: HTMLInputElement | null;
   slowMoCheckbox: HTMLInputElement | null;
+  previewKeyframeCheckbox: HTMLInputElement | null;
   statusLabel: HTMLDivElement | null;
+  noteLabel: HTMLDivElement | null;
+  weightRow: HTMLDivElement | null;
+  previewRow: HTMLDivElement | null;
+  keyframeRow: HTMLDivElement | null;
+  addRow: HTMLDivElement | null;
+  durationRow: HTMLDivElement | null;
+  basePositionSection: HTMLDivElement | null;
+  baseRotationSection: HTMLDivElement | null;
+  pivotSection: HTMLDivElement | null;
+  translationSection: HTMLDivElement | null;
+  rotationSection: HTMLDivElement | null;
+  basePositionInputs: FpsHeldWeaponAnimationEditorInputMap;
+  baseRotationInputs: FpsHeldWeaponAnimationEditorInputMap;
   pivotInputs: FpsHeldWeaponAnimationEditorInputMap;
   translationInputs: FpsHeldWeaponAnimationEditorInputMap;
   rotationInputs: FpsHeldWeaponAnimationEditorInputMap;
+};
+
+type FpsHeldWeaponBasePoseDefinition = {
+  position: FpsHeldWeaponAnimationVector3;
+  rotationDeg: FpsHeldWeaponAnimationVector3;
 };
 
 const createZeroFpsHeldWeaponAnimationVector =
@@ -323,6 +343,56 @@ const createZeroFpsHeldWeaponAnimationVector =
     y: 0,
     z: 0,
   });
+
+const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID =
+  "__fps_held_weapon_base_pose__";
+const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL =
+  "Weapon Idle Offset";
+
+const roundFpsHeldWeaponAnimationDebugNumber = (
+  value: number,
+  decimals: number = 4,
+): number => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+};
+
+const createDefaultFpsHeldWeaponBasePoseDefinition =
+  (): FpsHeldWeaponBasePoseDefinition => ({
+    position: {
+      x: 0.12,
+      y: 0.06,
+      z: -0.01,
+    },
+    rotationDeg: {
+      x: -8.2,
+      y: 0,
+      z: -65.4,
+    },
+  });
+
+const serializeFpsHeldWeaponBasePoseDefinition = (
+  basePose: FpsHeldWeaponBasePoseDefinition,
+): string =>
+  JSON.stringify(
+    {
+      positionOffset: {
+        x: roundFpsHeldWeaponAnimationDebugNumber(basePose.position.x),
+        y: roundFpsHeldWeaponAnimationDebugNumber(basePose.position.y),
+        z: roundFpsHeldWeaponAnimationDebugNumber(basePose.position.z),
+      },
+      rotationOffsetDeg: {
+        x: roundFpsHeldWeaponAnimationDebugNumber(basePose.rotationDeg.x),
+        y: roundFpsHeldWeaponAnimationDebugNumber(basePose.rotationDeg.y),
+        z: roundFpsHeldWeaponAnimationDebugNumber(basePose.rotationDeg.z),
+      },
+    },
+    null,
+    2,
+  );
 
 const MINIMAP_WIDTH_TILES = 79;
 const MINIMAP_HEIGHT_TILES = 21;
@@ -1057,9 +1127,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     -0.28,
     -0.72,
   );
+  private readonly fpsHeldWeaponBasePose: FpsHeldWeaponBasePoseDefinition =
+    createDefaultFpsHeldWeaponBasePoseDefinition();
   private readonly fpsHeldWeaponLocalOffset = new THREE.Vector3();
   private readonly fpsHeldWeaponWorldPosition = new THREE.Vector3();
   private readonly fpsHeldWeaponWorldQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldWeaponBaseRotationEuler = new THREE.Euler();
+  private readonly fpsHeldWeaponBaseRotationQuaternion = new THREE.Quaternion();
   private readonly fpsHeldWeaponAnimationPivotLocal = new THREE.Vector3();
   private readonly fpsHeldWeaponAnimationCenterFromPivot = new THREE.Vector3();
   private readonly fpsHeldWeaponAnimationRotatedCenter = new THREE.Vector3();
@@ -1488,15 +1562,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
     FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID;
   private fpsHeldWeaponAnimationDebugSelectedKeyframeIndex: number = 0;
   private fpsHeldWeaponAnimationDebugSlowMoEnabled: boolean = false;
+  private fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe: boolean = true;
   private readonly fpsHeldWeaponAnimationDebugElements: FpsHeldWeaponAnimationEditorElements =
     {
       panel: null,
       animationSelect: null,
+      copyButton: null,
       weightInput: null,
       keyframeSelect: null,
       durationInput: null,
       slowMoCheckbox: null,
+      previewKeyframeCheckbox: null,
       statusLabel: null,
+      noteLabel: null,
+      weightRow: null,
+      previewRow: null,
+      keyframeRow: null,
+      addRow: null,
+      durationRow: null,
+      basePositionSection: null,
+      baseRotationSection: null,
+      pivotSection: null,
+      translationSection: null,
+      rotationSection: null,
+      basePositionInputs: { x: null, y: null, z: null },
+      baseRotationInputs: { x: null, y: null, z: null },
       pivotInputs: { x: null, y: null, z: null },
       translationInputs: { x: null, y: null, z: null },
       rotationInputs: { x: null, y: null, z: null },
@@ -26107,7 +26197,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearFpsHeldWeaponAnimationState();
     }
 
-    if (this.fpsHeldWeaponAnimationDebugVisible) {
+    if (
+      this.fpsHeldWeaponAnimationDebugVisible &&
+      this.fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe
+    ) {
       const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
       if (animation && animation.keyframes.length > 0) {
         const keyframeIndex = THREE.MathUtils.clamp(
@@ -26247,10 +26340,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const fovDepthCompensationScale =
       this.resolveFpsHeldWeaponFovDepthCompensationScale();
 
-    this.fpsHeldWeaponLocalOffset.copy(this.fpsHeldWeaponBaseLocalOffset);
+    this.fpsHeldWeaponLocalOffset.set(
+      this.fpsHeldWeaponBaseLocalOffset.x,
+      this.fpsHeldWeaponBaseLocalOffset.y,
+      this.fpsHeldWeaponBaseLocalOffset.z,
+    );
     this.fpsHeldWeaponLocalOffset.z *= fovDepthCompensationScale;
     this.fpsHeldWeaponLocalOffset.x += yawLagOffset + movementOffset.x;
     this.fpsHeldWeaponLocalOffset.y += pitchOffset + movementOffset.y;
+    if (!animationPose.active) {
+      this.fpsHeldWeaponLocalOffset.x += this.fpsHeldWeaponBasePose.position.x;
+      this.fpsHeldWeaponLocalOffset.y += this.fpsHeldWeaponBasePose.position.y;
+      this.fpsHeldWeaponLocalOffset.z += this.fpsHeldWeaponBasePose.position.z;
+    }
     if (animationPose.active) {
       const width = Math.abs(horizontalScale);
       const height = this.fpsHeldWeaponScaleY;
@@ -26287,14 +26389,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponWorldPosition,
     );
     mesh.position.copy(this.fpsHeldWeaponWorldPosition);
-    if (animationPose.active) {
-      this.fpsHeldWeaponWorldQuaternion
-        .copy(this.camera.quaternion)
-        .multiply(this.fpsHeldWeaponAnimationQuaternion);
-      mesh.quaternion.copy(this.fpsHeldWeaponWorldQuaternion);
-    } else {
-      mesh.quaternion.copy(this.camera.quaternion);
-    }
+    this.fpsHeldWeaponBaseRotationEuler.set(
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? animationPose.rotationDeg.x
+          : this.fpsHeldWeaponBasePose.rotationDeg.x,
+      ),
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? animationPose.rotationDeg.y
+          : this.fpsHeldWeaponBasePose.rotationDeg.y,
+      ),
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? animationPose.rotationDeg.z
+          : this.fpsHeldWeaponBasePose.rotationDeg.z,
+      ),
+      "XYZ",
+    );
+    this.fpsHeldWeaponBaseRotationQuaternion.setFromEuler(
+      this.fpsHeldWeaponBaseRotationEuler,
+    );
+    this.fpsHeldWeaponWorldQuaternion
+      .copy(this.camera.quaternion)
+      .multiply(this.fpsHeldWeaponBaseRotationQuaternion);
+    mesh.quaternion.copy(this.fpsHeldWeaponWorldQuaternion);
     mesh.visible = true;
   }
 
@@ -29598,9 +29717,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return Number(value.toFixed(decimals)).toString();
   }
 
+  private isFpsHeldWeaponAnimationDebugBasePoseSelected(): boolean {
+    return (
+      this.fpsHeldWeaponAnimationDebugSelectedAnimationId ===
+      FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID
+    );
+  }
+
   private getFpsHeldWeaponAnimationDebugSelectedAnimation():
     | FpsHeldWeaponAnimationDefinition
     | null {
+    if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
+      return null;
+    }
     const selected = this.getFpsHeldWeaponAnimation(
       this.fpsHeldWeaponAnimationDebugSelectedAnimationId,
     );
@@ -29649,19 +29778,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const animations = Object.values(this.fpsHeldWeaponAnimations).sort((a, b) =>
       a.label.localeCompare(b.label),
     );
-    if (animations.length <= 0) {
-      select.replaceChildren();
-      return;
-    }
     if (
+      !this.isFpsHeldWeaponAnimationDebugBasePoseSelected() &&
       !this.fpsHeldWeaponAnimations[
         this.fpsHeldWeaponAnimationDebugSelectedAnimationId
       ]
     ) {
-      this.fpsHeldWeaponAnimationDebugSelectedAnimationId = animations[0].id;
+      this.fpsHeldWeaponAnimationDebugSelectedAnimationId =
+        animations[0]?.id ?? FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID;
     }
 
     select.replaceChildren();
+    const basePoseOption = document.createElement("option");
+    basePoseOption.value = FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID;
+    basePoseOption.textContent = FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL;
+    select.appendChild(basePoseOption);
     for (const animation of animations) {
       const option = document.createElement("option");
       option.value = animation.id;
@@ -29680,8 +29811,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
     select.replaceChildren();
     if (!animation || animation.keyframes.length <= 0) {
+      select.disabled = true;
       return;
     }
+    select.disabled = false;
     this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = THREE.MathUtils.clamp(
       this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
       0,
@@ -29701,9 +29834,48 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private syncFpsHeldWeaponAnimationDebugFieldValues(): void {
+    const basePoseSelected = this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
     const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+    const basePose = this.fpsHeldWeaponBasePose;
+
+    const previewKeyframeCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.previewKeyframeCheckbox;
+    if (previewKeyframeCheckbox) {
+      previewKeyframeCheckbox.checked =
+        this.fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe;
+    }
+    for (const axis of ["x", "y", "z"] as const) {
+      const basePositionInput =
+        this.fpsHeldWeaponAnimationDebugElements.basePositionInputs[axis];
+      if (basePositionInput) {
+        basePositionInput.value = this.formatFpsHeldWeaponAnimationDebugNumber(
+          basePose.position[axis],
+        );
+      }
+      const baseRotationInput =
+        this.fpsHeldWeaponAnimationDebugElements.baseRotationInputs[axis];
+      if (baseRotationInput) {
+        baseRotationInput.value = this.formatFpsHeldWeaponAnimationDebugNumber(
+          basePose.rotationDeg[axis],
+        );
+      }
+    }
+    const slowMoCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox;
+    if (slowMoCheckbox) {
+      slowMoCheckbox.checked = this.fpsHeldWeaponAnimationDebugSlowMoEnabled;
+    }
     if (!animation || !keyframe) {
+      const weightInput = this.fpsHeldWeaponAnimationDebugElements.weightInput;
+      if (weightInput && basePoseSelected) {
+        weightInput.value = "1";
+      }
+      const durationInput =
+        this.fpsHeldWeaponAnimationDebugElements.durationInput;
+      if (durationInput && basePoseSelected) {
+        durationInput.value = "";
+      }
       return;
     }
 
@@ -29716,11 +29888,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const durationInput = this.fpsHeldWeaponAnimationDebugElements.durationInput;
     if (durationInput) {
       durationInput.value = `${Math.max(1, Math.round(keyframe.durationMs))}`;
-    }
-    const slowMoCheckbox =
-      this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox;
-    if (slowMoCheckbox) {
-      slowMoCheckbox.checked = this.fpsHeldWeaponAnimationDebugSlowMoEnabled;
     }
     for (const axis of ["x", "y", "z"] as const) {
       const pivotInput =
@@ -29747,10 +29914,83 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private syncFpsHeldWeaponAnimationDebugLayout(): void {
+    const basePoseSelected = this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
+    const { copyButton, noteLabel } = this.fpsHeldWeaponAnimationDebugElements;
+    if (copyButton) {
+      copyButton.textContent = basePoseSelected ? "Copy Offset" : "Copy Animation";
+    }
+    if (noteLabel) {
+      noteLabel.textContent = basePoseSelected
+        ? "Weapon idle offset is added on top of the original hidden baseline pose and used for the resting pose."
+        : "Weight affects random selection. Duration is the time from the previous keyframe into the current one.";
+    }
+    const setDisplay = (
+      element: HTMLElement | null,
+      visible: boolean,
+      displayValue: string,
+    ): void => {
+      if (element) {
+        element.style.display = visible ? displayValue : "none";
+      }
+    };
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.weightRow,
+      !basePoseSelected,
+      "grid",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.previewRow,
+      !basePoseSelected,
+      "grid",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.keyframeRow,
+      !basePoseSelected,
+      "grid",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.addRow,
+      !basePoseSelected,
+      "grid",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.durationRow,
+      !basePoseSelected,
+      "grid",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.basePositionSection,
+      basePoseSelected,
+      "block",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.baseRotationSection,
+      basePoseSelected,
+      "block",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.pivotSection,
+      !basePoseSelected,
+      "block",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.translationSection,
+      !basePoseSelected,
+      "block",
+    );
+    setDisplay(
+      this.fpsHeldWeaponAnimationDebugElements.rotationSection,
+      !basePoseSelected,
+      "block",
+    );
+  }
+
   private syncFpsHeldWeaponAnimationDebugUi(): void {
     this.syncFpsHeldWeaponAnimationDebugAnimationOptions();
     this.syncFpsHeldWeaponAnimationDebugKeyframeOptions();
     this.syncFpsHeldWeaponAnimationDebugFieldValues();
+    this.syncFpsHeldWeaponAnimationDebugLayout();
   }
 
   private getVisibleMinimapBounds(): DOMRect | null {
@@ -29793,14 +30033,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     panel.style.overflowY = "auto";
   }
 
-  private async copyFpsHeldWeaponAnimationDebugSelectionToClipboard(): Promise<void> {
-    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
-    if (!animation) {
-      this.setFpsHeldWeaponAnimationDebugStatus("No animation selected.");
-      return;
-    }
-
-    const payload = serializeFpsHeldWeaponAnimationDefinition(animation);
+  private async copyFpsHeldWeaponAnimationDebugTextToClipboard(
+    payload: string,
+    successMessage: string,
+  ): Promise<void> {
     try {
       if (
         typeof navigator !== "undefined" &&
@@ -29808,9 +30044,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         typeof navigator.clipboard.writeText === "function"
       ) {
         await navigator.clipboard.writeText(payload);
-        this.setFpsHeldWeaponAnimationDebugStatus(
-          `Copied ${animation.label} to clipboard.`,
-        );
+        this.setFpsHeldWeaponAnimationDebugStatus(successMessage);
         return;
       }
     } catch (_error) {
@@ -29829,9 +30063,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const copied = document.execCommand("copy");
       textarea.remove();
       if (copied) {
-        this.setFpsHeldWeaponAnimationDebugStatus(
-          `Copied ${animation.label} to clipboard.`,
-        );
+        this.setFpsHeldWeaponAnimationDebugStatus(successMessage);
       } else {
         this.setFpsHeldWeaponAnimationDebugStatus(
           "Copy failed. Open console and copy manually.",
@@ -29847,7 +30079,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
     console.log(payload);
   }
 
+  private async copyFpsHeldWeaponAnimationDebugSelectionToClipboard(): Promise<void> {
+    if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
+      const payload = serializeFpsHeldWeaponBasePoseDefinition(
+        this.fpsHeldWeaponBasePose,
+      );
+      await this.copyFpsHeldWeaponAnimationDebugTextToClipboard(
+        payload,
+        "Copied weapon idle offset to clipboard.",
+      );
+      return;
+    }
+
+    const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+    if (!animation) {
+      this.setFpsHeldWeaponAnimationDebugStatus("No animation selected.");
+      return;
+    }
+
+    const payload = serializeFpsHeldWeaponAnimationDefinition(animation);
+    await this.copyFpsHeldWeaponAnimationDebugTextToClipboard(
+      payload,
+      `Copied ${animation.label} to clipboard.`,
+    );
+  }
+
   private previewSelectedFpsHeldWeaponAnimation(): void {
+    if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
+      this.clearFpsHeldWeaponAnimationState();
+      this.setFpsHeldWeaponAnimationDebugStatus(
+        "Weapon idle offset does not use animation playback.",
+      );
+      return;
+    }
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
     if (!animation) {
       this.setFpsHeldWeaponAnimationDebugStatus("No animation selected.");
@@ -29895,6 +30159,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private insertFpsHeldWeaponAnimationDebugKeyframe(
     position: "before" | "after",
   ): void {
+    if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
+      this.setFpsHeldWeaponAnimationDebugStatus(
+        "Weapon idle offset does not use keyframes.",
+      );
+      return;
+    }
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
     const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
     if (!animation || !keyframe) {
@@ -29947,13 +30217,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const headerRow = document.createElement("div");
     headerRow.style.display = "flex";
     headerRow.style.justifyContent = "space-between";
-    headerRow.style.alignItems = "center";
+    headerRow.style.alignItems = "flex-start";
+    headerRow.style.gap = "8px";
     headerRow.style.marginBottom = "8px";
 
     const title = document.createElement("div");
     title.textContent = "Weapon Animation";
     title.style.fontWeight = "700";
     headerRow.appendChild(title);
+
+    const headerActions = document.createElement("div");
+    headerActions.style.display = "flex";
+    headerActions.style.flexWrap = "wrap";
+    headerActions.style.justifyContent = "flex-end";
+    headerActions.style.gap = "6px";
 
     const copyButton = document.createElement("button");
     copyButton.type = "button";
@@ -29963,7 +30240,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     copyButton.addEventListener("click", () => {
       void this.copyFpsHeldWeaponAnimationDebugSelectionToClipboard();
     });
-    headerRow.appendChild(copyButton);
+    headerActions.appendChild(copyButton);
+    this.fpsHeldWeaponAnimationDebugElements.copyButton = copyButton;
+
+    headerRow.appendChild(headerActions);
     panel.appendChild(headerRow);
 
     const createRow = (labelText: string): HTMLDivElement => {
@@ -29988,6 +30268,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     animationSelect.addEventListener("change", () => {
       this.fpsHeldWeaponAnimationDebugSelectedAnimationId = animationSelect.value;
       this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = 0;
+      if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
+        this.clearFpsHeldWeaponAnimationState();
+      }
       this.syncFpsHeldWeaponAnimationDebugUi();
       this.setFpsHeldWeaponAnimationDebugStatus("");
     });
@@ -29995,6 +30278,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponAnimationDebugElements.animationSelect = animationSelect;
 
     const weightRow = createRow("Weight");
+    this.fpsHeldWeaponAnimationDebugElements.weightRow = weightRow;
     const weightInput = document.createElement("input");
     weightInput.type = "number";
     weightInput.step = "0.05";
@@ -30024,6 +30308,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponAnimationDebugElements.weightInput = weightInput;
 
     const previewRow = createRow("Preview");
+    this.fpsHeldWeaponAnimationDebugElements.previewRow = previewRow;
     const previewControls = document.createElement("div");
     previewControls.style.display = "flex";
     previewControls.style.alignItems = "center";
@@ -30058,11 +30343,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
     slowMoLabel.appendChild(slowMoText);
     previewControls.appendChild(slowMoLabel);
 
+    const previewKeyframeLabel = document.createElement("label");
+    previewKeyframeLabel.style.display = "inline-flex";
+    previewKeyframeLabel.style.alignItems = "center";
+    previewKeyframeLabel.style.gap = "6px";
+    previewKeyframeLabel.style.cursor = "pointer";
+
+    const previewKeyframeCheckbox = document.createElement("input");
+    previewKeyframeCheckbox.type = "checkbox";
+    previewKeyframeCheckbox.checked =
+      this.fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe;
+    previewKeyframeCheckbox.addEventListener("change", () => {
+      this.fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe =
+        previewKeyframeCheckbox.checked;
+    });
+    previewKeyframeLabel.appendChild(previewKeyframeCheckbox);
+
+    const previewKeyframeText = document.createElement("span");
+    previewKeyframeText.textContent = "Show Keyframe";
+    previewKeyframeLabel.appendChild(previewKeyframeText);
+    previewControls.appendChild(previewKeyframeLabel);
+
     previewRow.appendChild(previewControls);
     this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox =
       slowMoCheckbox;
+    this.fpsHeldWeaponAnimationDebugElements.previewKeyframeCheckbox =
+      previewKeyframeCheckbox;
 
     const keyframeRow = createRow("Keyframe");
+    this.fpsHeldWeaponAnimationDebugElements.keyframeRow = keyframeRow;
     const keyframeSelect = document.createElement("select");
     keyframeSelect.style.font = "11px monospace";
     keyframeSelect.style.padding = "2px 4px";
@@ -30079,6 +30388,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponAnimationDebugElements.keyframeSelect = keyframeSelect;
 
     const addButtonsRow = createRow("Add");
+    this.fpsHeldWeaponAnimationDebugElements.addRow = addButtonsRow;
     const addButtons = document.createElement("div");
     addButtons.style.display = "flex";
     addButtons.style.gap = "8px";
@@ -30106,6 +30416,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     addButtonsRow.appendChild(addButtons);
 
     const durationRow = createRow("Duration");
+    this.fpsHeldWeaponAnimationDebugElements.durationRow = durationRow;
     const durationInput = document.createElement("input");
     durationInput.type = "number";
     durationInput.step = "1";
@@ -30136,7 +30447,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       step: string,
       inputs: FpsHeldWeaponAnimationEditorInputMap,
       onValue: (axis: FpsHeldWeaponAnimationEditorAxis, value: number) => void,
-    ): void => {
+    ): HTMLDivElement => {
       const section = document.createElement("div");
       section.style.marginTop = "6px";
       section.style.marginBottom = "8px";
@@ -30191,9 +30502,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
       section.appendChild(grid);
       panel.appendChild(section);
+      return section;
     };
 
-    createAxisSection(
+    this.fpsHeldWeaponAnimationDebugElements.basePositionSection =
+      createAxisSection(
+      "Position Offset (camera local)",
+      "0.01",
+      this.fpsHeldWeaponAnimationDebugElements.basePositionInputs,
+      (axis, value) => {
+        this.fpsHeldWeaponBasePose.position[axis] = value;
+      },
+    );
+    this.fpsHeldWeaponAnimationDebugElements.baseRotationSection =
+      createAxisSection(
+      "Rotation Offset (deg)",
+      "0.1",
+      this.fpsHeldWeaponAnimationDebugElements.baseRotationInputs,
+      (axis, value) => {
+        this.fpsHeldWeaponBasePose.rotationDeg[axis] = value;
+      },
+    );
+    this.fpsHeldWeaponAnimationDebugElements.pivotSection = createAxisSection(
       "Pivot (relative to sprite center)",
       "0.01",
       this.fpsHeldWeaponAnimationDebugElements.pivotInputs,
@@ -30205,7 +30535,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         animation.pivotNormalized[axis] = value;
       },
     );
-    createAxisSection(
+    this.fpsHeldWeaponAnimationDebugElements.translationSection =
+      createAxisSection(
       "Translation",
       "0.01",
       this.fpsHeldWeaponAnimationDebugElements.translationInputs,
@@ -30217,7 +30548,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         keyframe.translation[axis] = value;
       },
     );
-    createAxisSection(
+    this.fpsHeldWeaponAnimationDebugElements.rotationSection =
+      createAxisSection(
       "Rotation (deg)",
       "0.1",
       this.fpsHeldWeaponAnimationDebugElements.rotationInputs,
@@ -30232,10 +30564,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const note = document.createElement("div");
     note.textContent =
-      "Weight affects random selection. Duration is the time from the previous keyframe into the current one.";
+      "Weapon idle offset is added on top of the original hidden baseline pose and used for the resting pose. Weight affects random selection. Duration is the time from the previous keyframe into the current one.";
     note.style.opacity = "0.72";
     note.style.marginTop = "2px";
     panel.appendChild(note);
+    this.fpsHeldWeaponAnimationDebugElements.noteLabel = note;
 
     const statusLabel = document.createElement("div");
     statusLabel.style.minHeight = "16px";
@@ -30277,12 +30610,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponAnimationDebugElements.panel?.remove();
     this.fpsHeldWeaponAnimationDebugElements.panel = null;
     this.fpsHeldWeaponAnimationDebugElements.animationSelect = null;
+    this.fpsHeldWeaponAnimationDebugElements.copyButton = null;
     this.fpsHeldWeaponAnimationDebugElements.weightInput = null;
     this.fpsHeldWeaponAnimationDebugElements.keyframeSelect = null;
     this.fpsHeldWeaponAnimationDebugElements.durationInput = null;
     this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox = null;
+    this.fpsHeldWeaponAnimationDebugElements.previewKeyframeCheckbox = null;
     this.fpsHeldWeaponAnimationDebugElements.statusLabel = null;
+    this.fpsHeldWeaponAnimationDebugElements.noteLabel = null;
+    this.fpsHeldWeaponAnimationDebugElements.weightRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.previewRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.keyframeRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.addRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.durationRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.basePositionSection = null;
+    this.fpsHeldWeaponAnimationDebugElements.baseRotationSection = null;
+    this.fpsHeldWeaponAnimationDebugElements.pivotSection = null;
+    this.fpsHeldWeaponAnimationDebugElements.translationSection = null;
+    this.fpsHeldWeaponAnimationDebugElements.rotationSection = null;
     for (const axis of ["x", "y", "z"] as const) {
+      this.fpsHeldWeaponAnimationDebugElements.basePositionInputs[axis] = null;
+      this.fpsHeldWeaponAnimationDebugElements.baseRotationInputs[axis] = null;
       this.fpsHeldWeaponAnimationDebugElements.pivotInputs[axis] = null;
       this.fpsHeldWeaponAnimationDebugElements.translationInputs[axis] = null;
       this.fpsHeldWeaponAnimationDebugElements.rotationInputs[axis] = null;
