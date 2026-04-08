@@ -89,6 +89,7 @@ import {
 import {
   findNh3dTilesetByPath,
   inferNh3dTilesetTileSizeFromAtlasWidthForPath,
+  resolveDefaultNh3dTilesetWeaponSpriteFlipX,
   resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime,
   resolveNh3dTilesetAssetUrl,
   type Nh3dTilesetTileLayoutVersion,
@@ -290,6 +291,22 @@ type FpsHeldWeaponTextureState = {
   signature: string;
 };
 
+type FpsHeldWeaponTileFlipOverride = {
+  flipX: boolean;
+  flipY: boolean;
+  flipDiagonal: boolean;
+};
+
+type FpsHeldWeaponTileFlipOverridesByTileId = Record<
+  string,
+  FpsHeldWeaponTileFlipOverride
+>;
+
+type FpsHeldWeaponTileFlipOverridesByTileset = Record<
+  string,
+  FpsHeldWeaponTileFlipOverridesByTileId
+>;
+
 type FpsHeldWeaponActiveAnimationState = {
   animationId: string;
   startedAtMs: number;
@@ -317,6 +334,8 @@ type FpsHeldWeaponAnimationEditorElements = {
   noteLabel: HTMLDivElement | null;
   weightRow: HTMLDivElement | null;
   previewRow: HTMLDivElement | null;
+  tilePreviewRow: HTMLDivElement | null;
+  tileFlipRow: HTMLDivElement | null;
   keyframeRow: HTMLDivElement | null;
   addRow: HTMLDivElement | null;
   durationRow: HTMLDivElement | null;
@@ -325,6 +344,12 @@ type FpsHeldWeaponAnimationEditorElements = {
   pivotSection: HTMLDivElement | null;
   translationSection: HTMLDivElement | null;
   rotationSection: HTMLDivElement | null;
+  tilePreviewEnabledCheckbox: HTMLInputElement | null;
+  tilePreviewTileIdInput: HTMLInputElement | null;
+  tilePreviewTilesetLabel: HTMLDivElement | null;
+  tileFlipXCheckbox: HTMLInputElement | null;
+  tileFlipYCheckbox: HTMLInputElement | null;
+  tileFlipDiagonalCheckbox: HTMLInputElement | null;
   basePositionInputs: FpsHeldWeaponAnimationEditorInputMap;
   baseRotationInputs: FpsHeldWeaponAnimationEditorInputMap;
   pivotInputs: FpsHeldWeaponAnimationEditorInputMap;
@@ -348,6 +373,311 @@ const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID =
   "__fps_held_weapon_base_pose__";
 const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL =
   "Weapon Idle Offset";
+
+const DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET: FpsHeldWeaponTileFlipOverridesByTileset =
+  {
+    "assets/slashem/Absurd.png": {
+      "645": { flipX: false, flipY: false, flipDiagonal: false },
+      "646": { flipX: false, flipY: true, flipDiagonal: true },
+      "648": { flipX: true, flipY: false, flipDiagonal: true },
+      "650": { flipX: false, flipY: true, flipDiagonal: true },
+      "656": { flipX: false, flipY: true, flipDiagonal: false },
+      "657": { flipX: false, flipY: true, flipDiagonal: false },
+      "660": { flipX: true, flipY: false, flipDiagonal: true },
+      "666": { flipX: false, flipY: false, flipDiagonal: false },
+      "668": { flipX: false, flipY: false, flipDiagonal: false },
+      "670": { flipX: false, flipY: false, flipDiagonal: false },
+      "671": { flipX: false, flipY: false, flipDiagonal: false },
+      "673": { flipX: false, flipY: true, flipDiagonal: true },
+      "674": { flipX: false, flipY: false, flipDiagonal: false },
+      "675": { flipX: false, flipY: false, flipDiagonal: false },
+      "679": { flipX: false, flipY: false, flipDiagonal: true },
+      "681": { flipX: false, flipY: false, flipDiagonal: false },
+      "694": { flipX: false, flipY: false, flipDiagonal: false },
+      "704": { flipX: false, flipY: false, flipDiagonal: true },
+      "705": { flipX: false, flipY: false, flipDiagonal: true },
+      "706": { flipX: false, flipY: false, flipDiagonal: true },
+      "707": { flipX: false, flipY: false, flipDiagonal: true },
+      "715": { flipX: false, flipY: false, flipDiagonal: true },
+      "716": { flipX: false, flipY: false, flipDiagonal: false },
+      "717": { flipX: false, flipY: false, flipDiagonal: true },
+      "718": { flipX: false, flipY: false, flipDiagonal: true },
+      "719": { flipX: false, flipY: false, flipDiagonal: false },
+      "720": { flipX: false, flipY: false, flipDiagonal: false },
+      "721": { flipX: false, flipY: false, flipDiagonal: false },
+      "722": { flipX: false, flipY: false, flipDiagonal: false },
+      "723": { flipX: false, flipY: false, flipDiagonal: false },
+      "724": { flipX: false, flipY: false, flipDiagonal: false },
+      "737": { flipX: false, flipY: false, flipDiagonal: true },
+      "911": { flipX: false, flipY: true, flipDiagonal: false },
+      "912": { flipX: false, flipY: false, flipDiagonal: false },
+      "913": { flipX: false, flipY: false, flipDiagonal: false },
+      "914": { flipX: false, flipY: false, flipDiagonal: false },
+      "915": { flipX: false, flipY: false, flipDiagonal: false },
+      "916": { flipX: false, flipY: false, flipDiagonal: false },
+      "917": { flipX: false, flipY: false, flipDiagonal: true },
+      "919": { flipX: false, flipY: false, flipDiagonal: false },
+      "925": { flipX: true, flipY: true, flipDiagonal: false },
+      "928": { flipX: false, flipY: false, flipDiagonal: false },
+      "931": { flipX: false, flipY: true, flipDiagonal: false },
+      "944": { flipX: true, flipY: false, flipDiagonal: true },
+      "1130": { flipX: true, flipY: true, flipDiagonal: true },
+    },
+    "assets/3.6/Absurdly Evil.png": {
+      "795": { flipX: true, flipY: false, flipDiagonal: true },
+      "801": { flipX: false, flipY: true, flipDiagonal: true },
+      "805": { flipX: false, flipY: false, flipDiagonal: true },
+      "807": { flipX: false, flipY: true, flipDiagonal: false },
+      "808": { flipX: true, flipY: false, flipDiagonal: true },
+      "809": { flipX: true, flipY: false, flipDiagonal: true },
+      "810": { flipX: true, flipY: false, flipDiagonal: true },
+      "811": { flipX: true, flipY: false, flipDiagonal: true },
+      "813": { flipX: true, flipY: false, flipDiagonal: true },
+      "815": { flipX: true, flipY: true, flipDiagonal: false },
+      "829": { flipX: true, flipY: false, flipDiagonal: true },
+      "830": { flipX: true, flipY: false, flipDiagonal: true },
+      "839": { flipX: true, flipY: false, flipDiagonal: true },
+      "840": { flipX: true, flipY: false, flipDiagonal: true },
+      "848": { flipX: true, flipY: false, flipDiagonal: true },
+      "849": { flipX: true, flipY: false, flipDiagonal: true },
+      "850": { flipX: true, flipY: false, flipDiagonal: true },
+      "851": { flipX: false, flipY: true, flipDiagonal: true },
+      "857": { flipX: true, flipY: false, flipDiagonal: true },
+      "858": { flipX: true, flipY: false, flipDiagonal: true },
+      "859": { flipX: true, flipY: false, flipDiagonal: true },
+      "869": { flipX: false, flipY: true, flipDiagonal: true },
+      "870": { flipX: false, flipY: true, flipDiagonal: true },
+      "871": { flipX: false, flipY: false, flipDiagonal: true },
+      "876": { flipX: true, flipY: false, flipDiagonal: true },
+      "1266": { flipX: false, flipY: false, flipDiagonal: true },
+    },
+    "assets/3.6/DawnHack.bmp": {
+      "395": { flipX: false, flipY: true, flipDiagonal: false },
+      "396": { flipX: true, flipY: true, flipDiagonal: false },
+      "397": { flipX: false, flipY: true, flipDiagonal: false },
+      "398": { flipX: true, flipY: true, flipDiagonal: false },
+      "399": { flipX: false, flipY: true, flipDiagonal: false },
+      "401": { flipX: false, flipY: true, flipDiagonal: false },
+      "403": { flipX: false, flipY: false, flipDiagonal: true },
+      "405": { flipX: false, flipY: false, flipDiagonal: false },
+      "407": { flipX: false, flipY: false, flipDiagonal: false },
+      "408": { flipX: false, flipY: true, flipDiagonal: true },
+      "409": { flipX: false, flipY: false, flipDiagonal: false },
+      "411": { flipX: false, flipY: false, flipDiagonal: false },
+      "413": { flipX: false, flipY: false, flipDiagonal: false },
+      "415": { flipX: false, flipY: false, flipDiagonal: false },
+      "417": { flipX: false, flipY: false, flipDiagonal: false },
+      "419": { flipX: false, flipY: false, flipDiagonal: false },
+      "421": { flipX: false, flipY: false, flipDiagonal: true },
+      "423": { flipX: false, flipY: false, flipDiagonal: true },
+      "424": { flipX: false, flipY: true, flipDiagonal: true },
+      "425": { flipX: false, flipY: false, flipDiagonal: true },
+      "427": { flipX: false, flipY: false, flipDiagonal: false },
+      "429": { flipX: false, flipY: false, flipDiagonal: false },
+      "432": { flipX: false, flipY: false, flipDiagonal: false },
+      "434": { flipX: false, flipY: false, flipDiagonal: false },
+      "436": { flipX: false, flipY: false, flipDiagonal: false },
+      "439": { flipX: false, flipY: false, flipDiagonal: false },
+      "441": { flipX: false, flipY: false, flipDiagonal: false },
+      "443": { flipX: false, flipY: false, flipDiagonal: false },
+      "445": { flipX: false, flipY: false, flipDiagonal: false },
+      "447": { flipX: false, flipY: false, flipDiagonal: false },
+      "448": { flipX: false, flipY: true, flipDiagonal: false },
+      "449": { flipX: true, flipY: true, flipDiagonal: false },
+      "453": { flipX: false, flipY: false, flipDiagonal: false },
+      "455": { flipX: false, flipY: false, flipDiagonal: false },
+      "457": { flipX: false, flipY: true, flipDiagonal: true },
+      "458": { flipX: false, flipY: true, flipDiagonal: true },
+      "459": { flipX: false, flipY: false, flipDiagonal: false },
+      "461": { flipX: false, flipY: false, flipDiagonal: false },
+    },
+    "assets/3.6/NetHack Modern.bmp": {
+      "401": { flipX: false, flipY: false, flipDiagonal: false },
+      "403": { flipX: false, flipY: false, flipDiagonal: true },
+      "404": { flipX: true, flipY: true, flipDiagonal: false },
+      "405": { flipX: true, flipY: true, flipDiagonal: false },
+      "406": { flipX: true, flipY: true, flipDiagonal: false },
+      "407": { flipX: true, flipY: true, flipDiagonal: false },
+      "408": { flipX: true, flipY: true, flipDiagonal: false },
+      "409": { flipX: true, flipY: true, flipDiagonal: false },
+      "410": { flipX: true, flipY: true, flipDiagonal: false },
+      "411": { flipX: true, flipY: true, flipDiagonal: false },
+      "412": { flipX: true, flipY: true, flipDiagonal: false },
+      "413": { flipX: true, flipY: true, flipDiagonal: false },
+      "414": { flipX: true, flipY: true, flipDiagonal: false },
+      "415": { flipX: true, flipY: true, flipDiagonal: false },
+      "417": { flipX: true, flipY: true, flipDiagonal: true },
+      "418": { flipX: true, flipY: true, flipDiagonal: false },
+      "420": { flipX: true, flipY: true, flipDiagonal: true },
+      "423": { flipX: true, flipY: true, flipDiagonal: true },
+      "424": { flipX: true, flipY: true, flipDiagonal: true },
+      "425": { flipX: true, flipY: true, flipDiagonal: true },
+      "426": { flipX: true, flipY: true, flipDiagonal: true },
+      "427": { flipX: true, flipY: true, flipDiagonal: true },
+      "429": { flipX: true, flipY: true, flipDiagonal: false },
+      "430": { flipX: true, flipY: true, flipDiagonal: false },
+      "431": { flipX: true, flipY: true, flipDiagonal: false },
+      "432": { flipX: true, flipY: true, flipDiagonal: false },
+      "433": { flipX: true, flipY: true, flipDiagonal: false },
+      "434": { flipX: true, flipY: true, flipDiagonal: false },
+      "435": { flipX: true, flipY: true, flipDiagonal: false },
+      "436": { flipX: true, flipY: true, flipDiagonal: false },
+      "437": { flipX: true, flipY: true, flipDiagonal: false },
+      "438": { flipX: true, flipY: true, flipDiagonal: false },
+      "439": { flipX: true, flipY: true, flipDiagonal: false },
+      "440": { flipX: true, flipY: true, flipDiagonal: false },
+      "441": { flipX: true, flipY: true, flipDiagonal: false },
+      "442": { flipX: true, flipY: true, flipDiagonal: false },
+      "443": { flipX: true, flipY: true, flipDiagonal: false },
+      "445": { flipX: false, flipY: false, flipDiagonal: true },
+      "446": { flipX: false, flipY: false, flipDiagonal: true },
+      "447": { flipX: false, flipY: false, flipDiagonal: true },
+      "448": { flipX: true, flipY: true, flipDiagonal: false },
+      "449": { flipX: true, flipY: true, flipDiagonal: false },
+      "453": { flipX: true, flipY: true, flipDiagonal: false },
+      "454": { flipX: false, flipY: false, flipDiagonal: true },
+      "455": { flipX: false, flipY: true, flipDiagonal: true },
+      "456": { flipX: true, flipY: true, flipDiagonal: false },
+      "458": { flipX: false, flipY: false, flipDiagonal: true },
+    },
+    "assets/3.6/Nevanda.png": {
+      "401": { flipX: false, flipY: true, flipDiagonal: false },
+      "403": { flipX: false, flipY: true, flipDiagonal: true },
+      "415": { flipX: false, flipY: true, flipDiagonal: true },
+      "416": { flipX: false, flipY: true, flipDiagonal: true },
+      "417": { flipX: false, flipY: true, flipDiagonal: true },
+      "427": { flipX: false, flipY: true, flipDiagonal: true },
+      "451": { flipX: false, flipY: false, flipDiagonal: true },
+      "452": { flipX: false, flipY: true, flipDiagonal: true },
+      "457": { flipX: false, flipY: false, flipDiagonal: false },
+      "458": { flipX: false, flipY: true, flipDiagonal: true },
+      "459": { flipX: false, flipY: true, flipDiagonal: false },
+      "460": { flipX: false, flipY: true, flipDiagonal: false },
+      "461": { flipX: false, flipY: true, flipDiagonal: false },
+      "462": { flipX: false, flipY: true, flipDiagonal: false },
+      "463": { flipX: false, flipY: false, flipDiagonal: true },
+    },
+    "assets/3.6/RZTiles.bmp": {
+      "400": { flipX: false, flipY: true, flipDiagonal: false },
+      "401": { flipX: false, flipY: false, flipDiagonal: false },
+      "406": { flipX: false, flipY: true, flipDiagonal: false },
+      "416": { flipX: false, flipY: true, flipDiagonal: true },
+      "421": { flipX: false, flipY: true, flipDiagonal: true },
+      "429": { flipX: false, flipY: true, flipDiagonal: false },
+      "430": { flipX: false, flipY: true, flipDiagonal: false },
+      "431": { flipX: false, flipY: true, flipDiagonal: true },
+      "432": { flipX: false, flipY: true, flipDiagonal: true },
+      "433": { flipX: false, flipY: true, flipDiagonal: false },
+      "434": { flipX: false, flipY: true, flipDiagonal: false },
+      "435": { flipX: false, flipY: true, flipDiagonal: true },
+      "436": { flipX: false, flipY: true, flipDiagonal: true },
+      "437": { flipX: false, flipY: true, flipDiagonal: false },
+      "438": { flipX: false, flipY: true, flipDiagonal: false },
+      "441": { flipX: false, flipY: true, flipDiagonal: true },
+      "442": { flipX: false, flipY: true, flipDiagonal: true },
+      "452": { flipX: true, flipY: false, flipDiagonal: true },
+      "456": { flipX: false, flipY: true, flipDiagonal: false },
+      "457": { flipX: false, flipY: true, flipDiagonal: false },
+      "459": { flipX: false, flipY: false, flipDiagonal: true },
+      "460": { flipX: false, flipY: false, flipDiagonal: true },
+      "461": { flipX: false, flipY: false, flipDiagonal: true },
+      "462": { flipX: false, flipY: false, flipDiagonal: true },
+      "463": { flipX: true, flipY: false, flipDiagonal: true },
+    },
+    "assets/3.6/Vanilla NetHack Tiles.png": {
+      "400": { flipX: false, flipY: false, flipDiagonal: true },
+      "401": { flipX: false, flipY: true, flipDiagonal: false },
+      "403": { flipX: false, flipY: false, flipDiagonal: true },
+      "404": { flipX: false, flipY: true, flipDiagonal: true },
+      "405": { flipX: false, flipY: true, flipDiagonal: true },
+      "406": { flipX: false, flipY: true, flipDiagonal: true },
+      "407": { flipX: false, flipY: true, flipDiagonal: true },
+      "408": { flipX: false, flipY: true, flipDiagonal: true },
+      "410": { flipX: false, flipY: false, flipDiagonal: false },
+      "411": { flipX: false, flipY: true, flipDiagonal: true },
+      "412": { flipX: false, flipY: true, flipDiagonal: true },
+      "413": { flipX: false, flipY: true, flipDiagonal: true },
+      "414": { flipX: false, flipY: true, flipDiagonal: true },
+      "415": { flipX: false, flipY: true, flipDiagonal: true },
+      "416": { flipX: true, flipY: true, flipDiagonal: true },
+      "417": { flipX: false, flipY: true, flipDiagonal: true },
+      "418": { flipX: false, flipY: true, flipDiagonal: true },
+      "419": { flipX: false, flipY: false, flipDiagonal: true },
+      "420": { flipX: false, flipY: true, flipDiagonal: true },
+      "421": { flipX: false, flipY: false, flipDiagonal: true },
+      "422": { flipX: false, flipY: false, flipDiagonal: false },
+      "423": { flipX: false, flipY: false, flipDiagonal: true },
+      "424": { flipX: false, flipY: false, flipDiagonal: true },
+      "425": { flipX: false, flipY: false, flipDiagonal: true },
+      "426": { flipX: false, flipY: false, flipDiagonal: true },
+      "427": { flipX: false, flipY: false, flipDiagonal: true },
+      "428": { flipX: false, flipY: true, flipDiagonal: true },
+      "429": { flipX: false, flipY: false, flipDiagonal: true },
+      "430": { flipX: false, flipY: false, flipDiagonal: true },
+      "431": { flipX: false, flipY: true, flipDiagonal: true },
+      "432": { flipX: false, flipY: true, flipDiagonal: true },
+      "436": { flipX: false, flipY: true, flipDiagonal: true },
+      "437": { flipX: false, flipY: true, flipDiagonal: false },
+      "438": { flipX: false, flipY: true, flipDiagonal: false },
+      "440": { flipX: false, flipY: false, flipDiagonal: false },
+      "449": { flipX: false, flipY: false, flipDiagonal: false },
+      "451": { flipX: false, flipY: false, flipDiagonal: true },
+      "463": { flipX: false, flipY: true, flipDiagonal: true },
+      "464": { flipX: false, flipY: true, flipDiagonal: true },
+    },
+    "assets/3.7/Nevanda (3.7).png": {
+      "813": { flipX: false, flipY: true, flipDiagonal: false },
+      "815": { flipX: false, flipY: true, flipDiagonal: true },
+      "827": { flipX: false, flipY: true, flipDiagonal: true },
+      "828": { flipX: false, flipY: true, flipDiagonal: true },
+      "829": { flipX: false, flipY: true, flipDiagonal: true },
+      "839": { flipX: false, flipY: true, flipDiagonal: true },
+      "864": { flipX: false, flipY: false, flipDiagonal: false },
+      "865": { flipX: false, flipY: true, flipDiagonal: true },
+      "870": { flipX: false, flipY: false, flipDiagonal: false },
+      "872": { flipX: false, flipY: true, flipDiagonal: false },
+      "873": { flipX: false, flipY: true, flipDiagonal: false },
+      "874": { flipX: false, flipY: true, flipDiagonal: false },
+      "875": { flipX: false, flipY: true, flipDiagonal: false },
+      "876": { flipX: false, flipY: false, flipDiagonal: true },
+    },
+    "assets/3.7/Vanilla NetHack Tiles (3.7).png": {
+      "807": { flipX: false, flipY: true, flipDiagonal: false },
+      "808": { flipX: false, flipY: true, flipDiagonal: false },
+      "809": { flipX: false, flipY: true, flipDiagonal: false },
+      "810": { flipX: false, flipY: true, flipDiagonal: false },
+      "811": { flipX: false, flipY: true, flipDiagonal: false },
+      "812": { flipX: false, flipY: false, flipDiagonal: false },
+      "813": { flipX: false, flipY: false, flipDiagonal: true },
+      "816": { flipX: false, flipY: true, flipDiagonal: true },
+      "817": { flipX: false, flipY: true, flipDiagonal: true },
+      "818": { flipX: false, flipY: true, flipDiagonal: true },
+      "819": { flipX: false, flipY: true, flipDiagonal: true },
+      "822": { flipX: false, flipY: false, flipDiagonal: false },
+      "828": { flipX: false, flipY: false, flipDiagonal: false },
+      "831": { flipX: false, flipY: true, flipDiagonal: true },
+      "833": { flipX: false, flipY: false, flipDiagonal: true },
+      "834": { flipX: false, flipY: false, flipDiagonal: true },
+      "835": { flipX: false, flipY: false, flipDiagonal: true },
+      "836": { flipX: false, flipY: false, flipDiagonal: true },
+      "837": { flipX: false, flipY: false, flipDiagonal: true },
+      "838": { flipX: false, flipY: false, flipDiagonal: true },
+      "839": { flipX: false, flipY: false, flipDiagonal: true },
+      "841": { flipX: false, flipY: false, flipDiagonal: true },
+      "842": { flipX: false, flipY: false, flipDiagonal: true },
+      "848": { flipX: false, flipY: true, flipDiagonal: false },
+      "849": { flipX: true, flipY: false, flipDiagonal: true },
+      "850": { flipX: true, flipY: false, flipDiagonal: true },
+      "855": { flipX: false, flipY: true, flipDiagonal: true },
+      "856": { flipX: false, flipY: true, flipDiagonal: true },
+      "857": { flipX: false, flipY: true, flipDiagonal: true },
+      "859": { flipX: false, flipY: false, flipDiagonal: false },
+      "861": { flipX: true, flipY: true, flipDiagonal: false },
+      "864": { flipX: false, flipY: false, flipDiagonal: true },
+      "869": { flipX: true, flipY: false, flipDiagonal: true },
+      "877": { flipX: false, flipY: false, flipDiagonal: true },
+    },
+  };
 
 const roundFpsHeldWeaponAnimationDebugNumber = (
   value: number,
@@ -393,6 +723,39 @@ const serializeFpsHeldWeaponBasePoseDefinition = (
     null,
     2,
   );
+
+const serializeFpsHeldWeaponTileFlipOverrides = (
+  overridesByTileset: FpsHeldWeaponTileFlipOverridesByTileset,
+): string => {
+  const normalized: FpsHeldWeaponTileFlipOverridesByTileset = {};
+  for (const tilesetPath of Object.keys(overridesByTileset).sort((a, b) =>
+    a.localeCompare(b),
+  )) {
+    const overridesByTileId = overridesByTileset[tilesetPath];
+    if (!overridesByTileId || typeof overridesByTileId !== "object") {
+      continue;
+    }
+    const normalizedByTileId: FpsHeldWeaponTileFlipOverridesByTileId = {};
+    const sortedTileIds = Object.keys(overridesByTileId).sort(
+      (left, right) => Number(left) - Number(right),
+    );
+    for (const tileId of sortedTileIds) {
+      const override = overridesByTileId[tileId];
+      if (!override || typeof override !== "object") {
+        continue;
+      }
+      normalizedByTileId[tileId] = {
+        flipX: override.flipX === true,
+        flipY: override.flipY === true,
+        flipDiagonal: override.flipDiagonal === true,
+      };
+    }
+    if (Object.keys(normalizedByTileId).length > 0) {
+      normalized[tilesetPath] = normalizedByTileId;
+    }
+  }
+  return JSON.stringify(normalized, null, 2);
+};
 
 const MINIMAP_WIDTH_TILES = 79;
 const MINIMAP_HEIGHT_TILES = 21;
@@ -1142,6 +1505,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponAnimationRotatedCenter = new THREE.Vector3();
   private readonly fpsHeldWeaponAnimationEuler = new THREE.Euler();
   private readonly fpsHeldWeaponAnimationQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldWeaponTileFlipOverridesByTileset: FpsHeldWeaponTileFlipOverridesByTileset =
+    {};
   private readonly fpsHeldWeaponYawLagHalfLifeMs: number = 84;
   private readonly fpsHeldWeaponYawLagAmount: number = 0.38;
   private readonly fpsHeldWeaponYawLagMax: number = 0.2;
@@ -1566,6 +1931,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsHeldWeaponAnimationDebugSelectedKeyframeIndex: number = 0;
   private fpsHeldWeaponAnimationDebugSlowMoEnabled: boolean = false;
   private fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe: boolean = true;
+  private fpsHeldWeaponAnimationDebugPreviewTileEnabled: boolean = false;
+  private fpsHeldWeaponAnimationDebugPreviewTileId: number = 0;
   private readonly fpsHeldWeaponAnimationDebugElements: FpsHeldWeaponAnimationEditorElements =
     {
       panel: null,
@@ -1580,6 +1947,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       noteLabel: null,
       weightRow: null,
       previewRow: null,
+      tilePreviewRow: null,
+      tileFlipRow: null,
       keyframeRow: null,
       addRow: null,
       durationRow: null,
@@ -1588,6 +1957,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       pivotSection: null,
       translationSection: null,
       rotationSection: null,
+      tilePreviewEnabledCheckbox: null,
+      tilePreviewTileIdInput: null,
+      tilePreviewTilesetLabel: null,
+      tileFlipXCheckbox: null,
+      tileFlipYCheckbox: null,
+      tileFlipDiagonalCheckbox: null,
       basePositionInputs: { x: null, y: null, z: null },
       baseRotationInputs: { x: null, y: null, z: null },
       pivotInputs: { x: null, y: null, z: null },
@@ -5871,6 +6246,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tilesetSolidChromaKeyColorHexChanged =
       previous.tilesetSolidChromaKeyColorHex !==
       normalized.tilesetSolidChromaKeyColorHex;
+    const fpsHeldWeaponSpriteFlipXChanged =
+      previous.fpsHeldWeaponSpriteFlipX !== normalized.fpsHeldWeaponSpriteFlipX;
     const tilesetModeChanged = previous.tilesetMode !== normalized.tilesetMode;
     const tilesetPathChanged = previous.tilesetPath !== normalized.tilesetPath;
     const antialiasingChanged =
@@ -6008,6 +6385,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.syncFmodRuntimeWithClientOptions(normalized.soundEnabled);
     this.syncVultureWallProjectionDebugPanelVisibility();
     this.refreshTilesetCompilationLoadingState();
+    if (
+      this.fpsHeldWeaponAnimationDebugVisible &&
+      (tilesetPathChanged ||
+        tilesetModeChanged ||
+        fpsHeldWeaponSpriteFlipXChanged)
+    ) {
+      this.syncFpsHeldWeaponAnimationDebugUi();
+    }
   }
 
   private applyStandardCameraPresetForTopDownModes(params?: {
@@ -25864,7 +26249,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const text =
       typeof candidate.text === "string" ? candidate.text.toLowerCase() : "";
-    return text.includes("(weapon in hand)");
+    return (
+      text.includes("(weapon in hand)") ||
+      text.includes("(weapon in right hand)") ||
+      text.includes("(weapon in left hand)")
+    );
   }
 
   private findHeldWeaponInventoryItem(): NethackMenuItem | null {
@@ -25876,21 +26265,165 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
+  private getFpsHeldWeaponTileFlipOverrideTilesetPath(): string {
+    return String(this.clientOptions.tilesetPath || "").trim();
+  }
+
+  private getFpsHeldWeaponTileFlipOverrideTilesetLabel(): string {
+    const tilesetPath = this.getFpsHeldWeaponTileFlipOverrideTilesetPath();
+    if (!tilesetPath) {
+      return "(no tileset)";
+    }
+    const segments = tilesetPath.split(/[\\/]/);
+    return segments[segments.length - 1] || tilesetPath;
+  }
+
+  private getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId():
+    | number
+    | null {
+    if (!this.fpsHeldWeaponAnimationDebugPreviewTileEnabled) {
+      return null;
+    }
+    const tileId = this.fpsHeldWeaponAnimationDebugPreviewTileId;
+    if (!Number.isFinite(tileId) || tileId < 0) {
+      return null;
+    }
+    return Math.trunc(tileId);
+  }
+
+  private getActiveFpsHeldWeaponAnimationDebugPreviewTileId(): number | null {
+    if (!this.fpsHeldWeaponAnimationDebugVisible) {
+      return null;
+    }
+    return this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
+  }
+
+  private resolveTilesetDefaultFpsHeldWeaponTileFlipState(
+    tilesetPath: string,
+  ): FpsHeldWeaponTileFlipOverride {
+    return {
+      flipX: resolveDefaultNh3dTilesetWeaponSpriteFlipX(tilesetPath),
+      flipY: false,
+      flipDiagonal: false,
+    };
+  }
+
+  private resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
+    tilesetPath: string,
+    tileId: number | null,
+  ): FpsHeldWeaponTileFlipOverride {
+    const tilesetDefaultState =
+      this.resolveTilesetDefaultFpsHeldWeaponTileFlipState(tilesetPath);
+    if (tileId === null || tileId < 0) {
+      return tilesetDefaultState;
+    }
+
+    const builtInOverride =
+      DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET[tilesetPath]?.[
+        String(Math.trunc(tileId))
+      ] ?? null;
+    if (!builtInOverride) {
+      return tilesetDefaultState;
+    }
+
+    return {
+      flipX: builtInOverride.flipX,
+      flipY: builtInOverride.flipY,
+      flipDiagonal: builtInOverride.flipDiagonal,
+    };
+  }
+
+  private resolveFpsHeldWeaponTileFlipState(
+    tileId: number | null,
+  ): FpsHeldWeaponTileFlipOverride {
+    const tilesetPath = this.getFpsHeldWeaponTileFlipOverrideTilesetPath();
+    const defaultState =
+      this.resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
+        tilesetPath,
+        tileId,
+      );
+    if (tileId === null || tileId < 0) {
+      return defaultState;
+    }
+    const override =
+      tilesetPath && this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath]
+        ? this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath][
+            String(Math.trunc(tileId))
+          ] ?? null
+        : null;
+    return {
+      flipX: override?.flipX ?? defaultState.flipX,
+      flipY: override?.flipY ?? defaultState.flipY,
+      flipDiagonal: override?.flipDiagonal ?? defaultState.flipDiagonal,
+    };
+  }
+
+  private setFpsHeldWeaponTileFlipOverride(
+    tileId: number,
+    nextOverride: FpsHeldWeaponTileFlipOverride,
+  ): void {
+    const normalizedTileId = Math.max(0, Math.trunc(tileId));
+    const tilesetPath = this.getFpsHeldWeaponTileFlipOverrideTilesetPath();
+    if (!tilesetPath) {
+      return;
+    }
+
+    const defaultState =
+      this.resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
+        tilesetPath,
+        normalizedTileId,
+      );
+    const shouldPersistOverride =
+      nextOverride.flipX !== defaultState.flipX ||
+      nextOverride.flipY !== defaultState.flipY ||
+      nextOverride.flipDiagonal !== defaultState.flipDiagonal;
+    if (!shouldPersistOverride) {
+      const existingByTileId =
+        this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath];
+      if (existingByTileId) {
+        delete existingByTileId[String(normalizedTileId)];
+        if (Object.keys(existingByTileId).length <= 0) {
+          delete this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath];
+        }
+      }
+      return;
+    }
+
+    const existingByTileId =
+      this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath] ?? {};
+    existingByTileId[String(normalizedTileId)] = {
+      flipX: nextOverride.flipX === true,
+      flipY: nextOverride.flipY === true,
+      flipDiagonal: nextOverride.flipDiagonal === true,
+    };
+    this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath] =
+      existingByTileId;
+  }
+
   private resolveFpsHeldWeaponTextureState(): FpsHeldWeaponTextureState | null {
+    const previewTileId = this.getActiveFpsHeldWeaponAnimationDebugPreviewTileId();
     if (
       !this.isFpsMode() ||
-      !this.clientOptions.fpsHeldWeaponVisible ||
+      (!this.clientOptions.fpsHeldWeaponVisible && previewTileId === null) ||
       this.clientOptions.tilesetMode !== "tiles" ||
       this.isFpsFarLookViewActive()
     ) {
       return null;
     }
-    const item = this.findHeldWeaponInventoryItem();
-    if (!item) {
+    const item = previewTileId === null ? this.findHeldWeaponInventoryItem() : null;
+    if (previewTileId === null && !item) {
       return null;
     }
-    const sourceGlyph = this.resolveNonNegativeMenuInteger(item.glyph);
-    const tileIndex = this.resolveNonNegativeMenuInteger(item.tileIndex);
+    const sourceGlyph =
+      previewTileId === null && item
+        ? this.resolveNonNegativeMenuInteger(item.glyph)
+        : null;
+    const tileIndex =
+      previewTileId !== null
+        ? previewTileId
+        : item
+          ? this.resolveNonNegativeMenuInteger(item.tileIndex)
+          : null;
     const usingVultureTiles = this.shouldUseVultureTiles();
     const canUseTranslatedTileWithoutAtlas =
       usingVultureTiles && sourceGlyph !== null;
@@ -25909,10 +26442,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         : this.clientOptions.tilesetBackgroundRemovalMode === "none"
           ? "none"
           : `tile:${this.clientOptions.tilesetBackgroundTileId}`;
+    const effectiveFlipState = this.resolveFpsHeldWeaponTileFlipState(
+      tileIndex ?? null,
+    );
     return {
       tileIndex: tileIndex ?? -1,
       sourceGlyph,
-      signature: `${this.clientOptions.tilesetPath}|rv:${this.resolveRuntimeVersion()}|ts:${this.tileSourceSize}|g:${sourceGlyph ?? -1}|ti:${tileIndex ?? -1}|bg:${backgroundRemovalKey}`,
+      signature: `${this.clientOptions.tilesetPath}|rv:${this.resolveRuntimeVersion()}|ts:${this.tileSourceSize}|g:${sourceGlyph ?? -1}|ti:${tileIndex ?? -1}|bg:${backgroundRemovalKey}|preview:${previewTileId ?? -1}|fx:${effectiveFlipState.flipX ? 1 : 0}|fy:${effectiveFlipState.flipY ? 1 : 0}|fd:${effectiveFlipState.flipDiagonal ? 1 : 0}`,
     };
   }
 
@@ -25962,6 +26498,114 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const contentWidth = maxX - minX + 1;
     const contentHeight = maxY - minY + 1;
     return contentHeight > 0 ? contentWidth / contentHeight : 1;
+  }
+
+  private createFpsHeldWeaponFlippedTexture(
+    texture: THREE.CanvasTexture,
+    flipState: FpsHeldWeaponTileFlipOverride,
+  ): THREE.CanvasTexture {
+    if (!flipState.flipX && !flipState.flipY && !flipState.flipDiagonal) {
+      return texture;
+    }
+
+    const sourceInfo = this.resolveMonsterBillboardTextureSource(texture);
+    if (!sourceInfo || typeof document === "undefined") {
+      return texture;
+    }
+
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = sourceInfo.width;
+    sourceCanvas.height = sourceInfo.height;
+    const sourceContext = sourceCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
+    if (!sourceContext) {
+      return texture;
+    }
+
+    sourceContext.imageSmoothingEnabled = false;
+    sourceContext.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+    sourceContext.drawImage(
+      sourceInfo.source,
+      0,
+      0,
+      sourceCanvas.width,
+      sourceCanvas.height,
+    );
+
+    const destinationWidth = flipState.flipDiagonal
+      ? sourceCanvas.height
+      : sourceCanvas.width;
+    const destinationHeight = flipState.flipDiagonal
+      ? sourceCanvas.width
+      : sourceCanvas.height;
+    const destinationCanvas = document.createElement("canvas");
+    destinationCanvas.width = destinationWidth;
+    destinationCanvas.height = destinationHeight;
+    const destinationContext = destinationCanvas.getContext("2d", {
+      willReadFrequently: true,
+    });
+    if (!destinationContext) {
+      return texture;
+    }
+
+    const sourceImageData = sourceContext.getImageData(
+      0,
+      0,
+      sourceCanvas.width,
+      sourceCanvas.height,
+    );
+    const destinationImageData = destinationContext.createImageData(
+      destinationWidth,
+      destinationHeight,
+    );
+    const sourceData = sourceImageData.data;
+    const destinationData = destinationImageData.data;
+
+    for (let sourceY = 0; sourceY < sourceCanvas.height; sourceY += 1) {
+      for (let sourceX = 0; sourceX < sourceCanvas.width; sourceX += 1) {
+        let destinationX = sourceX;
+        let destinationY = sourceY;
+        let transformedWidth = sourceCanvas.width;
+        let transformedHeight = sourceCanvas.height;
+
+        if (flipState.flipDiagonal) {
+          destinationX = sourceY;
+          destinationY = sourceX;
+          transformedWidth = sourceCanvas.height;
+          transformedHeight = sourceCanvas.width;
+        }
+
+        if (flipState.flipX) {
+          destinationX = transformedWidth - 1 - destinationX;
+        }
+        if (flipState.flipY) {
+          destinationY = transformedHeight - 1 - destinationY;
+        }
+
+        const sourceIndex = (sourceY * sourceCanvas.width + sourceX) * 4;
+        const destinationIndex =
+          (destinationY * destinationWidth + destinationX) * 4;
+        destinationData[destinationIndex] = sourceData[sourceIndex];
+        destinationData[destinationIndex + 1] = sourceData[sourceIndex + 1];
+        destinationData[destinationIndex + 2] = sourceData[sourceIndex + 2];
+        destinationData[destinationIndex + 3] = sourceData[sourceIndex + 3];
+      }
+    }
+
+    destinationContext.putImageData(destinationImageData, 0, 0);
+
+    const flippedTexture = new THREE.CanvasTexture(destinationCanvas);
+    flippedTexture.needsUpdate = true;
+    flippedTexture.magFilter = texture.magFilter;
+    flippedTexture.minFilter = texture.minFilter;
+    flippedTexture.generateMipmaps = texture.generateMipmaps;
+    flippedTexture.anisotropy = texture.anisotropy;
+    flippedTexture.wrapS = texture.wrapS;
+    flippedTexture.wrapT = texture.wrapT;
+    flippedTexture.flipY = texture.flipY;
+    texture.dispose();
+    return flippedTexture;
   }
 
   private applyFpsHeldWeaponSwayImpulse(
@@ -26278,9 +26922,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
       material.map !== this.fpsHeldWeaponTexture
     ) {
       this.invalidateFpsHeldWeaponTexture();
-      const texture = this.createTileTexture(textureState.tileIndex, 1, true, {
-        sourceGlyph: textureState.sourceGlyph,
-      });
+      const tileFlipState = this.resolveFpsHeldWeaponTileFlipState(
+        textureState.tileIndex >= 0 ? textureState.tileIndex : null,
+      );
+      const texture = this.createFpsHeldWeaponFlippedTexture(
+        this.createTileTexture(textureState.tileIndex, 1, true, {
+          sourceGlyph: textureState.sourceGlyph,
+        }),
+        tileFlipState,
+      );
       const aspectRatio = THREE.MathUtils.clamp(
         this.measureTextureOpaqueAspectRatio(texture),
         0.45,
@@ -26298,11 +26948,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       Number.isFinite(mesh.userData.aspectRatio)
         ? THREE.MathUtils.clamp(mesh.userData.aspectRatio, 0.45, 1.8)
         : 1;
-    const horizontalScale =
-      aspectRatio *
-      this.fpsHeldWeaponScaleY *
-      (this.clientOptions.fpsHeldWeaponSpriteFlipX ? -1 : 1);
-    mesh.scale.set(horizontalScale, this.fpsHeldWeaponScaleY, 1);
+    const horizontalScale = aspectRatio * this.fpsHeldWeaponScaleY;
+    const verticalScale = this.fpsHeldWeaponScaleY;
+    mesh.scale.set(horizontalScale, verticalScale, 1);
 
     if (
       this.fpsHeldWeaponLagYaw === null ||
@@ -26376,8 +27024,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponLocalOffset.z += this.fpsHeldWeaponBasePose.position.z;
     }
     if (animationPose.active) {
-      const width = Math.abs(horizontalScale);
-      const height = this.fpsHeldWeaponScaleY;
+      const width = horizontalScale;
+      const height = verticalScale;
       this.fpsHeldWeaponAnimationPivotLocal.copy(this.fpsHeldWeaponLocalOffset);
       this.fpsHeldWeaponAnimationPivotLocal.x +=
         width * animationPose.pivotNormalized.x + animationPose.translation.x;
@@ -29898,6 +30546,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
     select.value = `${this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex}`;
   }
 
+  private countFpsHeldWeaponTileFlipOverrides(): number {
+    let count = 0;
+    for (const overridesByTileId of Object.values(
+      this.fpsHeldWeaponTileFlipOverridesByTileset,
+    )) {
+      count += Object.keys(overridesByTileId).length;
+    }
+    return count;
+  }
+
+  private countFpsHeldWeaponTileFlipOverridesForTileset(
+    tilesetPath: string,
+  ): number {
+    if (!tilesetPath) {
+      return 0;
+    }
+    return Object.keys(
+      this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath] ?? {},
+    ).length;
+  }
+
   private syncFpsHeldWeaponAnimationDebugFieldValues(): void {
     const basePoseSelected = this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
@@ -29909,6 +30578,71 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (previewKeyframeCheckbox) {
       previewKeyframeCheckbox.checked =
         this.fpsHeldWeaponAnimationDebugPreviewSelectedKeyframe;
+    }
+    const tilePreviewEnabledCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.tilePreviewEnabledCheckbox;
+    if (tilePreviewEnabledCheckbox) {
+      tilePreviewEnabledCheckbox.checked =
+        this.fpsHeldWeaponAnimationDebugPreviewTileEnabled;
+    }
+    const tilePreviewTileIdInput =
+      this.fpsHeldWeaponAnimationDebugElements.tilePreviewTileIdInput;
+    if (tilePreviewTileIdInput) {
+      tilePreviewTileIdInput.value = `${Math.max(
+        0,
+        Math.trunc(this.fpsHeldWeaponAnimationDebugPreviewTileId),
+      )}`;
+      tilePreviewTileIdInput.disabled =
+        !this.fpsHeldWeaponAnimationDebugPreviewTileEnabled ||
+        this.clientOptions.tilesetMode !== "tiles";
+    }
+    const previewTileId = this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
+    const canEditTileFlip =
+      this.clientOptions.tilesetMode === "tiles" && previewTileId !== null;
+    const tileFlipState =
+      previewTileId !== null
+        ? this.resolveFpsHeldWeaponTileFlipState(previewTileId)
+        : this.resolveTilesetDefaultFpsHeldWeaponTileFlipState(
+            this.getFpsHeldWeaponTileFlipOverrideTilesetPath(),
+          );
+    const tileFlipXCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.tileFlipXCheckbox;
+    if (tileFlipXCheckbox) {
+      tileFlipXCheckbox.checked = tileFlipState.flipX;
+      tileFlipXCheckbox.disabled = !canEditTileFlip;
+    }
+    const tileFlipYCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.tileFlipYCheckbox;
+    if (tileFlipYCheckbox) {
+      tileFlipYCheckbox.checked = tileFlipState.flipY;
+      tileFlipYCheckbox.disabled = !canEditTileFlip;
+    }
+    const tileFlipDiagonalCheckbox =
+      this.fpsHeldWeaponAnimationDebugElements.tileFlipDiagonalCheckbox;
+    if (tileFlipDiagonalCheckbox) {
+      tileFlipDiagonalCheckbox.checked = tileFlipState.flipDiagonal;
+      tileFlipDiagonalCheckbox.disabled = !canEditTileFlip;
+    }
+    const tilePreviewTilesetLabel =
+      this.fpsHeldWeaponAnimationDebugElements.tilePreviewTilesetLabel;
+    if (tilePreviewTilesetLabel) {
+      const tilesetPath = this.getFpsHeldWeaponTileFlipOverrideTilesetPath();
+      if (this.clientOptions.tilesetMode !== "tiles") {
+        tilePreviewTilesetLabel.textContent =
+          "Tiles mode is required for held-weapon tile preview.";
+      } else if (!tilesetPath) {
+        tilePreviewTilesetLabel.textContent =
+          "No tileset is selected for held-weapon tile overrides.";
+      } else {
+        const overrideCount =
+          this.countFpsHeldWeaponTileFlipOverridesForTileset(tilesetPath);
+        const defaultState =
+          this.resolveTilesetDefaultFpsHeldWeaponTileFlipState(tilesetPath);
+        tilePreviewTilesetLabel.textContent = `Tileset: ${this.getFpsHeldWeaponTileFlipOverrideTilesetLabel()} | Default X/Y/D: ${
+          defaultState.flipX ? "on" : "off"
+        }/${defaultState.flipY ? "on" : "off"}/${defaultState.flipDiagonal ? "on" : "off"} | Session Overrides: ${overrideCount}`;
+        tilePreviewTilesetLabel.title = tilesetPath;
+      }
     }
     for (const axis of ["x", "y", "z"] as const) {
       const basePositionInput =
@@ -29981,14 +30715,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private syncFpsHeldWeaponAnimationDebugLayout(): void {
     const basePoseSelected = this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
+    const tilePreviewEnabled = this.fpsHeldWeaponAnimationDebugPreviewTileEnabled;
     const { copyButton, noteLabel } = this.fpsHeldWeaponAnimationDebugElements;
     if (copyButton) {
-      copyButton.textContent = basePoseSelected ? "Copy Offset" : "Copy Animation";
+      copyButton.textContent = tilePreviewEnabled
+        ? "Copy Tile Flips"
+        : basePoseSelected
+          ? "Copy Offset"
+          : "Copy Animation";
     }
     if (noteLabel) {
-      noteLabel.textContent = basePoseSelected
-        ? "Weapon idle offset is added on top of the original hidden baseline pose and used for the resting pose."
-        : "Weight affects random selection. Duration is the time from the previous keyframe into the current one.";
+      noteLabel.textContent = tilePreviewEnabled
+        ? "Preview Tile shows any tile id as the held weapon. Flip X, Flip Y, and Diagonal edit per-tileset per-tile overrides, and Copy Tile Flips exports every adjusted override from this session."
+        : basePoseSelected
+          ? "Weapon idle offset is added on top of the original hidden baseline pose and used for the resting pose."
+          : "Weight affects random selection. Duration is the time from the previous keyframe into the current one.";
     }
     const setDisplay = (
       element: HTMLElement | null,
@@ -30058,24 +30799,37 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.syncFpsHeldWeaponAnimationDebugLayout();
   }
 
-  private getVisibleMinimapBounds(): DOMRect | null {
-    const minimap = this.minimapContainer;
-    if (!minimap) {
+  private getVisibleMessageLogBounds(): DOMRect | null {
+    if (typeof document === "undefined") {
       return null;
     }
-    const computedStyle = window.getComputedStyle(minimap);
-    if (
-      computedStyle.display === "none" ||
-      computedStyle.visibility === "hidden" ||
-      computedStyle.pointerEvents === "none"
-    ) {
-      return null;
+
+    const candidates = [
+      document.querySelector(".top-left-ui.with-stats"),
+      document.querySelector(".top-left-ui"),
+      document.querySelector(".nh3d-mobile-log:not(.nh3d-mobile-log-hidden)"),
+    ];
+
+    for (const candidate of candidates) {
+      if (!(candidate instanceof HTMLElement)) {
+        continue;
+      }
+      const computedStyle = window.getComputedStyle(candidate);
+      if (
+        computedStyle.display === "none" ||
+        computedStyle.visibility === "hidden" ||
+        computedStyle.pointerEvents === "none"
+      ) {
+        continue;
+      }
+      const rect = candidate.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
+      return rect;
     }
-    const rect = minimap.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      return null;
-    }
-    return rect;
+
+    return null;
   }
 
   private syncFpsHeldWeaponAnimationDebugPanelPosition(): void {
@@ -30087,13 +30841,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const defaultTopPx = 72;
     const viewportHeight = Math.max(1, window.innerHeight);
     const gapPx = 12;
-    const minimapBounds = this.getVisibleMinimapBounds();
-    const topPx = minimapBounds
-      ? Math.max(defaultTopPx, Math.round(minimapBounds.bottom + gapPx))
+    const messageLogBounds = this.getVisibleMessageLogBounds();
+    const topPx = messageLogBounds
+      ? Math.max(defaultTopPx, Math.round(messageLogBounds.bottom + gapPx))
       : defaultTopPx;
     const availableHeightPx = Math.max(160, viewportHeight - topPx - gapPx);
 
     panel.style.top = `${topPx}px`;
+    panel.style.left = `${gapPx}px`;
+    panel.style.right = "auto";
     panel.style.maxHeight = `${availableHeightPx}px`;
     panel.style.overflowY = "auto";
   }
@@ -30145,6 +30901,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private async copyFpsHeldWeaponAnimationDebugSelectionToClipboard(): Promise<void> {
+    if (this.fpsHeldWeaponAnimationDebugPreviewTileEnabled) {
+      const overrideCount = this.countFpsHeldWeaponTileFlipOverrides();
+      if (overrideCount <= 0) {
+        this.setFpsHeldWeaponAnimationDebugStatus(
+          "No held-weapon tile flip overrides have been adjusted yet.",
+        );
+        return;
+      }
+      await this.copyFpsHeldWeaponAnimationDebugTextToClipboard(
+        serializeFpsHeldWeaponTileFlipOverrides(
+          this.fpsHeldWeaponTileFlipOverridesByTileset,
+        ),
+        `Copied ${overrideCount} held-weapon tile flip override${
+          overrideCount === 1 ? "" : "s"
+        } to clipboard.`,
+      );
+      return;
+    }
+
     if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
       const payload = serializeFpsHeldWeaponBasePoseDefinition(
         this.fpsHeldWeaponBasePose,
@@ -30264,7 +31039,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     panel.className = "nh3d-fps-held-weapon-animation-debug";
     panel.style.position = "fixed";
     panel.style.top = "72px";
-    panel.style.right = "12px";
+    panel.style.left = "12px";
+    panel.style.right = "auto";
     panel.style.zIndex = "2147483647";
     panel.style.width = "344px";
     panel.style.padding = "10px";
@@ -30434,6 +31210,196 @@ class Nethack3DEngine implements Nethack3DEngineController {
       slowMoCheckbox;
     this.fpsHeldWeaponAnimationDebugElements.previewKeyframeCheckbox =
       previewKeyframeCheckbox;
+
+    const tilePreviewRow = createRow("Preview Tile");
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewRow = tilePreviewRow;
+    const tilePreviewControls = document.createElement("div");
+    tilePreviewControls.style.display = "grid";
+    tilePreviewControls.style.rowGap = "6px";
+
+    const tilePreviewTopRow = document.createElement("div");
+    tilePreviewTopRow.style.display = "flex";
+    tilePreviewTopRow.style.alignItems = "center";
+    tilePreviewTopRow.style.gap = "8px";
+    tilePreviewTopRow.style.flexWrap = "wrap";
+
+    const tilePreviewEnabledLabel = document.createElement("label");
+    tilePreviewEnabledLabel.style.display = "inline-flex";
+    tilePreviewEnabledLabel.style.alignItems = "center";
+    tilePreviewEnabledLabel.style.gap = "6px";
+    tilePreviewEnabledLabel.style.cursor = "pointer";
+
+    const tilePreviewEnabledCheckbox = document.createElement("input");
+    tilePreviewEnabledCheckbox.type = "checkbox";
+    tilePreviewEnabledCheckbox.checked =
+      this.fpsHeldWeaponAnimationDebugPreviewTileEnabled;
+    tilePreviewEnabledCheckbox.addEventListener("change", () => {
+      this.fpsHeldWeaponAnimationDebugPreviewTileEnabled =
+        tilePreviewEnabledCheckbox.checked;
+      if (this.fpsHeldWeaponAnimationDebugPreviewTileEnabled) {
+        const heldWeaponTileId = this.resolveNonNegativeMenuInteger(
+          this.findHeldWeaponInventoryItem()?.tileIndex,
+        );
+        if (
+          heldWeaponTileId !== null &&
+          this.fpsHeldWeaponAnimationDebugPreviewTileId <= 0
+        ) {
+          this.fpsHeldWeaponAnimationDebugPreviewTileId = heldWeaponTileId;
+        }
+      }
+      this.syncFpsHeldWeaponAnimationDebugUi();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    tilePreviewEnabledLabel.appendChild(tilePreviewEnabledCheckbox);
+
+    const tilePreviewEnabledText = document.createElement("span");
+    tilePreviewEnabledText.textContent = "Use Tile ID";
+    tilePreviewEnabledLabel.appendChild(tilePreviewEnabledText);
+    tilePreviewTopRow.appendChild(tilePreviewEnabledLabel);
+
+    const tilePreviewTileIdInput = document.createElement("input");
+    tilePreviewTileIdInput.type = "number";
+    tilePreviewTileIdInput.step = "1";
+    tilePreviewTileIdInput.min = "0";
+    tilePreviewTileIdInput.style.font = "11px monospace";
+    tilePreviewTileIdInput.style.padding = "2px 4px";
+    tilePreviewTileIdInput.style.width = "96px";
+    tilePreviewTileIdInput.addEventListener("input", () => {
+      const parsed = Number.parseInt(tilePreviewTileIdInput.value, 10);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return;
+      }
+      this.fpsHeldWeaponAnimationDebugPreviewTileId = Math.trunc(parsed);
+      this.syncFpsHeldWeaponAnimationDebugFieldValues();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    tilePreviewTileIdInput.addEventListener("change", () => {
+      const parsed = Number.parseInt(tilePreviewTileIdInput.value, 10);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        this.fpsHeldWeaponAnimationDebugPreviewTileId = Math.trunc(parsed);
+      }
+      this.syncFpsHeldWeaponAnimationDebugUi();
+    });
+    tilePreviewTileIdInput.addEventListener("blur", () => {
+      this.syncFpsHeldWeaponAnimationDebugUi();
+    });
+    tilePreviewTopRow.appendChild(tilePreviewTileIdInput);
+    tilePreviewControls.appendChild(tilePreviewTopRow);
+
+    const tilePreviewTilesetLabel = document.createElement("div");
+    tilePreviewTilesetLabel.style.opacity = "0.72";
+    tilePreviewTilesetLabel.style.fontSize = "11px";
+    tilePreviewControls.appendChild(tilePreviewTilesetLabel);
+    tilePreviewRow.appendChild(tilePreviewControls);
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewEnabledCheckbox =
+      tilePreviewEnabledCheckbox;
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewTileIdInput =
+      tilePreviewTileIdInput;
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewTilesetLabel =
+      tilePreviewTilesetLabel;
+
+    const tileFlipRow = createRow("Tile Flips");
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipRow = tileFlipRow;
+    const tileFlipControls = document.createElement("div");
+    tileFlipControls.style.display = "flex";
+    tileFlipControls.style.alignItems = "center";
+    tileFlipControls.style.gap = "12px";
+    tileFlipControls.style.flexWrap = "wrap";
+
+    const tileFlipXLabel = document.createElement("label");
+    tileFlipXLabel.style.display = "inline-flex";
+    tileFlipXLabel.style.alignItems = "center";
+    tileFlipXLabel.style.gap = "6px";
+    tileFlipXLabel.style.cursor = "pointer";
+    const tileFlipXCheckbox = document.createElement("input");
+    tileFlipXCheckbox.type = "checkbox";
+    tileFlipXCheckbox.addEventListener("change", () => {
+      const previewTileId =
+        this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
+      if (previewTileId === null) {
+        return;
+      }
+      const currentState =
+        this.resolveFpsHeldWeaponTileFlipState(previewTileId);
+      this.setFpsHeldWeaponTileFlipOverride(previewTileId, {
+        flipX: tileFlipXCheckbox.checked,
+        flipY: currentState.flipY,
+        flipDiagonal: currentState.flipDiagonal,
+      });
+      this.syncFpsHeldWeaponAnimationDebugFieldValues();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    tileFlipXLabel.appendChild(tileFlipXCheckbox);
+    const tileFlipXText = document.createElement("span");
+    tileFlipXText.textContent = "Flip X";
+    tileFlipXLabel.appendChild(tileFlipXText);
+    tileFlipControls.appendChild(tileFlipXLabel);
+
+    const tileFlipYLabel = document.createElement("label");
+    tileFlipYLabel.style.display = "inline-flex";
+    tileFlipYLabel.style.alignItems = "center";
+    tileFlipYLabel.style.gap = "6px";
+    tileFlipYLabel.style.cursor = "pointer";
+    const tileFlipYCheckbox = document.createElement("input");
+    tileFlipYCheckbox.type = "checkbox";
+    tileFlipYCheckbox.addEventListener("change", () => {
+      const previewTileId =
+        this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
+      if (previewTileId === null) {
+        return;
+      }
+      const currentState =
+        this.resolveFpsHeldWeaponTileFlipState(previewTileId);
+      this.setFpsHeldWeaponTileFlipOverride(previewTileId, {
+        flipX: currentState.flipX,
+        flipY: tileFlipYCheckbox.checked,
+        flipDiagonal: currentState.flipDiagonal,
+      });
+      this.syncFpsHeldWeaponAnimationDebugFieldValues();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    tileFlipYLabel.appendChild(tileFlipYCheckbox);
+    const tileFlipYText = document.createElement("span");
+    tileFlipYText.textContent = "Flip Y";
+    tileFlipYLabel.appendChild(tileFlipYText);
+    tileFlipControls.appendChild(tileFlipYLabel);
+
+    const tileFlipDiagonalLabel = document.createElement("label");
+    tileFlipDiagonalLabel.style.display = "inline-flex";
+    tileFlipDiagonalLabel.style.alignItems = "center";
+    tileFlipDiagonalLabel.style.gap = "6px";
+    tileFlipDiagonalLabel.style.cursor = "pointer";
+    const tileFlipDiagonalCheckbox = document.createElement("input");
+    tileFlipDiagonalCheckbox.type = "checkbox";
+    tileFlipDiagonalCheckbox.addEventListener("change", () => {
+      const previewTileId =
+        this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
+      if (previewTileId === null) {
+        return;
+      }
+      const currentState =
+        this.resolveFpsHeldWeaponTileFlipState(previewTileId);
+      this.setFpsHeldWeaponTileFlipOverride(previewTileId, {
+        flipX: currentState.flipX,
+        flipY: currentState.flipY,
+        flipDiagonal: tileFlipDiagonalCheckbox.checked,
+      });
+      this.syncFpsHeldWeaponAnimationDebugFieldValues();
+      this.setFpsHeldWeaponAnimationDebugStatus("");
+    });
+    tileFlipDiagonalLabel.appendChild(tileFlipDiagonalCheckbox);
+    const tileFlipDiagonalText = document.createElement("span");
+    tileFlipDiagonalText.textContent = "Diagonal";
+    tileFlipDiagonalLabel.appendChild(tileFlipDiagonalText);
+    tileFlipControls.appendChild(tileFlipDiagonalLabel);
+
+    tileFlipRow.appendChild(tileFlipControls);
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipXCheckbox =
+      tileFlipXCheckbox;
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipYCheckbox =
+      tileFlipYCheckbox;
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipDiagonalCheckbox =
+      tileFlipDiagonalCheckbox;
 
     const keyframeRow = createRow("Keyframe");
     this.fpsHeldWeaponAnimationDebugElements.keyframeRow = keyframeRow;
@@ -30685,6 +31651,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponAnimationDebugElements.noteLabel = null;
     this.fpsHeldWeaponAnimationDebugElements.weightRow = null;
     this.fpsHeldWeaponAnimationDebugElements.previewRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewRow = null;
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipRow = null;
     this.fpsHeldWeaponAnimationDebugElements.keyframeRow = null;
     this.fpsHeldWeaponAnimationDebugElements.addRow = null;
     this.fpsHeldWeaponAnimationDebugElements.durationRow = null;
@@ -30693,6 +31661,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponAnimationDebugElements.pivotSection = null;
     this.fpsHeldWeaponAnimationDebugElements.translationSection = null;
     this.fpsHeldWeaponAnimationDebugElements.rotationSection = null;
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewEnabledCheckbox = null;
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewTileIdInput = null;
+    this.fpsHeldWeaponAnimationDebugElements.tilePreviewTilesetLabel = null;
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipXCheckbox = null;
+    this.fpsHeldWeaponAnimationDebugElements.tileFlipYCheckbox = null;
     for (const axis of ["x", "y", "z"] as const) {
       this.fpsHeldWeaponAnimationDebugElements.basePositionInputs[axis] = null;
       this.fpsHeldWeaponAnimationDebugElements.baseRotationInputs[axis] = null;
