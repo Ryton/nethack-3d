@@ -10649,6 +10649,16 @@ export default function App(): JSX.Element {
           },
     );
   }, []);
+  const showEarliestCachedMessageInfoMenu = useCallback((): void => {
+    setMessageInfoMenuHistory((previous) =>
+      previous.index <= 0
+        ? previous
+        : {
+            ...previous,
+            index: 0,
+          },
+    );
+  }, []);
   const showNextCachedMessageInfoMenu = useCallback((): void => {
     setMessageInfoMenuHistory((previous) => {
       const lastIndex = previous.entries.length - 1;
@@ -18390,6 +18400,15 @@ export default function App(): JSX.Element {
                   {showMessageHistoryNavigation ? (
                     <>
                       <button
+                        aria-label="Show earliest NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowPreviousCachedMessage}
+                        onClick={showEarliestCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {"<<"}
+                      </button>
+                      <button
                         aria-label="Show previous NetHack message"
                         className="nh3d-menu-action-button nh3d-message-history-nav-button"
                         disabled={!canShowPreviousCachedMessage}
@@ -18452,6 +18471,15 @@ export default function App(): JSX.Element {
                 <div className="nh3d-menu-actions">
                   {showMessageHistoryNavigation ? (
                     <>
+                      <button
+                        aria-label="Show earliest NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowPreviousCachedMessage}
+                        onClick={showEarliestCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {"<<"}
+                      </button>
                       <button
                         aria-label="Show previous NetHack message"
                         className="nh3d-menu-action-button nh3d-message-history-nav-button"
@@ -18520,6 +18548,15 @@ export default function App(): JSX.Element {
                 <div className="nh3d-menu-actions">
                   {showMessageHistoryNavigation ? (
                     <>
+                      <button
+                        aria-label="Show earliest NetHack message"
+                        className="nh3d-menu-action-button nh3d-message-history-nav-button"
+                        disabled={!canShowPreviousCachedMessage}
+                        onClick={showEarliestCachedMessageInfoMenu}
+                        type="button"
+                      >
+                        {"<<"}
+                      </button>
                       <button
                         aria-label="Show previous NetHack message"
                         className="nh3d-menu-action-button nh3d-message-history-nav-button"
