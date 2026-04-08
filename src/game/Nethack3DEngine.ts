@@ -138,6 +138,12 @@ type PointerAttackTargetContext = {
   capturedAtMs: number;
 };
 
+type PendingFpsHeldWeaponMeleeSwipeContext = {
+  x: number;
+  y: number;
+  capturedAtMs: number;
+};
+
 type GlyphDamageFlashState = {
   key: string;
   mode: "glyph_texture" | "overlay_tint";
@@ -847,8 +853,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly positionCursorFarLookManualOverrideWindowMs: number = 220;
   private readonly positionCursorFarLookReturnHalfLifeMs: number = 52;
   private readonly positionCursorFarLookLookSensitivityScale: number = 0.5;
-  private readonly positionCursorFarLookCornerRadius: number =
-    TILE_SIZE * 0.14;
+  private readonly positionCursorFarLookCornerRadius: number = TILE_SIZE * 0.14;
   private readonly positionCursorFarLookFocusHeightRatio: number = 0.56;
   private fpsPositionCursorCameraInitialized: boolean = false;
   private fpsPositionCursorCameraCurrent: THREE.Vector3 = new THREE.Vector3();
@@ -991,6 +996,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private fpsHeldWeaponSwayPhase: number = 0;
   private fpsHeldWeaponSwaySpeed: number = 0;
   private fpsHeldWeaponSwaySpeedTarget: number = 0;
+  private fpsHeldWeaponSwipeAnimationStartMs: number = 0;
   private readonly fpsHeldWeaponGeometry = new THREE.PlaneGeometry(1, 1);
   private readonly fpsHeldWeaponBaseLocalOffset = new THREE.Vector3(
     0.38,
@@ -999,6 +1005,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
   );
   private readonly fpsHeldWeaponLocalOffset = new THREE.Vector3();
   private readonly fpsHeldWeaponWorldPosition = new THREE.Vector3();
+  private readonly fpsHeldWeaponWorldQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldWeaponSwipeLocalOffset = new THREE.Vector3();
+  private readonly fpsHeldWeaponSwipePivotLocal = new THREE.Vector3();
+  private readonly fpsHeldWeaponSwipeCenterFromPivot = new THREE.Vector3();
+  private readonly fpsHeldWeaponSwipeRotatedCenter = new THREE.Vector3();
+  private readonly fpsHeldWeaponSwipeEuler = new THREE.Euler();
+  private readonly fpsHeldWeaponSwipeQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldWeaponSwipeWindupOffset = new THREE.Vector3(
+    0.03,
+    -0.05,
+    -0.09,
+  );
+  private readonly fpsHeldWeaponSwipeSwingOffset = new THREE.Vector3(
+    -0.9,
+    0.015,
+    0.03,
+  );
   private readonly fpsHeldWeaponYawLagHalfLifeMs: number = 84;
   private readonly fpsHeldWeaponYawLagAmount: number = 0.38;
   private readonly fpsHeldWeaponYawLagMax: number = 0.2;
@@ -1013,6 +1036,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponSwaySpeedMax: number = 4.07;
   private readonly fpsHeldWeaponSwaySpeedApproachHalfLifeMs: number = 90;
   private readonly fpsHeldWeaponSwaySpeedDecayHalfLifeMs: number = 650;
+  private readonly fpsHeldWeaponSwipeWindupMs: number = 60;
+  private readonly fpsHeldWeaponSwipeSwingMs: number = 100;
+  private readonly fpsHeldWeaponSwipeRecoverMs: number = 120;
+  private readonly fpsHeldWeaponSwipeWindupRollRad: number =
+    -THREE.MathUtils.degToRad(50);
+  private readonly fpsHeldWeaponSwipeWindupTiltRad: number =
+    THREE.MathUtils.degToRad(40);
+  private readonly fpsHeldWeaponSwipeSwingTiltRad: number =
+    THREE.MathUtils.degToRad(-70);
   private readonly fpsHeldWeaponScaleY: number = 0.72;
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
@@ -1467,6 +1499,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastParsedDefeatAtMs: number = 0;
   private lastDirectionalAttackContext: DirectionalAttackContext | null = null;
   private readonly directionalAttackContextMaxAgeMs: number = 900;
+  private pendingFpsHeldWeaponMeleeSwipeContext: PendingFpsHeldWeaponMeleeSwipeContext | null =
+    null;
+  private readonly fpsHeldWeaponMeleeSwipeContextMaxAgeMs: number = 900;
   private pendingPointerAttackTargetContext: PointerAttackTargetContext | null =
     null;
   private readonly pointerAttackTargetContextMaxAgeMs: number = 1800;
@@ -5535,6 +5570,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponSwayPhase = 0;
     this.fpsHeldWeaponSwaySpeed = 0;
     this.fpsHeldWeaponSwaySpeedTarget = 0;
+    this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+    this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     if (this.fpsHeldWeaponMesh) {
       this.fpsHeldWeaponMesh.visible = false;
     }
@@ -9225,6 +9262,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         this.captureAutopickupStateFromMessage(data.text);
         this.captureFpsCrosshairGlanceMessage(data.text);
+        this.captureFpsHeldWeaponSwipeFromCombatMessage(data.text);
         {
           const playerKillHandled = this.captureMonsterDefeatFromMessage(
             data.text,
@@ -9244,6 +9282,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         this.captureAutopickupStateFromMessage(data.text);
         this.captureFpsCrosshairGlanceMessage(data.text);
+        this.captureFpsHeldWeaponSwipeFromCombatMessage(data.text);
         {
           const playerKillHandled = this.captureMonsterDefeatFromMessage(
             data.text,
@@ -9295,9 +9334,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         const isGameOverPossessionsQuestion =
           this.isGameOverPossessionsIdentifyQuestion(String(data.text || ""));
-        if (
-          isGameOverPossessionsQuestion
-        ) {
+        if (isGameOverPossessionsQuestion) {
           this.setGameOverState(true, null);
         }
         if (this.isCharacterCreationQuestion(String(data.text || ""))) {
@@ -9624,7 +9661,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private isNetHackMessageInfoMenuTitle(title: string): boolean {
-    return String(title || "").trim().toLowerCase() === "nethack message";
+    return (
+      String(title || "")
+        .trim()
+        .toLowerCase() === "nethack message"
+    );
   }
 
   private setGameOverState(
@@ -9734,7 +9775,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const deferredCompletion = this.deferredGameOverCompletionState;
     this.deferredGameOverCompletionState = null;
     if (deferredCompletion) {
-      this.pendingGameOverPromptReady = deferredCompletion.shouldDeferPromptReady;
+      this.pendingGameOverPromptReady =
+        deferredCompletion.shouldDeferPromptReady;
       this.setGameOverState(true, deferredCompletion.deathMessage, {
         promptReady: deferredCompletion.shouldDeferPromptReady ? false : true,
         tombstoneLines: deferredCompletion.tombstoneLines,
@@ -10534,6 +10576,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private isPlayerMeleeAttackMessage(message: string): boolean {
+    if (this.isPlayerMissMonsterMessage(message)) {
+      return false;
+    }
+    return /\byou\s+(?:hit|bite|kick|claw|slash|strike|punch|stab|maul|wound|smite|thrust)\b/i.test(
+      message,
+    );
+  }
+
+  private isPlayerMissMonsterMessage(message: string): boolean {
+    return /\byou\s+(?:just\s+)?miss\b/i.test(message);
+  }
+
   private isPlayerHitMonsterMessage(message: string): boolean {
     return /\byou hit (?:the |an? )?.+[.!]?$/i.test(message);
   }
@@ -10651,6 +10706,77 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.updateDirectionalAttackContext(direction);
+  }
+
+  private armPendingFpsHeldWeaponMeleeSwipeFromMovementInput(
+    input: string,
+  ): void {
+    if (!this.isFpsMode()) {
+      this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+      return;
+    }
+
+    const direction = this.getMovementDeltaFromInput(input);
+    if (!direction) {
+      return;
+    }
+
+    const targetX = this.playerPos.x + direction.dx;
+    const targetY = this.playerPos.y + direction.dy;
+    if (!this.isMonsterAttackTargetTile(targetX, targetY)) {
+      this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+      return;
+    }
+
+    this.pendingFpsHeldWeaponMeleeSwipeContext = {
+      x: targetX,
+      y: targetY,
+      capturedAtMs: Date.now(),
+    };
+  }
+
+  private tryPlayFpsHeldWeaponSwipeFromPendingMeleeAttack(
+    nowMs: number = Date.now(),
+  ): boolean {
+    const context = this.pendingFpsHeldWeaponMeleeSwipeContext;
+    if (!context) {
+      return false;
+    }
+
+    if (
+      nowMs - context.capturedAtMs >
+      this.fpsHeldWeaponMeleeSwipeContextMaxAgeMs
+    ) {
+      this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+      return false;
+    }
+
+    this.pendingFpsHeldWeaponMeleeSwipeContext = null;
+    this.playFpsHeldWeaponSwipeAnimation();
+    return true;
+  }
+
+  private captureFpsHeldWeaponSwipeFromCombatMessage(
+    messageLike: unknown,
+  ): void {
+    if (!this.isFpsMode() || typeof messageLike !== "string") {
+      return;
+    }
+
+    const normalized = messageLike.replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return;
+    }
+
+    const shouldPlaySwipe =
+      this.isPlayerMissMonsterMessage(normalized) ||
+      this.isPlayerMeleeAttackMessage(normalized) ||
+      this.isMonsterDefeatMessage(normalized);
+    if (!shouldPlaySwipe) {
+      return;
+    }
+
+    this.tryPlayFpsHeldWeaponSwipeFromPendingMeleeAttack();
   }
 
   private isMonsterAttackTargetTile(x: number, y: number): boolean {
@@ -11790,7 +11916,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     console.log(
       `Requesting player tile refresh (${reason}) at (${this.playerPos.x}, ${this.playerPos.y})`,
     );
-    this.requestTileUpdateWithRetry(this.playerPos.x, this.playerPos.y, options);
+    this.requestTileUpdateWithRetry(
+      this.playerPos.x,
+      this.playerPos.y,
+      options,
+    );
   }
 
   private flushDeferredPlayerTileRefreshIfNeeded(trigger: string): void {
@@ -16482,8 +16612,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     deltaX: number,
     deltaY: number,
     panSpeed: number,
-    directionMultiplier: number =
-      this.clientOptions.invertTouchPanningDirection ? -1 : 1,
+    directionMultiplier: number = this.clientOptions.invertTouchPanningDirection
+      ? -1
+      : 1,
   ): void {
     const sinYaw = Math.sin(this.cameraYaw);
     const cosYaw = Math.cos(this.cameraYaw);
@@ -16493,13 +16624,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const backwardY = cosYaw;
 
     this.cameraPanX +=
-      (-deltaX * rightX - deltaY * backwardX) *
-      panSpeed *
-      directionMultiplier;
+      (-deltaX * rightX - deltaY * backwardX) * panSpeed * directionMultiplier;
     this.cameraPanY +=
-      (-deltaX * rightY - deltaY * backwardY) *
-      panSpeed *
-      directionMultiplier;
+      (-deltaX * rightY - deltaY * backwardY) * panSpeed * directionMultiplier;
     this.cameraPanTargetX = this.cameraPanX;
     this.cameraPanTargetY = this.cameraPanY;
     this.isCameraCenteredOnPlayer = false;
@@ -16546,10 +16673,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const texture = this.getBloodMistTexture();
     const radialSpread = options.radialSpread === true;
 
-    const spreadRadians =
-      radialSpread
-        ? Math.PI * 2
-        : variant === "defeat"
+    const spreadRadians = radialSpread
+      ? Math.PI * 2
+      : variant === "defeat"
         ? THREE.MathUtils.degToRad(52)
         : THREE.MathUtils.degToRad(32);
     const count =
@@ -16629,25 +16755,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       sprite.renderOrder = 930;
       this.scene.add(sprite);
 
-      const directionAngle =
-        radialSpread
-          ? Math.random() * spreadRadians
-          : Math.atan2(awayFromPlayer.y, awayFromPlayer.x) +
-            (Math.random() - 0.5) * spreadRadians;
+      const directionAngle = radialSpread
+        ? Math.random() * spreadRadians
+        : Math.atan2(awayFromPlayer.y, awayFromPlayer.x) +
+          (Math.random() - 0.5) * spreadRadians;
       const horizontalSpeed =
-        (
-          baseHorizontalSpeed +
+        (baseHorizontalSpeed +
           Math.random() * (baseHorizontalSpeed * horizontalVarianceScale) +
           (Math.random() - 0.5) * horizontalVarianceJitter +
           sanitized * horizontalBoost +
-          (1 - sizeFactor) * (variant === "defeat" ? 2.6 : 1.9)
-        ) * horizontalSpeedMultiplier;
+          (1 - sizeFactor) * (variant === "defeat" ? 2.6 : 1.9)) *
+        horizontalSpeedMultiplier;
       const verticalSpeed =
-        (
-          baseVerticalSpeed +
+        (baseVerticalSpeed +
           Math.random() * (variant === "defeat" ? 3.2 : 2.2) +
-          (1 - sizeFactor) * (variant === "defeat" ? 1.9 : 1.2)
-        ) * verticalSpeedMultiplier;
+          (1 - sizeFactor) * (variant === "defeat" ? 1.9 : 1.2)) *
+        verticalSpeedMultiplier;
 
       this.damageParticles.push({
         sprite,
@@ -17126,11 +17249,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const material = particle.mesh.material;
       if (particle.persistOnGround && particle.settled) {
         material.opacity = 0.98;
-        particle.mesh.scale.set(
-          particle.baseScale.x,
-          particle.baseScale.y,
-          1,
-        );
+        particle.mesh.scale.set(particle.baseScale.x, particle.baseScale.y, 1);
         continue;
       }
       const lifeT = THREE.MathUtils.clamp(
@@ -17600,6 +17719,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.pendingCharacterDamageQueue = [];
     this.lastDirectionalAttackContext = null;
+    this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.pendingPointerAttackTargetContext = null;
     this.lastParsedDamageMessage = "";
     this.lastParsedDamageAtMs = 0;
@@ -20990,7 +21110,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     path.closePath();
   }
 
-  private buildPositionCursorRoundedSquareShape(extraInset: number = 0): THREE.Shape {
+  private buildPositionCursorRoundedSquareShape(
+    extraInset: number = 0,
+  ): THREE.Shape {
     const shape = new THREE.Shape();
     this.tracePositionCursorRoundedSquarePath(
       shape,
@@ -21097,7 +21219,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
     this.patchPositionCursorColumnMaterial(columnMaterial);
     const column = new THREE.Mesh(columnGeometry, columnMaterial);
-    column.scale.set(this.positionCursorColumnScale, this.positionCursorColumnScale, 1);
+    column.scale.set(
+      this.positionCursorColumnScale,
+      this.positionCursorColumnScale,
+      1,
+    );
     column.renderOrder = 1000;
     group.add(column);
 
@@ -21127,7 +21253,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const bottomOutlineLoopMaterial = bottomOutlineLoop.material;
     if (bottomOutlineLoopMaterial instanceof THREE.LineBasicMaterial) {
       bottomOutlineLoopMaterial.transparent = true;
-      bottomOutlineLoopMaterial.opacity = this.positionCursorBottomOutlineOpacity;
+      bottomOutlineLoopMaterial.opacity =
+        this.positionCursorBottomOutlineOpacity;
       bottomOutlineLoopMaterial.depthTest = false;
       bottomOutlineLoopMaterial.depthWrite = false;
     }
@@ -21146,7 +21273,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return group;
   }
 
-  private setPositionInputMode(active: boolean, origin: string | null = null): void {
+  private setPositionInputMode(
+    active: boolean,
+    origin: string | null = null,
+  ): void {
     if (!active) {
       if (this.fpsCrosshairGlancePending?.sawPositionInput) {
         this.fpsCrosshairGlancePending.positionResolvedAtMs = Date.now();
@@ -21159,11 +21289,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         new THREE.Vector3(),
       );
       this.fpsPositionCursorCameraCurrent.copy(this.camera.position);
-      this.fpsPositionCursorLookCurrent.copy(this.camera.position).add(
-        currentLookDirection.multiplyScalar(
-          Math.max(TILE_SIZE * 2, this.positionCursorFarLookOrbitDistance),
-        ),
-      );
+      this.fpsPositionCursorLookCurrent
+        .copy(this.camera.position)
+        .add(
+          currentLookDirection.multiplyScalar(
+            Math.max(TILE_SIZE * 2, this.positionCursorFarLookOrbitDistance),
+          ),
+        );
       this.positionInputModeActive = false;
       this.positionInputOrigin = null;
       this.uiAdapter.setPositionInputActive(false);
@@ -23180,8 +23312,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.hasExplicitPlayerVisual(behavior, char);
     const shouldSuppressPlayerTileVisualInFps =
       this.isFpsMode() &&
-      ((tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial) &&
-        !shouldKeepVisiblePlayerBillboardInFarLook ||
+      (((tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial) &&
+        !shouldKeepVisiblePlayerBillboardInFarLook) ||
         isFpsStepDestinationTile ||
         isPredictedFpsPlayerTile ||
         (tileRelation.isCurrentPlayerTile &&
@@ -25529,6 +25661,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fpsHeldWeaponSwayPhase = 0;
     this.fpsHeldWeaponSwaySpeed = 0;
     this.fpsHeldWeaponSwaySpeedTarget = 0;
+    this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+    this.pendingFpsHeldWeaponMeleeSwipeContext = null;
   }
 
   private isHeldWeaponInventoryItem(item: unknown): item is NethackMenuItem {
@@ -25573,7 +25707,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const assetReady = usingVultureTiles
       ? this.vultureTilesetTranslator !== null
       : this.resolveTilesetAtlasImageSource() !== null;
-    if (!assetReady || (tileIndex === null && !canUseTranslatedTileWithoutAtlas)) {
+    if (
+      !assetReady ||
+      (tileIndex === null && !canUseTranslatedTileWithoutAtlas)
+    ) {
       return null;
     }
     const backgroundRemovalKey =
@@ -25674,8 +25811,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     if (!this.fpsStepCameraActive) {
       this.fpsHeldWeaponSwaySpeedTarget *= Math.exp(
-        (-Math.LN2 * dt * 1000) /
-          this.fpsHeldWeaponSwaySpeedDecayHalfLifeMs,
+        (-Math.LN2 * dt * 1000) / this.fpsHeldWeaponSwaySpeedDecayHalfLifeMs,
       );
       if (Math.abs(this.fpsHeldWeaponSwaySpeedTarget) < 0.0001) {
         this.fpsHeldWeaponSwaySpeedTarget = 0;
@@ -25714,6 +25850,103 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.fpsHeldWeaponMovementOffset;
   }
 
+  private playFpsHeldWeaponSwipeAnimation(): void {
+    if (!this.isFpsMode()) {
+      return;
+    }
+    this.fpsHeldWeaponSwipeAnimationStartMs = performance.now();
+  }
+
+  private resolveFpsHeldWeaponSwipeAnimation(now: number = performance.now()): {
+    active: boolean;
+    rollRad: number;
+    tiltRad: number;
+  } {
+    const totalMs =
+      this.fpsHeldWeaponSwipeWindupMs +
+      this.fpsHeldWeaponSwipeSwingMs +
+      this.fpsHeldWeaponSwipeRecoverMs;
+    if (this.fpsHeldWeaponSwipeAnimationStartMs <= 0) {
+      this.fpsHeldWeaponSwipeLocalOffset.set(0, 0, 0);
+      return { active: false, rollRad: 0, tiltRad: 0 };
+    }
+    const elapsedMs = now - this.fpsHeldWeaponSwipeAnimationStartMs;
+    if (elapsedMs >= totalMs) {
+      this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+      this.fpsHeldWeaponSwipeLocalOffset.set(0, 0, 0);
+      return { active: false, rollRad: 0, tiltRad: 0 };
+    }
+
+    if (elapsedMs < this.fpsHeldWeaponSwipeWindupMs) {
+      const t = THREE.MathUtils.smoothstep(
+        elapsedMs / this.fpsHeldWeaponSwipeWindupMs,
+        0,
+        1,
+      );
+      this.fpsHeldWeaponSwipeLocalOffset
+        .set(0, 0, 0)
+        .lerp(this.fpsHeldWeaponSwipeWindupOffset, t);
+      return {
+        active: true,
+        rollRad: THREE.MathUtils.lerp(
+          0,
+          this.fpsHeldWeaponSwipeWindupRollRad,
+          t,
+        ),
+        tiltRad: THREE.MathUtils.lerp(
+          0,
+          this.fpsHeldWeaponSwipeWindupTiltRad,
+          t,
+        ),
+      };
+    }
+
+    if (
+      elapsedMs <
+      this.fpsHeldWeaponSwipeWindupMs + this.fpsHeldWeaponSwipeSwingMs
+    ) {
+      const t = THREE.MathUtils.smoothstep(
+        (elapsedMs - this.fpsHeldWeaponSwipeWindupMs) /
+          this.fpsHeldWeaponSwipeSwingMs,
+        0,
+        1,
+      );
+      this.fpsHeldWeaponSwipeLocalOffset
+        .copy(this.fpsHeldWeaponSwipeWindupOffset)
+        .lerp(this.fpsHeldWeaponSwipeSwingOffset, t);
+      return {
+        active: true,
+        rollRad: THREE.MathUtils.lerp(
+          this.fpsHeldWeaponSwipeWindupRollRad,
+          0,
+          t,
+        ),
+        tiltRad: THREE.MathUtils.lerp(
+          this.fpsHeldWeaponSwipeWindupTiltRad,
+          this.fpsHeldWeaponSwipeSwingTiltRad,
+          t,
+        ),
+      };
+    }
+
+    const t = THREE.MathUtils.smoothstep(
+      (elapsedMs -
+        this.fpsHeldWeaponSwipeWindupMs -
+        this.fpsHeldWeaponSwipeSwingMs) /
+        this.fpsHeldWeaponSwipeRecoverMs,
+      0,
+      1,
+    );
+    this.fpsHeldWeaponSwipeLocalOffset
+      .copy(this.fpsHeldWeaponSwipeSwingOffset)
+      .multiplyScalar(1 - t);
+    return {
+      active: true,
+      rollRad: 0,
+      tiltRad: THREE.MathUtils.lerp(this.fpsHeldWeaponSwipeSwingTiltRad, 0, t),
+    };
+  }
+
   private syncFpsHeldWeaponSprite(deltaSeconds: number): void {
     const textureState = this.resolveFpsHeldWeaponTextureState();
     if (!textureState) {
@@ -25726,6 +25959,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponSwayPhase = 0;
       this.fpsHeldWeaponSwaySpeed = 0;
       this.fpsHeldWeaponSwaySpeedTarget = 0;
+      this.fpsHeldWeaponSwipeAnimationStartMs = 0;
+      this.pendingFpsHeldWeaponMeleeSwipeContext = null;
       return;
     }
 
@@ -25819,19 +26054,50 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
     const pitchOffset =
       (0.5 - pitchT) * 2 * this.fpsHeldWeaponPitchOffsetRange + pitchLagOffset;
-    const movementOffset = this.resolveFpsHeldWeaponMovementOffset(
-      deltaSeconds,
-    );
+    const movementOffset =
+      this.resolveFpsHeldWeaponMovementOffset(deltaSeconds);
+    const swipeAnimation = this.resolveFpsHeldWeaponSwipeAnimation();
 
     this.fpsHeldWeaponLocalOffset.copy(this.fpsHeldWeaponBaseLocalOffset);
     this.fpsHeldWeaponLocalOffset.x += yawLagOffset + movementOffset.x;
     this.fpsHeldWeaponLocalOffset.y += pitchOffset + movementOffset.y;
+    if (swipeAnimation.active) {
+      const width = Math.abs(horizontalScale);
+      const height = this.fpsHeldWeaponScaleY;
+      this.fpsHeldWeaponSwipePivotLocal.copy(this.fpsHeldWeaponLocalOffset);
+      this.fpsHeldWeaponSwipePivotLocal.x += width * 0.5;
+      this.fpsHeldWeaponSwipePivotLocal.y -= height * 0.5;
+      this.fpsHeldWeaponSwipePivotLocal.add(this.fpsHeldWeaponSwipeLocalOffset);
+      this.fpsHeldWeaponSwipeCenterFromPivot.set(-width * 0.5, height * 0.5, 0);
+      this.fpsHeldWeaponSwipeEuler.set(
+        swipeAnimation.tiltRad,
+        0,
+        swipeAnimation.rollRad,
+        "XYZ",
+      );
+      this.fpsHeldWeaponSwipeQuaternion.setFromEuler(
+        this.fpsHeldWeaponSwipeEuler,
+      );
+      this.fpsHeldWeaponSwipeRotatedCenter
+        .copy(this.fpsHeldWeaponSwipeCenterFromPivot)
+        .applyQuaternion(this.fpsHeldWeaponSwipeQuaternion);
+      this.fpsHeldWeaponLocalOffset
+        .copy(this.fpsHeldWeaponSwipePivotLocal)
+        .add(this.fpsHeldWeaponSwipeRotatedCenter);
+    }
     this.fromCameraLocalOffset(
       this.fpsHeldWeaponLocalOffset,
       this.fpsHeldWeaponWorldPosition,
     );
     mesh.position.copy(this.fpsHeldWeaponWorldPosition);
-    mesh.quaternion.copy(this.camera.quaternion);
+    if (swipeAnimation.active) {
+      this.fpsHeldWeaponWorldQuaternion
+        .copy(this.camera.quaternion)
+        .multiply(this.fpsHeldWeaponSwipeQuaternion);
+      mesh.quaternion.copy(this.fpsHeldWeaponWorldQuaternion);
+    } else {
+      mesh.quaternion.copy(this.camera.quaternion);
+    }
     mesh.visible = true;
   }
 
@@ -26630,7 +26896,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (this.activeQuestionActionFocusIndex <= 0) {
           return this.focusLastQuestionSelectableItem();
         }
-        this.setQuestionActionFocusIndex(this.activeQuestionActionFocusIndex - 1);
+        this.setQuestionActionFocusIndex(
+          this.activeQuestionActionFocusIndex - 1,
+        );
         return true;
       }
       if (effectiveDirection === "right" || effectiveDirection === "down") {
@@ -27861,7 +28129,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!this.isInQuestion || !selectionInput) {
       return;
     }
-    const resolvedSelection = this.resolveQuestionSelectionInput(selectionInput);
+    const resolvedSelection =
+      this.resolveQuestionSelectionInput(selectionInput);
     if (!resolvedSelection) {
       return;
     }
@@ -28361,6 +28630,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.updateDirectionalAttackContext(resolvedInput);
+    if (shouldTreatAsPlayerMovementInput) {
+      this.armPendingFpsHeldWeaponMeleeSwipeFromMovementInput(resolvedInput);
+    }
 
     const itemCommandRefreshReason =
       this.getPlayerTileRefreshReasonForItemCommandInput(resolvedInput);
@@ -28439,6 +28711,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!direction) {
       return;
     }
+    this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.updateDirectionalAttackContext(direction);
     this.armPlayerCliparoundInputCooldown();
     this.sendInputSequence(["5", direction]);
@@ -29654,7 +29927,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.fpsPositionCursorOrbitYaw + deltaX * sensitivityX,
       );
       this.fpsPositionCursorOrbitPitch = THREE.MathUtils.clamp(
-        this.fpsPositionCursorOrbitPitch - deltaY * sensitivityY * lookYDirection,
+        this.fpsPositionCursorOrbitPitch -
+          deltaY * sensitivityY * lookYDirection,
         this.minCameraPitch,
         this.maxCameraPitch,
       );
@@ -30599,10 +30873,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
       // If we're in a prompt/position mode, send Escape to NetHack so the
       // runtime can cancel the active flow (question, direction, far-look, etc.).
-      if (
-        this.isInQuestion ||
-        this.isInDirectionQuestion
-      ) {
+      if (this.isInQuestion || this.isInDirectionQuestion) {
         console.log("🔄 Sending Escape to NetHack to cancel active prompt");
         this.sendInput("Escape");
       }
@@ -31169,12 +31440,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         const targetYaw = this.cameraYaw;
         const targetPitch = this.cameraPitch;
-        const desiredForwardX =
-          -Math.sin(targetYaw) * Math.cos(targetPitch);
-        const desiredForwardY =
-          -Math.cos(targetYaw) * Math.cos(targetPitch);
+        const desiredForwardX = -Math.sin(targetYaw) * Math.cos(targetPitch);
+        const desiredForwardY = -Math.cos(targetYaw) * Math.cos(targetPitch);
         const desiredForwardZ = Math.sin(targetPitch);
-        const desiredCameraPosition = new THREE.Vector3(targetEyeX, targetEyeY, eyeZ);
+        const desiredCameraPosition = new THREE.Vector3(
+          targetEyeX,
+          targetEyeY,
+          eyeZ,
+        );
         const desiredLookTarget = new THREE.Vector3(
           targetEyeX + desiredForwardX * (TILE_SIZE * 2.5),
           targetEyeY + desiredForwardY * (TILE_SIZE * 2.5),
@@ -31193,10 +31466,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (
           this.fpsPositionCursorCameraCurrent.distanceToSquared(
             desiredCameraPosition,
-          ) <=
-            0.0024 &&
-          this.fpsPositionCursorLookCurrent.distanceToSquared(desiredLookTarget) <=
-            0.0048
+          ) <= 0.0024 &&
+          this.fpsPositionCursorLookCurrent.distanceToSquared(
+            desiredLookTarget,
+          ) <= 0.0048
         ) {
           this.fpsPositionCursorCameraCurrent.copy(desiredCameraPosition);
           this.fpsPositionCursorLookCurrent.copy(desiredLookTarget);
@@ -31207,10 +31480,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return;
       }
       if (this.playModeCameraTransitionActive) {
-        const desiredForwardX = -Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch);
-        const desiredForwardY = -Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch);
+        const desiredForwardX =
+          -Math.sin(this.cameraYaw) * Math.cos(this.cameraPitch);
+        const desiredForwardY =
+          -Math.cos(this.cameraYaw) * Math.cos(this.cameraPitch);
         const desiredForwardZ = Math.sin(this.cameraPitch);
-        const desiredCameraPosition = new THREE.Vector3(targetEyeX, targetEyeY, eyeZ);
+        const desiredCameraPosition = new THREE.Vector3(
+          targetEyeX,
+          targetEyeY,
+          eyeZ,
+        );
         const desiredLookTarget = new THREE.Vector3(
           targetEyeX + desiredForwardX * (TILE_SIZE * 2.5),
           targetEyeY + desiredForwardY * (TILE_SIZE * 2.5),
@@ -31235,17 +31514,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (
           this.playModeCameraTransitionCurrentPosition.distanceToSquared(
             desiredCameraPosition,
-          ) <=
-            0.006 &&
+          ) <= 0.006 &&
           this.playModeCameraTransitionCurrentLookTarget.distanceToSquared(
             desiredLookTarget,
-          ) <=
-            0.006
+          ) <= 0.006
         ) {
           this.playModeCameraTransitionCurrentPosition.copy(
             desiredCameraPosition,
           );
-          this.playModeCameraTransitionCurrentLookTarget.copy(desiredLookTarget);
+          this.playModeCameraTransitionCurrentLookTarget.copy(
+            desiredLookTarget,
+          );
           this.playModeCameraTransitionActive = false;
         }
         return;
@@ -31284,13 +31563,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
         const cursorWorldX = this.positionCursor.x * TILE_SIZE;
         const cursorWorldY = -this.positionCursor.y * TILE_SIZE;
         const cursorTile =
-          this.tileMap.get(`${this.positionCursor.x},${this.positionCursor.y}`) ??
-          null;
+          this.tileMap.get(
+            `${this.positionCursor.x},${this.positionCursor.y}`,
+          ) ?? null;
         const cursorHeight =
           cursorTile?.userData?.isWall === true
             ? Math.max(this.positionCursorColumnHeight, WALL_HEIGHT + 0.22)
             : this.positionCursorColumnHeight;
-        const focusZ = cursorHeight * this.positionCursorFarLookFocusHeightRatio;
+        const focusZ =
+          cursorHeight * this.positionCursorFarLookFocusHeightRatio;
         const orbitYaw = this.fpsPositionCursorOrbitYaw;
         const effectivePitch = THREE.MathUtils.clamp(
           this.fpsPositionCursorOrbitPitch,
@@ -31319,11 +31600,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
           const currentLookDirection = this.camera.getWorldDirection(
             new THREE.Vector3(),
           );
-          this.fpsPositionCursorLookCurrent.copy(this.camera.position).add(
-            currentLookDirection.multiplyScalar(
-              Math.max(TILE_SIZE * 2, this.positionCursorFarLookOrbitDistance),
-            ),
-          );
+          this.fpsPositionCursorLookCurrent
+            .copy(this.camera.position)
+            .add(
+              currentLookDirection.multiplyScalar(
+                Math.max(
+                  TILE_SIZE * 2,
+                  this.positionCursorFarLookOrbitDistance,
+                ),
+              ),
+            );
           this.fpsPositionCursorCameraInitialized = true;
         }
         const nowMs = Date.now();
@@ -31333,11 +31619,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           ? this.positionCursorFarLookManualFollowHalfLifeMs
           : this.positionCursorFarLookFollowHalfLifeMs;
         const alpha =
-          1 -
-          Math.exp(
-            (-Math.LN2 * deltaSeconds * 1000) /
-              followHalfLifeMs,
-          );
+          1 - Math.exp((-Math.LN2 * deltaSeconds * 1000) / followHalfLifeMs);
         this.fpsPositionCursorCameraCurrent.lerp(desiredCameraPosition, alpha);
         this.fpsPositionCursorLookCurrent.lerp(desiredLookTarget, alpha);
         this.camera.position.copy(this.fpsPositionCursorCameraCurrent);
@@ -31412,12 +31694,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (
         this.playModeCameraTransitionCurrentPosition.distanceToSquared(
           desiredCameraPosition,
-        ) <=
-          0.006 &&
+        ) <= 0.006 &&
         this.playModeCameraTransitionCurrentLookTarget.distanceToSquared(
           desiredLookTarget,
-        ) <=
-          0.006
+        ) <= 0.006
       ) {
         this.playModeCameraTransitionCurrentPosition.copy(
           desiredCameraPosition,
@@ -33478,7 +33758,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
     if (!target) {
       this.pendingPointerAttackTargetContext = null;
-      const gridTarget = this.getGridPositionFromClientCoordinates(clientX, clientY);
+      const gridTarget = this.getGridPositionFromClientCoordinates(
+        clientX,
+        clientY,
+      );
       if (!gridTarget) {
         return false;
       }
@@ -34272,14 +34555,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
       } else {
         this.controllerDirectionPromptPreviewInput =
           this.getFpsDirectionQuestionInputFromAim();
-        this.controllerDirectionPromptPreviewSource =
-          this.controllerDirectionPromptPreviewInput ? "fps_aim" : null;
+        this.controllerDirectionPromptPreviewSource = this
+          .controllerDirectionPromptPreviewInput
+          ? "fps_aim"
+          : null;
       }
       this.updateDirectionPromptOverlayState();
 
       if (
         this.controllerDirectionPromptPreviewInput &&
-        this.getMovementDeltaFromInput(this.controllerDirectionPromptPreviewInput)
+        this.getMovementDeltaFromInput(
+          this.controllerDirectionPromptPreviewInput,
+        )
       ) {
         this.setControllerMovePreviewDirection(
           this.controllerDirectionPromptPreviewInput,
@@ -34396,10 +34683,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!cardinalDelta || !diagonalDelta) {
       return false;
     }
-    const cardinalIsDiagonal =
-      cardinalDelta.dx !== 0 && cardinalDelta.dy !== 0;
-    const diagonalIsDiagonal =
-      diagonalDelta.dx !== 0 && diagonalDelta.dy !== 0;
+    const cardinalIsDiagonal = cardinalDelta.dx !== 0 && cardinalDelta.dy !== 0;
+    const diagonalIsDiagonal = diagonalDelta.dx !== 0 && diagonalDelta.dy !== 0;
     if (cardinalIsDiagonal || !diagonalIsDiagonal) {
       return false;
     }
@@ -34503,10 +34788,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (
         previewInput &&
         this.isDiagonalMovementInput(previewInput) &&
-        this.isCardinalDirectionPartOfDiagonal(
-          dpadDirectionInput,
-          previewInput,
-        )
+        this.isCardinalDirectionPartOfDiagonal(dpadDirectionInput, previewInput)
       ) {
         this.controllerDpadDiagonalReleasePreviewInput = previewInput;
         this.controllerDpadDiagonalReleaseFallbackInput = dpadDirectionInput;
@@ -37100,7 +37382,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
                 this.positionCursor.x,
                 this.positionCursor.y,
               );
-              this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+              this.sendMouseInput(
+                this.positionCursor.x,
+                this.positionCursor.y,
+                0,
+              );
               consumed = true;
             }
           }
@@ -37239,7 +37525,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const start = this.touchSwipeStart;
       this.touchSwipeStart = null;
       this.cancelMapTouchContextHoldState();
-      if (!start || !event.changedTouches || event.changedTouches.length === 0) {
+      if (
+        !start ||
+        !event.changedTouches ||
+        event.changedTouches.length === 0
+      ) {
         return;
       }
 
