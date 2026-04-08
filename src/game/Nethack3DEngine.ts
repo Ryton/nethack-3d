@@ -1044,7 +1044,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponSwipeWindupTiltRad: number =
     THREE.MathUtils.degToRad(40);
   private readonly fpsHeldWeaponSwipeSwingTiltRad: number =
-    THREE.MathUtils.degToRad(-70);
+    THREE.MathUtils.degToRad(-50);
   private readonly fpsHeldWeaponScaleY: number = 0.72;
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
