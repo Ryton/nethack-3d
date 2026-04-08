@@ -662,6 +662,10 @@
           description:
             "Flatten tile sprites for loot or dungeon features when monsters, pets, or the player stand on them. Disable to keep overlapping sprites as standing billboards. Vulture tiles always stay standing.",
         },
+        fpsHeldWeaponVisible: {
+          label: "Show FPS weapon",
+          description: "Display the held weapon sprite in first-person mode.",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "Show under-player items in overhead tiles",
           description:

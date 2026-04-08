@@ -237,6 +237,7 @@ export type Nh3dClientOptions = {
   tilesetBackgroundRemovalModeByTileset: TilesetBackgroundRemovalModeByTileset;
   tilesetSolidChromaKeyColorHex: string;
   tilesetSolidChromaKeyColorHexByTileset: TilesetSolidChromaKeyColorHexByTileset;
+  fpsHeldWeaponVisible: boolean;
   fpsHeldWeaponSpriteFlipX: boolean;
   fpsHeldWeaponSpriteFlipXByTileset: TilesetWeaponSpriteFlipXByTileset;
   tilesetMode: "ascii" | "tiles";
@@ -388,6 +389,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   tilesetSolidChromaKeyColorHex:
     resolveDefaultNh3dTilesetSolidChromaKeyColorHex(defaultNh3dTilesetPath),
   tilesetSolidChromaKeyColorHexByTileset: {},
+  fpsHeldWeaponVisible: true,
   fpsHeldWeaponSpriteFlipX:
     resolveDefaultNh3dTilesetWeaponSpriteFlipX(defaultNh3dTilesetPath),
   fpsHeldWeaponSpriteFlipXByTileset: {},
@@ -947,6 +949,10 @@ export function normalizeNh3dClientOptions(
     selectedTilesetSolidChromaKeyColorHex,
     defaultSolidChromaKeyForTileset,
   );
+  const fpsHeldWeaponVisible =
+    typeof overrides?.fpsHeldWeaponVisible === "boolean"
+      ? overrides.fpsHeldWeaponVisible
+      : defaultNh3dClientOptions.fpsHeldWeaponVisible;
   const fpsHeldWeaponSpriteFlipX =
     typeof selectedTilesetWeaponSpriteFlipX === "boolean"
       ? selectedTilesetWeaponSpriteFlipX
@@ -1114,6 +1120,7 @@ export function normalizeNh3dClientOptions(
     tilesetBackgroundRemovalModeByTileset,
     tilesetSolidChromaKeyColorHex,
     tilesetSolidChromaKeyColorHexByTileset,
+    fpsHeldWeaponVisible,
     fpsHeldWeaponSpriteFlipX,
     fpsHeldWeaponSpriteFlipXByTileset,
     tilesetMode,

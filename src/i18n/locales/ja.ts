@@ -637,6 +637,10 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "モンスター、ペット、またはプレイヤーが上にいるとき、戦利品やダンジョン要素のタイルスプライトを平面化します。無効にすると重なったスプライトは立ったビルボードのままです。Vulture タイルは常に立体表示されます。",
         },
+        fpsHeldWeaponVisible: {
+          label: "FPS武器を表示",
+          description: "一人称モードで手に持った武器スプライトを表示します。",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "見下ろしタイルでプレイヤー下のアイテムを表示",
           description:

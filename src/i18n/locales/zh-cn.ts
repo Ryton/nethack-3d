@@ -435,6 +435,10 @@ export const zhCnOverrides = {
           description:
             "当怪物、宠物或玩家站在战利品或地城特征上时，将这些瓦片精灵压平。关闭后会继续以竖立广告牌方式显示重叠精灵。Vulture 瓦片始终保持竖立。",
         },
+        fpsHeldWeaponVisible: {
+          label: "显示第一人称武器",
+          description: "在第一人称模式中显示手持武器精灵。",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "在俯视瓦片模式中显示玩家脚下物品",
           description: "在俯视瓦片模式下使用运行时底层字形数据来显示玩家脚下的物品和地面特征。",

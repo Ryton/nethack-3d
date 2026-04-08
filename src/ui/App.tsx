@@ -2918,6 +2918,7 @@ type ClientOptionToggleKey =
   | "fpsMode"
   | "lightingEnabled"
   | "fpsFlattenEntityBillboards"
+  | "fpsHeldWeaponVisible"
   | "showItemsUnderPlayerInOverheadTilesMode"
   | "controllerEnabled"
   | "invertLookYAxis"
@@ -4328,6 +4329,12 @@ const clientOptionsConfig: ClientOption[] = [
     key: "fpsFlattenEntityBillboards",
     label: t.clientOptions.config.fpsFlattenEntityBillboards.label,
     description: t.clientOptions.config.fpsFlattenEntityBillboards.description,
+    type: "boolean",
+  },
+  {
+    key: "fpsHeldWeaponVisible",
+    label: t.clientOptions.config.fpsHeldWeaponVisible.label,
+    description: t.clientOptions.config.fpsHeldWeaponVisible.description,
     type: "boolean",
   },
   {

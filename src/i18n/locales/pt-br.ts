@@ -683,6 +683,10 @@ export const ptBrOverrides = {
           description:
             "Achata sprites de tiles de saque ou elementos da masmorra quando monstros, mascotes ou o jogador ficam sobre eles. Desative para manter sprites sobrepostos como billboards em pé. Tiles de Vulture sempre permanecem em pé.",
         },
+        fpsHeldWeaponVisible: {
+          label: "Mostrar arma em FPS",
+          description: "Exibe o sprite da arma empunhada no modo em primeira pessoa.",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "Mostrar itens sob o jogador em tiles superiores",
           description:

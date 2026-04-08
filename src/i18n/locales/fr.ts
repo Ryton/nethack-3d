@@ -690,6 +690,10 @@
           description:
             "Aplatit les sprites de tuiles pour le butin ou les elements du donjon lorsque des monstres, des animaux ou le joueur se tiennent dessus. Desactivez pour conserver les sprites superposes sous forme de panneaux verticaux. Les tuiles Vulture restent toujours verticales.",
         },
+        fpsHeldWeaponVisible: {
+          label: "Afficher l'arme FPS",
+          description: "Affiche le sprite de l'arme tenue en vue a la premiere personne.",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "Afficher les objets sous le joueur en vue dessus",
           description:

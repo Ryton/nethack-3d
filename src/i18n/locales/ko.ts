@@ -662,6 +662,10 @@
           description:
             "몬스터, 반려동물, 플레이어가 올라서면 전리품이나 던전 요소 타일 스프라이트를 평면화합니다. 끄면 겹치는 스프라이트를 세워진 빌보드로 유지합니다. Vulture 타일은 항상 세워진 상태를 유지합니다.",
         },
+        fpsHeldWeaponVisible: {
+          label: "FPS 무기 표시",
+          description: "1인칭 모드에서 손에 든 무기 스프라이트를 표시합니다.",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "상단 타일 모드에서 플레이어 아래 아이템 표시",
           description:

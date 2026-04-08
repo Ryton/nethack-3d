@@ -686,6 +686,10 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Flacht Tile-Sprites f\u00fcr Beute oder Dungeon-Elemente ab, wenn Monster, Haustiere oder der Spieler darauf stehen. Deaktivieren, um \u00fcberlappende Sprites als stehende Billboards zu behalten. Vulture-Tiles bleiben immer aufrecht.",
         },
+        fpsHeldWeaponVisible: {
+          label: "FPS-Waffe anzeigen",
+          description: "Zeigt die gehaltene Waffensprite im Ego-Modus an.",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "Gegenst\u00e4nde unter dem Spieler in Draufsicht zeigen",
           description:

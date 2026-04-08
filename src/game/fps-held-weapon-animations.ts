@@ -1,4 +1,16 @@
 export const FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID = "melee_swipe";
+export const FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_2_ANIMATION_ID =
+  "melee_swipe_2";
+export const FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_3_ANIMATION_ID =
+  "melee_swipe_3";
+export const FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_4_ANIMATION_ID =
+  "melee_swipe_4";
+export const FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_IDS = [
+  FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID,
+  FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_2_ANIMATION_ID,
+  FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_3_ANIMATION_ID,
+  FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_4_ANIMATION_ID,
+] as const;
 
 export type FpsHeldWeaponAnimationVector3 = {
   x: number;
@@ -18,6 +30,7 @@ export type FpsHeldWeaponAnimationKeyframe = {
 export type FpsHeldWeaponAnimationDefinition = {
   id: string;
   label: string;
+  weight: number;
   pivotNormalized: FpsHeldWeaponAnimationVector3;
   keyframes: FpsHeldWeaponAnimationKeyframe[];
 };
@@ -47,6 +60,9 @@ const clampDurationMs = (value: number): number =>
 const sanitizeNumber = (value: number, fallback: number = 0): number =>
   Number.isFinite(value) ? value : fallback;
 
+const clampAnimationWeight = (value: number): number =>
+  Math.max(0, sanitizeNumber(value, 1));
+
 const cloneVector3 = (
   value: FpsHeldWeaponAnimationVector3 | null | undefined,
 ): FpsHeldWeaponAnimationVector3 => ({
@@ -73,11 +89,153 @@ const createDefaultKeyframe = (): FpsHeldWeaponAnimationKeyframe => ({
   rotationDeg: createZeroVector3(),
 });
 
+const createDefaultMeleeSwipe1Keyframes =
+  (): FpsHeldWeaponAnimationKeyframe[] => [
+    {
+      durationMs: 1,
+      translation: {
+        x: -0.23,
+        y: 0.09,
+        z: -0.07,
+      },
+      rotationDeg: {
+        x: -85.9,
+        y: -29.4,
+        z: -131,
+      },
+    },
+    {
+      durationMs: 150,
+      translation: {
+        x: -1.19,
+        y: 0.38,
+        z: 0.16,
+      },
+      rotationDeg: {
+        x: -68.2,
+        y: 0,
+        z: 67.1,
+      },
+      soundEffect: "missed_attack",
+    },
+    {
+      durationMs: 260,
+      translation: createZeroVector3(),
+      rotationDeg: createZeroVector3(),
+    },
+  ];
+
+const createDefaultMeleeSwipe2Keyframes =
+  (): FpsHeldWeaponAnimationKeyframe[] => [
+    {
+      durationMs: 1,
+      translation: {
+        x: -0.96,
+        y: 0.14,
+        z: -0.07,
+      },
+      rotationDeg: {
+        x: -94.5,
+        y: 34.5,
+        z: 71.1,
+      },
+    },
+    {
+      durationMs: 150,
+      translation: {
+        x: -0.12,
+        y: 0,
+        z: 0,
+      },
+      rotationDeg: {
+        x: -53.8,
+        y: -1.2,
+        z: -121.4,
+      },
+      soundEffect: "missed_attack",
+    },
+    {
+      durationMs: 350,
+      translation: createZeroVector3(),
+      rotationDeg: createZeroVector3(),
+    },
+  ];
+
+const createDefaultMeleeSwipe3Keyframes =
+  (): FpsHeldWeaponAnimationKeyframe[] => [
+    {
+      durationMs: 1,
+      translation: {
+        x: -0.3,
+        y: 0.44,
+        z: 0,
+      },
+      rotationDeg: {
+        x: 0,
+        y: -100,
+        z: -60,
+      },
+    },
+    {
+      durationMs: 100,
+      translation: {
+        x: -0.34,
+        y: 0.08,
+        z: 0,
+      },
+      rotationDeg: {
+        x: 0.4,
+        y: -75.2,
+        z: 70,
+      },
+      soundEffect: "missed_attack",
+    },
+    {
+      durationMs: 300,
+      translation: createZeroVector3(),
+      rotationDeg: createZeroVector3(),
+    },
+  ];
+
 export const defaultFpsHeldWeaponAnimationLibrary: FpsHeldWeaponAnimationLibrary =
   {
     [FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID]: {
       id: FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID,
-      label: "Melee Swipe",
+      label: "Melee Swipe 1",
+      weight: 1,
+      pivotNormalized: {
+        x: 0.46,
+        y: -0.5,
+        z: 0,
+      },
+      keyframes: createDefaultMeleeSwipe1Keyframes(),
+    },
+    [FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_2_ANIMATION_ID]: {
+      id: FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_2_ANIMATION_ID,
+      label: "Melee Swipe 2",
+      weight: 1,
+      pivotNormalized: {
+        x: 0.46,
+        y: -0.5,
+        z: 0,
+      },
+      keyframes: createDefaultMeleeSwipe2Keyframes(),
+    },
+    [FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_3_ANIMATION_ID]: {
+      id: FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_3_ANIMATION_ID,
+      label: "Melee Swipe 3",
+      weight: 0.5,
+      pivotNormalized: {
+        x: 0.46,
+        y: -0.5,
+        z: 0,
+      },
+      keyframes: createDefaultMeleeSwipe3Keyframes(),
+    },
+    [FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_4_ANIMATION_ID]: {
+      id: FPS_HELD_WEAPON_MELEE_SWIPE_VARIATION_4_ANIMATION_ID,
+      label: "Melee Swipe 4",
+      weight: 0.5,
       pivotNormalized: {
         x: 0.46,
         y: -0.5,
@@ -87,32 +245,37 @@ export const defaultFpsHeldWeaponAnimationLibrary: FpsHeldWeaponAnimationLibrary
         {
           durationMs: 1,
           translation: {
-            x: -0.35,
-            y: 0.21,
-            z: -0.07,
+            x: -0.49,
+            y: 0.3,
+            z: 0.5,
           },
           rotationDeg: {
-            x: -50,
-            y: -40,
-            z: -150,
+            x: -102.9,
+            y: -29.7,
+            z: -49.4,
           },
         },
         {
-          durationMs: 150,
+          durationMs: 75,
           translation: {
-            x: -1.19,
-            y: 0.2,
-            z: 0.16,
+            x: -0.5,
+            y: 0.37,
+            z: 0.05,
           },
           rotationDeg: {
-            x: -60.6,
-            y: 0,
-            z: 41.2,
+            x: -93.5,
+            y: -34.2,
+            z: -37.4,
           },
           soundEffect: "missed_attack",
         },
         {
-          durationMs: 250,
+          durationMs: 400,
+          translation: createZeroVector3(),
+          rotationDeg: createZeroVector3(),
+        },
+        {
+          durationMs: 400,
           translation: createZeroVector3(),
           rotationDeg: createZeroVector3(),
         },
@@ -125,6 +288,7 @@ export const cloneFpsHeldWeaponAnimationDefinition = (
 ): FpsHeldWeaponAnimationDefinition => ({
   id: animation.id,
   label: animation.label,
+  weight: clampAnimationWeight(animation.weight),
   pivotNormalized: cloneVector3(animation.pivotNormalized),
   keyframes:
     animation.keyframes.length > 0
@@ -261,6 +425,7 @@ export const serializeFpsHeldWeaponAnimationDefinition = (
     {
       id: animation.id,
       label: animation.label,
+      weight: roundNumber(clampAnimationWeight(animation.weight), 4),
       pivotNormalized: {
         x: roundNumber(sanitizeNumber(animation.pivotNormalized.x), 4),
         y: roundNumber(sanitizeNumber(animation.pivotNormalized.y), 4),

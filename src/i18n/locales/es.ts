@@ -632,6 +632,10 @@ export const esOverrides = {
                     label: "Aplanar sprites de mosaicos superpuestos",
                     description: "Aplana los sprites de mosaicos para obtener bot\u00EDn o caracter\u00EDsticas de mazmorra cuando los monstruos, las mascotas o el jugador se paran sobre ellos. Desact\u00EDvelo para mantener los sprites superpuestos como vallas publicitarias verticales. Las fichas de buitre siempre permanecen en pie.",
                 },
+                fpsHeldWeaponVisible: {
+                    label: "Mostrar arma en FPS",
+                    description: "Muestra el sprite del arma equipada en el modo en primera persona.",
+                },
                 showItemsUnderPlayerInOverheadTilesMode: {
                     label: "Mostrar elementos secundarios en mosaicos superiores",
                     description: "Muestre elementos y caracter\u00EDsticas del piso debajo del reproductor en el modo de mosaicos superiores utilizando datos de glifos subyacentes en tiempo de ejecuci\u00F3n.",

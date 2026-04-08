@@ -682,6 +682,10 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Litistä saaliin tai luolaston kohteiden ruutuspritit, kun niiden päällä seisoo hirviö, lemmikki tai pelaaja. Poista käytöstä pitääksesi päällekkäiset spritet pystyssä olevina billboardeina. Vulture-ruudut pysyvät aina pystyssä.",
         },
+        fpsHeldWeaponVisible: {
+          label: "Näytä FPS-ase",
+          description: "Näyttää kädessä pidetyn aseen spriten ensimmäisen persoonan tilassa.",
+        },
         showItemsUnderPlayerInOverheadTilesMode: {
           label: "Näytä pelaajan alla olevat esineet yläkuvaruuduissa",
           description:
