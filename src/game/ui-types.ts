@@ -6,6 +6,7 @@ import {
   resolveDefaultNh3dTilesetBackgroundTileId,
   resolveDefaultNh3dTilesetBackgroundRemovalMode,
   resolveDefaultNh3dTilesetSolidChromaKeyColorHex,
+  resolveDefaultNh3dTilesetWeaponSpriteFlipX,
 } from "./tilesets";
 import {
   defaultNh3dControllerBindings,
@@ -166,6 +167,7 @@ export type TilesetBackgroundRemovalModeByTileset = Record<
   TilesetBackgroundRemovalMode
 >;
 export type TilesetSolidChromaKeyColorHexByTileset = Record<string, string>;
+export type TilesetWeaponSpriteFlipXByTileset = Record<string, boolean>;
 
 export type Nh3dClientOptions = {
   locale: SupportedLocale;
@@ -235,6 +237,8 @@ export type Nh3dClientOptions = {
   tilesetBackgroundRemovalModeByTileset: TilesetBackgroundRemovalModeByTileset;
   tilesetSolidChromaKeyColorHex: string;
   tilesetSolidChromaKeyColorHexByTileset: TilesetSolidChromaKeyColorHexByTileset;
+  fpsHeldWeaponSpriteFlipX: boolean;
+  fpsHeldWeaponSpriteFlipXByTileset: TilesetWeaponSpriteFlipXByTileset;
   tilesetMode: "ascii" | "tiles";
   tilesetPath: string;
   antialiasing: Nh3dAntialiasingMode;
@@ -384,6 +388,9 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   tilesetSolidChromaKeyColorHex:
     resolveDefaultNh3dTilesetSolidChromaKeyColorHex(defaultNh3dTilesetPath),
   tilesetSolidChromaKeyColorHexByTileset: {},
+  fpsHeldWeaponSpriteFlipX:
+    resolveDefaultNh3dTilesetWeaponSpriteFlipX(defaultNh3dTilesetPath),
+  fpsHeldWeaponSpriteFlipXByTileset: {},
   tilesetMode: "tiles",
   tilesetPath: defaultNh3dTilesetPath,
   antialiasing: "taa",
@@ -613,6 +620,12 @@ function normalizeTilesetSolidChromaKeyColorHexByTileset(
   return normalized;
 }
 
+function normalizeTilesetWeaponSpriteFlipXByTileset(
+  rawValue: unknown,
+): TilesetWeaponSpriteFlipXByTileset {
+  return normalizeDarkCorridorWallOverrideEnabledByTileset(rawValue);
+}
+
 export function normalizeNh3dClientOptions(
   overrides?: Partial<Nh3dClientOptions> | null,
 ): Nh3dClientOptions {
@@ -830,6 +843,10 @@ export function normalizeNh3dClientOptions(
     normalizeTilesetSolidChromaKeyColorHexByTileset(
       overrides?.tilesetSolidChromaKeyColorHexByTileset,
     );
+  const fpsHeldWeaponSpriteFlipXByTileset =
+    normalizeTilesetWeaponSpriteFlipXByTileset(
+      overrides?.fpsHeldWeaponSpriteFlipXByTileset,
+    );
   const selectedTilesetDarkWallOverrideTileId = tilesetPath
     ? darkCorridorWallTileOverrideTileIdByTileset[tilesetPath]
     : undefined;
@@ -859,6 +876,9 @@ export function normalizeNh3dClientOptions(
     : undefined;
   const selectedTilesetSolidChromaKeyColorHex = tilesetPath
     ? tilesetSolidChromaKeyColorHexByTileset[tilesetPath]
+    : undefined;
+  const selectedTilesetWeaponSpriteFlipX = tilesetPath
+    ? fpsHeldWeaponSpriteFlipXByTileset[tilesetPath]
     : undefined;
   const darkCorridorWallTileOverrideTileId =
     typeof selectedTilesetDarkWallOverrideTileId === "number" &&
@@ -927,6 +947,12 @@ export function normalizeNh3dClientOptions(
     selectedTilesetSolidChromaKeyColorHex,
     defaultSolidChromaKeyForTileset,
   );
+  const fpsHeldWeaponSpriteFlipX =
+    typeof selectedTilesetWeaponSpriteFlipX === "boolean"
+      ? selectedTilesetWeaponSpriteFlipX
+      : typeof overrides?.fpsHeldWeaponSpriteFlipX === "boolean"
+        ? overrides.fpsHeldWeaponSpriteFlipX
+        : resolveDefaultNh3dTilesetWeaponSpriteFlipX(tilesetPath);
   return {
     locale,
     fpsMode:
@@ -1088,6 +1114,8 @@ export function normalizeNh3dClientOptions(
     tilesetBackgroundRemovalModeByTileset,
     tilesetSolidChromaKeyColorHex,
     tilesetSolidChromaKeyColorHexByTileset,
+    fpsHeldWeaponSpriteFlipX,
+    fpsHeldWeaponSpriteFlipXByTileset,
     tilesetMode,
     tilesetPath,
     antialiasing,
