@@ -62,7 +62,7 @@ import {
 } from "../runtime/startup-init-options";
 import { supportsRuntimeCheckpointRecovery } from "../runtime/runtime-capabilities";
 import {
-  getRuntimeSaveDbNames,
+  resolveRuntimeSaveDbNames,
   getStoredFileByteLength,
   isRecoverableCheckpointLevelZeroByteLength,
 } from "../runtime/save-storage";
@@ -5818,7 +5818,7 @@ async function fetchSavedGames(
   runtimeVersion: NethackRuntimeVersion,
 ): Promise<SaveGameRecord[]> {
   const saves = new Map<string, SaveGameRecord>();
-  const dbNames = getRuntimeSaveDbNames(runtimeVersion);
+  const dbNames = await resolveRuntimeSaveDbNames(runtimeVersion);
   const checkpointRecoverySupported =
     supportsRuntimeCheckpointRecovery(runtimeVersion);
   const savePresentationMetadataByKey = readSavePresentationMetadataByKey();

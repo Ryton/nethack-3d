@@ -114,3 +114,46 @@ export function getRuntimeSaveDbNames(
     ),
   );
 }
+
+type IndexedDbDatabaseListEntry = {
+  name?: unknown;
+};
+
+export async function resolveRuntimeSaveDbNames(
+  runtimeVersion: NethackRuntimeVersion,
+): Promise<string[]> {
+  const staticNames = getRuntimeSaveDbNames(runtimeVersion);
+  const compatTag = getRuntimeSaveCompatTag(runtimeVersion);
+  const matchingNames = new Set(staticNames);
+
+  if (
+    typeof indexedDB !== "undefined" &&
+    typeof (
+      indexedDB as IDBFactory & {
+        databases?: () => Promise<IndexedDbDatabaseListEntry[]>;
+      }
+    ).databases === "function"
+  ) {
+    try {
+      const databases = await (
+        indexedDB as IDBFactory & {
+          databases: () => Promise<IndexedDbDatabaseListEntry[]>;
+        }
+      ).databases();
+      for (const entry of databases) {
+        const name =
+          typeof entry?.name === "string" ? entry.name.trim() : "";
+        if (!name) {
+          continue;
+        }
+        if (name === `save-${compatTag}` || name.endsWith(`/save-${compatTag}`)) {
+          matchingNames.add(name);
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to enumerate IndexedDB save databases:", error);
+    }
+  }
+
+  return Array.from(matchingNames);
+}
