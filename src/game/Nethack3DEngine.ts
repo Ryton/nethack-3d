@@ -1522,6 +1522,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponSwaySpeedApproachHalfLifeMs: number = 90;
   private readonly fpsHeldWeaponSwaySpeedDecayHalfLifeMs: number = 650;
   private readonly fpsHeldWeaponScaleY: number = 0.72;
+  private readonly fpsHeldWeaponAuthoredAspectRatio: number = 16 / 9;
   private readonly fpsHeldWeaponFovDepthCompensationStrength: number = 0.92;
   private readonly fpsHeldWeaponFovDepthCompensationMinScale: number = 0.47;
   private readonly fpsHeldWeaponFovDepthCompensationMaxScale: number = 1.2;
@@ -26712,6 +26713,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private resolveFpsHeldWeaponHorizontalTranslationScale(): number {
+    const cameraAspect =
+      typeof this.camera.aspect === "number" && Number.isFinite(this.camera.aspect)
+        ? this.camera.aspect
+        : Number.NaN;
+    if (!(cameraAspect > 0)) {
+      return 1;
+    }
+    return cameraAspect / this.fpsHeldWeaponAuthoredAspectRatio;
+  }
+
   private clearFpsHeldWeaponAnimationState(): void {
     this.fpsHeldWeaponActiveAnimation = null;
   }
@@ -27054,6 +27066,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         .copy(this.fpsHeldWeaponAnimationPivotLocal)
         .add(this.fpsHeldWeaponAnimationRotatedCenter);
     }
+    // Weapon placement was authored at 16:9, so remap horizontal offsets to the
+    // current viewport aspect before projecting back into world space.
+    this.fpsHeldWeaponLocalOffset.x *=
+      this.resolveFpsHeldWeaponHorizontalTranslationScale();
     this.fromCameraLocalOffset(
       this.fpsHeldWeaponLocalOffset,
       this.fpsHeldWeaponWorldPosition,
