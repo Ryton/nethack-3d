@@ -371,7 +371,7 @@ class LocalNetHackRuntime {
     const is37 = runtimeVersion === "3.7";
     const isSlashEm = runtimeVersion === "slashem";
     const addMenuArgCounts = is37 ? [9] : [8];
-    const printGlyphArgCounts = is37 ? [5] : [4, 5];
+    const printGlyphArgCounts = is37 ? [5] : [4, 5, 7];
     return {
       abiTag: this.readConfiguredPointerAbiTag(runtimeVersion),
       callbackArgCounts: {
@@ -379,10 +379,14 @@ class LocalNetHackRuntime {
         shim_getlin: [2],
         shim_select_menu: [3],
         shim_add_menu: addMenuArgCounts,
-        // Forked wasm-367 currently emits [win, x, y, glyph, bkglyph] (5 args).
+        // Forked wasm-367 emits [win, x, y, glyph, bkglyph] (5 args) and the
+        // tracked build extends that to [win, x, y, glyph, bkglyph,
+        // monsterId, attackingTargetId] (7 args).
         // 3.7 emits [win, x, y, glyphinfo_ptr, bkglyphinfo_ptr] (5 args).
         // Keep 4-arg compatibility only for alternate 3.6.7 builds.
         shim_print_glyph: printGlyphArgCounts,
+        shim_monster_attack: [4],
+        shim_monster_killed: [4],
         shim_status_update: [6],
       },
       callbackPointers: {
@@ -4566,6 +4570,26 @@ class LocalNetHackRuntime {
     return !this.isUndiscoveredOrNothingGlyph(glyph, glyphFlags);
   }
 
+  normalizeRuntimeMonsterId(rawValue) {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized > 0 ? normalized : null;
+  }
+
+  normalizeRuntimeAttackTargetId(rawValue) {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized >= 0 ? normalized : null;
+  }
+
+  getTrackedMonsterIdFromRuntimeTile(tileData) {
+    return this.normalizeRuntimeMonsterId(tileData?.monsterId);
+  }
+
   isMonsterLikeGlyph(glyph) {
     if (typeof glyph !== "number" || !Number.isFinite(glyph) || glyph < 0) {
       return false;
@@ -4783,6 +4807,7 @@ class LocalNetHackRuntime {
         tileData && Number.isFinite(Number(tileData.symidx))
           ? Math.trunc(Number(tileData.symidx))
           : null;
+      const trackedMonsterId = this.getTrackedMonsterIdFromRuntimeTile(tileData);
       let decodedGlyphFlags = null;
       let floorUnderlay = null;
       if (this.isUndiscoveredOrNothingGlyph(normalizedGlyph)) {
@@ -4803,6 +4828,8 @@ class LocalNetHackRuntime {
             floorUnderlayColor: null,
             floorUnderlayTileIndex: null,
             floorUnderlaySymidx: null,
+            monsterId: trackedMonsterId,
+            attackingTargetId: null,
             window: this.getRuntimeWindowId("WIN_MAP"),
             isRefresh: true,
             isRuntimeUndiscoveredClear: true,
@@ -4867,6 +4894,8 @@ class LocalNetHackRuntime {
             floorUnderlayColor: floorUnderlay?.color ?? null,
             floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
             floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+            monsterId: trackedMonsterId,
+            attackingTargetId: null,
             window: this.getRuntimeWindowId("WIN_MAP"),
             isRefresh: true,
             isRuntimeUndiscoveredClear: true,
@@ -4889,6 +4918,7 @@ class LocalNetHackRuntime {
         floorUnderlayColor: floorUnderlay?.color ?? null,
         floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
         floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+        monsterId: trackedMonsterId,
         timestamp: Date.now(),
       });
 
@@ -4907,6 +4937,8 @@ class LocalNetHackRuntime {
           floorUnderlayColor: floorUnderlay?.color ?? null,
           floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
           floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+          monsterId: trackedMonsterId,
+          attackingTargetId: null,
           window: this.getRuntimeWindowId("WIN_MAP"),
           isRefresh: true,
         });
@@ -5034,6 +5066,8 @@ class LocalNetHackRuntime {
                 tileData && Number.isFinite(Number(tileData.symidx))
                   ? Math.trunc(Number(tileData.symidx))
                   : null;
+              const trackedMonsterId =
+                this.getTrackedMonsterIdFromRuntimeTile(tileData);
               let decodedGlyphFlags = null;
               let floorUnderlay = null;
               if (this.isUndiscoveredOrNothingGlyph(normalizedGlyph)) {
@@ -5055,6 +5089,8 @@ class LocalNetHackRuntime {
                     floorUnderlayColor: null,
                     floorUnderlayTileIndex: null,
                     floorUnderlaySymidx: null,
+                    monsterId: trackedMonsterId,
+                    attackingTargetId: null,
                     window: this.getRuntimeWindowId("WIN_MAP"),
                     isRefresh: true,
                     isAreaRefresh: true,
@@ -5126,6 +5162,8 @@ class LocalNetHackRuntime {
                     floorUnderlayColor: floorUnderlay?.color ?? null,
                     floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                     floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+                    monsterId: trackedMonsterId,
+                    attackingTargetId: null,
                     window: this.getRuntimeWindowId("WIN_MAP"),
                     isRefresh: true,
                     isAreaRefresh: true,
@@ -5150,6 +5188,7 @@ class LocalNetHackRuntime {
                 floorUnderlayColor: floorUnderlay?.color ?? null,
                 floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                 floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+                monsterId: trackedMonsterId,
                 timestamp: Date.now(),
               });
 
@@ -5168,6 +5207,8 @@ class LocalNetHackRuntime {
                   floorUnderlayColor: floorUnderlay?.color ?? null,
                   floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                   floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+                  monsterId: trackedMonsterId,
+                  attackingTargetId: null,
                   window: this.getRuntimeWindowId("WIN_MAP"),
                   isRefresh: true,
                   isAreaRefresh: true,
@@ -5197,6 +5238,8 @@ class LocalNetHackRuntime {
               floorUnderlayColor: tileData.floorUnderlayColor ?? null,
               floorUnderlayTileIndex: tileData.floorUnderlayTileIndex ?? null,
               floorUnderlaySymidx: tileData.floorUnderlaySymidx ?? null,
+              monsterId: this.getTrackedMonsterIdFromRuntimeTile(tileData),
+              attackingTargetId: null,
               window: this.getRuntimeWindowId("WIN_MAP"),
               isRefresh: true,
               isAreaRefresh: true,
@@ -11239,9 +11282,13 @@ class LocalNetHackRuntime {
       case "shim_print_glyph": {
         // 3.6.7: args = [win, x, y, glyph]
         // 3.7:   args = [win, x, y, ptrToGlyphInfo, extra]
-        const [printWin, x, y, a, b] = args as number[];
+        const [printWin, x, y, a, b, rawMonsterId, rawAttackingTargetId] =
+          args as number[];
 
         let printGlyph = a;
+        const monsterId = this.normalizeRuntimeMonsterId(rawMonsterId);
+        const attackingTargetId =
+          this.normalizeRuntimeAttackTargetId(rawAttackingTargetId);
 
         // Use local names to avoid colliding with existing glyphChar/glyphColor in your file
         let decodedChar: string | null = null;
@@ -11249,6 +11296,14 @@ class LocalNetHackRuntime {
         let decodedTileIndex: number | null = null;
         let decodedSymidx: number | null = null;
         let shouldLogPrintGlyph = true;
+        const glyphDebugSuffix = [
+          monsterId !== null ? `monsterId=${monsterId}` : "",
+          attackingTargetId !== null
+            ? `attackingTargetId=${attackingTargetId}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
 
         const printGlyphMode =
           this.getRuntimePointerContract()?.callbackModes?.shim_print_glyph || {};
@@ -11297,9 +11352,23 @@ class LocalNetHackRuntime {
           );
         }
 
+        if (false && shouldLogPrintGlyph && glyphDebugSuffix) {
+          console.log(
+            `ðŸŽ¨ GLYPH [Win ${printWin}] at (${x},${y}): ${glyphDebugSuffix}`,
+          );
+        }
+
+        if (shouldLogPrintGlyph && glyphDebugSuffix) {
+          console.log(
+            `[GLYPH DEBUG] [Win ${printWin}] at (${x},${y}): ${glyphDebugSuffix}`,
+          );
+        }
+
         if (this.isMapWindow(printWin)) {
           const key = `${x},${y}`;
           const previousTileData = this.gameMap.get(key);
+          const previousMonsterId =
+            this.getTrackedMonsterIdFromRuntimeTile(previousTileData);
           if (this.isUndiscoveredOrNothingGlyph(printGlyph)) {
             const hadRenderableTile =
               this.isRenderableRuntimeMapTile(previousTileData);
@@ -11319,6 +11388,8 @@ class LocalNetHackRuntime {
                 floorUnderlayColor: null,
                 floorUnderlayTileIndex: null,
                 floorUnderlaySymidx: null,
+                monsterId: previousMonsterId,
+                attackingTargetId: null,
                 window: printWin,
                 isRuntimeUndiscoveredClear: true,
               });
@@ -11401,6 +11472,8 @@ class LocalNetHackRuntime {
                 floorUnderlayColor: floorUnderlay?.color ?? null,
                 floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
                 floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+                monsterId: previousMonsterId,
+                attackingTargetId: null,
                 window: printWin,
                 isRuntimeUndiscoveredClear: true,
               });
@@ -11422,6 +11495,7 @@ class LocalNetHackRuntime {
             floorUnderlayColor: floorUnderlay?.color ?? null,
             floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
             floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+            monsterId,
             timestamp: Date.now(),
           });
 
@@ -11441,11 +11515,62 @@ class LocalNetHackRuntime {
               floorUnderlayColor: floorUnderlay?.color ?? null,
               floorUnderlayTileIndex: floorUnderlay?.tileIndex ?? null,
               floorUnderlaySymidx: floorUnderlay?.symidx ?? null,
+              monsterId,
+              attackingTargetId,
               window: printWin,
             });
           }
         }
 
+        return 0;
+      }
+
+      case "shim_monster_attack": {
+        const [rawAttackerId, rawTargetId, rawTargetX, rawTargetY] =
+          args as number[];
+        const attackerId = this.normalizeRuntimeMonsterId(rawAttackerId);
+        const targetId = this.normalizeRuntimeAttackTargetId(rawTargetId);
+        const targetX =
+          typeof rawTargetX === "number" && Number.isFinite(rawTargetX)
+            ? Math.trunc(rawTargetX)
+            : null;
+        const targetY =
+          typeof rawTargetY === "number" && Number.isFinite(rawTargetY)
+            ? Math.trunc(rawTargetY)
+            : null;
+        if (this.eventHandler) {
+          this.emit({
+            type: "monster_attack",
+            attackerId,
+            targetId,
+            targetX,
+            targetY,
+          });
+        }
+        return 0;
+      }
+
+      case "shim_monster_killed": {
+        const [rawMonsterId, rawKillerId, rawX, rawY] = args as number[];
+        const monsterId = this.normalizeRuntimeMonsterId(rawMonsterId);
+        const killerId = this.normalizeRuntimeAttackTargetId(rawKillerId);
+        const x =
+          typeof rawX === "number" && Number.isFinite(rawX)
+            ? Math.trunc(rawX)
+            : null;
+        const y =
+          typeof rawY === "number" && Number.isFinite(rawY)
+            ? Math.trunc(rawY)
+            : null;
+        if (this.eventHandler) {
+          this.emit({
+            type: "monster_killed",
+            monsterId,
+            killerId,
+            x,
+            y,
+          });
+        }
         return 0;
       }
 

@@ -248,6 +248,8 @@ type MonsterBillboardShatterOptions = {
   splitTargetCountOverride?: number;
   removeSourceBillboard?: boolean;
   persistShardsOnGround?: boolean;
+  directionX?: number;
+  directionY?: number;
 };
 
 type DamageEffectOptions = {
@@ -255,6 +257,8 @@ type DamageEffectOptions = {
   radialBloodMistSpread?: boolean;
   bloodMistHorizontalSpeedMultiplier?: number;
   bloodMistVerticalSpeedMultiplier?: number;
+  directionX?: number;
+  directionY?: number;
   billboardShatter?: MonsterBillboardShatterOptions;
 };
 
@@ -1146,6 +1150,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly tileFlushFrameBudgetMs: number = 5;
   private readonly tileFlushMaxPerFrame: number = 72;
   private tileStateCache: Map<string, string> = new Map();
+  private runtimeMonsterTileKeyById: Map<number, string> = new Map();
+  private runtimeMonsterIdByTileKey: Map<string, number> = new Map();
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
   private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> = new Map();
   private suppressedLootLikeUnderPlayerCacheKeys: Set<string> = new Set();
@@ -2021,6 +2027,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastParsedDamageAtMs: number = 0;
   private lastParsedDefeatMessage: string = "";
   private lastParsedDefeatAtMs: number = 0;
+  private runtimeMonsterKillHeuristicSuppressionUntilMs: number = 0;
   private suppressNextFpsHeldWeaponMissedAttackMessageSound: boolean = false;
   private lastDirectionalAttackContext: DirectionalAttackContext | null = null;
   private readonly directionalAttackContextMaxAgeMs: number = 900;
@@ -9644,6 +9651,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const data = event as RuntimeEvent & Record<string, any>;
     switch (data.type) {
       case "map_glyph":
+        this.updateRuntimeMonsterTrackingFromTile(data);
         this.capturePendingLevelTransitionTile(data);
         this.maybeFinalizePendingLevelCacheTransition("tile");
         this.tryResolvePendingCharacterDamage(data);
@@ -9655,11 +9663,80 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.capturePendingLevelTransitionTiles(data.tiles);
           this.maybeFinalizePendingLevelCacheTransition("tile");
           for (const tile of data.tiles) {
+            this.updateRuntimeMonsterTrackingFromTile(tile);
             this.tryResolvePendingCharacterDamage(tile);
             this.enqueueTileUpdate(tile);
           }
         }
         break;
+
+      case "monster_attack": {
+        const targetTile =
+          typeof data.targetX === "number" &&
+          Number.isFinite(data.targetX) &&
+          typeof data.targetY === "number" &&
+          Number.isFinite(data.targetY)
+            ? {
+                x: Math.trunc(data.targetX),
+                y: Math.trunc(data.targetY),
+              }
+            : this.normalizeRuntimeTargetEntityId(data.targetId) === 0
+              ? { x: this.playerPos.x, y: this.playerPos.y }
+              : this.resolveRuntimeMonsterTileById(data.targetId);
+        const attackDirection = this.resolveDamageEffectDirectionFromTiles(
+          this.resolveRuntimeEffectOriginTileByEntityId(data.attackerId),
+          targetTile,
+        );
+        if (targetTile) {
+          this.triggerDamageEffectsAtTile(
+            targetTile.x,
+            targetTile.y,
+            1,
+            "hit",
+            attackDirection
+              ? {
+                  directionX: attackDirection.x,
+                  directionY: attackDirection.y,
+                }
+              : {},
+          );
+        }
+        break;
+      }
+
+      case "monster_killed": {
+        const targetTile =
+          typeof data.x === "number" &&
+          Number.isFinite(data.x) &&
+          typeof data.y === "number" &&
+          Number.isFinite(data.y)
+            ? { x: Math.trunc(data.x), y: Math.trunc(data.y) }
+            : this.resolveRuntimeMonsterTileById(data.monsterId);
+        const defeatDirection = this.resolveDamageEffectDirectionFromTiles(
+          this.resolveRuntimeEffectOriginTileByEntityId(data.killerId),
+          targetTile,
+        );
+        this.suppressMonsterKillMessageHeuristics();
+        if (targetTile) {
+          this.triggerDamageEffectsAtTile(
+            targetTile.x,
+            targetTile.y,
+            1,
+            "defeat",
+            defeatDirection
+              ? {
+                  directionX: defeatDirection.x,
+                  directionY: defeatDirection.y,
+                }
+              : {},
+          );
+        }
+        if (this.normalizeRuntimeTargetEntityId(data.killerId) !== 0) {
+          this.messageSoundHooks.playOtherMonsterKilledSound();
+        }
+        this.removeRuntimeMonsterTrackingById(data.monsterId);
+        break;
+      }
 
       case "under_player_item_glyph":
         this.applyUnderPlayerItemGlyphEvent(data);
@@ -11354,6 +11431,137 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private normalizeRuntimeMonsterId(rawValue: unknown): number | null {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized > 0 ? normalized : null;
+  }
+
+  private normalizeRuntimeTargetEntityId(rawValue: unknown): number | null {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized >= 0 ? normalized : null;
+  }
+
+  private removeRuntimeMonsterTrackingById(rawValue: unknown): void {
+    const monsterId = this.normalizeRuntimeMonsterId(rawValue);
+    if (monsterId === null) {
+      return;
+    }
+    const key = this.runtimeMonsterTileKeyById.get(monsterId);
+    if (key && this.runtimeMonsterIdByTileKey.get(key) === monsterId) {
+      this.runtimeMonsterIdByTileKey.delete(key);
+    }
+    this.runtimeMonsterTileKeyById.delete(monsterId);
+  }
+
+  private updateRuntimeMonsterTrackingFromTile(tile: any): void {
+    if (
+      !tile ||
+      typeof tile.x !== "number" ||
+      !Number.isFinite(tile.x) ||
+      typeof tile.y !== "number" ||
+      !Number.isFinite(tile.y)
+    ) {
+      return;
+    }
+
+    const key = `${Math.trunc(tile.x)},${Math.trunc(tile.y)}`;
+    const eventMonsterId = this.normalizeRuntimeMonsterId(tile.monsterId);
+    const previousMonsterId = this.runtimeMonsterIdByTileKey.get(key) ?? null;
+    const isRuntimeClear = Boolean(tile.isRuntimeUndiscoveredClear);
+
+    if (
+      previousMonsterId !== null &&
+      (isRuntimeClear || previousMonsterId !== eventMonsterId)
+    ) {
+      if (this.runtimeMonsterTileKeyById.get(previousMonsterId) === key) {
+        this.runtimeMonsterTileKeyById.delete(previousMonsterId);
+      }
+      this.runtimeMonsterIdByTileKey.delete(key);
+    }
+
+    if (isRuntimeClear || eventMonsterId === null) {
+      if (eventMonsterId !== null) {
+        this.removeRuntimeMonsterTrackingById(eventMonsterId);
+      }
+      return;
+    }
+
+    const previousKeyForMonster =
+      this.runtimeMonsterTileKeyById.get(eventMonsterId) ?? null;
+    if (
+      previousKeyForMonster &&
+      previousKeyForMonster !== key &&
+      this.runtimeMonsterIdByTileKey.get(previousKeyForMonster) ===
+        eventMonsterId
+    ) {
+      this.runtimeMonsterIdByTileKey.delete(previousKeyForMonster);
+    }
+
+    this.runtimeMonsterTileKeyById.set(eventMonsterId, key);
+    this.runtimeMonsterIdByTileKey.set(key, eventMonsterId);
+  }
+
+  private resolveRuntimeMonsterTileById(
+    rawMonsterId: unknown,
+  ): { x: number; y: number } | null {
+    const monsterId = this.normalizeRuntimeMonsterId(rawMonsterId);
+    if (monsterId === null) {
+      return null;
+    }
+    const key = this.runtimeMonsterTileKeyById.get(monsterId);
+    return key ? this.parseTileKey(key) : null;
+  }
+
+  private resolveRuntimeEffectOriginTileByEntityId(
+    rawEntityId: unknown,
+  ): { x: number; y: number } | null {
+    const entityId = this.normalizeRuntimeTargetEntityId(rawEntityId);
+    if (entityId === null) {
+      return null;
+    }
+    if (entityId === 0) {
+      return this.hasSeenPlayerPosition
+        ? { x: this.playerPos.x, y: this.playerPos.y }
+        : null;
+    }
+    return this.resolveRuntimeMonsterTileById(entityId);
+  }
+
+  private resolveDamageEffectDirectionFromTiles(
+    origin: { x: number; y: number } | null,
+    target: { x: number; y: number } | null,
+  ): { x: number; y: number } | null {
+    if (!origin || !target) {
+      return null;
+    }
+
+    const deltaX = Number(target.x) - Number(origin.x);
+    const deltaY = Number(target.y) - Number(origin.y);
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) {
+      return null;
+    }
+
+    const magnitude = Math.hypot(deltaX, deltaY);
+    if (magnitude < 1e-6) {
+      return null;
+    }
+
+    return {
+      x: deltaX / magnitude,
+      y: -deltaY / magnitude,
+    };
+  }
+
+  private suppressMonsterKillMessageHeuristics(): void {
+    this.runtimeMonsterKillHeuristicSuppressionUntilMs = Date.now() + 180;
+  }
+
   private setPendingPointerAttackTargetFromTile(x: number, y: number): void {
     if (!this.isMonsterAttackTargetTile(x, y)) {
       this.pendingPointerAttackTargetContext = null;
@@ -11478,6 +11686,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
 
+    if (Date.now() < this.runtimeMonsterKillHeuristicSuppressionUntilMs) {
+      return false;
+    }
+
     const normalized = messageLike.replace(/\s+/g, " ").trim();
     if (!normalized || !this.isMonsterDefeatMessage(normalized)) {
       return false;
@@ -11505,6 +11717,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     playerKillHandled: boolean,
   ): void {
     if (playerKillHandled || typeof messageLike !== "string") {
+      return;
+    }
+    if (Date.now() < this.runtimeMonsterKillHeuristicSuppressionUntilMs) {
       return;
     }
     const normalized = messageLike.replace(/\s+/g, " ").trim();
@@ -11691,10 +11906,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const hadElevatedBillboard = this.monsterBillboards.has(key);
     if (variant === "defeat") {
       if (this.clientOptions.monsterShatter) {
+        const shatterOptions: MonsterBillboardShatterOptions = {
+          ...options.billboardShatter,
+        };
+        if (
+          typeof shatterOptions.directionX !== "number" &&
+          typeof options.directionX === "number"
+        ) {
+          shatterOptions.directionX = options.directionX;
+        }
+        if (
+          typeof shatterOptions.directionY !== "number" &&
+          typeof options.directionY === "number"
+        ) {
+          shatterOptions.directionY = options.directionY;
+        }
         this.spawnMonsterBillboardShatterEffectAtTile(
           x,
           y,
-          options.billboardShatter,
+          shatterOptions,
         );
       }
     }
@@ -11736,6 +11966,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (this.clientOptions.bloodMist || this.clientOptions.bloodGround) {
       this.spawnBloodEffects(x, y, damage, variant, {
+        directionX: options.directionX,
+        directionY: options.directionY,
         horizontalSpeedMultiplier: options.bloodMistHorizontalSpeedMultiplier,
         mistParticleCountMultiplier: options.bloodMistCountMultiplier,
         radialSpread: options.radialBloodMistSpread,
@@ -17201,6 +17433,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     damage: number,
     variant: "hit" | "defeat",
     options: {
+      directionX?: number;
+      directionY?: number;
       horizontalSpeedMultiplier?: number;
       mistParticleCountMultiplier?: number;
       radialSpread?: boolean;
@@ -17208,15 +17442,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     } = {},
   ): void {
     const sanitized = Math.max(1, Math.round(Math.abs(damage)));
-    const awayFromPlayer = new THREE.Vector2(
-      tileX - this.playerPos.x,
-      -(tileY - this.playerPos.y),
+    const sprayDirection = new THREE.Vector2(
+      typeof options.directionX === "number" &&
+      Number.isFinite(options.directionX)
+        ? options.directionX
+        : tileX - this.playerPos.x,
+      typeof options.directionY === "number" &&
+      Number.isFinite(options.directionY)
+        ? options.directionY
+        : -(tileY - this.playerPos.y),
     );
-    if (awayFromPlayer.lengthSq() < 0.0001) {
+    if (sprayDirection.lengthSq() < 0.0001) {
       const randomAngle = Math.random() * Math.PI * 2;
-      awayFromPlayer.set(Math.cos(randomAngle), Math.sin(randomAngle));
+      sprayDirection.set(Math.cos(randomAngle), Math.sin(randomAngle));
     } else {
-      awayFromPlayer.normalize();
+      sprayDirection.normalize();
     }
 
     if (this.clientOptions.bloodGround) {
@@ -17225,8 +17465,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         tileY,
         sanitized,
         variant,
-        awayFromPlayer.x,
-        awayFromPlayer.y,
+        sprayDirection.x,
+        sprayDirection.y,
       );
     }
     if (!this.clientOptions.bloodMist) {
@@ -17320,7 +17560,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
       const directionAngle = radialSpread
         ? Math.random() * spreadRadians
-        : Math.atan2(awayFromPlayer.y, awayFromPlayer.x) +
+        : Math.atan2(sprayDirection.y, sprayDirection.x) +
           (Math.random() - 0.5) * spreadRadians;
       const horizontalSpeed =
         (baseHorizontalSpeed +
@@ -18289,6 +18529,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.lastParsedDamageAtMs = 0;
     this.lastParsedDefeatMessage = "";
     this.lastParsedDefeatAtMs = 0;
+    this.runtimeMonsterKillHeuristicSuppressionUntilMs = 0;
+    this.runtimeMonsterTileKeyById.clear();
+    this.runtimeMonsterIdByTileKey.clear();
     this.pendingPlayerFootstepSoundArmed = false;
     this.clearPlayerCliparoundInputCooldown();
     this.messageSoundHooks.reset();
@@ -21543,6 +21786,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       entry.texture.dispose();
     }
     this.monsterBillboardTextures.clear();
+    this.runtimeMonsterTileKeyById.clear();
+    this.runtimeMonsterIdByTileKey.clear();
     if (this.entityBlobShadowTexture) {
       this.entityBlobShadowTexture.dispose();
       this.entityBlobShadowTexture = null;
@@ -21605,6 +21850,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.glyphTextureCache.clear();
     this.disposeLightingOverlay();
     this.tileStateCache.clear();
+    this.runtimeMonsterKillHeuristicSuppressionUntilMs = 0;
     this.lastKnownTerrain.clear();
     this.flatFeatureUnderPlayerCache.clear();
     this.suppressedLootLikeUnderPlayerCacheKeys.clear();
@@ -23240,26 +23486,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
     toCamera.normalize();
     const right = new THREE.Vector2(toCamera.y, -toCamera.x);
 
-    const toPlayer = new THREE.Vector2(
-      this.playerPos.x * TILE_SIZE - basePosition.x,
-      -this.playerPos.y * TILE_SIZE - basePosition.y,
+    const awayFromImpactOrigin = new THREE.Vector2(
+      typeof options.directionX === "number" &&
+      Number.isFinite(options.directionX)
+        ? options.directionX
+        : basePosition.x - this.playerPos.x * TILE_SIZE,
+      typeof options.directionY === "number" &&
+      Number.isFinite(options.directionY)
+        ? options.directionY
+        : basePosition.y + this.playerPos.y * TILE_SIZE,
     );
-    if (toPlayer.lengthSq() < 1e-6) {
+    if (awayFromImpactOrigin.lengthSq() < 1e-6) {
       const randomAngle = Math.random() * Math.PI * 2;
-      toPlayer.set(Math.cos(randomAngle), Math.sin(randomAngle));
+      awayFromImpactOrigin.set(Math.cos(randomAngle), Math.sin(randomAngle));
+    } else {
+      awayFromImpactOrigin.normalize();
     }
-    toPlayer.normalize();
-    const awayFromPlayer = toPlayer.clone().multiplyScalar(-1);
+    const towardImpactOrigin = awayFromImpactOrigin.clone().multiplyScalar(-1);
+    if (towardImpactOrigin.lengthSq() < 1e-6) {
+      const randomAngle = Math.random() * Math.PI * 2;
+      towardImpactOrigin.set(Math.cos(randomAngle), Math.sin(randomAngle));
+    } else {
+      towardImpactOrigin.normalize();
+    }
 
     const impulseLocalX = (Math.random() - 0.5) * baseScaleX * 0.72;
     const impulseLocalY = (Math.random() - 0.5) * baseScaleY * 0.72;
     const impulseOrigin = new THREE.Vector3(
       basePosition.x +
         right.x * impulseLocalX +
-        toPlayer.x * this.monsterBillboardShardImpulseTowardPlayer,
+        towardImpactOrigin.x * this.monsterBillboardShardImpulseTowardPlayer,
       basePosition.y +
         right.y * impulseLocalX +
-        toPlayer.y * this.monsterBillboardShardImpulseTowardPlayer,
+        towardImpactOrigin.y * this.monsterBillboardShardImpulseTowardPlayer,
       basePosition.z + impulseLocalY,
     );
 
@@ -23304,13 +23563,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       );
       const radialXY = new THREE.Vector2(radial.x, radial.y);
       if (radialXY.lengthSq() < 1e-8) {
-        radialXY.copy(awayFromPlayer);
+        radialXY.copy(awayFromImpactOrigin);
       } else {
         radialXY.normalize();
       }
-      radialXY.lerp(awayFromPlayer, 0.52);
+      radialXY.lerp(awayFromImpactOrigin, 0.52);
       if (radialXY.lengthSq() < 1e-8) {
-        radialXY.copy(awayFromPlayer);
+        radialXY.copy(awayFromImpactOrigin);
       } else {
         radialXY.normalize();
       }
