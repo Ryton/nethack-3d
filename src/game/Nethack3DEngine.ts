@@ -9840,6 +9840,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.clearUnderPlayerItemGlyphEvent(data);
         break;
 
+      case "confirmed_boulder_push":
+        this.startConfirmedBoulderPushTransition(data);
+        break;
+
       case "inventory_updated_signal":
         // Inventory mutation is a strong signal that floor stack order at the
         // player tile may have changed (pickup/drop/eat/use from floor).
@@ -26233,6 +26237,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.disposeMonsterBillboardFlattenedBackdropSprite(sprite);
     sprite.visible = true;
     sprite.frustumCulled = false;
+    sprite.renderOrder = this.resolveStandardBillboardRenderOrder(
+      this.shouldUseVultureTiles() && this.clientOptions.tilesetMode === "tiles",
+    );
     this.scene.add(sprite);
     return {
       object: sprite,
@@ -26676,6 +26683,63 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ) ??
         this.createEntityMoveTransitionVisualFromTileKey(`${fromX},${fromY}`),
     );
+  }
+
+  private startConfirmedBoulderPushTransition(
+    data: Record<string, unknown>,
+  ): void {
+    const rawFromX = Number(data.fromX);
+    const rawFromY = Number(data.fromY);
+    const rawToX = Number(data.toX);
+    const rawToY = Number(data.toY);
+    if (
+      !Number.isFinite(rawFromX) ||
+      !Number.isFinite(rawFromY) ||
+      !Number.isFinite(rawToX) ||
+      !Number.isFinite(rawToY)
+    ) {
+      return;
+    }
+
+    const fromX = Math.trunc(rawFromX);
+    const fromY = Math.trunc(rawFromY);
+    const toX = Math.trunc(rawToX);
+    const toY = Math.trunc(rawToY);
+    const moveDx = toX - fromX;
+    const moveDy = toY - fromY;
+    if (
+      (moveDx === 0 && moveDy === 0) ||
+      Math.abs(moveDx) > 1 ||
+      Math.abs(moveDy) > 1
+    ) {
+      return;
+    }
+
+    const sourceKey = `${fromX},${fromY}`;
+    const sourceUnderlayBillboardKey =
+      this.getPlayerUnderlayBillboardKey(sourceKey);
+    const started = this.beginOrRetargetEntityMoveTransition(
+      "confirmed-boulder-push",
+      `${toX},${toY}`,
+      this.getPreferredEntityMoveDurationMs(),
+      null,
+      () =>
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(
+          sourceKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(
+          sourceUnderlayBillboardKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTileKey(sourceKey),
+    );
+    if (!started) {
+      return;
+    }
+
+    const fromTile = this.parseTileKey(sourceKey);
+    if (fromTile) {
+      this.restoreTileVisualFromRememberedTerrain(fromTile.x, fromTile.y);
+    }
   }
 
   private showFloatingGameMessage(message: string): void {

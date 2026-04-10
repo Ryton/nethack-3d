@@ -2899,6 +2899,200 @@ class LocalNetHackRuntime {
     };
   }
 
+  doesRuntimeMapTileMatchUnderPlayerSnapshot(tileData, snapshot) {
+    if (
+      !tileData ||
+      typeof tileData !== "object" ||
+      !snapshot ||
+      typeof snapshot !== "object"
+    ) {
+      return false;
+    }
+    const tileGlyph =
+      typeof tileData.glyph === "number" && Number.isFinite(tileData.glyph)
+        ? Math.trunc(tileData.glyph)
+        : null;
+    const snapshotGlyph =
+      typeof snapshot.glyph === "number" && Number.isFinite(snapshot.glyph)
+        ? Math.trunc(snapshot.glyph)
+        : null;
+    if (tileGlyph === null || snapshotGlyph === null || tileGlyph !== snapshotGlyph) {
+      return false;
+    }
+
+    const tileTileIndex =
+      typeof tileData.tileIndex === "number" && Number.isFinite(tileData.tileIndex)
+        ? Math.trunc(tileData.tileIndex)
+        : null;
+    const snapshotTileIndex =
+      typeof snapshot.tileIndex === "number" && Number.isFinite(snapshot.tileIndex)
+        ? Math.trunc(snapshot.tileIndex)
+        : null;
+    if (
+      tileTileIndex !== null &&
+      snapshotTileIndex !== null &&
+      tileTileIndex !== snapshotTileIndex
+    ) {
+      return false;
+    }
+
+    const tileSymidx =
+      typeof tileData.symidx === "number" && Number.isFinite(tileData.symidx)
+        ? Math.trunc(tileData.symidx)
+        : null;
+    const snapshotSymidx =
+      typeof snapshot.symidx === "number" && Number.isFinite(snapshot.symidx)
+        ? Math.trunc(snapshot.symidx)
+        : null;
+    if (tileSymidx !== null && snapshotSymidx !== null && tileSymidx !== snapshotSymidx) {
+      return false;
+    }
+
+    return true;
+  }
+
+  findAdjacentRuntimeMapTileMatchingUnderPlayerSnapshot(target, snapshot) {
+    if (
+      !target ||
+      typeof target !== "object" ||
+      !Number.isFinite(target.x) ||
+      !Number.isFinite(target.y) ||
+      !snapshot ||
+      typeof snapshot !== "object"
+    ) {
+      return null;
+    }
+
+    const originX = Math.trunc(Number(target.x));
+    const originY = Math.trunc(Number(target.y));
+    const matches = [];
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        if (dx === 0 && dy === 0) {
+          continue;
+        }
+        const tileX = originX + dx;
+        const tileY = originY + dy;
+        const tileData = this.gameMap.get(`${tileX},${tileY}`) ?? null;
+        if (!this.doesRuntimeMapTileMatchUnderPlayerSnapshot(tileData, snapshot)) {
+          continue;
+        }
+        matches.push({ x: tileX, y: tileY });
+      }
+    }
+
+    if (matches.length !== 1) {
+      return null;
+    }
+    return matches[0];
+  }
+
+  maybeEmitConfirmedBoulderPushEventFromRuntimeMap(trigger = "unknown") {
+    const pendingReason =
+      typeof this.pendingPostActionPlayerTileRefreshReason === "string" &&
+      this.pendingPostActionPlayerTileRefreshReason.trim().length > 0
+        ? this.pendingPostActionPlayerTileRefreshReason.trim()
+        : "";
+    if (pendingReason !== "move-onto-lootlike-tile") {
+      return false;
+    }
+
+    const pendingTarget =
+      this.pendingPostActionPlayerTileRefreshTarget &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.x) &&
+      Number.isFinite(this.pendingPostActionPlayerTileRefreshTarget.y)
+        ? {
+            x: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.x)),
+            y: Math.trunc(Number(this.pendingPostActionPlayerTileRefreshTarget.y)),
+          }
+        : null;
+    const snapshot =
+      this.pendingPostActionPlayerTileRefreshSnapshot &&
+      typeof this.pendingPostActionPlayerTileRefreshSnapshot === "object"
+        ? this.pendingPostActionPlayerTileRefreshSnapshot
+        : null;
+    if (!pendingTarget || !snapshot) {
+      return false;
+    }
+
+    const shiftedTarget = this.findAdjacentRuntimeMapTileMatchingUnderPlayerSnapshot(
+      pendingTarget,
+      snapshot,
+    );
+    if (!shiftedTarget) {
+      return false;
+    }
+
+    const moveDx = shiftedTarget.x - pendingTarget.x;
+    const moveDy = shiftedTarget.y - pendingTarget.y;
+    if (
+      (moveDx === 0 && moveDy === 0) ||
+      Math.abs(moveDx) > 1 ||
+      Math.abs(moveDy) > 1
+    ) {
+      return false;
+    }
+
+    const targetKey = `${pendingTarget.x},${pendingTarget.y}`;
+    const targetTileData = this.gameMap.get(targetKey) ?? null;
+    const targetStillMatchesSnapshot = this.doesRuntimeMapTileMatchUnderPlayerSnapshot(
+      targetTileData,
+      snapshot,
+    );
+    if (targetStillMatchesSnapshot) {
+      return false;
+    }
+
+    if (this.eventHandler) {
+      this.emit({
+        type: "confirmed_boulder_push",
+        fromX: pendingTarget.x,
+        fromY: pendingTarget.y,
+        toX: shiftedTarget.x,
+        toY: shiftedTarget.y,
+        glyph:
+          Number.isFinite(snapshot.glyph) ? Math.trunc(Number(snapshot.glyph)) : null,
+        char:
+          typeof snapshot.char === "string" && snapshot.char.length > 0
+            ? snapshot.char
+            : null,
+        color:
+          typeof snapshot.color === "number" && Number.isFinite(snapshot.color)
+            ? Math.trunc(Number(snapshot.color))
+            : null,
+        tileIndex:
+          typeof snapshot.tileIndex === "number" &&
+          Number.isFinite(snapshot.tileIndex)
+            ? Math.trunc(Number(snapshot.tileIndex))
+            : null,
+        symidx:
+          typeof snapshot.symidx === "number" && Number.isFinite(snapshot.symidx)
+            ? Math.trunc(Number(snapshot.symidx))
+            : null,
+      });
+    }
+
+    const didRefreshLiveUnderPlayerGlyph = this.canQueryWasmHelpers()
+      ? this.emitUnderPlayerItemGlyphIfAvailableAt(
+          pendingTarget.x,
+          pendingTarget.y,
+          null,
+          null,
+          true,
+          `confirmed-boulder-push-runtime-map:${trigger}`,
+        )
+      : false;
+    if (!didRefreshLiveUnderPlayerGlyph) {
+      this.emitUnderPlayerItemGlyphClearedForPendingTarget(
+        `confirmed-boulder-push-runtime-map:${trigger}`,
+      );
+    }
+    this.clearPendingPostActionPlayerTileRefresh(
+      `confirmed boulder push runtime-map [trigger=${trigger}]`,
+    );
+    return true;
+  }
+
   emitUnderPlayerItemGlyphFromPendingSnapshot(trigger = "unknown") {
     if (!this.eventHandler) {
       return false;
@@ -3421,9 +3615,22 @@ class LocalNetHackRuntime {
       pendingReason === "move-onto-lootlike-tile" &&
       this.pendingPostActionPlayerTileRefreshSnapshot
     ) {
-      return this.emitUnderPlayerItemGlyphFromPendingSnapshot(
-        `post-action:${pendingReason}:${trigger}`,
-      );
+      const pendingTargetTileData =
+        pendingTarget ? this.gameMap.get(`${pendingTarget.x},${pendingTarget.y}`) ?? null : null;
+      const pendingTargetStillMatchesSnapshot =
+        pendingTarget &&
+        this.doesRuntimeMapTileMatchUnderPlayerSnapshot(
+          pendingTargetTileData,
+          this.pendingPostActionPlayerTileRefreshSnapshot,
+        );
+      if (pendingTargetStillMatchesSnapshot) {
+        return this.emitUnderPlayerItemGlyphFromPendingSnapshot(
+          `post-action:${pendingReason}:${trigger}`,
+        );
+      }
+      if (this.maybeEmitConfirmedBoulderPushEventFromRuntimeMap(trigger)) {
+        return true;
+      }
     }
 
     if (!this.canQueryWasmHelpers()) {
