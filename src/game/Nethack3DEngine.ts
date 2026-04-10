@@ -12806,6 +12806,41 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.refreshTileVisualFromStateCache(this.playerPos.x, this.playerPos.y);
   }
 
+  private refreshVacatedPlayerTileVisualDuringTransition(
+    tileX: number,
+    tileY: number,
+  ): void {
+    const key = `${tileX},${tileY}`;
+    const snapshot =
+      this.getPlayerTileUnderlaySnapshotFromCache(key) ??
+      this.lastKnownTerrain.get(key) ??
+      null;
+    if (!snapshot) {
+      return;
+    }
+    this.updateTile(
+      tileX,
+      tileY,
+      snapshot.glyph,
+      snapshot.char ?? undefined,
+      typeof snapshot.color === "number" && Number.isFinite(snapshot.color)
+        ? Math.trunc(snapshot.color)
+        : undefined,
+      {
+        runtimeTileIndex:
+          typeof snapshot.tileIndex === "number" &&
+          Number.isFinite(snapshot.tileIndex)
+            ? Math.trunc(snapshot.tileIndex)
+            : undefined,
+        runtimeSymidx:
+          typeof snapshot.symidx === "number" &&
+          Number.isFinite(snapshot.symidx)
+            ? Math.trunc(snapshot.symidx)
+            : undefined,
+      },
+    );
+  }
+
   private hasExplicitPlayerVisual(
     behavior: TileBehaviorResult | null,
     runtimeChar?: string | null,
@@ -12862,7 +12897,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     if (this.isFpsMode() || this.clientOptions.tilesetMode === "tiles") {
-      this.refreshTileVisualFromStateCache(fromX, fromY);
+      if (this.activeEntityMoveTransitions.has("player")) {
+        this.refreshVacatedPlayerTileVisualDuringTransition(fromX, fromY);
+      } else {
+        this.refreshTileVisualFromStateCache(fromX, fromY);
+      }
       this.refreshTileVisualFromStateCache(toX, toY);
       return;
     }
