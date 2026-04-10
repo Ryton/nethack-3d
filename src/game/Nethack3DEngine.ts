@@ -282,6 +282,7 @@ type EntityMoveTransition = {
   destinationKey: string;
   object: THREE.Object3D;
   dispose: () => void;
+  baseRenderOrder: number;
   startedAtMs: number;
   durationMs: number;
   baseDurationMs: number;
@@ -25846,11 +25847,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
           autoMoveLikely,
         );
       } else {
+        const startedProvisionalSwapTransition =
+          this.tryStartProvisionalPlayerSwapTransitions(
+            fromX,
+            fromY,
+            toX,
+            toY,
+            stepDurationMs,
+          );
         const usingTrackedPlayerMoveTransition =
           this.hasRuntimeTrackedPlayerEntitySupport() &&
           this.activeEntityMoveTransitions.has("player");
         this.normalModePlayerMoveCameraFollowActive = true;
-        if (!usingTrackedPlayerMoveTransition) {
+        if (
+          !usingTrackedPlayerMoveTransition &&
+          !startedProvisionalSwapTransition
+        ) {
           this.startPlayerMoveTransition(
             fromX,
             fromY,
@@ -26115,6 +26127,129 @@ class Nethack3DEngine implements Nethack3DEngineController {
           Math.max(1, queuedWaypointCount + 1),
       ),
     );
+  }
+
+  private areEntityMoveTransitionsReciprocalSwap(
+    first: EntityMoveTransition,
+    second: EntityMoveTransition,
+  ): boolean {
+    const epsilon = TILE_SIZE * 0.01;
+    return (
+      Math.abs(first.from.x - second.to.x) <= epsilon &&
+      Math.abs(first.from.y - second.to.y) <= epsilon &&
+      Math.abs(first.to.x - second.from.x) <= epsilon &&
+      Math.abs(first.to.y - second.from.y) <= epsilon
+    );
+  }
+
+  private buildEntityMoveTransitionReciprocalSwapPartnerById(
+    transitions: EntityMoveTransition[],
+  ): Map<string, string> {
+    const partners = new Map<string, string>();
+    for (let index = 0; index < transitions.length; index += 1) {
+      const transition = transitions[index];
+      if (partners.has(transition.id)) {
+        continue;
+      }
+      for (
+        let otherIndex = index + 1;
+        otherIndex < transitions.length;
+        otherIndex += 1
+      ) {
+        const otherTransition = transitions[otherIndex];
+        if (
+          partners.has(otherTransition.id) ||
+          !this.areEntityMoveTransitionsReciprocalSwap(
+            transition,
+            otherTransition,
+          )
+        ) {
+          continue;
+        }
+        partners.set(transition.id, otherTransition.id);
+        partners.set(otherTransition.id, transition.id);
+        break;
+      }
+    }
+    return partners;
+  }
+
+  private buildEntityMoveTransitionReciprocalSwapOffsetById(
+    transitions: EntityMoveTransition[],
+    partners: Map<string, string>,
+  ): Map<string, { x: number; y: number }> {
+    const offsets = new Map<string, { x: number; y: number }>();
+    const seenPairKeys = new Set<string>();
+    const playerSwapOffsetMagnitude = TILE_SIZE * 0.06;
+    const nonPlayerSwapOffsetMagnitude = TILE_SIZE * 0.04;
+    for (const transition of transitions) {
+      const partnerId = partners.get(transition.id) ?? null;
+      if (!partnerId) {
+        continue;
+      }
+      const pairKey = [transition.id, partnerId].sort().join("|");
+      if (seenPairKeys.has(pairKey)) {
+        continue;
+      }
+      seenPairKeys.add(pairKey);
+      const partner =
+        transitions.find((candidate) => candidate.id === partnerId) ?? null;
+      if (!partner) {
+        continue;
+      }
+      const deltaX = transition.to.x - transition.from.x;
+      const deltaY = transition.to.y - transition.from.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      if (distance <= 1e-6) {
+        continue;
+      }
+      const perpendicularX = -deltaY / distance;
+      const perpendicularY = deltaX / distance;
+      if (transition.id === "player" || partner.id === "player") {
+        const nonPlayerId = transition.id === "player" ? partner.id : transition.id;
+        const playerId = transition.id === "player" ? transition.id : partner.id;
+        offsets.set(playerId, { x: 0, y: 0 });
+        offsets.set(nonPlayerId, {
+          x: perpendicularX * playerSwapOffsetMagnitude,
+          y: perpendicularY * playerSwapOffsetMagnitude,
+        });
+        continue;
+      }
+      offsets.set(transition.id, {
+        x: perpendicularX * nonPlayerSwapOffsetMagnitude,
+        y: perpendicularY * nonPlayerSwapOffsetMagnitude,
+      });
+      offsets.set(partner.id, {
+        x: -perpendicularX * nonPlayerSwapOffsetMagnitude,
+        y: -perpendicularY * nonPlayerSwapOffsetMagnitude,
+      });
+    }
+    return offsets;
+  }
+
+  private hasActiveEntityMoveTransitionDestination(
+    destinationKey: string,
+    excludedTransitionId: string | null = null,
+  ): boolean {
+    for (const transition of this.activeEntityMoveTransitions.values()) {
+      if (
+        excludedTransitionId !== null &&
+        transition.id === excludedTransitionId
+      ) {
+        continue;
+      }
+      if (transition.destinationKey === destinationKey) {
+        return true;
+      }
+      if (
+        transition.queuedWaypoints.some(
+          (waypoint) => waypoint.destinationKey === destinationKey,
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private setEntityMoveTransitionSegment(
@@ -26464,6 +26599,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         destinationKey,
         object: visual.object,
         dispose: visual.dispose,
+        baseRenderOrder: visual.object.renderOrder,
         startedAtMs: now,
         durationMs: sanitizedDurationMs,
         baseDurationMs: sanitizedDurationMs,
@@ -26554,9 +26690,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     const now = performance.now();
-    for (const transition of Array.from(
-      this.activeEntityMoveTransitions.values(),
-    )) {
+    const transitions = Array.from(this.activeEntityMoveTransitions.values());
+    const reciprocalSwapPartnerById =
+      this.buildEntityMoveTransitionReciprocalSwapPartnerById(
+        transitions.filter((transition) => !transition.holdAtDestinationUntilConfirmation),
+      );
+    const reciprocalSwapOffsetById =
+      this.buildEntityMoveTransitionReciprocalSwapOffsetById(
+        transitions,
+        reciprocalSwapPartnerById,
+      );
+    for (const transition of transitions) {
       if (transition.holdAtDestinationUntilConfirmation) {
         continue;
       }
@@ -26566,9 +26710,38 @@ class Nethack3DEngine implements Nethack3DEngineController {
         1,
       );
       const eased = 1 - Math.pow(1 - progress, 3);
+      const reciprocalSwapPartnerId =
+        reciprocalSwapPartnerById.get(transition.id) ?? null;
+      const reciprocalSwapPartner =
+        reciprocalSwapPartnerId !== null
+          ? this.activeEntityMoveTransitions.get(reciprocalSwapPartnerId) ?? null
+          : null;
+      const reciprocalSwapOffset =
+        reciprocalSwapOffsetById.get(transition.id) ?? null;
+      const reciprocalSwapCurve =
+        reciprocalSwapOffset !== null ? Math.sin(progress * Math.PI) : 0;
+      transition.object.renderOrder = transition.baseRenderOrder;
+      if (reciprocalSwapPartner) {
+        const topRenderOrder =
+          Math.max(
+            transition.baseRenderOrder,
+            reciprocalSwapPartner.baseRenderOrder,
+          ) + 0.5;
+        const bottomRenderOrder = Math.min(
+          transition.baseRenderOrder,
+          reciprocalSwapPartner.baseRenderOrder,
+        );
+        if (transition.id === "player") {
+          transition.object.renderOrder = topRenderOrder;
+        } else if (reciprocalSwapPartner.id === "player") {
+          transition.object.renderOrder = bottomRenderOrder;
+        }
+      }
       transition.object.position.set(
-        THREE.MathUtils.lerp(transition.from.x, transition.to.x, eased),
-        THREE.MathUtils.lerp(transition.from.y, transition.to.y, eased),
+        THREE.MathUtils.lerp(transition.from.x, transition.to.x, eased) +
+          (reciprocalSwapOffset?.x ?? 0) * reciprocalSwapCurve,
+        THREE.MathUtils.lerp(transition.from.y, transition.to.y, eased) +
+          (reciprocalSwapOffset?.y ?? 0) * reciprocalSwapCurve,
         THREE.MathUtils.lerp(transition.from.z, transition.to.z, eased),
       );
       if (progress >= 1) {
@@ -26648,6 +26821,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!started || hadStandingBillboardSource) {
       return;
     }
+    if (
+      this.hasActiveEntityMoveTransitionDestination(fromKey, transitionId)
+    ) {
+      const fromTile = this.parseTileKey(fromKey);
+      if (fromTile) {
+        // Another in-flight transition already owns the replacement occupant
+        // for this tile, so restore the floor immediately instead of leaving
+        // the source entity art trailing underneath the crossing swap.
+        this.restoreTileVisualFromRememberedTerrain(fromTile.x, fromTile.y);
+      }
+      return;
+    }
     const sourceTileOccupantId = this.runtimeMonsterIdByTileKey.get(fromKey);
     if (
       sourceTileOccupantId !== undefined &&
@@ -26683,6 +26868,72 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ) ??
         this.createEntityMoveTransitionVisualFromTileKey(`${fromX},${fromY}`),
     );
+  }
+
+  private tryStartProvisionalPlayerSwapTransitions(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    durationMs: number,
+  ): boolean {
+    if (this.isFpsMode()) {
+      return false;
+    }
+    const sourceKey = `${fromX},${fromY}`;
+    const destinationKey = `${toX},${toY}`;
+    const destinationOccupantId =
+      this.runtimeMonsterIdByTileKey.get(destinationKey) ?? null;
+    if (destinationOccupantId === null || destinationOccupantId === 0) {
+      return false;
+    }
+
+    const playerTransitionAlreadyActive =
+      this.activeEntityMoveTransitions.has("player");
+    let startedPlayerTransition = false;
+    if (!playerTransitionAlreadyActive) {
+      startedPlayerTransition = this.beginOrRetargetEntityMoveTransition(
+        "player",
+        destinationKey,
+        durationMs,
+        null,
+        () =>
+          this.createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+            0,
+            sourceKey,
+          ) ?? this.createEntityMoveTransitionVisualFromTileKey(sourceKey),
+      );
+    }
+
+    const occupantTransitionId =
+      this.getTrackedEntityMoveTransitionId(destinationOccupantId);
+    const occupantTransitionAlreadyActive =
+      this.activeEntityMoveTransitions.has(occupantTransitionId);
+    const startedOccupantTransition = this.beginOrRetargetEntityMoveTransition(
+      occupantTransitionId,
+      sourceKey,
+      durationMs,
+      null,
+      () =>
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(
+          destinationKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+          destinationOccupantId,
+          destinationKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTileKey(destinationKey),
+    );
+
+    if (
+      (playerTransitionAlreadyActive || startedPlayerTransition) &&
+      (occupantTransitionAlreadyActive || startedOccupantTransition)
+    ) {
+      this.restoreTileVisualFromRememberedTerrain(fromX, fromY);
+      this.restoreTileVisualFromRememberedTerrain(toX, toY);
+    }
+
+    return startedPlayerTransition || startedOccupantTransition;
   }
 
   private startConfirmedBoulderPushTransition(
