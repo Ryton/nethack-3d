@@ -26740,6 +26740,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (fromTile) {
       this.restoreTileVisualFromRememberedTerrain(fromTile.x, fromTile.y);
     }
+    const toTile = this.parseTileKey(`${toX},${toY}`);
+    if (toTile) {
+      this.restoreTileVisualFromRememberedTerrain(toTile.x, toTile.y);
+    }
   }
 
   private showFloatingGameMessage(message: string): void {
