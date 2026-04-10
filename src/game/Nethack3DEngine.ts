@@ -250,6 +250,21 @@ type MonsterBillboardShatterOptions = {
   persistShardsOnGround?: boolean;
   directionX?: number;
   directionY?: number;
+  runtimeMonsterId?: number | null;
+};
+
+type RuntimeMonsterBillboardAppearance = {
+  glyphChar: string;
+  textColor: string;
+  tileIndex: number;
+  sourceGlyph: number | null;
+  materialKind: TileMaterialKind | null;
+  isWall: boolean;
+};
+
+type RuntimeMonsterLastSeenState = {
+  tileKey: string;
+  appearance: RuntimeMonsterBillboardAppearance | null;
 };
 
 type DamageEffectOptions = {
@@ -1152,6 +1167,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private tileStateCache: Map<string, string> = new Map();
   private runtimeMonsterTileKeyById: Map<number, string> = new Map();
   private runtimeMonsterIdByTileKey: Map<string, number> = new Map();
+  private runtimeMonsterLastSeenStateById: Map<
+    number,
+    RuntimeMonsterLastSeenState
+  > = new Map();
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
   private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> = new Map();
   private suppressedLootLikeUnderPlayerCacheKeys: Set<string> = new Set();
@@ -9671,7 +9690,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         break;
 
       case "monster_attack": {
-        const targetTile =
+        const targetEntityId = this.normalizeRuntimeTargetEntityId(data.targetId);
+        const fallbackTargetTile =
           typeof data.targetX === "number" &&
           Number.isFinite(data.targetX) &&
           typeof data.targetY === "number" &&
@@ -9680,9 +9700,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
                 x: Math.trunc(data.targetX),
                 y: Math.trunc(data.targetY),
               }
-            : this.normalizeRuntimeTargetEntityId(data.targetId) === 0
+            : null;
+        const targetTile =
+          targetEntityId === 0
               ? { x: this.playerPos.x, y: this.playerPos.y }
-              : this.resolveRuntimeMonsterTileById(data.targetId);
+              : targetEntityId !== null
+                ? this.resolveRuntimeMonsterEffectTileById(targetEntityId) ??
+                  fallbackTargetTile
+                : fallbackTargetTile;
         const attackDirection = this.resolveDamageEffectDirectionFromTiles(
           this.resolveRuntimeEffectOriginTileByEntityId(data.attackerId),
           targetTile,
@@ -9705,13 +9730,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
 
       case "monster_killed": {
-        const targetTile =
+        const defeatedMonsterId = this.normalizeRuntimeMonsterId(data.monsterId);
+        const fallbackTargetTile =
           typeof data.x === "number" &&
           Number.isFinite(data.x) &&
           typeof data.y === "number" &&
           Number.isFinite(data.y)
             ? { x: Math.trunc(data.x), y: Math.trunc(data.y) }
-            : this.resolveRuntimeMonsterTileById(data.monsterId);
+            : null;
+        const targetTile =
+          this.resolveRuntimeMonsterEffectTileById(data.monsterId) ??
+          fallbackTargetTile;
         const defeatDirection = this.resolveDamageEffectDirectionFromTiles(
           this.resolveRuntimeEffectOriginTileByEntityId(data.killerId),
           targetTile,
@@ -9727,14 +9756,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
               ? {
                   directionX: defeatDirection.x,
                   directionY: defeatDirection.y,
+                  billboardShatter: {
+                    runtimeMonsterId: defeatedMonsterId,
+                  },
                 }
-              : {},
+              : defeatedMonsterId !== null
+                ? {
+                    billboardShatter: {
+                      runtimeMonsterId: defeatedMonsterId,
+                    },
+                  }
+                : {},
           );
         }
         if (this.normalizeRuntimeTargetEntityId(data.killerId) !== 0) {
           this.messageSoundHooks.playOtherMonsterKilledSound();
         }
         this.removeRuntimeMonsterTrackingById(data.monsterId);
+        this.forgetRuntimeMonsterLastSeenStateById(data.monsterId);
         break;
       }
 
@@ -11459,6 +11498,60 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.runtimeMonsterTileKeyById.delete(monsterId);
   }
 
+  private forgetRuntimeMonsterLastSeenStateById(rawValue: unknown): void {
+    const monsterId = this.normalizeRuntimeMonsterId(rawValue);
+    if (monsterId === null) {
+      return;
+    }
+    this.runtimeMonsterLastSeenStateById.delete(monsterId);
+  }
+
+  private extractRuntimeMonsterBillboardAppearanceFromTile(
+    tile: any,
+  ): RuntimeMonsterBillboardAppearance | null {
+    const behavior = this.classifyTilePayload(tile);
+    if (!behavior || !this.isMonsterLikeBehavior(behavior)) {
+      return null;
+    }
+    return {
+      glyphChar: behavior.glyphChar,
+      textColor: behavior.textColor,
+      tileIndex:
+        typeof behavior.effective.tileIndex === "number" &&
+        Number.isFinite(behavior.effective.tileIndex)
+          ? Math.trunc(behavior.effective.tileIndex)
+          : -1,
+      sourceGlyph:
+        typeof behavior.effective.glyph === "number" &&
+        Number.isFinite(behavior.effective.glyph)
+          ? Math.trunc(behavior.effective.glyph)
+          : null,
+      materialKind: behavior.materialKind,
+      isWall: behavior.isWall,
+    };
+  }
+
+  private rememberRuntimeMonsterLastSeenState(
+    monsterId: number,
+    tileKey: string,
+    tile: any,
+  ): void {
+    this.runtimeMonsterLastSeenStateById.set(monsterId, {
+      tileKey,
+      appearance: this.extractRuntimeMonsterBillboardAppearanceFromTile(tile),
+    });
+  }
+
+  private resolveRuntimeMonsterLastSeenStateById(
+    rawMonsterId: unknown,
+  ): RuntimeMonsterLastSeenState | null {
+    const monsterId = this.normalizeRuntimeMonsterId(rawMonsterId);
+    if (monsterId === null) {
+      return null;
+    }
+    return this.runtimeMonsterLastSeenStateById.get(monsterId) ?? null;
+  }
+
   private updateRuntimeMonsterTrackingFromTile(tile: any): void {
     if (
       !tile ||
@@ -11492,6 +11585,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    this.rememberRuntimeMonsterLastSeenState(eventMonsterId, key, tile);
     const previousKeyForMonster =
       this.runtimeMonsterTileKeyById.get(eventMonsterId) ?? null;
     if (
@@ -11505,6 +11599,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.runtimeMonsterTileKeyById.set(eventMonsterId, key);
     this.runtimeMonsterIdByTileKey.set(key, eventMonsterId);
+  }
+
+  private resolveRuntimeMonsterLastSeenTileById(
+    rawMonsterId: unknown,
+  ): { x: number; y: number } | null {
+    const state = this.resolveRuntimeMonsterLastSeenStateById(rawMonsterId);
+    return state ? this.parseTileKey(state.tileKey) : null;
+  }
+
+  private resolveRuntimeMonsterBillboardAppearanceById(
+    rawMonsterId: unknown,
+  ): RuntimeMonsterBillboardAppearance | null {
+    return (
+      this.resolveRuntimeMonsterLastSeenStateById(rawMonsterId)?.appearance ??
+      null
+    );
+  }
+
+  private resolveRuntimeMonsterEffectTileById(
+    rawMonsterId: unknown,
+  ): { x: number; y: number } | null {
+    return (
+      this.resolveRuntimeMonsterTileById(rawMonsterId) ??
+      this.resolveRuntimeMonsterLastSeenTileById(rawMonsterId)
+    );
   }
 
   private resolveRuntimeMonsterTileById(
@@ -11530,7 +11649,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ? { x: this.playerPos.x, y: this.playerPos.y }
         : null;
     }
-    return this.resolveRuntimeMonsterTileById(entityId);
+    return this.resolveRuntimeMonsterEffectTileById(entityId);
   }
 
   private resolveDamageEffectDirectionFromTiles(
@@ -18532,6 +18651,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.runtimeMonsterKillHeuristicSuppressionUntilMs = 0;
     this.runtimeMonsterTileKeyById.clear();
     this.runtimeMonsterIdByTileKey.clear();
+    this.runtimeMonsterLastSeenStateById.clear();
     this.pendingPlayerFootstepSoundArmed = false;
     this.clearPlayerCliparoundInputCooldown();
     this.messageSoundHooks.reset();
@@ -21788,6 +21908,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.monsterBillboardTextures.clear();
     this.runtimeMonsterTileKeyById.clear();
     this.runtimeMonsterIdByTileKey.clear();
+    this.runtimeMonsterLastSeenStateById.clear();
     if (this.entityBlobShadowTexture) {
       this.entityBlobShadowTexture.dispose();
       this.entityBlobShadowTexture = null;
@@ -23631,24 +23752,68 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private createDetachedRuntimeMonsterBillboardSprite(
+    tileX: number,
+    tileY: number,
+    appearance: RuntimeMonsterBillboardAppearance,
+    runtimeMonsterId: number | null = null,
+  ): THREE.Sprite | null {
+    const tempKey = `runtime-monster-shatter:${runtimeMonsterId ?? "unknown"}:${tileX},${tileY}|${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    this.ensureMonsterBillboard(
+      tempKey,
+      tileX,
+      tileY,
+      appearance.glyphChar,
+      appearance.textColor,
+      appearance.tileIndex,
+      "monster",
+      appearance.isWall,
+      appearance.sourceGlyph,
+      appearance.materialKind,
+    );
+    return this.detachMonsterBillboard(tempKey);
+  }
+
   private spawnMonsterBillboardShatterEffectAtTile(
     tileX: number,
     tileY: number,
     options: MonsterBillboardShatterOptions = {},
   ): boolean {
     const key = `${tileX},${tileY}`;
-    const sprite = this.monsterBillboards.get(key);
+    const runtimeMonsterId = this.normalizeRuntimeMonsterId(
+      options.runtimeMonsterId,
+    );
+    const cachedAppearance =
+      runtimeMonsterId !== null
+        ? this.resolveRuntimeMonsterBillboardAppearanceById(runtimeMonsterId)
+        : null;
+    const sprite =
+      cachedAppearance !== null
+        ? this.createDetachedRuntimeMonsterBillboardSprite(
+            tileX,
+            tileY,
+            cachedAppearance,
+            runtimeMonsterId,
+          )
+        : (this.monsterBillboards.get(key) ?? null);
     if (!sprite) {
       return false;
     }
 
+    const shouldDisposeTemporarySprite = cachedAppearance !== null;
     const material = sprite.material;
     if (!(material instanceof THREE.SpriteMaterial)) {
+      if (shouldDisposeTemporarySprite) {
+        this.disposeDetachedMonsterBillboard(sprite);
+      }
       return false;
     }
 
     const sourceTexture = material.map;
     if (!sourceTexture) {
+      if (shouldDisposeTemporarySprite) {
+        this.disposeDetachedMonsterBillboard(sprite);
+      }
       return false;
     }
     const descriptors = this.createMonsterBillboardShardDescriptors(
@@ -23656,6 +23821,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       options,
     );
     if (!descriptors.length) {
+      if (shouldDisposeTemporarySprite) {
+        this.disposeDetachedMonsterBillboard(sprite);
+      }
       return false;
     }
 
@@ -23669,6 +23837,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (detached) {
         this.disposeDetachedMonsterBillboard(detached);
       }
+    }
+    if (shouldDisposeTemporarySprite) {
+      this.disposeDetachedMonsterBillboard(sprite);
     }
     return true;
   }
