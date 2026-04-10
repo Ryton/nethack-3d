@@ -27,8 +27,8 @@ Hard-coded ABI profile (current design):
   - `flagsOffset=16`
   - `exportedPointerMode=direct_or_slot`
 - Callback arg shape defaults:
-  - `3.6.7`: `shim_add_menu: [8]`, `shim_print_glyph: [4, 5]`.
-  - `3.7`: `shim_add_menu: [9]` (`vipi00iisi`), `shim_print_glyph: [5]` (`vi11pp`).
+  - `3.6.7`: `shim_add_menu: [8]`, `shim_print_glyph: [4, 5, 7]`.
+  - `3.7`: `shim_add_menu: [9]` (`vipi00iisi`), `shim_print_glyph: [5, 7]` (`vi11pp`, tracked build appends `monsterId` and `attackingTargetId`).
 - Callback mode defaults:
   - `3.6.7`: `shim_nh_poskey.coordArgType=i32`.
   - `3.7`: `shim_nh_poskey.coordArgType=i16` (`coordxy` widened from 8-bit-era assumptions to `int16_t` in 3.7).
@@ -87,8 +87,8 @@ How to confirm:
 
 Fix:
 - Update `callbackArgCounts` / `callbackModes` defaults in `buildDefaultRuntimePointerContract()`.
-- For `3.6.7` fork, `shim_print_glyph` currently expects 5 args.
-- For `3.7`, `shim_add_menu` expects 9 args and `shim_print_glyph` expects 5 args.
+- For `3.6.7` fork, `shim_print_glyph` may be 5 args or 7 args on tracked builds.
+- For `3.7`, `shim_add_menu` expects 9 args and `shim_print_glyph` may be 5 args or 7 args on tracked builds.
 
 ### Symptom: Menus/select actions break
 Likely cause:

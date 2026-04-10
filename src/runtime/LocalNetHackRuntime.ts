@@ -371,7 +371,7 @@ class LocalNetHackRuntime {
     const is37 = runtimeVersion === "3.7";
     const isSlashEm = runtimeVersion === "slashem";
     const addMenuArgCounts = is37 ? [9] : [8];
-    const printGlyphArgCounts = is37 ? [5] : [4, 5, 7];
+    const printGlyphArgCounts = is37 ? [5, 7] : [4, 5, 7];
     return {
       abiTag: this.readConfiguredPointerAbiTag(runtimeVersion),
       callbackArgCounts: {
@@ -383,7 +383,10 @@ class LocalNetHackRuntime {
         // tracked build extends that to [win, x, y, glyph, bkglyph,
         // monsterId, attackingTargetId] (7 args), where monsterId is >0 for
         // tracked monsters and 0 for the player tile when supported.
-        // 3.7 emits [win, x, y, glyphinfo_ptr, bkglyphinfo_ptr] (5 args).
+        // 3.7 emits [win, x, y, glyphinfo_ptr, bkglyphinfo_ptr] (5 args),
+        // and the tracked build extends that to [win, x, y, glyphinfo_ptr,
+        // bkglyphinfo_ptr, monsterId, attackingTargetId] (7 args), where
+        // monsterId is >0 for tracked monsters and 0 for the player tile.
         // Keep 4-arg compatibility only for alternate 3.6.7 builds.
         shim_print_glyph: printGlyphArgCounts,
         shim_monster_attack: [4],
@@ -11498,6 +11501,7 @@ class LocalNetHackRuntime {
       case "shim_print_glyph": {
         // 3.6.7: args = [win, x, y, glyph]
         // 3.7:   args = [win, x, y, ptrToGlyphInfo, extra]
+        // Tracked builds append [monsterId, attackingTargetId].
         const [printWin, x, y, a, b, rawMonsterId, rawAttackingTargetId] =
           args as number[];
 
