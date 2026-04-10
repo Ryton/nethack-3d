@@ -134,10 +134,10 @@ export function isNh3dTilesetLayoutCompatibleWithRuntime(
     return true;
   }
   if (tileLayoutVersion === "slashem") {
-    return runtimeVersion === "slashem";
+    return runtimeVersion === "slashem" || runtimeVersion === "evilhack";
   }
   if (tileLayoutVersion === "3.4.3") {
-    return runtimeVersion === "slashem";
+    return runtimeVersion === "slashem" || runtimeVersion === "evilhack";
   }
   if (tileLayoutVersion === "3.6.7") {
     return runtimeVersion === "3.6.7" || runtimeVersion === "3.7";

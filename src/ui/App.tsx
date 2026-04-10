@@ -15084,6 +15084,16 @@ export default function App(): JSX.Element {
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => {
+                setRuntimeVersion("evilhack");
+                setStartupFlowStep("choose");
+              }}
+              type="button"
+            >
+              EvilHack
+            </button>
+            <button
+              className="nh3d-choice-button nh3d-character-setup-choice-button"
+              onClick={() => {
                 void requestGameQuit();
               }}
               type="button"
