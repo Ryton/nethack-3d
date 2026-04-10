@@ -381,7 +381,8 @@ class LocalNetHackRuntime {
         shim_add_menu: addMenuArgCounts,
         // Forked wasm-367 emits [win, x, y, glyph, bkglyph] (5 args) and the
         // tracked build extends that to [win, x, y, glyph, bkglyph,
-        // monsterId, attackingTargetId] (7 args).
+        // monsterId, attackingTargetId] (7 args), where monsterId is >0 for
+        // tracked monsters and 0 for the player tile when supported.
         // 3.7 emits [win, x, y, glyphinfo_ptr, bkglyphinfo_ptr] (5 args).
         // Keep 4-arg compatibility only for alternate 3.6.7 builds.
         shim_print_glyph: printGlyphArgCounts,
@@ -4578,6 +4579,14 @@ class LocalNetHackRuntime {
     return normalized > 0 ? normalized : null;
   }
 
+  normalizeRuntimeTrackedEntityId(rawValue) {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized >= 0 ? normalized : null;
+  }
+
   normalizeRuntimeAttackTargetId(rawValue) {
     if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
       return null;
@@ -4587,7 +4596,7 @@ class LocalNetHackRuntime {
   }
 
   getTrackedMonsterIdFromRuntimeTile(tileData) {
-    return this.normalizeRuntimeMonsterId(tileData?.monsterId);
+    return this.normalizeRuntimeTrackedEntityId(tileData?.monsterId);
   }
 
   isMonsterLikeGlyph(glyph) {
@@ -11286,7 +11295,7 @@ class LocalNetHackRuntime {
           args as number[];
 
         let printGlyph = a;
-        const monsterId = this.normalizeRuntimeMonsterId(rawMonsterId);
+        const monsterId = this.normalizeRuntimeTrackedEntityId(rawMonsterId);
         const attackingTargetId =
           this.normalizeRuntimeAttackTargetId(rawAttackingTargetId);
 

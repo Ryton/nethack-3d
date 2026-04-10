@@ -163,6 +163,8 @@ Menu selection state is isolated from the general broker path:
 - `player_position` comes from `shim_cliparound`.
 - `recordPlayerMovement` keeps the engine movement-dependent UX aligned with the runtime consume model.
 - `positionInputModeActive` on the engine controls whether movement keys are routed as player movement or position selection.
+- When tracked wasm-367 map glyph payloads include `monsterId=0` for the player tile, the engine should prefer that tracked entity move path for player step lerps and must not start a duplicate fallback player transition for the same move.
+- In that tracked-player path, the source tile may already have been repainted with another occupant before the destination player glyph arrives, so movement visuals must prefer the cached player appearance over the live source tile state.
 
 ## Under-Player Loot Flow
 
