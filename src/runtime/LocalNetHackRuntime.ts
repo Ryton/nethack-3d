@@ -12401,12 +12401,24 @@ class LocalNetHackRuntime {
           this.lastAppliedDelayOutputMovementSerial = movementSerial;
         }
         if (this.travelSpeedDelayMs <= 0) {
+          if (this.eventHandler) {
+            this.emit({
+              type: "travel_step_delay",
+              delayMs: 0,
+            });
+          }
           return 0; // No delay for instant
         }
         this.beginClickMoveBlockWindow();
         console.log(
           `NetHack requesting output delay for travel (${this.travelSpeedDelayMs}ms).`,
         );
+        if (this.eventHandler) {
+          this.emit({
+            type: "travel_step_delay",
+            delayMs: this.travelSpeedDelayMs,
+          });
+        }
         return new Promise((resolve) =>
           setTimeout(resolve, this.travelSpeedDelayMs),
         );

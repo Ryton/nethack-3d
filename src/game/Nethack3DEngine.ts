@@ -272,6 +272,11 @@ type EntityMoveTransitionVisual = {
   dispose: () => void;
 };
 
+type EntityMoveTransitionWaypoint = {
+  destinationKey: string;
+  durationMs: number;
+};
+
 type EntityMoveTransition = {
   id: string;
   destinationKey: string;
@@ -279,8 +284,11 @@ type EntityMoveTransition = {
   dispose: () => void;
   startedAtMs: number;
   durationMs: number;
+  baseDurationMs: number;
   from: THREE.Vector3;
   to: THREE.Vector3;
+  queuedWaypoints: EntityMoveTransitionWaypoint[];
+  holdAtDestinationUntilConfirmation: boolean;
 };
 
 type DeferredEntityVisualUpdate = {
@@ -1187,6 +1195,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private tileStateCache: Map<string, string> = new Map();
   private runtimeMonsterTileKeyById: Map<number, string> = new Map();
   private runtimeMonsterIdByTileKey: Map<string, number> = new Map();
+  private pendingRuntimeMonsterVacatedTileKeyById: Map<number, string> =
+    new Map();
   private runtimeMonsterLastSeenStateById: Map<
     number,
     RuntimeMonsterLastSeenState
@@ -1650,6 +1660,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsStepCameraRunInputWindowMs: number = 220;
   private readonly fpsStepCameraRapidDurationScale: number = 0.75;
   private readonly fpsStepCameraMinDurationMs: number = 28;
+  private runtimeTravelStepDelayMs: number = 0;
   private readonly fpsPredictedPlayerTileWindowMs: number = 220;
   private readonly asciiPendingPlayerTileWindowMs: number = 220;
   private fpsStepCameraDurationMs: number = this.fpsStepCameraBaseDurationMs;
@@ -9838,6 +9849,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         break;
 
+      case "travel_step_delay":
+        if (
+          typeof data.delayMs === "number" &&
+          Number.isFinite(data.delayMs) &&
+          data.delayMs >= 0
+        ) {
+          this.runtimeTravelStepDelayMs = Math.trunc(data.delayMs);
+        }
+        break;
+
       case "player_position":
         if (this.positionInputModeActive) {
           console.log(
@@ -9883,6 +9904,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.refreshPlayerCliparoundInputCooldownFromMovement();
         }
         this.playerPos = { x: data.x, y: data.y };
+        this.finalizeHeldPlayerMoveTransitionIfConfirmed(data.x, data.y);
         this.logAsciiPlayerTileDebug(
           "player_position_applied",
           data.x,
@@ -11555,11 +11577,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (monsterId === null) {
       return;
     }
+    this.pendingRuntimeMonsterVacatedTileKeyById.delete(monsterId);
     const key = this.runtimeMonsterTileKeyById.get(monsterId);
     if (key && this.runtimeMonsterIdByTileKey.get(key) === monsterId) {
       this.runtimeMonsterIdByTileKey.delete(key);
     }
     this.runtimeMonsterTileKeyById.delete(monsterId);
+  }
+
+  private finalizePendingRuntimeMonsterVacatedTracking(): void {
+    for (const [monsterId, key] of Array.from(
+      this.pendingRuntimeMonsterVacatedTileKeyById.entries(),
+    )) {
+      if (this.runtimeMonsterTileKeyById.get(monsterId) === key) {
+        this.runtimeMonsterTileKeyById.delete(monsterId);
+      }
+      this.pendingRuntimeMonsterVacatedTileKeyById.delete(monsterId);
+    }
   }
 
   private forgetRuntimeMonsterLastSeenStateById(rawValue: unknown): void {
@@ -11649,7 +11683,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       (isRuntimeClear || previousMonsterId !== eventMonsterId)
     ) {
       if (this.runtimeMonsterTileKeyById.get(previousMonsterId) === key) {
-        this.runtimeMonsterTileKeyById.delete(previousMonsterId);
+        this.pendingRuntimeMonsterVacatedTileKeyById.set(
+          previousMonsterId,
+          key,
+        );
       }
       this.runtimeMonsterIdByTileKey.delete(key);
     }
@@ -11663,7 +11700,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.rememberRuntimeMonsterLastSeenState(eventMonsterId, key, tile);
     const previousKeyForMonster =
-      this.runtimeMonsterTileKeyById.get(eventMonsterId) ?? null;
+      this.runtimeMonsterTileKeyById.get(eventMonsterId) ??
+      this.pendingRuntimeMonsterVacatedTileKeyById.get(eventMonsterId) ??
+      null;
     if (previousKeyForMonster && previousKeyForMonster !== key) {
       this.startRuntimeMonsterMoveTransition(
         eventMonsterId,
@@ -11681,6 +11720,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.runtimeMonsterIdByTileKey.delete(previousKeyForMonster);
     }
 
+    this.pendingRuntimeMonsterVacatedTileKeyById.delete(eventMonsterId);
     this.runtimeMonsterTileKeyById.set(eventMonsterId, key);
     this.runtimeMonsterIdByTileKey.set(key, eventMonsterId);
   }
@@ -12388,6 +12428,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.pendingTileFlushQueueIndex >= this.pendingTileFlushQueue.length) {
       this.pendingTileFlushQueue = [];
       this.pendingTileFlushQueueIndex = 0;
+      this.finalizePendingRuntimeMonsterVacatedTracking();
     }
     // Inferred dark-corridor walls intentionally reconcile from player_position
     // updates, not tile flushes, to avoid transient wall flashes mid-move.
@@ -18743,6 +18784,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.normalModePlayerMoveCameraFollowActive = false;
     this.runtimeMonsterTileKeyById.clear();
     this.runtimeMonsterIdByTileKey.clear();
+    this.pendingRuntimeMonsterVacatedTileKeyById.clear();
     this.runtimeMonsterLastSeenStateById.clear();
     this.clearEntityMoveTransitions();
     this.pendingPlayerFootstepSoundArmed = false;
@@ -22003,6 +22045,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.normalModePlayerMoveCameraFollowActive = false;
     this.runtimeMonsterTileKeyById.clear();
     this.runtimeMonsterIdByTileKey.clear();
+    this.pendingRuntimeMonsterVacatedTileKeyById.clear();
     this.runtimeMonsterLastSeenStateById.clear();
     this.clearEntityMoveTransitions();
     if (this.entityBlobShadowTexture) {
@@ -22071,6 +22114,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.runtimeTrackedPlayerEntitySeen = false;
     this.normalModePlayerMoveCameraFollowActive = false;
     this.lastKnownTerrain.clear();
+    this.pendingRuntimeMonsterVacatedTileKeyById.clear();
     this.flatFeatureUnderPlayerCache.clear();
     this.suppressedLootLikeUnderPlayerCacheKeys.clear();
     this.inferredDarkCorridorWallTiles.clear();
@@ -25942,6 +25986,84 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.deferredEntityVisualUpdatesByKey.has(key);
   }
 
+  private sanitizeEntityMoveTransitionDurationMs(durationMs: number): number {
+    return Math.max(this.fpsStepCameraMinDurationMs, Math.trunc(durationMs));
+  }
+
+  private getEntityMoveTransitionMinimumSegmentDurationMs(
+    transitionId: string,
+  ): number {
+    if (transitionId !== "player") {
+      return this.fpsStepCameraMinDurationMs;
+    }
+    return Math.max(
+      this.fpsStepCameraMinDurationMs,
+      Number.isFinite(this.runtimeTravelStepDelayMs)
+        ? Math.trunc(this.runtimeTravelStepDelayMs)
+        : 0,
+    );
+  }
+
+  private resolveEntityMoveTransitionSegmentDurationMs(
+    transitionId: string,
+    baseDurationMs: number,
+    queuedWaypointCount: number,
+  ): number {
+    return Math.max(
+      this.getEntityMoveTransitionMinimumSegmentDurationMs(transitionId),
+      Math.trunc(
+        this.sanitizeEntityMoveTransitionDurationMs(baseDurationMs) /
+          Math.max(1, queuedWaypointCount + 1),
+      ),
+    );
+  }
+
+  private setEntityMoveTransitionSegment(
+    transition: EntityMoveTransition,
+    destinationKey: string,
+    baseDurationMs: number,
+    now: number = performance.now(),
+  ): boolean {
+    const destinationTile = this.parseTileKey(destinationKey);
+    if (!destinationTile) {
+      return false;
+    }
+    transition.destinationKey = destinationKey;
+    transition.baseDurationMs =
+      this.sanitizeEntityMoveTransitionDurationMs(baseDurationMs);
+    transition.startedAtMs = now;
+    transition.holdAtDestinationUntilConfirmation = false;
+    transition.durationMs = this.resolveEntityMoveTransitionSegmentDurationMs(
+      transition.id,
+      transition.baseDurationMs,
+      transition.queuedWaypoints.length,
+    );
+    transition.from.copy(transition.object.position);
+    transition.to.set(
+      destinationTile.x * TILE_SIZE,
+      -destinationTile.y * TILE_SIZE,
+      transition.object.position.z,
+    );
+    return true;
+  }
+
+  private retuneEntityMoveTransitionForQueuedWaypoints(
+    transition: EntityMoveTransition,
+    now: number = performance.now(),
+  ): void {
+    const nextDurationMs = this.resolveEntityMoveTransitionSegmentDurationMs(
+      transition.id,
+      transition.baseDurationMs,
+      transition.queuedWaypoints.length,
+    );
+    if (nextDurationMs >= transition.durationMs) {
+      return;
+    }
+    transition.from.copy(transition.object.position);
+    transition.startedAtMs = now;
+    transition.durationMs = nextDurationMs;
+  }
+
   private clearDeferredEntityVisualUpdateForTransition(
     transitionId: string,
   ): void {
@@ -25985,24 +26107,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
   }
 
-  private applyDeferredEntityVisualUpdateForTransition(
+  private applyDeferredEntityVisualUpdateForKey(
+    key: string,
     transitionId: string,
   ): void {
-    for (const [key, entry] of Array.from(
-      this.deferredEntityVisualUpdatesByKey.entries(),
-    )) {
-      if (entry.transitionId !== transitionId) {
-        continue;
-      }
-      this.deferredEntityVisualUpdatesByKey.delete(key);
-      if (entry.tile) {
-        this.applyTilePayloadToVisual(entry.tile);
-        continue;
-      }
-      const tile = this.parseTileKey(key);
-      if (tile) {
-        this.refreshTileVisualFromStateCache(tile.x, tile.y);
-      }
+    const entry = this.deferredEntityVisualUpdatesByKey.get(key) ?? null;
+    if (!entry || entry.transitionId !== transitionId) {
+      return;
+    }
+    this.deferredEntityVisualUpdatesByKey.delete(key);
+    if (entry.tile) {
+      this.applyTilePayloadToVisual(entry.tile);
+      return;
+    }
+    const tile = this.parseTileKey(key);
+    if (tile) {
+      this.refreshTileVisualFromStateCache(tile.x, tile.y);
     }
   }
 
@@ -26227,6 +26347,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!destinationTile) {
       return false;
     }
+    const sanitizedDurationMs =
+      this.sanitizeEntityMoveTransitionDurationMs(durationMs);
+    const now = performance.now();
 
     let transition = this.activeEntityMoveTransitions.get(transitionId) ?? null;
     if (!transition) {
@@ -26239,30 +26362,63 @@ class Nethack3DEngine implements Nethack3DEngineController {
         destinationKey,
         object: visual.object,
         dispose: visual.dispose,
-        startedAtMs: performance.now(),
-        durationMs: Math.max(
-          this.fpsStepCameraMinDurationMs,
-          Math.trunc(durationMs),
-        ),
+        startedAtMs: now,
+        durationMs: sanitizedDurationMs,
+        baseDurationMs: sanitizedDurationMs,
         from: visual.object.position.clone(),
         to: visual.object.position.clone(),
+        queuedWaypoints: [],
+        holdAtDestinationUntilConfirmation: false,
       };
       this.activeEntityMoveTransitions.set(transitionId, transition);
     } else {
-      this.clearDeferredEntityVisualUpdateForTransition(transitionId);
+      if (transition.holdAtDestinationUntilConfirmation) {
+        if (transition.destinationKey === destinationKey) {
+          transition.baseDurationMs = sanitizedDurationMs;
+        } else {
+          transition.queuedWaypoints = [];
+          this.setEntityMoveTransitionSegment(
+            transition,
+            destinationKey,
+            sanitizedDurationMs,
+            now,
+          );
+        }
+        this.deferredEntityVisualUpdatesByKey.set(destinationKey, {
+          transitionId,
+          tile: deferredTile,
+        });
+        return true;
+      }
+      const currentOrQueuedWaypoint =
+        transition.destinationKey === destinationKey
+          ? null
+          : transition.queuedWaypoints.find(
+              (waypoint) => waypoint.destinationKey === destinationKey,
+            ) ?? null;
+      if (transition.destinationKey === destinationKey) {
+        transition.baseDurationMs = sanitizedDurationMs;
+      } else if (currentOrQueuedWaypoint) {
+        currentOrQueuedWaypoint.durationMs = sanitizedDurationMs;
+      } else {
+        transition.queuedWaypoints.push({
+          destinationKey,
+          durationMs: sanitizedDurationMs,
+        });
+        this.retuneEntityMoveTransitionForQueuedWaypoints(transition, now);
+      }
+      this.deferredEntityVisualUpdatesByKey.set(destinationKey, {
+        transitionId,
+        tile: deferredTile,
+      });
+      return true;
     }
 
-    transition.destinationKey = destinationKey;
-    transition.startedAtMs = performance.now();
-    transition.durationMs = Math.max(
-      this.fpsStepCameraMinDurationMs,
-      Math.trunc(durationMs),
-    );
-    transition.from.copy(transition.object.position);
-    transition.to.set(
-      destinationTile.x * TILE_SIZE,
-      -destinationTile.y * TILE_SIZE,
-      transition.object.position.z,
+    this.setEntityMoveTransitionSegment(
+      transition,
+      destinationKey,
+      sanitizedDurationMs,
+      now,
     );
     this.deferredEntityVisualUpdatesByKey.set(destinationKey, {
       transitionId,
@@ -26281,10 +26437,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.activeEntityMoveTransitions.delete(transitionId);
     if (applyDeferredVisual) {
-      this.applyDeferredEntityVisualUpdateForTransition(transitionId);
-    } else {
-      this.clearDeferredEntityVisualUpdateForTransition(transitionId);
+      this.applyDeferredEntityVisualUpdateForKey(
+        transition.destinationKey,
+        transitionId,
+      );
     }
+    this.clearDeferredEntityVisualUpdateForTransition(transitionId);
     transition.object.parent?.remove(transition.object);
     transition.dispose();
   }
@@ -26297,6 +26455,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     for (const transition of Array.from(
       this.activeEntityMoveTransitions.values(),
     )) {
+      if (transition.holdAtDestinationUntilConfirmation) {
+        continue;
+      }
       const progress = THREE.MathUtils.clamp(
         (now - transition.startedAtMs) / Math.max(1, transition.durationMs),
         0,
@@ -26310,9 +26471,46 @@ class Nethack3DEngine implements Nethack3DEngineController {
       );
       if (progress >= 1) {
         transition.object.position.copy(transition.to);
-        this.finishEntityMoveTransition(transition.id, true);
+        this.applyDeferredEntityVisualUpdateForKey(
+          transition.destinationKey,
+          transition.id,
+        );
+        const nextWaypoint = transition.queuedWaypoints.shift() ?? null;
+        if (nextWaypoint) {
+          const didAdvance = this.setEntityMoveTransitionSegment(
+            transition,
+            nextWaypoint.destinationKey,
+            nextWaypoint.durationMs,
+            now,
+          );
+          if (didAdvance) {
+            continue;
+          }
+        }
+        if (
+          transition.id === "player" &&
+          `${this.playerPos.x},${this.playerPos.y}` !== transition.destinationKey
+        ) {
+          transition.holdAtDestinationUntilConfirmation = true;
+          continue;
+        }
+        this.finishEntityMoveTransition(transition.id, false);
       }
     }
+  }
+
+  private finalizeHeldPlayerMoveTransitionIfConfirmed(
+    tileX: number,
+    tileY: number,
+  ): void {
+    const transition = this.activeEntityMoveTransitions.get("player") ?? null;
+    if (!transition || !transition.holdAtDestinationUntilConfirmation) {
+      return;
+    }
+    if (transition.destinationKey !== `${tileX},${tileY}`) {
+      return;
+    }
+    this.finishEntityMoveTransition("player", false);
   }
 
   private clearEntityMoveTransitions(): void {
