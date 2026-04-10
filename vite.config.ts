@@ -226,6 +226,13 @@ const devSessionTag = String(Date.now());
 
 export default defineConfig({
   plugins: [tilesetManifestPlugin(), react()],
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: "modern-compiler",
+      },
+    },
+  },
   define: {
     "import.meta.env.VITE_NH3D_APP_VERSION": JSON.stringify(projectVersion),
     "import.meta.env.VITE_NH3D_BUILD_COMMIT_SHA": JSON.stringify(

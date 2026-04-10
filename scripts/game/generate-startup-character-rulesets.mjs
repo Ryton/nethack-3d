@@ -22,6 +22,10 @@ const ROLE_SOURCE_TARGETS = [
     version: "slashem",
     sourcePath: resolve(PROJECT_ROOT, "imported/role-sources/slashem/role.c"),
   },
+  {
+    version: "evilhack",
+    sourcePath: resolve(PROJECT_ROOT, "imported/role-sources/evilhack/role.c"),
+  },
 ];
 
 const GENDER_TOKEN_TO_VALUE = {
@@ -93,10 +97,10 @@ function splitTopLevelBlocks(source) {
 
 function extractAllowTokens(block, kind, name) {
   const allowMatch = block.match(
-    /\b(MH_[A-Z_|\s]+?ROLE_[A-Z_|\s]+?)\s*,/s,
+    /MH_[A-Z_\s|\n]+?(?:,|(?=\s*ROLE_))[\s\n]*ROLE_[A-Z_\s|\n]+?(?:,|(?=\/\*))/s,
   );
   assert(allowMatch, `Unable to extract allow mask for ${kind} '${name}'`);
-  const tokens = allowMatch[1].match(/\b(?:MH|ROLE)_[A-Z_]+\b/g) ?? [];
+  const tokens = allowMatch[0].match(/\b(?:MH|ROLE)_[A-Z_]+\b/g) ?? [];
   const raceTokens = tokens.filter((token) => token.startsWith("MH_"));
   const genderTokens = tokens.filter((token) => token in GENDER_TOKEN_TO_VALUE);
   const alignTokens = tokens.filter((token) => token in ALIGN_TOKEN_TO_VALUE);
@@ -145,12 +149,18 @@ function parseRaceEntries(roleSource) {
   const section = extractSection(
     roleSource,
     /const struct Race races(?:\[[^\]]*\])?\s*=\s*\{/,
-    ["/* The player's race", "/* Table of all genders */"],
+    ["/* The player's race", "/* Table of all genders */", "/* Special race for"],
     "race table",
   );
   const blocks = splitTopLevelBlocks(section);
   return blocks
-    .filter((block) => !/\{\s*0\s*,\s*0\s*,\s*0\s*,\s*0\s*\}/.test(block))
+    .filter((block) => {
+      // Filter out terminators and empty blocks
+      const trimmed = block.trim();
+      return !/^\{\s*0\s*,\s*0\s*(?:,\s*0\s*)*\}$/.test(trimmed) && 
+             trimmed.length > 10 &&
+             !trimmed.match(/^\/\*/);
+    })
     .map((block) => {
       const nameMatch = block.match(/^\s*\{\s*"([^"]+)"/s);
       assert(nameMatch, `Unable to extract race name from block: ${block.slice(0, 80)}`);

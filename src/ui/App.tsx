@@ -259,6 +259,8 @@ function resolveRuntimeVersionDisplayLabel(
       return "NetHack 3.7";
     case "slashem":
       return "Slash'EM";
+    case "evilhack":
+      return "EvilHack 0.9.2";
     case "3.6.7":
     default:
       return "NetHack 3.6.7";

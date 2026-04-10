@@ -172,7 +172,7 @@ class LocalNetHackRuntime {
   }
 
   normalizeRuntimeVersion(value) {
-    return value === "3.7" || value === "slashem" ? value : "3.6.7";
+    return value === "3.7" || value === "slashem" || value === "evilhack" ? value : "3.6.7";
   }
 
   getDefaultRuntimeWindowGlobals(runtimeVersion = this.runtimeVersion) {
@@ -236,7 +236,7 @@ class LocalNetHackRuntime {
   }
 
   shouldSuppressRedundantStatusWindowText(winId) {
-    return this.runtimeVersion === "slashem" && this.isStatusWindow(winId);
+    return (this.runtimeVersion === "slashem" || this.runtimeVersion === "evilhack") && this.isStatusWindow(winId);
   }
 
   isMapWindow(winId) {
@@ -254,6 +254,9 @@ class LocalNetHackRuntime {
     if (runtimeVersion === "slashem") {
       return "slashem.js";
     }
+    if (runtimeVersion === "evilhack") {
+      return "evilhack.js";
+    }
     return "nethack-367.js";
   }
 
@@ -264,6 +267,9 @@ class LocalNetHackRuntime {
     if (runtimeVersion === "slashem") {
       return "slashem.wasm";
     }
+    if (runtimeVersion === "evilhack") {
+      return "evilhack.wasm";
+    }
     return "nethack-367.wasm";
   }
 
@@ -273,6 +279,8 @@ class LocalNetHackRuntime {
         ? import.meta.env.VITE_NH3D_WASM_37_RUNTIME_BUILD_TAG
         : runtimeVersion === "slashem"
           ? import.meta.env.VITE_NH3D_WASM_SLASHEM_RUNTIME_BUILD_TAG
+        : runtimeVersion === "evilhack"
+          ? import.meta.env.VITE_NH3D_WASM_EVILHACK_RUNTIME_BUILD_TAG
         : import.meta.env.VITE_NH3D_WASM_367_RUNTIME_BUILD_TAG;
     const runtimeBuildTag =
       typeof rawValue === "string" ? rawValue.trim() : "";
@@ -329,12 +337,16 @@ class LocalNetHackRuntime {
         ? "nh37-pointer-v1"
         : runtimeVersion === "slashem"
           ? "slashem-pointer-v1"
-          : "nh367-pointer-v1";
+          : runtimeVersion === "evilhack"
+            ? "evilhack-pointer-v1"
+            : "nh367-pointer-v1";
     const rawValue =
       runtimeVersion === "3.7"
         ? import.meta.env.VITE_NH3D_WASM_37_POINTER_ABI_TAG
         : runtimeVersion === "slashem"
           ? import.meta.env.VITE_NH3D_WASM_SLASHEM_POINTER_ABI_TAG
+        : runtimeVersion === "evilhack"
+          ? import.meta.env.VITE_NH3D_WASM_EVILHACK_POINTER_ABI_TAG
         : import.meta.env.VITE_NH3D_WASM_367_POINTER_ABI_TAG;
     return this.normalizePointerAbiTag(rawValue, fallback);
   }
@@ -370,6 +382,7 @@ class LocalNetHackRuntime {
   buildDefaultRuntimePointerContract(runtimeVersion = this.runtimeVersion) {
     const is37 = runtimeVersion === "3.7";
     const isSlashEm = runtimeVersion === "slashem";
+    const isEvilHack = runtimeVersion === "evilhack";
     const addMenuArgCounts = is37 ? [9] : [8];
     const printGlyphArgCounts = is37 ? [5] : [4, 5];
     return {
@@ -482,12 +495,12 @@ class LocalNetHackRuntime {
       extcmd: {
         exportedPointerName: "extcmdlist",
         exportedPointerMode: "direct_or_slot",
-        stride: isSlashEm ? 16 : 24,
-        textPtrOffset: isSlashEm ? 0 : 4,
-        flagsOffset: isSlashEm ? 12 : 16,
+        stride: isSlashEm || isEvilHack ? 16 : 24,
+        textPtrOffset: isSlashEm || isEvilHack ? 0 : 4,
+        flagsOffset: isSlashEm || isEvilHack ? 12 : 16,
         maxEntries: 512,
-        minEntries: isSlashEm ? 20 : 10,
-        requiredNames: isSlashEm ? ["2weapon", "pray"] : ["#", "pray"],
+        minEntries: isSlashEm || isEvilHack ? 20 : 10,
+        requiredNames: isSlashEm || isEvilHack ? ["2weapon", "pray"] : ["#", "pray"],
       },
       menuItem: {
         // NetHack 3.7's `anything` union includes int64/uint64 members, so
@@ -1081,8 +1094,33 @@ class LocalNetHackRuntime {
         moduleUrl,
         runtimeBuildTag: this.readRuntimeBuildTag(version) || null,
       });
-      const { default: factory } = await import(/* @vite-ignore */ moduleUrl);
-      return factory;
+      try {
+        const imported = await import(/* @vite-ignore */ moduleUrl);
+        console.log("Module imported successfully", {
+          runtimeVersion: version,
+          hasDefault: !!imported.default,
+          defaultType: typeof imported.default,
+          keys: Object.keys(imported).slice(0, 10),
+        });
+        const { default: factory } = imported;
+        if (typeof factory !== "function") {
+          console.error("Module default export is not a function", {
+            runtimeVersion: version,
+            defaultType: typeof factory,
+            defaultValue: String(factory).substring(0, 100),
+          });
+          throw new Error(`Module default export is not a function (got ${typeof factory})`);
+        }
+        return factory;
+      } catch (error) {
+        console.error("Failed to load/import runtime factory", {
+          runtimeVersion: version,
+          moduleUrl,
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
+        throw error;
+      }
     };
 
     const moduleUrl = this.resolveWasmAssetUrl(
@@ -9598,6 +9636,12 @@ class LocalNetHackRuntime {
       });
 
       const createModule = await this.loadRuntimeFactory(runtimeVersion);
+
+      console.log("About to call createModule", {
+        runtimeVersion,
+        createModuleType: typeof createModule,
+        createModuleIsFunction: typeof createModule === "function",
+      });
 
       this.nethackInstance = await createModule({
         noInitialRun: true,
