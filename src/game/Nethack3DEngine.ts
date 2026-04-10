@@ -9988,6 +9988,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           break;
         }
         this.captureAutopickupStateFromMessage(data.text);
+        this.capturePlayerTileTerrainInvalidationFromMessage(data.text);
         this.captureFpsCrosshairGlanceMessage(data.text);
         this.captureFpsHeldWeaponSwipeFromCombatMessage(data.text);
         {
@@ -10008,6 +10009,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           break;
         }
         this.captureAutopickupStateFromMessage(data.text);
+        this.capturePlayerTileTerrainInvalidationFromMessage(data.text);
         this.captureFpsCrosshairGlanceMessage(data.text);
         this.captureFpsHeldWeaponSwipeFromCombatMessage(data.text);
         {
@@ -11095,6 +11097,99 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (/\b(on|enabled|activated)\b/.test(normalized)) {
       this.autoPickupEnabled = true;
+    }
+  }
+
+  private getMaterialKindForTerrainSnapshot(
+    snapshot: TerrainSnapshot | null,
+  ): TileMaterialKind | null {
+    if (!snapshot) {
+      return null;
+    }
+    const behavior = classifyTileBehavior({
+      glyph: snapshot.glyph,
+      runtimeKind: snapshot.kind ?? null,
+      runtimeChar: snapshot.char ?? null,
+      runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
+      runtimeTileIndex:
+        typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
+      runtimeSymidx: typeof snapshot.symidx === "number" ? snapshot.symidx : null,
+      priorTerrain: snapshot,
+    });
+    return behavior.materialKind;
+  }
+
+  private buildFallbackTerrainSnapshotForPlayerTile(): TerrainSnapshot {
+    const fallbackBehavior =
+      this.resolveFloorBehaviorFromNeighborTiles(
+        this.playerPos.x,
+        this.playerPos.y,
+      ) ?? this.resolveNormalRoomFloorBehavior();
+    return {
+      glyph: fallbackBehavior.effective.glyph,
+      char: fallbackBehavior.resolved.char ?? undefined,
+      color: fallbackBehavior.resolved.color ?? undefined,
+      tileIndex: fallbackBehavior.resolved.tileIndex,
+    };
+  }
+
+  private invalidatePlayerTileFeatureFromMessage(
+    materialKind: TileMaterialKind,
+    refreshReason: string,
+  ): void {
+    if (!this.hasSeenPlayerPosition) {
+      return;
+    }
+
+    const tileX = this.playerPos.x;
+    const tileY = this.playerPos.y;
+    const key = `${tileX},${tileY}`;
+    let changed = false;
+
+    const cachedFlatFeature = this.flatFeatureUnderPlayerCache.get(key) ?? null;
+    if (
+      cachedFlatFeature &&
+      this.getMaterialKindForTerrainSnapshot(cachedFlatFeature) === materialKind
+    ) {
+      this.flatFeatureUnderPlayerCache.delete(key);
+      changed = true;
+    }
+
+    const cachedTerrain = this.lastKnownTerrain.get(key) ?? null;
+    if (
+      cachedTerrain &&
+      this.getMaterialKindForTerrainSnapshot(cachedTerrain) === materialKind
+    ) {
+      this.lastKnownTerrain.set(
+        key,
+        this.buildFallbackTerrainSnapshotForPlayerTile(),
+      );
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.refreshTileVisualFromStateCache(tileX, tileY);
+    this.requestPlayerTileRefresh(refreshReason, { forceRuntime: true });
+  }
+
+  private capturePlayerTileTerrainInvalidationFromMessage(
+    messageLike: unknown,
+  ): void {
+    if (typeof messageLike !== "string") {
+      return;
+    }
+    const normalized = messageLike.trim().toLowerCase();
+    if (!normalized) {
+      return;
+    }
+    if (/\bfountain dries up\b/.test(normalized)) {
+      this.invalidatePlayerTileFeatureFromMessage(
+        "fountain",
+        "fountain-dried-up-message",
+      );
     }
   }
 
