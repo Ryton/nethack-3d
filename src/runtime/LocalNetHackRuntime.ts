@@ -371,7 +371,7 @@ class LocalNetHackRuntime {
     const is37 = runtimeVersion === "3.7";
     const isSlashEm = runtimeVersion === "slashem";
     const addMenuArgCounts = is37 ? [9] : [8];
-    const printGlyphArgCounts = is37 ? [5, 7] : [4, 5, 7];
+    const printGlyphArgCounts = is37 ? [5, 7] : isSlashEm ? [4, 6] : [4, 5, 7];
     return {
       abiTag: this.readConfiguredPointerAbiTag(runtimeVersion),
       callbackArgCounts: {
@@ -383,6 +383,9 @@ class LocalNetHackRuntime {
         // tracked build extends that to [win, x, y, glyph, bkglyph,
         // monsterId, attackingTargetId] (7 args), where monsterId is >0 for
         // tracked monsters and 0 for the player tile when supported.
+        // Slash'EM emits [win, x, y, glyph] (4 args) and the tracked build
+        // extends that to [win, x, y, glyph, monsterId, attackingTargetId]
+        // (6 args), because this shim signature has no background glyph arg.
         // 3.7 emits [win, x, y, glyphinfo_ptr, bkglyphinfo_ptr] (5 args),
         // and the tracked build extends that to [win, x, y, glyphinfo_ptr,
         // bkglyphinfo_ptr, monsterId, attackingTargetId] (7 args), where
@@ -485,6 +488,8 @@ class LocalNetHackRuntime {
         },
         shim_print_glyph: {
           glyphArgMode: is37 ? "glyphinfo_ptr" : "glyph_value",
+          trackedEntityArgIndex: is37 ? 5 : isSlashEm ? 4 : 5,
+          attackingTargetArgIndex: is37 ? 6 : isSlashEm ? 5 : 6,
         },
       },
       extcmd: {
@@ -11499,23 +11504,43 @@ class LocalNetHackRuntime {
         }
         return 0;
       case "shim_print_glyph": {
-        // 3.6.7: args = [win, x, y, glyph]
-        // 3.7:   args = [win, x, y, ptrToGlyphInfo, extra]
-        // Tracked builds append [monsterId, attackingTargetId].
-        const [printWin, x, y, a, b, rawMonsterId, rawAttackingTargetId] =
-          args as number[];
+        // Runtime-specific shapes are validated against the pointer contract
+        // before we get here; do not infer layout from arg count.
+        const [printWin, x, y, a, b] = args as number[];
 
         let printGlyph = a;
-        const monsterId = this.normalizeRuntimeTrackedEntityId(rawMonsterId);
-        const attackingTargetId =
-          this.normalizeRuntimeAttackTargetId(rawAttackingTargetId);
-
         // Use local names to avoid colliding with existing glyphChar/glyphColor in your file
         let decodedChar: string | null = null;
         let decodedColor: number | null = null;
         let decodedTileIndex: number | null = null;
         let decodedSymidx: number | null = null;
         let shouldLogPrintGlyph = true;
+
+        const printGlyphMode =
+          this.getRuntimePointerContract()?.callbackModes?.shim_print_glyph || {};
+        const glyphArgMode =
+          printGlyphMode.glyphArgMode === "glyphinfo_ptr"
+            ? "glyphinfo_ptr"
+            : "glyph_value";
+        const trackedEntityArgIndex = Number.isInteger(
+          printGlyphMode.trackedEntityArgIndex,
+        )
+          ? printGlyphMode.trackedEntityArgIndex
+          : null;
+        const attackingTargetArgIndex = Number.isInteger(
+          printGlyphMode.attackingTargetArgIndex,
+        )
+          ? printGlyphMode.attackingTargetArgIndex
+          : null;
+        const rawMonsterId =
+          trackedEntityArgIndex !== null ? args[trackedEntityArgIndex] : null;
+        const rawAttackingTargetId =
+          attackingTargetArgIndex !== null
+            ? args[attackingTargetArgIndex]
+            : null;
+        const monsterId = this.normalizeRuntimeTrackedEntityId(rawMonsterId);
+        const attackingTargetId =
+          this.normalizeRuntimeAttackTargetId(rawAttackingTargetId);
         const glyphDebugSuffix = [
           monsterId !== null ? `monsterId=${monsterId}` : "",
           attackingTargetId !== null
@@ -11524,13 +11549,6 @@ class LocalNetHackRuntime {
         ]
           .filter(Boolean)
           .join(" ");
-
-        const printGlyphMode =
-          this.getRuntimePointerContract()?.callbackModes?.shim_print_glyph || {};
-        const glyphArgMode =
-          printGlyphMode.glyphArgMode === "glyphinfo_ptr"
-            ? "glyphinfo_ptr"
-            : "glyph_value";
         if (glyphArgMode === "glyphinfo_ptr" && args.length >= 5) {
           const extra = b;
           const decodedGlyphInfo = this.decodeGlyphInfoPointer(
