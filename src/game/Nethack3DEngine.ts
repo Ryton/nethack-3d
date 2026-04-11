@@ -1583,6 +1583,46 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponFovDepthCompensationStrength: number = 0.92;
   private readonly fpsHeldWeaponFovDepthCompensationMinScale: number = 0.47;
   private readonly fpsHeldWeaponFovDepthCompensationMaxScale: number = 1.2;
+  private fpsHeldWeaponDebugSphere: THREE.Mesh | null = null;
+
+  // Left-hand weapon (offhand/dual-wielding)
+  private fpsHeldLeftWeaponMesh: THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > | null = null;
+  private fpsHeldLeftWeaponMaterial: THREE.MeshBasicMaterial | null = null;
+  private fpsHeldLeftWeaponTexture: THREE.CanvasTexture | null = null;
+  private fpsHeldLeftWeaponTextureSignature: string = "";
+  private fpsHeldLeftWeaponLagYaw: number | null = null;
+  private fpsHeldLeftWeaponLagPitch: number | null = null;
+  private readonly fpsHeldLeftWeaponMovementOffset = new THREE.Vector2();
+  private fpsHeldLeftWeaponSwayPhase: number = 0;
+  private fpsHeldLeftWeaponSwaySpeed: number = 0;
+  private fpsHeldLeftWeaponSwaySpeedTarget: number = 0;
+  private fpsHeldLeftWeaponActiveAnimation: FpsHeldWeaponActiveAnimationState | null =
+    null;
+  private readonly lastPlayedFpsHeldLeftWeaponAnimationVariationIdByGroup: Map<
+    string,
+    string
+  > = new Map();
+  private dualWieldNextAnimatingWeapon: "right" | "left" = "left";
+  private readonly fpsHeldLeftWeaponLocalOffset = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponWorldPosition = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponWorldQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldLeftWeaponBaseRotationEuler = new THREE.Euler();
+  private readonly fpsHeldLeftWeaponBaseRotationQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldLeftWeaponAnimationPivotLocal = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponAnimationCenterFromPivot = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponAnimationRotatedCenter = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponAnimationEuler = new THREE.Euler();
+  private readonly fpsHeldLeftWeaponAnimationQuaternion = new THREE.Quaternion();
+  // Mirror left weapon to opposite side (negate X for left/right flip)
+  private readonly fpsHeldLeftWeaponBaseLocalOffset = new THREE.Vector3(
+    -0.38,
+    -0.28,
+    -0.72,
+  );
+
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
   private readonly fpsFireSuppressionDurationMs: number = 1500;
@@ -10135,6 +10175,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
         // Replace current inventory state with latest snapshot.
         this.currentInventory = nextInventory;
+        this.invalidateFpsHeldWeaponTexture();
+        this.invalidateFpsHeldLeftWeaponTexture();
 
         // If we have a pending inventory dialog request, show it now
         if (this.pendingInventoryDialog) {
@@ -22205,6 +22247,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsForwardHighlightTexture = null;
     }
     this.clearFpsHeldWeaponVisual();
+    this.clearFpsHeldLeftWeaponVisual();
     this.fpsAimLinePulseUntilMs = 0;
     this.fpsFireSuppressionUntilMs = 0;
     this.fpsStepCameraActive = false;
@@ -27919,6 +27962,63 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
   }
 
+  private invalidateFpsHeldLeftWeaponTexture(): void {
+    if (this.fpsHeldLeftWeaponMaterial) {
+      this.fpsHeldLeftWeaponMaterial.map = null;
+      this.fpsHeldLeftWeaponMaterial.needsUpdate = true;
+    }
+    if (this.fpsHeldLeftWeaponTexture) {
+      this.fpsHeldLeftWeaponTexture.dispose();
+      this.fpsHeldLeftWeaponTexture = null;
+    }
+    this.fpsHeldLeftWeaponTextureSignature = "";
+  }
+
+  private clearFpsHeldLeftWeaponVisual(): void {
+    this.invalidateFpsHeldLeftWeaponTexture();
+    if (this.fpsHeldLeftWeaponMesh) {
+      this.scene.remove(this.fpsHeldLeftWeaponMesh);
+      this.fpsHeldLeftWeaponMesh = null;
+    }
+    if (this.fpsHeldLeftWeaponMaterial) {
+      this.fpsHeldLeftWeaponMaterial.dispose();
+      this.fpsHeldLeftWeaponMaterial = null;
+    }
+    this.fpsHeldLeftWeaponLagYaw = null;
+    this.fpsHeldLeftWeaponLagPitch = null;
+    this.fpsHeldLeftWeaponMovementOffset.set(0, 0);
+    this.fpsHeldLeftWeaponSwayPhase = 0;
+    this.fpsHeldLeftWeaponSwaySpeed = 0;
+    this.fpsHeldLeftWeaponSwaySpeedTarget = 0;
+    this.fpsHeldLeftWeaponActiveAnimation = null;
+    this.lastPlayedFpsHeldLeftWeaponAnimationVariationIdByGroup.clear();
+  }
+
+  private ensureFpsHeldLeftWeaponMesh(): THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > {
+    if (this.fpsHeldLeftWeaponMesh && this.fpsHeldLeftWeaponMaterial) {
+      return this.fpsHeldLeftWeaponMesh;
+    }
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(this.fpsHeldWeaponGeometry, material);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 981; // In front of right weapon (980) so it shows when overlapping
+    mesh.visible = false;
+    this.scene.add(mesh);
+    this.fpsHeldLeftWeaponMesh = mesh;
+    this.fpsHeldLeftWeaponMaterial = material;
+    return mesh;
+  }
+
   private isHeldWeaponInventoryItem(item: unknown): item is NethackMenuItem {
     if (!item || typeof item !== "object") {
       return false;
@@ -27929,20 +28029,66 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const text =
       typeof candidate.text === "string" ? candidate.text.toLowerCase() : "";
-    return (
+    
+    // Check if item is held in any hand or wielded
+    const isHeld = (
+      text.includes("(in hand)") ||
+      text.includes("(in hands)") ||
+      text.includes("(in right hand)") ||
+      text.includes("(in left hand)") ||
+      text.includes("(in both hands)") ||
+      text.includes("(in other hand)") ||
+      text.includes("(wielded in hand)") ||
+      text.includes("(wielded in hands)") ||
+      text.includes("(wielded in right hand)") ||
+      text.includes("(wielded in left hand)") ||
+      text.includes("(wielded in both hands)") ||
+      text.includes("(wielded in other hand)") ||
       text.includes("(weapon in hand)") ||
+      text.includes("(weapon in hands)") ||
       text.includes("(weapon in right hand)") ||
-      text.includes("(weapon in left hand)")
+      text.includes("(weapon in left hand)") ||
+      text.includes("(weapon in both hands)")
     );
+    
+    return isHeld;
+  }
+
+  private findHeldWeaponInventoryItems(): { right: NethackMenuItem | null; left: NethackMenuItem | null } {
+    let rightHand: NethackMenuItem | null = null;
+    let leftHand: NethackMenuItem | null = null;
+
+    for (let i = 0; i < this.currentInventory.length; i++) {
+      const item = this.currentInventory[i];
+      
+      if (!this.isHeldWeaponInventoryItem(item)) continue;
+
+      const candidate = item as NethackMenuItem;
+      const text =
+        typeof candidate.text === "string" ? candidate.text.toLowerCase() : "";
+
+      // Check for "other hand" or "left hand" - these ALWAYS go to left
+      if (
+        text.includes("(wielded in other hand)") ||
+        text.includes("(in other hand)") ||
+        text.includes("(weapon in left hand)") ||
+        text.includes("(wielded in left hand)") ||
+        text.includes("(in left hand)") ||
+        text.includes("(offhand)")
+      ) {
+        leftHand = candidate;
+      } 
+      // Everything else goes to right hand (primary)
+      else {
+        rightHand = candidate;
+      }
+    }
+    return { right: rightHand, left: leftHand };
   }
 
   private findHeldWeaponInventoryItem(): NethackMenuItem | null {
-    for (const item of this.currentInventory) {
-      if (this.isHeldWeaponInventoryItem(item)) {
-        return item;
-      }
-    }
-    return null;
+    const weapons = this.findHeldWeaponInventoryItems();
+    return weapons.right ?? weapons.left;
   }
 
   private getFpsHeldWeaponTileFlipOverrideTilesetPath(): string {
@@ -28089,9 +28235,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
+    const weapons = this.findHeldWeaponInventoryItems();
     const item =
-      previewTileId === null ? this.findHeldWeaponInventoryItem() : null;
+      previewTileId === null ? weapons.right : null;
     if (previewTileId === null && !item) {
+      return null;
+    }
+    return this.resolveFpsWeaponTextureStateForItem(item, previewTileId);
+  }
+
+  private resolveFpsHeldLeftWeaponTextureState(): FpsHeldWeaponTextureState | null {
+    if (
+      !this.isFpsMode() ||
+      !this.clientOptions.fpsHeldWeaponVisible ||
+      this.clientOptions.tilesetMode !== "tiles" ||
+      this.isFpsFarLookViewActive()
+    ) {
+      return null;
+    }
+    const weapons = this.findHeldWeaponInventoryItems();
+    const item = weapons.left;
+    if (!item) {
+      return null;
+    }
+    const result = this.resolveFpsWeaponTextureStateForItem(item, null);
+    return result;
+  }
+
+  private resolveFpsWeaponTextureStateForItem(
+    item: NethackMenuItem | null,
+    previewTileId: number | null,
+  ): FpsHeldWeaponTextureState | null {
+    if (!item && previewTileId === null) {
+      // (log removed)
       return null;
     }
     const sourceGlyph =
@@ -28110,10 +28286,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const assetReady = usingVultureTiles
       ? this.vultureTilesetTranslator !== null
       : this.resolveTilesetAtlasImageSource() !== null;
+    
+    // (log removed)
+    
     if (
       !assetReady ||
       (tileIndex === null && !canUseTranslatedTileWithoutAtlas)
     ) {
+      // (log removed)
       return null;
     }
     const backgroundRemovalKey =
@@ -28483,6 +28663,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private playFpsHeldWeaponSwipeAnimation(): void {
+    // Toggle which weapon animates next time for dual-wielding
+    const heldWeapons = this.findHeldWeaponInventoryItems();
+    if (heldWeapons.right && heldWeapons.left) {
+      this.dualWieldNextAnimatingWeapon = 
+        this.dualWieldNextAnimatingWeapon === "right" ? "left" : "right";
+    }
+    
     const selectedVariation =
       this.selectWeightedFpsHeldWeaponAnimationVariation(
         FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID,
@@ -28715,7 +28902,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponLocalOffset.y += this.fpsHeldWeaponBasePose.position.y;
       this.fpsHeldWeaponLocalOffset.z += this.fpsHeldWeaponBasePose.position.z;
     }
-    if (animationPose.active) {
+    // Check if both weapons are equipped
+    const heldWeapons = this.findHeldWeaponInventoryItems();
+    const hasDualWield = heldWeapons.right && heldWeapons.left;
+    // Alternate animations only when dual-wielding; single weapon animates normally
+    const shouldAnimateRightWeapon = animationPose.active && 
+      (!hasDualWield || this.dualWieldNextAnimatingWeapon === "right");
+    if (shouldAnimateRightWeapon) {
       const width = horizontalScale;
       const height = verticalScale;
       this.fpsHeldWeaponAnimationPivotLocal.copy(this.fpsHeldWeaponLocalOffset);
@@ -28783,9 +28976,216 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.visible = true;
   }
 
+  private syncFpsHeldLeftWeaponSprite(deltaSeconds: number): void {
+    const textureState = this.resolveFpsHeldLeftWeaponTextureState();
+    if (!textureState) {
+      if (this.fpsHeldLeftWeaponMesh) {
+        this.fpsHeldLeftWeaponMesh.visible = false;
+      }
+      return;
+    }
+
+    const mesh = this.ensureFpsHeldLeftWeaponMesh();
+    const material = this.fpsHeldLeftWeaponMaterial;
+    if (!material) {
+      return;
+    }
+
+    if (
+      this.fpsHeldLeftWeaponTextureSignature !== textureState.signature ||
+      !this.fpsHeldLeftWeaponTexture ||
+      material.map !== this.fpsHeldLeftWeaponTexture
+    ) {
+      this.invalidateFpsHeldLeftWeaponTexture();
+      // Use same texture flip state as right weapon (symmetrical, not mirrored)
+      const tileFlipState = this.resolveFpsHeldWeaponTileFlipState(
+        textureState.tileIndex >= 0 ? textureState.tileIndex : null,
+      );
+      const texture = this.createFpsHeldWeaponFlippedTexture(
+        this.createTileTexture(textureState.tileIndex, 1, true, {
+          sourceGlyph: textureState.sourceGlyph,
+        }),
+        tileFlipState,
+      );
+      const aspectRatio = THREE.MathUtils.clamp(
+        this.measureTextureOpaqueAspectRatio(texture),
+        0.45,
+        1.8,
+      );
+      this.fpsHeldLeftWeaponTexture = texture;
+      this.fpsHeldLeftWeaponTextureSignature = textureState.signature;
+      material.map = texture;
+      material.needsUpdate = true;
+      mesh.userData.aspectRatio = aspectRatio;
+    }
+
+    const aspectRatio =
+      typeof mesh.userData?.aspectRatio === "number" &&
+      Number.isFinite(mesh.userData.aspectRatio)
+        ? THREE.MathUtils.clamp(mesh.userData.aspectRatio, 0.45, 1.8)
+        : 1;
+    const horizontalScale = aspectRatio * this.fpsHeldWeaponScaleY;
+    const verticalScale = this.fpsHeldWeaponScaleY;
+    // Left weapon: flip via negative X and Z scale to properly mirror the right weapon
+    mesh.scale.set(-horizontalScale, verticalScale, -1);
+
+    // Reuse same movement offset and animation from right weapon for perfect sync
+    const movementOffset =
+      this.resolveFpsHeldWeaponMovementOffset(deltaSeconds);
+    const animationPose = this.resolveFpsHeldWeaponAnimationPose();
+    const fovDepthCompensationScale =
+      this.resolveFpsHeldWeaponFovDepthCompensationScale();
+
+    // Add camera lag effects (springy follow) - same as primary weapon, NOT mirrored
+    if (
+      this.fpsHeldLeftWeaponLagYaw === null ||
+      !Number.isFinite(this.fpsHeldLeftWeaponLagYaw)
+    ) {
+      this.fpsHeldLeftWeaponLagYaw = this.wrapAngle(this.cameraYaw);
+    }
+    const lagAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) / this.fpsHeldWeaponYawLagHalfLifeMs,
+      );
+    this.fpsHeldLeftWeaponLagYaw = this.wrapAngle(
+      this.fpsHeldLeftWeaponLagYaw +
+        this.wrapAngle(this.cameraYaw - this.fpsHeldLeftWeaponLagYaw) * lagAlpha,
+    );
+    const yawLagOffset = THREE.MathUtils.clamp(
+      -this.wrapAngle(this.cameraYaw - this.fpsHeldLeftWeaponLagYaw) *
+        this.fpsHeldWeaponYawLagAmount,
+      -this.fpsHeldWeaponYawLagMax,
+      this.fpsHeldWeaponYawLagMax,
+    );
+
+    if (
+      this.fpsHeldLeftWeaponLagPitch === null ||
+      !Number.isFinite(this.fpsHeldLeftWeaponLagPitch)
+    ) {
+      this.fpsHeldLeftWeaponLagPitch = this.cameraPitch;
+    }
+    const pitchLagAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) /
+          this.fpsHeldWeaponPitchLagHalfLifeMs,
+      );
+    this.fpsHeldLeftWeaponLagPitch +=
+      (this.cameraPitch - this.fpsHeldLeftWeaponLagPitch) * pitchLagAlpha;
+    const pitchLagOffset = THREE.MathUtils.clamp(
+      -(this.cameraPitch - this.fpsHeldLeftWeaponLagPitch) *
+        this.fpsHeldWeaponPitchLagAmount,
+      -this.fpsHeldWeaponPitchLagMax,
+      this.fpsHeldWeaponPitchLagMax,
+    );
+
+    const pitchT = THREE.MathUtils.inverseLerp(
+      this.firstPersonPitchMin,
+      this.firstPersonPitchMax,
+      THREE.MathUtils.clamp(
+        this.cameraPitch,
+        this.firstPersonPitchMin,
+        this.firstPersonPitchMax,
+      ),
+    );
+    const pitchOffset =
+      (0.5 - pitchT) * 2 * this.fpsHeldWeaponPitchOffsetRange + pitchLagOffset;
+
+    this.fpsHeldLeftWeaponLocalOffset.set(
+      this.fpsHeldLeftWeaponBaseLocalOffset.x,
+      this.fpsHeldLeftWeaponBaseLocalOffset.y,
+      this.fpsHeldLeftWeaponBaseLocalOffset.z,
+    );
+    this.fpsHeldLeftWeaponLocalOffset.z *= fovDepthCompensationScale;
+    this.fpsHeldLeftWeaponLocalOffset.x += movementOffset.x;
+    this.fpsHeldLeftWeaponLocalOffset.y += movementOffset.y;
+    if (!animationPose.active) {
+      this.fpsHeldLeftWeaponLocalOffset.x += this.fpsHeldWeaponBasePose.position.x;
+      this.fpsHeldLeftWeaponLocalOffset.y += this.fpsHeldWeaponBasePose.position.y;
+      this.fpsHeldLeftWeaponLocalOffset.z += this.fpsHeldWeaponBasePose.position.z;
+    }
+    // Check if both weapons are equipped
+    const heldWeapons = this.findHeldWeaponInventoryItems();
+    const hasDualWield = heldWeapons.right && heldWeapons.left;
+    // Alternate animations only when dual-wielding; single weapon animates normally
+    const shouldAnimateLeftWeapon = animationPose.active && 
+      (!hasDualWield || this.dualWieldNextAnimatingWeapon === "left");
+    if (shouldAnimateLeftWeapon) {
+      const width = horizontalScale;
+      const height = verticalScale;
+      this.fpsHeldWeaponAnimationPivotLocal.copy(this.fpsHeldLeftWeaponLocalOffset);
+      // Mirror animation pivot for X and Z flip
+      this.fpsHeldWeaponAnimationPivotLocal.x +=
+        -width * animationPose.pivotNormalized.x - animationPose.translation.x;
+      this.fpsHeldWeaponAnimationPivotLocal.y +=
+        height * animationPose.pivotNormalized.y + animationPose.translation.y;
+      this.fpsHeldWeaponAnimationPivotLocal.z +=
+        -animationPose.pivotNormalized.z - animationPose.translation.z;
+      this.fpsHeldWeaponAnimationCenterFromPivot.set(
+        width * animationPose.pivotNormalized.x,
+        -height * animationPose.pivotNormalized.y,
+        animationPose.pivotNormalized.z,
+      );
+      this.fpsHeldWeaponAnimationEuler.set(
+        THREE.MathUtils.degToRad(-animationPose.rotationDeg.x),
+        THREE.MathUtils.degToRad(animationPose.rotationDeg.y),
+        THREE.MathUtils.degToRad(-animationPose.rotationDeg.z),
+        "XYZ",
+      );
+      this.fpsHeldWeaponAnimationQuaternion.setFromEuler(
+        this.fpsHeldWeaponAnimationEuler,
+      );
+      this.fpsHeldWeaponAnimationRotatedCenter
+        .copy(this.fpsHeldWeaponAnimationCenterFromPivot)
+        .applyQuaternion(this.fpsHeldWeaponAnimationQuaternion);
+      this.fpsHeldLeftWeaponLocalOffset
+        .copy(this.fpsHeldWeaponAnimationPivotLocal)
+        .add(this.fpsHeldWeaponAnimationRotatedCenter);
+    }
+
+    // Apply aspect ratio correction and position
+    this.fpsHeldLeftWeaponLocalOffset.x *=
+      this.resolveFpsHeldWeaponHorizontalTranslationScale();
+    this.fromCameraLocalOffset(
+      this.fpsHeldLeftWeaponLocalOffset,
+      this.fpsHeldWeaponWorldPosition,
+    );
+    mesh.position.copy(this.fpsHeldWeaponWorldPosition);
+
+    this.fpsHeldLeftWeaponBaseRotationEuler.set(
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? -animationPose.rotationDeg.x
+          : -this.fpsHeldWeaponBasePose.rotationDeg.x,
+      ),
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? -animationPose.rotationDeg.y
+          : -this.fpsHeldWeaponBasePose.rotationDeg.y,
+      ),
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? -animationPose.rotationDeg.z
+          : -this.fpsHeldWeaponBasePose.rotationDeg.z,
+      ),
+      "XYZ",
+    );
+    this.fpsHeldLeftWeaponBaseRotationQuaternion.setFromEuler(
+      this.fpsHeldLeftWeaponBaseRotationEuler,
+    );
+    this.fpsHeldLeftWeaponWorldQuaternion
+      .copy(this.camera.quaternion)
+      .multiply(this.fpsHeldLeftWeaponBaseRotationQuaternion);
+    mesh.quaternion.copy(this.fpsHeldLeftWeaponWorldQuaternion);
+    mesh.visible = true;
+  }
+
   private updateInventoryDisplay(items: any[]): void {
     const nextInventory = this.normalizeMenuItemsForUi(items);
     this.currentInventory = nextInventory;
+    this.invalidateFpsHeldWeaponTexture();
+    this.invalidateFpsHeldLeftWeaponTexture();
 
     this.uiAdapter.setInventory(this.buildInventoryDialogState());
   }
@@ -42237,6 +42637,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateCamera(deltaSeconds);
     this.maybeRequestPendingStartupInventoryRefresh();
     this.syncFpsHeldWeaponSprite(deltaSeconds);
+    this.syncFpsHeldLeftWeaponSprite(deltaSeconds);
     this.updateMonsterBillboardPitchLockState();
     this.syncDirectionPromptOverlayVisibility();
     this.directionPromptOverlay?.update(
