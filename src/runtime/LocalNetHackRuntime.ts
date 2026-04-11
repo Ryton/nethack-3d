@@ -10005,6 +10005,29 @@ class LocalNetHackRuntime {
               ),
             });
 
+            // Inject sysconf to enable wizard mode after IDBFS is synced
+            // Defer this to postRun to ensure FS is fully initialized
+            const injectSysconfLater = () => {
+              try {
+                const sysconfPath = "/sysconf";
+                const lines = [
+                  "# NetHack configuration for WASM",
+                  "WIZARDS=wizard",
+                  "CHECK_PLNAME=1",
+                  "EXPLORERS=*",
+                ];
+                const sysconfContent = lines.join("\n") + "\n";
+                if (mod.FS && typeof mod.FS.writeFile === "function") {
+                  mod.FS.writeFile(sysconfPath, sysconfContent);
+                  console.log("✅ Injected sysconf with WIZARDS=wizard and CHECK_PLNAME=1");
+                }
+              } catch (err) {
+                console.warn("⚠️ Failed to inject sysconf:", err);
+              }
+            };
+            // Store for injection in postRun callback (after full initialization)
+            (mod as any).__nh3dInjectSysconfCallback = injectSysconfLater;
+
             // Setup IndexedDB file system for persisting saves
             const IDBFS =
               mod.FS && mod.FS.filesystems && mod.FS.filesystems.IDBFS
@@ -10341,6 +10364,14 @@ class LocalNetHackRuntime {
               rootEntries: listDirectoryEntries(mod, "/"),
               saveEntries: listDirectoryEntries(mod, "/save"),
             });
+            // Inject sysconf after WASM is fully initialized
+            if (typeof (mod as any).__nh3dInjectSysconfCallback === "function") {
+              try {
+                (mod as any).__nh3dInjectSysconfCallback();
+              } catch (err) {
+                console.warn("⚠️ sysconf injection callback failed:", err);
+              }
+            }
           },
         ],
       });
