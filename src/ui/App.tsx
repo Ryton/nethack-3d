@@ -6090,6 +6090,39 @@ async function requestGameQuit(): Promise<void> {
 }
 
 export default function App(): JSX.Element {
+  // --- Focus management for inventory/menu dialogs ---
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    // Focus inventory dialog when opened
+    if (inventory.visible && inventoryDialogRef.current) {
+      // Try to focus the first enabled inventory row
+      const firstRow = inventoryDialogRef.current.querySelector<HTMLElement>(
+        ".nh3d-inventory-item:not(.nh3d-inventory-item-disabled)"
+      );
+      if (firstRow) {
+        firstRow.focus({ preventScroll: true });
+      } else {
+        inventoryDialogRef.current.focus({ preventScroll: true });
+      }
+    }
+  }, [inventory.visible, inventory.items.length]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    // Focus question dialog (menus, inventory questions) when opened
+    const questionDialog = document.getElementById("question-dialog");
+    if (question && questionDialog) {
+      // Try to focus the first menu button
+      const firstMenuButton = questionDialog.querySelector<HTMLElement>(
+        ".nh3d-menu-button, .nh3d-choice-button, .nh3d-menu-action-button"
+      );
+      if (firstMenuButton) {
+        firstMenuButton.focus({ preventScroll: true });
+      } else {
+        questionDialog.focus({ preventScroll: true });
+      }
+    }
+  }, [question, question?.menuItems?.length]);
   const startupDefaultCharacterPreferencesByRuntime = useMemo(
     () => createDefaultStartupCharacterPreferencesByRuntime(),
     [],
@@ -9365,6 +9398,7 @@ export default function App(): JSX.Element {
     };
   }, [hideAllUiForDeferredGameOver]);
 
+  // Existing focus management for overlays/menus
   useLayoutEffect(() => {
     if (typeof document === "undefined") {
       return;
