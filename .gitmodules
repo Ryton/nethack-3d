@@ -1,0 +1,3 @@
+[submodule "imported/imported/slashem-wasm"]
+	path = imported/imported/slashem-wasm
+	url = git@github.com:JamesIV4/slashem-wasm.git
