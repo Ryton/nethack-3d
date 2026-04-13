@@ -34860,7 +34860,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (this.isKeyboardEventFromInteractiveElement(event.target)) {
-      return;
+      const shouldRoutePromptKey =
+        (this.isInQuestion || this.isInDirectionQuestion) &&
+        event.key !== "Tab" &&
+        !this.isEditableModalKeyboardTarget(event.target);
+      if (!shouldRoutePromptKey) {
+        return;
+      }
     }
 
     if (this.handleMetaCommandKeyDown(event)) {
