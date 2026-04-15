@@ -1,2 +1,86 @@
-# Copied from SLASHEM for WASM build compatibility
+$(GAME): $(OBJ) $(SYSOBJ) $(WINOBJ) $(REGEXOBJ)
+	$(CC) $(CFLAGS) $(LFLAGS) -o $(GAME) $(OBJ) $(SYSOBJ) $(WINOBJ) $(REGEXOBJ) $(LIBS)
+# Ensure HACK_H points to the correct header for util/tilemap (match Slash'EM)
+HACK_H=../include/hack.h
+#
+# Slash'EM linux-wasm
+# Makefile overrides consumed by build.wasm.sh via:
+#   make -f Makefile -f sys/unix/hints/linux-wasm ...
+#
 
+HACKDIR=/
+
+CC=emcc
+AR=emar
+LINK=emcc
+
+CFLAGS=-O3 -I../include -I../../include -I../src/include
+CFLAGS+=-I../include
+CFLAGS_util=-O3 -I../include
+CFLAGS+=-Wall
+CFLAGS+=-DDLB
+CFLAGS+=-DNO_SIGNAL
+CFLAGS+=-DNOMAIL
+CFLAGS+=-DNOCOMPRESS
+CFLAGS+=-DNO_FILE_LINKS
+CFLAGS+=-DPORTABLE_VERSION_INFO_32
+CFLAGS+=-DHACKDIR=\"$(HACKDIR)\"
+CFLAGS+=-DDEFAULT_WINDOW_SYS=\"tty\"
+CFLAGS+=-DTTY_GRAPHICS -DSHIM_GRAPHICS
+CFLAGS+=-DSELF_RECOVER
+CFLAGS+=-DUSE_TILES
+
+LFLAGS=-s WASM=1
+LFLAGS+=-s ALLOW_TABLE_GROWTH
+LFLAGS+=-s ASYNCIFY -s ASYNCIFY_IMPORTS='["local_callback"]'
+LFLAGS+=-O3
+LFLAGS+=-s MODULARIZE
+LFLAGS+=-s EXPORT_ES6=1
+LFLAGS+=-s ERROR_ON_UNDEFINED_SYMBOLS=0
+LFLAGS+=-s EXPORTED_FUNCTIONS='["_main", "_malloc", "_free"]'
+LFLAGS+=-s EXPORTED_RUNTIME_METHODS='["cwrap", "ccall", "addFunction", "removeFunction", "UTF8ToString", "stringToUTF8", "getValue", "setValue", "ENV", "FS", "IDBFS"]'
+LFLAGS+=-lidbfs.js
+LFLAGS+=--embed-file ../wasm-data@/
+
+GAME=evilhack.js
+WASM_TARGET=Wasmunix
+
+WINSRC = tile.c
+WINOBJ = tile.o
+WINLIB =
+
+SYSSRC = \
+	../sys/share/ioctl.c \
+	../sys/unix/unixunix.c ../sys/unix/unixres.c
+SYSOBJ = ioctl.o unixunix.o unixres.o
+
+# --- Force correct CFLAGS for util (tilemap) build, matching Slash'EM ---
+CFLAGS_util=-O3 -I../include
+#SYSSRC += ../../resume_checkpoint_save.c
+#SYSOBJ += resume_checkpoint_save.o
+#resume_checkpoint_save.o: ../../resume_checkpoint_save.c $(HACK_H)
+#	$(CC) $(CFLAGS) -c -o $@ $<
+
+SYSSRC += ../../../../scripts/wasm/evilhack-wasm-shims.c
+SYSOBJ += evilhack-wasm-shims.o
+
+evilhack-wasm-shims.o: ../../../../scripts/wasm/evilhack-wasm-shims.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Restore tilemap build and add logging for diagnostics
+../util/tilemap: ../win/share/tilemap.c $(HACK_H)
+	@echo "[WASM HINTS] Building tilemap with: $(CC) $(CFLAGS_util) $(LFLAGS) -o ../util/tilemap ../win/share/tilemap.c $(LIBS)"
+	$(CC) $(CFLAGS_util) $(LFLAGS) -o ../util/tilemap ../win/share/tilemap.c $(LIBS)
+	@ls -l ../util/tilemap || echo "[WASM HINTS] tilemap not created!"
+
+CHOWN=true
+CHGRP=true
+
+VARDIRPERM = 0755
+VARFILEPERM = 0600
+GAMEPERM = 0755
+
+$(WASM_TARGET): $(HOBJ) Makefile
+	@echo "Loading ..."
+	@$(LINK) $(LFLAGS) -o $(GAME) $(HOBJ) $(WINLIB) $(LIBS)
+	@touch $(WASM_TARGET)
