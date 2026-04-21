@@ -22,7 +22,7 @@ EH_SRC_WASM="$(dirname "$0")/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2"
 	cd "$EH_SRC_WASM"
 	echo "[WASM] Building WASM objects and game..."
 	make clean
-	make nethack || true
+	make evilhack || true
 	cd -
 
 	echo "Build complete. Native and WASM builds are isolated."
