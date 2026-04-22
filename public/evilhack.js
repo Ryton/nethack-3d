@@ -1,9 +1,22 @@
+// Patch: Add missing preRun function (matches slashem.js)
+function preRun() {
+  if (Module["preRun"]) {
+    if (typeof Module["preRun"] == "function") Module["preRun"] = [Module["preRun"]];
+    while (Module["preRun"].length) {
+      addOnPreRun(Module["preRun"].shift());
+    }
+  }
+  callRuntimeCallbacks(onPreRuns);
+}
+
 // This code implements the `-sMODULARIZE` settings by taking the generated
 // JS program code (INNER_JS_CODE) and wrapping it in a factory function.
 
 // When targeting node and ES6 we use `await import ..` in the generated code
 // so the outer function needs to be marked as async.
 async function Module(moduleArg = {}) {
+
+
   var moduleRtn;
 
 // include: shell.js
@@ -402,97 +415,7 @@ function missingLibrarySymbol(sym) {
   unexportedRuntimeSymbol(sym);
 }
 
-function unexportedRuntimeSymbol(sym) {
-  if (!Object.getOwnPropertyDescriptor(Module, sym)) {
-    Object.defineProperty(Module, sym, {
-      configurable: true,
-      get() {
-        var msg = `'${sym}' was not exported. add it to EXPORTED_RUNTIME_METHODS (see the Emscripten FAQ)`;
-        if (isExportedByForceFilesystem(sym)) {
-          msg += '. Alternatively, forcing filesystem support (-sFORCE_FILESYSTEM) can export this for you';
-        }
-        abort(msg);
-      },
-    });
-  }
-}
-
-// end include: runtime_debug.js
-var readyPromiseResolve, readyPromiseReject;
-
-// Memory management
-
-var runtimeInitialized = false;
-
-
-
-function updateMemoryViews() {
-  var b = wasmMemory.buffer;
-  HEAP8 = new Int8Array(b);
-  HEAP16 = new Int16Array(b);
-  HEAPU8 = new Uint8Array(b);
-  HEAPU16 = new Uint16Array(b);
-  HEAP32 = new Int32Array(b);
-  HEAPU32 = new Uint32Array(b);
-  HEAPF32 = new Float32Array(b);
-  HEAPF64 = new Float64Array(b);
-  HEAP64 = new BigInt64Array(b);
-  HEAPU64 = new BigUint64Array(b);
-}
-
-// include: memoryprofiler.js
-// end include: memoryprofiler.js
-// end include: runtime_common.js
-assert(globalThis.Int32Array && globalThis.Float64Array && Int32Array.prototype.subarray && Int32Array.prototype.set,
-       'JS engine does not provide full typed array support');
-
-function preRun() {
-  if (Module['preRun']) {
-    if (typeof Module['preRun'] == 'function') Module['preRun'] = [Module['preRun']];
-    while (Module['preRun'].length) {
-      addOnPreRun(Module['preRun'].shift());
-    }
-  }
-  consumedModuleProp('preRun');
-  // Begin ATPRERUNS hooks
-  callRuntimeCallbacks(onPreRuns);
-  // End ATPRERUNS hooks
-}
-
-function initRuntime() {
-  assert(!runtimeInitialized);
-  runtimeInitialized = true;
-
-  checkStackCookie();
-
-  // Begin ATINITS hooks
-  if (!Module['noFSInit'] && !FS.initialized) FS.init();
-TTY.init();
-  // End ATINITS hooks
-
-  wasmExports['__wasm_call_ctors']();
-
-  // Begin ATPOSTCTORS hooks
-  FS.ignorePermissions = false;
-  // End ATPOSTCTORS hooks
-}
-
-function postRun() {
-  checkStackCookie();
-   // PThreads reuse the runtime from the main thread.
-
-  if (Module['postRun']) {
-    if (typeof Module['postRun'] == 'function') Module['postRun'] = [Module['postRun']];
-    while (Module['postRun'].length) {
-      addOnPostRun(Module['postRun'].shift());
-    }
-  }
-  consumedModuleProp('postRun');
-
-  // Begin ATPOSTRUNS hooks
-  callRuntimeCallbacks(onPostRuns);
-  // End ATPOSTRUNS hooks
-}
+function unexportedRuntimeSymbol(sym) { /* Patch: Disabled strict aborting property guards for missing runtime symbols. Mimics slashem.js and prevents recursion errors. */ }
 
 /**
  * @param {string|number=} what
@@ -647,6 +570,7 @@ async function createWasm() {
 
     assignWasmExports(wasmExports);
 
+function updateMemoryViews() { var b = wasmMemory.buffer; HEAP8 = new Int8Array(b); HEAP16 = new Int16Array(b); HEAPU8 = new Uint8Array(b); HEAPU16 = new Uint16Array(b); HEAP32 = new Int32Array(b); HEAPU32 = new Uint32Array(b); HEAPF32 = new Float32Array(b); HEAPF64 = new Float64Array(b); HEAP64 = new BigInt64Array(b); HEAPU64 = new BigUint64Array(b); }
     updateMemoryViews();
 
     return wasmExports;
@@ -4357,9 +4281,65 @@ for (const prop of Object.keys(Module)) {
 
 
 
+
+// Patch: Assign runtime methods to Module for EvilHack (mimic slashem.js)
+if (typeof cwrap !== "undefined") Module["cwrap"] = cwrap;
+if (typeof ccall !== "undefined") Module["ccall"] = ccall;
+if (typeof addFunction !== "undefined") Module["addFunction"] = addFunction;
+if (typeof removeFunction !== "undefined") Module["removeFunction"] = removeFunction;
+if (typeof UTF8ToString !== "undefined") Module["UTF8ToString"] = UTF8ToString;
+if (typeof stringToUTF8 !== "undefined") Module["stringToUTF8"] = stringToUTF8;
+if (typeof getValue !== "undefined") Module["getValue"] = getValue;
+if (typeof setValue !== "undefined") Module["setValue"] = setValue;
+if (typeof ENV !== "undefined") Module["ENV"] = ENV;
+if (typeof FS !== "undefined") Module["FS"] = FS;
+if (typeof IDBFS !== "undefined") Module["IDBFS"] = IDBFS;
+
+
+// Patch: Assign runtime methods to Module for EvilHack (mimic slashem.js)
+if (typeof cwrap !== "undefined") Module["cwrap"] = cwrap;
+if (typeof ccall !== "undefined") Module["ccall"] = ccall;
+if (typeof addFunction !== "undefined") Module["addFunction"] = addFunction;
+if (typeof removeFunction !== "undefined") Module["removeFunction"] = removeFunction;
+if (typeof UTF8ToString !== "undefined") Module["UTF8ToString"] = UTF8ToString;
+if (typeof stringToUTF8 !== "undefined") Module["stringToUTF8"] = stringToUTF8;
+if (typeof getValue !== "undefined") Module["getValue"] = getValue;
+if (typeof setValue !== "undefined") Module["setValue"] = setValue;
+if (typeof ENV !== "undefined") Module["ENV"] = ENV;
+if (typeof FS !== "undefined") Module["FS"] = FS;
+if (typeof IDBFS !== "undefined") Module["IDBFS"] = IDBFS;
+
+
+// Patch: Assign runtime methods to Module for EvilHack (mimic slashem.js)
+if (typeof cwrap !== "undefined") Module["cwrap"] = cwrap;
+if (typeof ccall !== "undefined") Module["ccall"] = ccall;
+if (typeof addFunction !== "undefined") Module["addFunction"] = addFunction;
+if (typeof removeFunction !== "undefined") Module["removeFunction"] = removeFunction;
+if (typeof UTF8ToString !== "undefined") Module["UTF8ToString"] = UTF8ToString;
+if (typeof stringToUTF8 !== "undefined") Module["stringToUTF8"] = stringToUTF8;
+if (typeof getValue !== "undefined") Module["getValue"] = getValue;
+if (typeof setValue !== "undefined") Module["setValue"] = setValue;
+if (typeof ENV !== "undefined") Module["ENV"] = ENV;
+if (typeof FS !== "undefined") Module["FS"] = FS;
+if (typeof IDBFS !== "undefined") Module["IDBFS"] = IDBFS;
+
   return moduleRtn;
 }
 
 // Export using a UMD style export, or ES6 exports if selected
 export default Module;
+
+
+// Patch: Assign runtime methods to Module for EvilHack (mimic slashem.js)
+if (typeof cwrap !== "undefined") Module["cwrap"] = cwrap;
+if (typeof ccall !== "undefined") Module["ccall"] = ccall;
+if (typeof addFunction !== "undefined") Module["addFunction"] = addFunction;
+if (typeof removeFunction !== "undefined") Module["removeFunction"] = removeFunction;
+if (typeof UTF8ToString !== "undefined") Module["UTF8ToString"] = UTF8ToString;
+if (typeof stringToUTF8 !== "undefined") Module["stringToUTF8"] = stringToUTF8;
+if (typeof getValue !== "undefined") Module["getValue"] = getValue;
+if (typeof setValue !== "undefined") Module["setValue"] = setValue;
+if (typeof ENV !== "undefined") Module["ENV"] = ENV;
+if (typeof FS !== "undefined") Module["FS"] = FS;
+if (typeof IDBFS !== "undefined") Module["IDBFS"] = IDBFS;
 
