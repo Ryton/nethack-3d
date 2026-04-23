@@ -215,6 +215,8 @@ rm -f "$EVILHACK_DIR/src/Sysunix" "$EVILHACK_DIR/src/Wasmunix" "$EVILHACK_DIR/sr
 ## copy to other dirs
 mkdir -p "$BUILD_DIR"
 cp "$EVILHACK_DIR/src/evilhack.js" "$BUILD_DIR/evilhack.js"
+# Patch evilhack.js to assign FS to Module.FS after Module is created
+sed -i '/async function Module(moduleArg = {}) {/a \\n  // Patch: Ensure Module.FS is assigned to prevent recursion error\n  if (typeof FS !== '\''undefined'\'') Module.FS = FS;\n' "$BUILD_DIR/evilhack.js"
 cp "$EVILHACK_DIR/src/evilhack.wasm" "$BUILD_DIR/evilhack.wasm"
 
 
