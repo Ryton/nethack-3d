@@ -188,6 +188,14 @@ export const esOverrides = {
                     debug: "Asistente/Depuraci\u00F3n",
                 },
             },
+            number_pad: {
+                label: "Teclas de movimiento",
+                description: "Elige si el movimiento de NetHack usa el teclado num\u00E9rico (`number_pad:1`) o las teclas vi tradicionales (`number_pad:0`).",
+                options: {
+                    numeric: "Teclado num\u00E9rico",
+                    vi: "Teclas vi",
+                },
+            },
             autopickup: {
                 label: "recogida autom\u00E1tica",
                 description: "Recoge autom\u00E1ticamente las clases de art\u00EDculos seleccionadas en los tipos de recogida.",

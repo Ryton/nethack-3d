@@ -197,6 +197,15 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           debug: "Zauberer/Debug",
         },
       },
+      number_pad: {
+        label: "Bewegungstasten",
+        description:
+          "W\u00e4hle, ob NetHack die numerische Tastatur (`number_pad:1`) oder klassische vi-Tasten (`number_pad:0`) f\u00fcr Bewegung verwendet.",
+        options: {
+          numeric: "Numerischer Block",
+          vi: "vi-Tasten",
+        },
+      },
       autopickup: {
         label: "Automatisches Aufheben",
         description:

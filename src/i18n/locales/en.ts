@@ -189,6 +189,15 @@
           debug: "Wizard/Debug",
         },
       },
+      number_pad: {
+        label: "Movement Keys",
+        description:
+          "Choose whether NetHack movement uses the numeric keypad (`number_pad:1`) or traditional vi keys (`number_pad:0`).",
+        options: {
+          numeric: "Numeric keypad",
+          vi: "vi keys",
+        },
+      },
       autopickup: {
         label: "Autopickup",
         description:

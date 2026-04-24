@@ -196,6 +196,15 @@ export const ptBrOverrides = {
           debug: "Assistente/Depuração",
         },
       },
+      number_pad: {
+        label: "Teclas de movimento",
+        description:
+          "Escolha se o movimento do NetHack usa o teclado numérico (`number_pad:1`) ou as teclas vi tradicionais (`number_pad:0`).",
+        options: {
+          numeric: "Teclado numérico",
+          vi: "Teclas vi",
+        },
+      },
       autopickup: {
         label: "Coleta automática",
         description:

@@ -118,6 +118,12 @@ export const zhCnOverrides = {
           "选择启动模式。巫师模式是 NetHack 调试模式（`playmode:debug`）。",
         options: { normal: "正常", explore: "探索", debug: "巫师/调试" },
       },
+      number_pad: {
+        label: "移动按键",
+        description:
+          "选择 NetHack 移动使用数字小键盘（`number_pad:1`）还是传统 vi 键（`number_pad:0`）。",
+        options: { numeric: "数字小键盘", vi: "vi 键" },
+      },
       autopickup: { label: "自动拾取", description: "自动拾取在拾取类型中选中的物品类别。" },
       pickup_types: {
         label: "拾取类型",

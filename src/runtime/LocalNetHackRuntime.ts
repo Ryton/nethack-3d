@@ -9171,6 +9171,7 @@ class LocalNetHackRuntime {
     if (!root) {
       return {
         capturedAtMs: Date.now(),
+        configuredNethackOptions: this.lastConfiguredNethackOptions,
         runtimeVersion: this.runtimeVersion,
         nethackGlobal: null,
       };
@@ -9186,6 +9187,7 @@ class LocalNetHackRuntime {
 
     return {
       capturedAtMs: Date.now(),
+      configuredNethackOptions: this.lastConfiguredNethackOptions,
       runtimeVersion: this.runtimeVersion,
       objectTileIndexByObjectId,
       nethackGlobal: {

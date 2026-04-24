@@ -66,7 +66,6 @@ const automaticRuntimeInitOptionTokensByVersion: Readonly<
   Record<NethackRuntimeVersion, readonly string[]>
 > = {
   "3.6.7": [
-    "number_pad:1",
     "mouse_support",
     "runmode:walk",
     "time",
@@ -78,7 +77,6 @@ const automaticRuntimeInitOptionTokensByVersion: Readonly<
     "clicklook",
   ],
   "3.7": [
-    "number_pad:1",
     "mouse_support",
     "runmode:walk",
     "time",
@@ -90,7 +88,6 @@ const automaticRuntimeInitOptionTokensByVersion: Readonly<
     "!bones",
   ],
   slashem: [
-    "number_pad:1",
     "mouse_support",
     "runmode:walk",
     "time",
@@ -122,6 +119,17 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
         { value: "debug", label: startupStrings.options.playmode.options.debug },
       ],
       supportedRuntimeVersions: ["3.6.7", "3.7"],
+    },
+    {
+      key: "number_pad",
+      label: startupStrings.options.number_pad.label,
+      description: startupStrings.options.number_pad.description,
+      control: "select",
+      defaultValue: "1",
+      options: [
+        { value: "1", label: startupStrings.options.number_pad.options.numeric },
+        { value: "0", label: startupStrings.options.number_pad.options.vi },
+      ],
     },
     {
       key: "autopickup",

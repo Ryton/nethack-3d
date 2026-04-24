@@ -191,6 +191,15 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           debug: "Wizard / Debug",
         },
       },
+      number_pad: {
+        label: "移動キー",
+        description:
+          "NetHack の移動にテンキー (`number_pad:1`) を使うか、従来の vi キー (`number_pad:0`) を使うかを選びます。",
+        options: {
+          numeric: "テンキー",
+          vi: "vi キー",
+        },
+      },
       autopickup: {
         label: "自動拾得",
         description: "pickup types で選んだアイテム種別を自動で拾います。",

@@ -199,6 +199,15 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           debug: "Velho/Debug",
         },
       },
+      number_pad: {
+        label: "Liikenappaimet",
+        description:
+          "Valitse, käyttääkö NetHack liikkumiseen numeronäppäimistöä (`number_pad:1`) vai perinteisiä vi-näppäimiä (`number_pad:0`).",
+        options: {
+          numeric: "Numeronäppäimistö",
+          vi: "vi-näppäimet",
+        },
+      },
       autopickup: {
         label: "Automaattinen poiminta",
         description:

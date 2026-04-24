@@ -198,6 +198,15 @@
           debug: "Assistant/Debug",
         },
       },
+      number_pad: {
+        label: "Touches de deplacement",
+        description:
+          "Choisissez si NetHack utilise le pave numerique (`number_pad:1`) ou les touches vi traditionnelles (`number_pad:0`) pour le deplacement.",
+        options: {
+          numeric: "Pave numerique",
+          vi: "Touches vi",
+        },
+      },
       autopickup: {
         label: "Ramassage automatique",
         description:

@@ -189,6 +189,15 @@
           debug: "위저드/디버그",
         },
       },
+      number_pad: {
+        label: "이동 키",
+        description:
+          "NetHack 이동에 숫자 키패드(`number_pad:1`)를 사용할지, 전통적인 vi 키(`number_pad:0`)를 사용할지 선택합니다.",
+        options: {
+          numeric: "숫자 키패드",
+          vi: "vi 키",
+        },
+      },
       autopickup: {
         label: "자동 줍기",
         description:

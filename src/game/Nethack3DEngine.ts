@@ -2676,6 +2676,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       playMode: "normal",
       runtimeVersion: "3.6.7",
     };
+    this.numberPadModeEnabled = this.resolveStartupNumberPadModeEnabled(
+      this.characterCreationConfig.initOptions,
+    );
     this.useNativeExtendedCommandMenu = this.resolveStartupExtmenuEnabled(
       this.characterCreationConfig.initOptions,
     );
@@ -10326,9 +10329,98 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.applyRuntimeObjectTileIndexByObjectId(
       this.extractRuntimeObjectTileIndexByObjectId(snapshot),
     );
+    const runtimeNumberPadModeEnabled =
+      this.extractRuntimeNumberPadModeEnabled(snapshot);
+    if (typeof runtimeNumberPadModeEnabled === "boolean") {
+      this.setNumberPadModeEnabled(runtimeNumberPadModeEnabled, {
+        announce: false,
+      });
+    }
     if (typeof window !== "undefined") {
       (window as any).nethackRuntimeGlobals = this.latestRuntimeGlobalsSnapshot;
     }
+  }
+
+  private extractRuntimeNumberPadModeEnabled(snapshot: unknown): boolean | null {
+    if (!snapshot || typeof snapshot !== "object") {
+      return null;
+    }
+
+    const readNestedValue = (root: unknown, path: readonly string[]): unknown => {
+      let current: unknown = root;
+      for (const key of path) {
+        if (!current || typeof current !== "object") {
+          return null;
+        }
+        current = (current as Record<string, unknown>)[key];
+      }
+      return current;
+    };
+
+    const normalizeNumberPadValue = (value: unknown): boolean | null => {
+      if (typeof value === "boolean") {
+        return value;
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return Math.trunc(value) !== 0;
+      }
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (!normalized) {
+          return null;
+        }
+        if (
+          normalized === "0" ||
+          normalized === "-1" ||
+          normalized === "false" ||
+          normalized === "off"
+        ) {
+          return false;
+        }
+        if (
+          normalized === "1" ||
+          normalized === "true" ||
+          normalized === "on"
+        ) {
+          return true;
+        }
+      }
+      return null;
+    };
+
+    const globalsRoot = readNestedValue(snapshot, [
+      "nethackGlobal",
+      "globals",
+    ]);
+    const candidatePaths: ReadonlyArray<readonly string[]> = [
+      ["iflags", "num_pad"],
+      ["iflags", "number_pad"],
+      ["flags", "num_pad"],
+      ["flags", "number_pad"],
+      ["g", "iflags", "num_pad"],
+      ["g", "iflags", "number_pad"],
+      ["g", "flags", "num_pad"],
+      ["g", "flags", "number_pad"],
+    ];
+    for (const path of candidatePaths) {
+      const normalized = normalizeNumberPadValue(
+        readNestedValue(globalsRoot, path),
+      );
+      if (normalized !== null) {
+        return normalized;
+      }
+    }
+
+    const configuredNethackOptions = readNestedValue(snapshot, [
+      "configuredNethackOptions",
+    ]);
+    if (typeof configuredNethackOptions === "string") {
+      return this.extractNumberPadModeEnabledFromOptionTokens(
+        configuredNethackOptions.split(","),
+      );
+    }
+
+    return null;
   }
 
   private applyRuntimeObjectTileIndexByObjectId(rawValue: unknown): void {
@@ -29049,7 +29141,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.messageSoundHooks.playThrownWeaponSound();
   }
 
-  private setNumberPadModeEnabled(enabled: boolean): void {
+  private setNumberPadModeEnabled(
+    enabled: boolean,
+    options: { announce?: boolean } = {},
+  ): void {
     const normalized = Boolean(enabled);
     if (this.numberPadModeEnabled === normalized) {
       return;
@@ -29057,7 +29152,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.numberPadModeEnabled = normalized;
     const modeLabel = normalized ? "numpad" : "hjklyubn";
     console.log(`🎮 Number pad mode set to ${modeLabel}`);
-    this.addGameMessage(`Number pad mode: ${modeLabel}`);
+    if (options.announce !== false) {
+      this.addGameMessage(`Number pad mode: ${modeLabel}`);
+    }
     this.uiAdapter.setNumberPadModeEnabled(normalized);
   }
 
@@ -31535,6 +31632,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
     }
     return extmenuEnabled;
+  }
+
+  private extractNumberPadModeEnabledFromOptionTokens(
+    rawTokens: unknown,
+  ): boolean | null {
+    const tokens = sanitizeStartupInitOptionTokens(rawTokens);
+    let numberPadEnabled: boolean | null = null;
+    for (const token of tokens) {
+      const normalizedToken = String(token || "").trim().toLowerCase();
+      if (!normalizedToken.startsWith("number_pad:")) {
+        continue;
+      }
+      const value = normalizedToken.slice("number_pad:".length).trim();
+      if (value === "0" || value === "-1") {
+        numberPadEnabled = false;
+      } else if (value) {
+        numberPadEnabled = true;
+      }
+    }
+    return numberPadEnabled;
+  }
+
+  private resolveStartupNumberPadModeEnabled(rawTokens: unknown): boolean {
+    const numberPadEnabled =
+      this.extractNumberPadModeEnabledFromOptionTokens(rawTokens);
+    if (typeof numberPadEnabled === "boolean") {
+      return numberPadEnabled;
+    }
+    return true;
   }
 
   private startMetaCommandMode(): void {

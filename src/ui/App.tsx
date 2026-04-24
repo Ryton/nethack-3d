@@ -5629,6 +5629,7 @@ type SaveGameRecord = {
   name: string;
   displayName: string;
   displayPlayMode: "normal" | "explore" | "debug" | null;
+  initOptions?: string[];
   category: "manual" | "autosave";
   isResumable: boolean;
   timestamp: Date;
@@ -5644,6 +5645,7 @@ type SaveGameRecord = {
 type SavePresentationMetadataEntry = {
   characterName: string;
   playMode: "normal" | "explore" | "debug" | null;
+  initOptions?: string[];
   updatedAt: string;
 };
 
@@ -5687,6 +5689,7 @@ function readSavePresentationMetadataByKey(): Record<
       normalized[rawKey] = {
         characterName,
         playMode,
+        initOptions: sanitizeStartupInitOptionTokens(candidate.initOptions),
         updatedAt:
           typeof candidate.updatedAt === "string" && candidate.updatedAt.trim()
             ? candidate.updatedAt
@@ -5749,12 +5752,14 @@ function persistSavePresentationMetadataForCharacter(
     runtimeVersion,
     initOptions,
   );
+  const sanitizedInitOptions = sanitizeStartupInitOptionTokens(initOptions);
   const updatedAt = new Date().toISOString();
   const categories: Array<"manual" | "autosave"> = ["manual", "autosave"];
   for (const category of categories) {
     metadataByKey[`${category}:${normalizedRuntimeName}`] = {
       characterName: normalizedCharacterName,
       playMode,
+      initOptions: sanitizedInitOptions,
       updatedAt,
     };
   }
@@ -5936,6 +5941,11 @@ async function fetchSavedGames(
                   presentationMetadata.characterName,
                 )
               : resolveSaveDisplayName(name, category);
+          const initOptions =
+            presentationMetadata &&
+            Array.isArray(presentationMetadata.initOptions)
+              ? sanitizeStartupInitOptionTokens(presentationMetadata.initOptions)
+              : [];
           const existing = saves.get(logicalKey);
           if (existing) {
             existing.files.push({
@@ -5962,6 +5972,7 @@ async function fetchSavedGames(
             name,
             displayName,
             displayPlayMode,
+            initOptions,
             category,
             // A lone "<lock>.0" file at 4 bytes is just NetHack's pid lock,
             // not a recoverable checkpoint autosave.
@@ -15273,6 +15284,7 @@ export default function App(): JSX.Element {
                                 : "normal",
                               runtimeVersion,
                               name: save.name,
+                              initOptions: save.initOptions,
                               resumeCategory: save.category,
                             });
                           }}
