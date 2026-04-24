@@ -33,6 +33,8 @@
     "copy-wasm": "node scripts/wasm/copy-wasm.mjs",
     "startup:generate-rulesets": "node scripts/game/generate-startup-character-rulesets.mjs",
     "startup:check-rulesets": "node scripts/game/generate-startup-character-rulesets.mjs --check",
+    "tilesets:generate-ai-prompts": "node scripts/tilesets/generate-ai-tileset-prompts.mjs",
+    "tilesets:generate-ai-prompts:256-same-sheet": "node scripts/tilesets/generate-ai-tileset-prompts.mjs --columns 6 --rows 4 --tile-size 256 --out docs/nethack-367-ai-tileset-prompts-256-same-sheet.md",
     "start": "npm run dev",
     "start:preview": "vite preview",
     "preview": "vite preview",
