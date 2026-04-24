@@ -980,6 +980,7 @@ type BloodGroundImpactParams = {
   streakCount: number;
   streakLengthWorld: number;
   elongation: number;
+  intensityScale?: number;
 };
 
 type WallSideTileOverlay = {
@@ -1997,6 +1998,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastFrameTimeMs: number | null = null;
   private fpsDebugDisplayVisible: boolean = false;
   private fpsDebugDisplayElement: HTMLDivElement | null = null;
+  private fpsDebugDisplayMetricsElement: HTMLDivElement | null = null;
+  private fpsDebugDisplayOverrideInput: HTMLInputElement | null = null;
+  private fpsDebugDisplayOverrideFps: number | null = null;
   private fpsDebugDisplaySmoothedFps: number | null = null;
   private fpsDebugDisplaySmoothedFrameTimeMs: number | null = null;
   private fpsDebugDisplaySmoothedRenderTimeMs: number | null = null;
@@ -2176,6 +2180,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly playerDamageNumberCameraLocalScratch = new THREE.Vector3();
   private readonly playerDamageNumberCameraInverseQuaternion =
     new THREE.Quaternion();
+  private readonly bloodGroundReferenceFrameSeconds: number = 1 / 60;
   private readonly monsterBillboardShardAngularAxis = new THREE.Vector3();
   private readonly monsterBillboardShardDeltaQuaternion =
     new THREE.Quaternion();
@@ -4243,6 +4248,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    const intensityScale = THREE.MathUtils.clamp(
+      params.intensityScale ?? 1,
+      0.2,
+      1,
+    );
+    const densityAmount = Math.max(1, params.densityAmount * intensityScale);
+    const scatterCount = this.scaleBloodGroundDiscreteCount(
+      params.scatterCount,
+      intensityScale,
+    );
+    const streakCount = this.scaleBloodGroundDiscreteCount(
+      params.streakCount,
+      intensityScale,
+    );
+
     // Compose each deposit from a denser focal blot, satellite droplets, and
     // directional trails so hits read as splats instead of uniform ovals.
     const seed = Math.floor(Math.random() * 0x7fffffff);
@@ -4329,7 +4349,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       coreRadiusX,
       coreRadiusY,
       impactAngle + (Math.random() - 0.5) * 0.42,
-      params.densityAmount,
+      densityAmount,
       1.4,
       seed,
       pattern,
@@ -4352,13 +4372,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       baseRadius * (0.55 + Math.random() * 0.2),
       baseRadius * (0.4 + Math.random() * 0.2),
       impactAngle + (Math.random() - 0.5) * 0.55,
-      params.densityAmount * 0.78,
+      densityAmount * 0.78,
       1.7,
       seed + 101,
       pattern,
     );
 
-    for (let i = 0; i < params.scatterCount; i += 1) {
+    for (let i = 0; i < scatterCount; i += 1) {
       const forward =
         Math.pow(Math.random(), 0.78) *
         (baseRadius * 1.25 + params.streakLengthWorld * 0.75);
@@ -4379,14 +4399,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         spotRadius * (0.85 + Math.random() * 0.35),
         spotRadius * (0.8 + Math.random() * 0.25),
         impactAngle + (Math.random() - 0.5) * 1.15,
-        params.densityAmount * (0.18 + Math.random() * 0.28),
+        densityAmount * (0.18 + Math.random() * 0.28),
         1.8 + Math.random() * 0.5,
         seed + 211 + i * 31,
         pattern,
       );
     }
 
-    for (let i = 0; i < params.streakCount; i += 1) {
+    for (let i = 0; i < streakCount; i += 1) {
       const streakStartForward = baseRadius * (0.18 + Math.random() * 0.34);
       const streakLateral = (Math.random() - 0.5) * baseRadius * 0.9;
       const streakLength =
@@ -4420,11 +4440,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
         endY,
         baseRadius * (0.28 + Math.random() * 0.14),
         baseRadius * (0.08 + Math.random() * 0.06),
-        params.densityAmount * (0.36 + Math.random() * 0.22),
+        densityAmount * (0.36 + Math.random() * 0.22),
         seed + 503 + i * 131,
         pattern,
       );
     }
+  }
+
+  private scaleBloodGroundDiscreteCount(
+    count: number,
+    scale: number,
+  ): number {
+    if (count <= 0) {
+      return 0;
+    }
+    const scaled = count * THREE.MathUtils.clamp(scale, 0, 1);
+    const whole = Math.floor(scaled);
+    return whole + (Math.random() < scaled - whole ? 1 : 0);
+  }
+
+  private resolveBloodGroundLowFpsScale(deltaSeconds: number): number {
+    if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
+      return 1;
+    }
+    return THREE.MathUtils.clamp(
+      this.bloodGroundReferenceFrameSeconds / deltaSeconds,
+      0.2,
+      1,
+    );
   }
 
   private paintBloodGroundFromDirectHit(
@@ -4469,6 +4512,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     impactSpeed: number,
     radiusHint: number,
     impactCount: number,
+    intensityScale: number = 1,
   ): void {
     if (impactSpeed < 0.3 || (impactCount > 0 && impactSpeed < 1.05)) {
       return;
@@ -4497,12 +4541,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         0.22,
       ),
       elongation: THREE.MathUtils.clamp(horizontalSpeed / 2.2, 0.12, 0.95),
+      intensityScale,
     });
   }
 
   private paintBloodGroundFromShardImpact(
     particle: BillboardShardParticle,
     impactSpeed: number,
+    intensityScale: number = 1,
   ): void {
     if (
       impactSpeed < 0.35 ||
@@ -4567,6 +4613,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         0.28,
         1.08,
       ),
+      intensityScale,
     });
   }
 
@@ -18356,6 +18403,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const deltaMs = deltaSeconds * 1000;
     const drag = Math.exp(-this.damageParticleDrag * deltaSeconds);
+    const lowFpsBloodScale = this.resolveBloodGroundLowFpsScale(deltaSeconds);
 
     for (let i = this.damageParticles.length - 1; i >= 0; i -= 1) {
       const particle = this.damageParticles[i];
@@ -18392,6 +18440,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
               impactSpeed,
               particle.radius,
               particle.groundImpactCount,
+              lowFpsBloodScale,
             );
             particle.groundImpactCount += 1;
           }
@@ -18437,6 +18486,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const deltaMs = deltaSeconds * 1000;
     const drag = Math.exp(-this.monsterBillboardShardDrag * deltaSeconds);
+    const lowFpsBloodScale = this.resolveBloodGroundLowFpsScale(deltaSeconds);
 
     for (
       let i = this.monsterBillboardShardParticles.length - 1;
@@ -18474,7 +18524,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (particle.mesh.position.z < this.damageParticleFloorZ) {
           const impactSpeed = particle.velocity.length();
           if (particle.velocity.z < -0.14) {
-            this.paintBloodGroundFromShardImpact(particle, impactSpeed);
+            this.paintBloodGroundFromShardImpact(
+              particle,
+              impactSpeed,
+              lowFpsBloodScale,
+            );
             particle.groundImpactCount += 1;
           }
           onFloor = true;
@@ -32140,12 +32194,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const element = document.createElement("div");
+    const metrics = document.createElement("div");
+    const controls = document.createElement("label");
+    const controlsText = document.createElement("span");
+    const overrideInput = document.createElement("input");
     element.className = "nh3d-fps-debug-display";
-    element.setAttribute("aria-hidden", "true");
     element.style.position = "fixed";
     element.style.right = "12px";
     element.style.bottom = "12px";
-    element.style.padding = "4px 8px";
+    element.style.display = "none";
+    element.style.flexDirection = "column";
+    element.style.gap = "6px";
+    element.style.padding = "6px 8px";
     element.style.borderRadius = "6px";
     element.style.border = "1px solid rgba(196, 255, 208, 0.45)";
     element.style.background = "rgba(2, 10, 8, 0.82)";
@@ -32156,13 +32216,86 @@ class Nethack3DEngine implements Nethack3DEngineController {
     element.style.fontWeight = "600";
     element.style.lineHeight = "1.2";
     element.style.letterSpacing = "0.03em";
-    element.style.pointerEvents = "none";
-    element.style.userSelect = "none";
+    element.style.pointerEvents = "auto";
+    element.style.userSelect = "text";
     element.style.zIndex = "4200";
-    element.style.display = "none";
-    element.textContent = "FPS: -- | FT: -- ms | RT: -- ms";
+    element.style.boxShadow = "0 10px 24px rgba(0, 0, 0, 0.28)";
+    element.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+    element.addEventListener("pointerup", (event) => {
+      event.stopPropagation();
+    });
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    element.addEventListener("focusin", () => {
+      if (document.pointerLockElement === this.renderer.domElement) {
+        document.exitPointerLock?.();
+      }
+      this.fpsPointerLockActive = false;
+    });
+    element.addEventListener("focusout", () => {
+      this.syncFpsPointerLockForUiState(true);
+    });
+
+    metrics.textContent = this.getFpsDebugDisplayMetricsText();
+    metrics.style.whiteSpace = "nowrap";
+
+    controls.style.display = "flex";
+    controls.style.alignItems = "center";
+    controls.style.gap = "6px";
+    controls.style.whiteSpace = "nowrap";
+    controls.style.cursor = "text";
+
+    controlsText.textContent = "Override FPS";
+    controlsText.style.opacity = "0.88";
+
+    overrideInput.type = "number";
+    overrideInput.min = "1";
+    overrideInput.max = "240";
+    overrideInput.step = "1";
+    overrideInput.inputMode = "numeric";
+    overrideInput.placeholder = "auto";
+    overrideInput.value =
+      this.fpsDebugDisplayOverrideFps === null
+        ? ""
+        : String(this.fpsDebugDisplayOverrideFps);
+    overrideInput.style.width = "68px";
+    overrideInput.style.padding = "2px 4px";
+    overrideInput.style.borderRadius = "4px";
+    overrideInput.style.border = "1px solid rgba(196, 255, 208, 0.45)";
+    overrideInput.style.background = "rgba(10, 28, 20, 0.96)";
+    overrideInput.style.color = "#ecfff0";
+    overrideInput.style.font = "inherit";
+    overrideInput.style.fontWeight = "600";
+    overrideInput.style.letterSpacing = "inherit";
+    overrideInput.style.outline = "none";
+    overrideInput.title = "Leave blank to use the real frame rate.";
+    overrideInput.addEventListener("input", () => {
+      this.setFpsDebugDisplayOverrideFpsFromInputValue(overrideInput.value);
+    });
+    overrideInput.addEventListener("blur", () => {
+      this.syncFpsDebugDisplayOverrideInputValue();
+    });
+    overrideInput.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        overrideInput.blur();
+      }
+    });
+    overrideInput.addEventListener("keyup", (event) => {
+      event.stopPropagation();
+    });
+
+    controls.appendChild(controlsText);
+    controls.appendChild(overrideInput);
+    element.appendChild(metrics);
+    element.appendChild(controls);
     document.body.appendChild(element);
     this.fpsDebugDisplayElement = element;
+    this.fpsDebugDisplayMetricsElement = metrics;
+    this.fpsDebugDisplayOverrideInput = overrideInput;
     return element;
   }
 
@@ -32175,15 +32308,95 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    element.style.display = visible ? "block" : "none";
+    element.style.display = visible ? "flex" : "none";
     if (!visible) {
+      if (
+        document.activeElement instanceof HTMLElement &&
+        element.contains(document.activeElement)
+      ) {
+        document.activeElement.blur();
+      }
+      this.syncFpsPointerLockForUiState(true);
       return;
     }
     this.fpsDebugDisplaySmoothedFps = null;
     this.fpsDebugDisplaySmoothedFrameTimeMs = null;
     this.fpsDebugDisplaySmoothedRenderTimeMs = null;
     this.fpsDebugDisplayLastRenderedSignature = null;
-    element.textContent = "FPS: -- | FT: -- ms | RT: -- ms";
+    if (this.fpsDebugDisplayMetricsElement) {
+      this.fpsDebugDisplayMetricsElement.textContent =
+        this.getFpsDebugDisplayMetricsText();
+    }
+    this.syncFpsDebugDisplayOverrideInputValue();
+  }
+
+  private getFpsDebugDisplayMetricsText(
+    smoothedFps: number | null = null,
+    smoothedFrameTimeMs: number | null = null,
+    smoothedRenderTimeMs: number | null = null,
+  ): string {
+    const overrideSuffix =
+      this.fpsDebugDisplayOverrideFps === null
+        ? ""
+        : ` | OVR: ${this.fpsDebugDisplayOverrideFps}`;
+    if (
+      smoothedFps === null ||
+      smoothedFrameTimeMs === null ||
+      smoothedRenderTimeMs === null
+    ) {
+      return `FPS: -- | FT: -- ms | RT: -- ms${overrideSuffix}`;
+    }
+    return `FPS: ${Math.max(0, Math.round(smoothedFps))} | FT: ${smoothedFrameTimeMs.toFixed(2)} ms | RT: ${smoothedRenderTimeMs.toFixed(2)} ms${overrideSuffix}`;
+  }
+
+  private syncFpsDebugDisplayOverrideInputValue(): void {
+    const input = this.fpsDebugDisplayOverrideInput;
+    if (!input) {
+      return;
+    }
+    input.value =
+      this.fpsDebugDisplayOverrideFps === null
+        ? ""
+        : String(this.fpsDebugDisplayOverrideFps);
+  }
+
+  private setFpsDebugDisplayOverrideFpsFromInputValue(rawValue: string): void {
+    const trimmed = String(rawValue || "").trim();
+    if (trimmed.length === 0) {
+      this.fpsDebugDisplayOverrideFps = null;
+      this.fpsDebugDisplayLastRenderedSignature = null;
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      return;
+    }
+    this.fpsDebugDisplayOverrideFps = Math.max(
+      1,
+      Math.min(240, Math.round(parsed)),
+    );
+    this.fpsDebugDisplayLastRenderedSignature = null;
+  }
+
+  private getFpsDebugDisplayOverrideFrameIntervalMs(): number | null {
+    const overrideFps = this.fpsDebugDisplayOverrideFps;
+    if (
+      overrideFps === null ||
+      !Number.isFinite(overrideFps) ||
+      overrideFps <= 0
+    ) {
+      return null;
+    }
+    return 1000 / overrideFps;
+  }
+
+  private shouldSkipFrameForFpsDebugOverride(timeMs: number): boolean {
+    const intervalMs = this.getFpsDebugDisplayOverrideFrameIntervalMs();
+    if (intervalMs === null || this.lastFrameTimeMs === null) {
+      return false;
+    }
+    const elapsedMs = timeMs - this.lastFrameTimeMs;
+    return elapsedMs < intervalMs - 0.25;
   }
 
   private updateFpsDebugDisplay(
@@ -32196,8 +32409,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (rawDeltaMs <= 0 || !Number.isFinite(renderDurationMs)) {
       return;
     }
-    const element = this.fpsDebugDisplayElement;
-    if (!element) {
+    const metricsElement = this.fpsDebugDisplayMetricsElement;
+    if (!metricsElement) {
       return;
     }
 
@@ -32229,17 +32442,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
             this.fpsDebugDisplaySmoothingFactor;
     this.fpsDebugDisplaySmoothedRenderTimeMs = smoothedRenderTimeMs;
 
-    const signature = `FPS: ${Math.max(0, Math.round(smoothedFps))} | FT: ${smoothedFrameTimeMs.toFixed(2)} ms | RT: ${smoothedRenderTimeMs.toFixed(2)} ms`;
+    const signature = this.getFpsDebugDisplayMetricsText(
+      smoothedFps,
+      smoothedFrameTimeMs,
+      smoothedRenderTimeMs,
+    );
     if (signature === this.fpsDebugDisplayLastRenderedSignature) {
       return;
     }
     this.fpsDebugDisplayLastRenderedSignature = signature;
-    element.textContent = signature;
+    metricsElement.textContent = signature;
   }
 
   private removeFpsDebugDisplay(): void {
     this.fpsDebugDisplayElement?.remove();
     this.fpsDebugDisplayElement = null;
+    this.fpsDebugDisplayMetricsElement = null;
+    this.fpsDebugDisplayOverrideInput = null;
     this.fpsDebugDisplayVisible = false;
     this.fpsDebugDisplaySmoothedFps = null;
     this.fpsDebugDisplaySmoothedFrameTimeMs = null;
@@ -34568,12 +34787,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       (this.isInQuestion && !allowDirectionLook) ||
       (this.isInDirectionQuestion && !allowDirectionLook) ||
       this.isTextInputActive ||
+      this.isFpsDebugDisplayInputFocused() ||
       this.metaCommandModeActive ||
       this.fpsCrosshairContextMenuOpen ||
       this.isInventoryDialogOpen() ||
       this.isInfoDialogOpen() ||
       modalBlocksPointerLock
     );
+  }
+
+  private isFpsDebugDisplayInputFocused(): boolean {
+    const element = this.fpsDebugDisplayElement;
+    const activeElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    return Boolean(element && activeElement && element.contains(activeElement));
   }
 
   private isOnlyDirectionDialogVisible(): boolean {
@@ -42370,6 +42599,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.animationFrameId = requestAnimationFrame(this.animateFrameCallback);
+    if (this.shouldSkipFrameForFpsDebugOverride(timeMs)) {
+      return;
+    }
     const rawDeltaMs =
       this.lastFrameTimeMs === null ? 1000 / 60 : timeMs - this.lastFrameTimeMs;
     this.lastFrameTimeMs = timeMs;

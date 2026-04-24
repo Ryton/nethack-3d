@@ -4682,7 +4682,7 @@ const clientOptionsConfig: ClientOption[] = [
     description: t.clientOptions.config.bloodStrength.description,
     type: "slider",
     min: 0.5,
-    max: 4,
+    max: 2.5,
     step: 0.05,
   },
   {
@@ -10937,30 +10937,6 @@ export default function App(): JSX.Element {
     [],
   );
 
-  const resolveEditableFieldVerticalNavigationDirection = useCallback(
-    (key: string, code?: string): "up" | "down" | null => {
-      if (key === "ArrowUp") {
-        return "up";
-      }
-      if (key === "ArrowDown") {
-        return "down";
-      }
-      switch (code) {
-        case "Numpad8":
-        case "Numpad7":
-        case "Numpad9":
-          return "up";
-        case "Numpad2":
-        case "Numpad1":
-        case "Numpad3":
-          return "down";
-        default:
-          return null;
-      }
-    },
-    [],
-  );
-
   const applyDialogDirectionalNavigation = useCallback(
     (
       direction: "up" | "down" | "left" | "right",
@@ -11133,6 +11109,8 @@ export default function App(): JSX.Element {
           );
           return;
         }
+        // Let focused selects keep native keyboard ownership for changing values.
+        return;
       }
       const targetInput = target instanceof HTMLInputElement ? target : null;
       const targetInputType = String(targetInput?.type || "").toLowerCase();
@@ -11173,23 +11151,8 @@ export default function App(): JSX.Element {
           target.tagName === "TEXTAREA" ||
           target.isContentEditable)
       ) {
-        const editableVerticalDirection =
-          resolveEditableFieldVerticalNavigationDirection(
-            event.key,
-            event.code,
-          );
-        if (!editableVerticalDirection) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        applyDialogDirectionalNavigation(
-          editableVerticalDirection,
-          event.currentTarget,
-          {
-            stepFocusedSliderOnHorizontal: false,
-          },
-        );
+        // Do not hijack keyboard input from editable fields during startup
+        // character creation; keep typing, selection, and caret movement native.
         return;
       }
 
@@ -11240,7 +11203,6 @@ export default function App(): JSX.Element {
     },
     [
       applyDialogDirectionalNavigation,
-      resolveEditableFieldVerticalNavigationDirection,
       resolveStartupMenuNavigationDirection,
     ],
   );
@@ -11365,6 +11327,8 @@ export default function App(): JSX.Element {
           );
           return;
         }
+        // Let focused selects keep native keyboard ownership for changing values.
+        return;
       }
 
       const targetInput = target instanceof HTMLInputElement ? target : null;
@@ -11402,23 +11366,8 @@ export default function App(): JSX.Element {
           target.tagName === "TEXTAREA" ||
           target.isContentEditable)
       ) {
-        const editableVerticalDirection =
-          resolveEditableFieldVerticalNavigationDirection(
-            event.key,
-            event.code,
-          );
-        if (!editableVerticalDirection) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        applyDialogDirectionalNavigation(
-          editableVerticalDirection,
-          event.currentTarget,
-          {
-            stepFocusedSliderOnHorizontal: false,
-          },
-        );
+        // Do not hijack keyboard input from editable fields in options forms;
+        // keep typing, selection, and caret movement native.
         return;
       }
 
@@ -11469,7 +11418,6 @@ export default function App(): JSX.Element {
     },
     [
       applyDialogDirectionalNavigation,
-      resolveEditableFieldVerticalNavigationDirection,
       resolveStartupMenuNavigationDirection,
     ],
   );
@@ -12253,7 +12201,7 @@ export default function App(): JSX.Element {
     } else if (key === "gamma") {
       clamped = Math.max(0.5, Math.min(2.5, rawValue));
     } else if (key === "bloodStrength") {
-      clamped = Math.max(0.5, Math.min(4, rawValue));
+      clamped = Math.max(0.5, Math.min(2.5, rawValue));
     } else if (key === "minimapScale") {
       clamped = Math.max(0.6, Math.min(2.2, rawValue));
     } else if (key === "liveMessageDisplayTimeMs") {

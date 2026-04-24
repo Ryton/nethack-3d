@@ -734,7 +734,7 @@ export function normalizeNh3dClientOptions(
       ? overrides.bloodStrength
       : defaultNh3dClientOptions.bloodStrength;
   const bloodStrength = Number(
-    Math.max(0.5, Math.min(4, rawBloodStrength)).toFixed(2),
+    Math.max(0.5, Math.min(2.5, rawBloodStrength)).toFixed(2),
   );
   const bloodColorLightHex = normalizeBloodColorHex(
     overrides?.bloodColorLightHex,
