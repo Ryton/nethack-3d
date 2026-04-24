@@ -1365,6 +1365,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private activeQuestionPageSelectionMap: Map<string, string> = new Map();
   private activeQuestionIsPickupDialog: boolean = false;
   private activePickupSelections: Set<string> = new Set();
+  private activePickupSelectionCounts: Map<string, number> = new Map();
+  private activeQuestionPendingCountInput: string = "";
   private activePickupFocusIndex: number = 0;
   private activeQuestionMenuFocusIndex: number = 0;
   private activeQuestionActionFocusIndex: number = -1;
@@ -29088,6 +29090,32 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private isCountableSimpleInventoryQuestion(questionText: string): boolean {
+    const normalized = String(questionText || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return (
+      normalized.includes("what do you want to drop") ||
+      normalized.includes("what would you like to drop") ||
+      normalized.includes("put in what") ||
+      normalized.includes("what do you want to put in") ||
+      normalized.includes("what would you like to put in") ||
+      normalized.includes("take out what") ||
+      normalized.includes("what do you want to take out") ||
+      normalized.includes("what would you like to take out")
+    );
+  }
+
+  private isCountableInventorySelectionQuestion(questionText: string): boolean {
+    return (
+      this.isMultiSelectLootQuestion(questionText) ||
+      this.isCountableSimpleInventoryQuestion(questionText)
+    );
+  }
+
   private findMenuCategoryLabelForItem(
     menuItems: any[],
     targetItem: any,
@@ -29318,6 +29346,98 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.getMenuSelectionInput(item, fallback);
   }
 
+  private getActiveQuestionPendingCount(): number | null {
+    if (!/^\d+$/.test(this.activeQuestionPendingCountInput)) {
+      return null;
+    }
+    const parsed = Number.parseInt(this.activeQuestionPendingCountInput, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  private clearActiveQuestionPendingCount(sync: boolean = true): void {
+    if (!this.activeQuestionPendingCountInput) {
+      return;
+    }
+    this.activeQuestionPendingCountInput = "";
+    if (sync) {
+      this.syncQuestionDialogState();
+    }
+  }
+
+  private consumeActiveQuestionPendingCount(): number | null {
+    const count = this.getActiveQuestionPendingCount();
+    this.clearActiveQuestionPendingCount(false);
+    return count;
+  }
+
+  private encodeMenuSelectionInputWithCount(
+    selectionInput: string,
+    count: number | null,
+  ): string {
+    if (
+      count === null ||
+      count < 1 ||
+      !selectionInput.startsWith(this.menuSelectionInputPrefix)
+    ) {
+      return selectionInput;
+    }
+    return `${selectionInput}:${Math.trunc(count)}`;
+  }
+
+  private appendActiveQuestionCountDigit(digit: string): void {
+    if (!/^\d$/.test(digit)) {
+      return;
+    }
+    const nextValue = `${this.activeQuestionPendingCountInput}${digit}`.replace(
+      /^0+(?=\d)/,
+      "",
+    );
+    this.activeQuestionPendingCountInput = nextValue.slice(0, 6);
+    this.syncQuestionDialogState();
+  }
+
+  private removeActiveQuestionCountDigit(): void {
+    if (!this.activeQuestionPendingCountInput) {
+      return;
+    }
+    this.activeQuestionPendingCountInput =
+      this.activeQuestionPendingCountInput.slice(0, -1);
+    this.syncQuestionDialogState();
+  }
+
+  private handleQuestionMenuCountKeyDown(event: KeyboardEvent): boolean {
+    if (
+      !this.isInQuestion ||
+      !this.isCountableInventorySelectionQuestion(this.activeQuestionText) ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
+    ) {
+      return false;
+    }
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault();
+      this.appendActiveQuestionCountDigit(event.key);
+      return true;
+    }
+    if (event.key === "Backspace" && this.activeQuestionPendingCountInput) {
+      event.preventDefault();
+      this.removeActiveQuestionCountDigit();
+      return true;
+    }
+    return false;
+  }
+
+  private sendInputWithPendingQuestionCount(input: string): void {
+    const countDigits = this.activeQuestionPendingCountInput;
+    this.clearActiveQuestionPendingCount(false);
+    if (!countDigits || input.startsWith(this.menuSelectionInputPrefix)) {
+      this.sendInput(input);
+      return;
+    }
+    this.sendInputSequence([...countDigits, input]);
+  }
+
   private getVisiblePickupSelectableMenuItems(): any[] {
     if (!Array.isArray(this.activeQuestionVisibleMenuItems)) {
       return [];
@@ -29406,6 +29526,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const changedInputs: string[] = [];
     let focusSelectionInput: string | null = null;
+    const pendingCount = this.consumeActiveQuestionPendingCount();
 
     for (const menuItem of items) {
       const selectionInput = this.getQuestionMenuSelectionInput(menuItem);
@@ -29414,23 +29535,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
       const selectionKey = this.getMenuSelectionStateKey(menuItem);
       const isSelected = this.activePickupSelections.has(selectionKey);
+      const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+        selectionInput,
+        pendingCount,
+      );
       let didChange = false;
 
       if (operation === "select") {
-        if (!isSelected) {
+        if (!isSelected || pendingCount !== null) {
           this.activePickupSelections.add(selectionKey);
+          if (pendingCount !== null) {
+            this.activePickupSelectionCounts.set(selectionKey, pendingCount);
+          }
           didChange = true;
         }
       } else if (operation === "deselect") {
         if (isSelected) {
           this.activePickupSelections.delete(selectionKey);
+          this.activePickupSelectionCounts.delete(selectionKey);
           didChange = true;
         }
-      } else if (isSelected) {
+      } else if (isSelected && pendingCount === null) {
         this.activePickupSelections.delete(selectionKey);
+        this.activePickupSelectionCounts.delete(selectionKey);
         didChange = true;
       } else {
         this.activePickupSelections.add(selectionKey);
+        if (pendingCount !== null) {
+          this.activePickupSelectionCounts.set(selectionKey, pendingCount);
+        }
         didChange = true;
       }
 
@@ -29441,7 +29574,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (!focusSelectionInput) {
         focusSelectionInput = selectionInput;
       }
-      changedInputs.push(selectionInput);
+      changedInputs.push(countedSelectionInput);
     }
 
     if (focusSelectionInput) {
@@ -30051,8 +30184,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const refreshAction = this.getQuestionSelectionTileRefreshAction(
       this.activeQuestionText,
     );
+    const pendingCount = this.consumeActiveQuestionPendingCount();
+    const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+      this.getQuestionMenuSelectionInput(selectedItem),
+      pendingCount,
+    );
     this.maybePlayDrinkSoundForQuestionMenuSelection(selectedItem);
-    this.sendInput(this.getQuestionMenuSelectionInput(selectedItem));
+    this.sendInput(countedSelectionInput);
     if (refreshAction) {
       this.requestPlayerTileRefresh(`${refreshAction}-question-selection`);
     }
@@ -30287,6 +30425,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.activeQuestionMenuItems.length > 0 &&
       this.isMultiSelectLootQuestion(this.activeQuestionText);
     this.activePickupSelections.clear();
+    this.activePickupSelectionCounts.clear();
+    this.activeQuestionPendingCountInput = "";
     this.activePickupFocusIndex = 0;
     this.activeQuestionMenuFocusIndex = 0;
     this.activeQuestionActionFocusIndex = -1;
@@ -30323,6 +30463,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
         typeof item.accelerator === "string" ? item.accelerator : "",
       )
       .filter((value) => value.length > 0);
+    const selectedCounts: Record<string, number> = {};
+    for (const item of this.activeQuestionVisibleMenuItems) {
+      if (!this.isSelectableQuestionMenuItem(item)) {
+        continue;
+      }
+      const selectionKey = this.getMenuSelectionStateKey(item);
+      const count = this.activePickupSelectionCounts.get(selectionKey);
+      if (!Number.isFinite(count) || Number(count) < 1) {
+        continue;
+      }
+      selectedCounts[this.getQuestionMenuSelectionInput(item)] =
+        Math.trunc(Number(count));
+    }
     const allPickupSelected = this.isAllPickupItemsSelected();
     const activeActionButton = this.getActiveQuestionActionButton();
     const activeMenuSelectionInput =
@@ -30339,6 +30492,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       menuItems: [...this.activeQuestionVisibleMenuItems],
       isPickupDialog: this.activeQuestionIsPickupDialog,
       selectedAccelerators,
+      selectedCounts,
+      pendingSelectionCount: this.getActiveQuestionPendingCount(),
       allPickupSelected,
       activePickupSelectionInput: this.activeQuestionIsPickupDialog
         ? activeMenuSelectionInput
@@ -30779,6 +30934,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.activeQuestionPageSelectionMap.clear();
     this.activeQuestionIsPickupDialog = false;
     this.activePickupSelections.clear();
+    this.activePickupSelectionCounts.clear();
+    this.activeQuestionPendingCountInput = "";
     this.activePickupFocusIndex = 0;
     this.activeQuestionMenuFocusIndex = 0;
     this.activeQuestionActionFocusIndex = -1;
@@ -30794,7 +30951,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
-    const raw = input.slice(this.menuSelectionInputPrefix.length).trim();
+    const raw = input
+      .slice(this.menuSelectionInputPrefix.length)
+      .trim()
+      .split(":")[0];
     if (!/^-?\d+$/.test(raw)) {
       return null;
     }
@@ -30878,16 +31038,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const selectionKey = this.getMenuSelectionStateKey(menuItem);
     const canonicalSelectionInput =
       this.getQuestionMenuSelectionInput(menuItem);
+    const pendingCount = this.consumeActiveQuestionPendingCount();
+    const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+      canonicalSelectionInput,
+      pendingCount,
+    );
     this.setActivePickupFocusBySelectionInput(canonicalSelectionInput);
 
-    if (this.activePickupSelections.has(selectionKey)) {
+    if (this.activePickupSelections.has(selectionKey) && pendingCount === null) {
       this.activePickupSelections.delete(selectionKey);
+      this.activePickupSelectionCounts.delete(selectionKey);
     } else {
       this.activePickupSelections.add(selectionKey);
+      if (pendingCount !== null) {
+        this.activePickupSelectionCounts.set(selectionKey, pendingCount);
+      }
     }
 
     if (shouldSendInput) {
-      this.sendInput(canonicalSelectionInput);
+      this.sendInput(countedSelectionInput);
     }
     this.updatePickupFocusVisualState();
   }
@@ -31066,12 +31235,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.findActiveMenuItemBySelectionInput(resolvedChoice);
     if (selectedItem) {
       const selectionInput = this.getQuestionMenuSelectionInput(selectedItem);
+      const pendingCount = this.consumeActiveQuestionPendingCount();
+      const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+        selectionInput,
+        pendingCount,
+      );
       const refreshAction = this.getQuestionSelectionTileRefreshAction(
         this.activeQuestionText,
       );
       this.setActiveQuestionMenuFocusBySelectionInput(selectionInput);
       this.maybePlayDrinkSoundForQuestionMenuSelection(selectedItem);
-      this.sendInput(selectionInput);
+      this.sendInput(countedSelectionInput);
       if (refreshAction) {
         this.requestPlayerTileRefresh(`${refreshAction}-question-selection`);
       }
@@ -31084,7 +31258,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.maybePlayDrinkSoundForQuestionAnswer(resolvedChoice);
-    this.sendInput(resolvedChoice);
+    this.sendInputWithPendingQuestionCount(resolvedChoice);
     this.hideQuestion();
   }
 
@@ -35768,6 +35942,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const isMenuQuestion = this.activeQuestionMenuItems.length > 0;
       const modalDirection = this.getModalNavigationDirection(event);
 
+      if (this.handleQuestionMenuCountKeyDown(event)) {
+        return;
+      }
+
       if (
         !isMenuQuestion &&
         (modalDirection === "left" || modalDirection === "right")
@@ -35792,7 +35970,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         this.updateNumberPadModeFromChoice(event.key);
         this.maybePlayDrinkSoundForQuestionAnswer(event.key);
-        this.sendInput(event.key);
+        this.sendInputWithPendingQuestionCount(event.key);
         this.hideQuestion();
         return;
       }
@@ -35872,7 +36050,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           } else if (!isMenuQuestion) {
             // Send the key anyway in case it's a valid NetHack command
             this.updateNumberPadModeFromChoice(event.key);
-            this.sendInput(event.key);
+            this.sendInputWithPendingQuestionCount(event.key);
           }
         }
       } else {
@@ -35916,7 +36094,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         } else if (!isMenuQuestion) {
           this.updateNumberPadModeFromChoice(event.key);
           this.maybePlayDrinkSoundForQuestionAnswer(event.key);
-          this.sendInput(event.key);
+          this.sendInputWithPendingQuestionCount(event.key);
           this.hideQuestion();
         } else {
           return;

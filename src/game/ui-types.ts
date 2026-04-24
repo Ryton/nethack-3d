@@ -77,6 +77,8 @@ export type QuestionDialogState = {
   menuItems: NethackMenuItem[];
   isPickupDialog: boolean;
   selectedAccelerators: string[];
+  selectedCounts?: Record<string, number>;
+  pendingSelectionCount?: number | null;
   allPickupSelected?: boolean;
   activePickupSelectionInput?: string | null;
   activeMenuSelectionInput?: string | null;

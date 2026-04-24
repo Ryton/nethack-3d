@@ -2190,8 +2190,9 @@ class LocalNetHackRuntime {
 
     const selectedMenuItem = this.resolveMenuItemFromSelectionInput(input);
     if (selectedMenuItem) {
+      const selectionCount = this.decodeMenuSelectionCount(input);
       const selectionEntry =
-        this.createSelectionEntryFromMenuItem(selectedMenuItem);
+        this.createSelectionEntryFromMenuItem(selectedMenuItem, selectionCount);
       if (!selectionEntry) {
         return;
       }
@@ -2199,19 +2200,35 @@ class LocalNetHackRuntime {
 
       if (this.isInMultiPickup) {
         if (this.menuSelections.has(selectionKey)) {
-          this.menuSelections.delete(selectionKey);
-          console.log(
-            `Deselected item: ${selectionEntry.menuChar} (${selectionEntry.text}). Current selections:`,
-            Array.from(this.menuSelections.values()).map(
-              (item) => `${item.menuChar}:${item.text}`,
-            ),
-          );
+          if (Number.isFinite(selectionCount) && Number(selectionCount) > 0) {
+            this.menuSelections.set(selectionKey, selectionEntry);
+            console.log(
+              `Updated selected item count: ${selectionEntry.menuChar} (${selectionEntry.text}) x${selectionEntry.count}. Current selections:`,
+              Array.from(this.menuSelections.values()).map(
+                (item) =>
+                  `${item.menuChar}:${item.text}${
+                    Number.isFinite(item.count) ? ` x${item.count}` : ""
+                  }`,
+              ),
+            );
+          } else {
+            this.menuSelections.delete(selectionKey);
+            console.log(
+              `Deselected item: ${selectionEntry.menuChar} (${selectionEntry.text}). Current selections:`,
+              Array.from(this.menuSelections.values()).map(
+                (item) => `${item.menuChar}:${item.text}`,
+              ),
+            );
+          }
         } else {
           this.menuSelections.set(selectionKey, selectionEntry);
           console.log(
             `Selected item: ${selectionEntry.menuChar} (${selectionEntry.text}). Current selections:`,
             Array.from(this.menuSelections.values()).map(
-              (item) => `${item.menuChar}:${item.text}`,
+              (item) =>
+                `${item.menuChar}:${item.text}${
+                  Number.isFinite(item.count) ? ` x${item.count}` : ""
+                }`,
             ),
           );
         }
@@ -8510,12 +8527,28 @@ class LocalNetHackRuntime {
     if (!this.isMenuSelectionInput(input)) {
       return null;
     }
-    const raw = input.slice(this.menuSelectionInputPrefix.length).trim();
+    const raw = input
+      .slice(this.menuSelectionInputPrefix.length)
+      .trim()
+      .split(":")[0];
     if (!/^-?\d+$/.test(raw)) {
       return null;
     }
     const parsed = Number(raw);
     return Number.isInteger(parsed) ? parsed : null;
+  }
+
+  decodeMenuSelectionCount(input) {
+    if (!this.isMenuSelectionInput(input)) {
+      return undefined;
+    }
+    const raw = input.slice(this.menuSelectionInputPrefix.length).trim();
+    const parts = raw.split(":");
+    if (parts.length < 2 || !/^\d+$/.test(parts[1])) {
+      return undefined;
+    }
+    const parsed = Number.parseInt(parts[1], 10);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : undefined;
   }
 
   getMenuSelectionKey(item) {

@@ -10004,6 +10004,12 @@ export default function App(): JSX.Element {
     ((question?.menuItems.length ?? 0) === 0 ||
       showLegacyInventoryQuestionCancelButton);
   const displayedQuestionText = capitalizeFirstLetter(question?.text ?? "");
+  const displayedQuestionPendingCount =
+    typeof question?.pendingSelectionCount === "number" &&
+    Number.isFinite(question.pendingSelectionCount) &&
+    question.pendingSelectionCount > 0
+      ? Math.trunc(question.pendingSelectionCount)
+      : null;
   const questionMenuPageIndex = question?.menuPageIndex ?? 0;
   const questionMenuPageCount = Math.max(1, question?.menuPageCount ?? 1);
   const enhanceMenuData = useMemo(
@@ -17299,7 +17305,14 @@ export default function App(): JSX.Element {
               () => controller?.cancelActivePrompt(),
               t.dialogs.question.cancelPrompt,
             )}
-            <div className="nh3d-question-text">{displayedQuestionText}</div>
+            <div className="nh3d-question-text">
+              {displayedQuestionText}
+              {displayedQuestionPendingCount !== null ? (
+                <span className="nh3d-question-pending-count">
+                  {` x${displayedQuestionPendingCount}`}
+                </span>
+              ) : null}
+            </div>
             {shouldRenderQuestionMenuItems ? (
               question.isPickupDialog ? (
                 <>
@@ -17328,6 +17341,9 @@ export default function App(): JSX.Element {
                       tileIndex,
                     );
                     const fallbackGlyph = resolveMenuItemFallbackGlyph(item);
+                    const selectionInput = getMenuSelectionInput(item);
+                    const selectedCount =
+                      question.selectedCounts?.[selectionInput] ?? null;
                     return (
                       <div
                         className={`nh3d-pickup-item${
@@ -17338,20 +17354,16 @@ export default function App(): JSX.Element {
                             : ""
                         }${
                           question.activeMenuSelectionInput ===
-                          getMenuSelectionInput(item)
+                          selectionInput
                             ? " nh3d-pickup-item-active"
                             : ""
                         }`}
                         key={`pickup-${item.accelerator}-${index}`}
                         onClick={() =>
-                          controller?.togglePickupChoice(
-                            getMenuSelectionInput(item),
-                          )
+                          controller?.togglePickupChoice(selectionInput)
                         }
                         onFocus={() =>
-                          controller?.syncQuestionSelectionFocus(
-                            getMenuSelectionInput(item),
-                          )
+                          controller?.syncQuestionSelectionFocus(selectionInput)
                         }
                         onKeyDown={(event) => {
                           if (
@@ -17361,9 +17373,7 @@ export default function App(): JSX.Element {
                           ) {
                             event.preventDefault();
                             event.stopPropagation();
-                            controller?.togglePickupChoice(
-                              getMenuSelectionInput(item),
-                            );
+                            controller?.togglePickupChoice(selectionInput);
                           }
                         }}
                         role="checkbox"
@@ -17404,6 +17414,13 @@ export default function App(): JSX.Element {
                           </span>
                         </span>
                         <span className="nh3d-pickup-text">{item.text}</span>
+                        {typeof selectedCount === "number" &&
+                        Number.isFinite(selectedCount) &&
+                        selectedCount > 0 ? (
+                          <span className="nh3d-pickup-count">
+                            {`x${selectedCount}`}
+                          </span>
+                        ) : null}
                       </div>
                     );
                   })}
