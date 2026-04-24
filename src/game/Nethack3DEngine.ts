@@ -34462,6 +34462,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private getModalNavigationDirection(
     event: KeyboardEvent,
   ): "up" | "down" | "left" | "right" | null {
+    // Reserve letter keys for NetHack prompt/menu input so vi keys and FPS
+    // movement bindings do not hijack menu accelerators while a dialog is open.
     switch (event.key) {
       case "ArrowUp":
         return "up";
@@ -34471,26 +34473,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return "left";
       case "ArrowRight":
         return "right";
-      case "h":
-      case "H":
-        return this.numberPadModeEnabled ? null : "left";
-      case "l":
-      case "L":
-        return this.numberPadModeEnabled ? null : "right";
-      case "k":
-      case "K":
-      case "y":
-      case "Y":
-      case "u":
-      case "U":
-        return this.numberPadModeEnabled ? null : "up";
-      case "j":
-      case "J":
-      case "b":
-      case "B":
-      case "n":
-      case "N":
-        return this.numberPadModeEnabled ? null : "down";
       default:
         break;
     }
