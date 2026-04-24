@@ -29072,6 +29072,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return normalized.includes("what do you want to drink");
   }
 
+  private isObjectTypeCategoryQuestion(questionText: string): boolean {
+    const normalized = String(questionText || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return (
+      (normalized.includes("what type") ||
+        normalized.includes("what types")) &&
+      (normalized.includes("object") ||
+        normalized.includes("item") ||
+        normalized.includes("thing"))
+    );
+  }
+
   private findMenuCategoryLabelForItem(
     menuItems: any[],
     targetItem: any,
@@ -29352,6 +29368,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
   }
 
+  private getPickupSelectableMenuItemsByGroupAccelerator(
+    accelerator: string,
+  ): any[] {
+    if (typeof accelerator !== "string" || accelerator.length !== 1) {
+      return [];
+    }
+    return this.getAllPickupSelectableMenuItems().filter((item) => {
+      const groupAccelerator =
+        typeof item?.groupAccelerator === "string"
+          ? item.groupAccelerator.trim()
+          : "";
+      return groupAccelerator === accelerator;
+    });
+  }
+
   private arePickupMenuItemsAllSelected(items: any[]): boolean {
     if (!Array.isArray(items) || items.length === 0) {
       return false;
@@ -29591,6 +29622,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.getPickupSelectableMenuItemsByObjectSymbol(symbol),
       shouldSendInput,
     );
+  }
+
+  private togglePickupSelectionsByGroupAccelerator(
+    accelerator: string,
+    shouldSendInput: boolean,
+  ): boolean {
+    const matchingItems =
+      this.getPickupSelectableMenuItemsByGroupAccelerator(accelerator);
+    if (matchingItems.length === 0) {
+      return false;
+    }
+    this.togglePickupMenuItems(matchingItems, shouldSendInput);
+    return true;
   }
 
   private getActiveQuestionActionButtons(): Array<
@@ -30118,6 +30162,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
         displayAccelerator,
         selectionInput,
       );
+      const groupAccelerator =
+        this.isObjectTypeCategoryQuestion(this.activeQuestionText) &&
+        typeof menuItem.groupAccelerator === "string"
+          ? menuItem.groupAccelerator.trim()
+          : "";
+      if (groupAccelerator.length === 1) {
+        this.activeQuestionPageSelectionMap.set(
+          groupAccelerator,
+          selectionInput,
+        );
+      }
       selectableInPage += 1;
     }
 
@@ -31147,6 +31202,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return true;
       default:
         break;
+    }
+
+    if (
+      this.isObjectTypeCategoryQuestion(this.activeQuestionText) &&
+      this.togglePickupSelectionsByGroupAccelerator(key, true)
+    ) {
+      return true;
     }
 
     if (this.pickupMenuObjectClassSymbols.has(key)) {

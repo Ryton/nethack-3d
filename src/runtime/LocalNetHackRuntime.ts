@@ -11339,6 +11339,7 @@ class LocalNetHackRuntime {
         const menuGlyph = args[1];
         const identifier = args[2];
         const rawAccelerator = args[3];
+        const rawGroupAccelerator = args[4];
         const accelerator =
           typeof rawAccelerator === "string" &&
           this.isLegacyMenuAcceleratorRuntime()
@@ -11346,6 +11347,15 @@ class LocalNetHackRuntime {
             : Number.isFinite(Number(rawAccelerator))
               ? Math.trunc(Number(rawAccelerator))
               : rawAccelerator;
+        const groupAccelerator =
+          typeof rawGroupAccelerator === "string" &&
+          this.isLegacyMenuAcceleratorRuntime()
+            ? rawGroupAccelerator
+            : Number.isFinite(Number(rawGroupAccelerator))
+              ? Math.trunc(Number(rawGroupAccelerator))
+              : rawGroupAccelerator;
+        const printableGroupAccelerator =
+          this.getPrintableAcceleratorCharacter(groupAccelerator);
         const menuAttr = Number(args[5]);
         const menuText = String((args[menuTextArgIndex] ?? "") || "");
         const menuItemFlags = Number(args[itemFlagsArgIndex] ?? 0);
@@ -11532,6 +11542,8 @@ class LocalNetHackRuntime {
             text: menuText,
             accelerator: menuChar,
             originalAccelerator: accelerator, // Store the original accelerator code
+            groupAccelerator: printableGroupAccelerator,
+            originalGroupAccelerator: groupAccelerator,
             identifier: identifierValue, // NetHack menu identifier used by shim_select_menu
             window: menuWinid,
             glyph: resolvedMenuGlyph,
@@ -11553,6 +11565,7 @@ class LocalNetHackRuntime {
             type: "menu_item",
             text: menuText,
             accelerator: menuChar,
+            groupAccelerator: printableGroupAccelerator,
             window: menuWinid,
             glyph: resolvedMenuGlyph,
             glyphChar: glyphChar, // Include glyph character in client message
