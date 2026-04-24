@@ -99,9 +99,10 @@ class LocalNetHackRuntime {
 
     this.inputBroker = new RuntimeInputBroker();
     this.farLookMode = "none"; // none | armed | active
-    this.farLookOrigin = null; // null | "direct" | "look_menu" | "floor_target_menu" | "legacy_cursor_prompt"
+    this.farLookOrigin = null; // null | "direct" | "look_menu" | "floor_target_menu" | "legacy_cursor_prompt" | "travel"
     this.pendingLookMenuFarLookArm = false;
     this.pendingLegacySlashEmCursorPromptFarLook = false;
+    this.pendingTravelPositionInputArm = false;
     this.pendingTextResponses = [];
     this.pendingStdinByteQueue = [];
     this.didAutoQueueRawRecoverChoice = false;
@@ -1822,6 +1823,7 @@ class LocalNetHackRuntime {
     this.farLookOrigin = null;
     this.pendingLookMenuFarLookArm = false;
     this.pendingLegacySlashEmCursorPromptFarLook = false;
+    this.pendingTravelPositionInputArm = false;
     this.contextualGlanceProbeMouseDeadlineMs = 0;
     this.contextualGlanceAutoCancelPositionUntilMs = 0;
     this.contextualLookInfoProbeMouseDeadlineMs = 0;
@@ -5598,6 +5600,75 @@ class LocalNetHackRuntime {
     return this.farLookMode === "armed" || this.farLookMode === "active";
   }
 
+  isTravelDestinationPrompt(text) {
+    const normalized =
+      typeof text === "string" ? text.trim().toLowerCase() : "";
+    return normalized === "where do you want to travel to?";
+  }
+
+  armPendingTravelPositionInput(text) {
+    if (!this.isTravelDestinationPrompt(text)) {
+      return;
+    }
+    this.pendingTravelPositionInputArm = true;
+    console.log("Arming travel position input mode from travel prompt");
+    this.activateTravelPositionInputMode("travel prompt");
+  }
+
+  activateTravelPositionInputMode(reason = "unknown") {
+    if (this.farLookMode === "active" && this.farLookOrigin === "travel") {
+      return;
+    }
+    console.log(`Activating travel position input mode (${reason})`);
+    this.farLookMode = "active";
+    this.farLookOrigin = "travel";
+    this.pendingTravelPositionInputArm = false;
+    this.pendingLookMenuFarLookArm = false;
+    this.setPositionInputActive(true);
+    if (!this.positionCursor) {
+      this.emitPositionCursor(
+        null,
+        this.playerPosition.x,
+        this.playerPosition.y,
+        "travel_position_start",
+      );
+    }
+  }
+
+  isTravelPositionOrigin() {
+    return this.farLookOrigin === "travel";
+  }
+
+  isTravelPositionSelectionInput(input) {
+    const normalized = this.normalizeInputKey(input);
+    return (
+      normalized === "Enter" ||
+      normalized === "\r" ||
+      normalized === "\n" ||
+      normalized === "." ||
+      normalized === "," ||
+      normalized === ";" ||
+      normalized === ":"
+    );
+  }
+
+  isTravelPositionRequestInput(input) {
+    const normalized = this.normalizeInputKey(input);
+    if (typeof normalized !== "string" || normalized.length === 0) {
+      return false;
+    }
+    if (this.isFarLookExitInput(normalized)) {
+      return true;
+    }
+    if (this.isDirectionalMovementInput(normalized)) {
+      return true;
+    }
+    if (this.isTravelPositionSelectionInput(normalized)) {
+      return true;
+    }
+    return normalized.length === 1 && normalized.charCodeAt(0) >= 32;
+  }
+
   isDirectionalMovementInput(input) {
     if (typeof input !== "string" || input.length === 0) {
       return false;
@@ -5753,6 +5824,12 @@ class LocalNetHackRuntime {
     if (typeof normalized !== "string" || normalized.length === 0) {
       return false;
     }
+    if (
+      this.isTravelPositionOrigin() &&
+      this.isTravelPositionRequestInput(normalized)
+    ) {
+      return true;
+    }
     if (this.isFarLookContinuationInput(normalized)) {
       return true;
     }
@@ -5765,6 +5842,19 @@ class LocalNetHackRuntime {
   isFarLookContinuationInput(input) {
     const normalized = this.normalizeInputKey(input);
     if (typeof normalized !== "string" || normalized.length === 0) {
+      return false;
+    }
+    if (
+      this.isTravelPositionOrigin() &&
+      this.isTravelPositionRequestInput(normalized) &&
+      !this.isTravelPositionSelectionInput(normalized)
+    ) {
+      return true;
+    }
+    if (
+      this.isTravelPositionOrigin() &&
+      this.isTravelPositionSelectionInput(normalized)
+    ) {
       return false;
     }
     if (this.isDirectionalMovementInput(normalized)) {
@@ -10661,6 +10751,10 @@ class LocalNetHackRuntime {
       this.contextualGlanceAutoCancelPositionUntilMs = 0;
     }
 
+    if (this.farLookMode === "none" && this.pendingTravelPositionInputArm) {
+      this.activateTravelPositionInputMode("nh_poskey fallback");
+    }
+
     if (this.farLookMode === "armed") {
       this.farLookMode = "active";
       this.setPositionInputActive(true);
@@ -11850,6 +11944,7 @@ class LocalNetHackRuntime {
         }
         if (normalizedRawText) {
           this.rememberPromptContextMessage(normalizedRawText, "raw_print");
+          this.armPendingTravelPositionInput(normalizedRawText);
           this.armPendingPostActionPlayerTileRefreshForAutopickupRawPrint(
             normalizedRawText,
           );

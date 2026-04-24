@@ -34226,6 +34226,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
+  private resolveTravelPositionShortcutKey(
+    event: KeyboardEvent,
+    priorityOnly: boolean = false,
+  ): string | null {
+    if (this.positionInputOrigin !== "travel") {
+      return null;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return null;
+    }
+    if (typeof event.key !== "string" || event.key.length !== 1) {
+      return null;
+    }
+    if (event.key === " ") {
+      return null;
+    }
+    if (
+      priorityOnly &&
+      !/^[mMoOdDxXaAzZ@?$#!"*,;:<>\[\]{}()+=_\-|\\^~]$/.test(event.key)
+    ) {
+      return null;
+    }
+    return event.key;
+  }
+
   private tryResolvePositionInputMovementKey(
     event: KeyboardEvent,
   ): string | null {
@@ -35385,6 +35410,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       !this.isInQuestion &&
       !this.isInDirectionQuestion
     ) {
+      const priorityTravelShortcutKey =
+        this.resolveTravelPositionShortcutKey(event, true);
+      if (priorityTravelShortcutKey) {
+        event.preventDefault();
+        this.sendInput(priorityTravelShortcutKey);
+        return;
+      }
       const positionMoveKey = this.tryResolvePositionInputMovementKey(event);
       if (positionMoveKey) {
         event.preventDefault();
@@ -35395,6 +35427,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (positionConfirmKey) {
         event.preventDefault();
         this.sendInput(positionConfirmKey);
+        return;
+      }
+      const travelShortcutKey = this.resolveTravelPositionShortcutKey(event);
+      if (travelShortcutKey) {
+        event.preventDefault();
+        this.sendInput(travelShortcutKey);
         return;
       }
       event.preventDefault();
