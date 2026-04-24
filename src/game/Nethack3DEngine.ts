@@ -12433,8 +12433,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.recordNewlyDiscoveredDarkCorridorTileForCurrentInput(tile);
     const behavior = this.classifyTilePayload(tile);
     const nowMs = Date.now();
-    const isRuntimeTrackedPlayerTile =
-      this.isRuntimeTrackedPlayerEntityId(tile.monsterId);
+    const isRuntimeTrackedPlayerTileInFps =
+      this.isFpsMode() && this.isRuntimeTrackedPlayerEntityId(tile.monsterId);
     const tileRelation = this.getFpsPlayerTileRelationFlags(
       tile.x,
       tile.y,
@@ -12448,15 +12448,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isOverheadPlayerTileNeedingUnderlaySeed =
       this.shouldShowUnderPlayerFeaturesInOverheadTilesMode() &&
       behavior !== null &&
-      (isRuntimeTrackedPlayerTile ||
-        isLikelyPlayerGlyphTile ||
+      (isLikelyPlayerGlyphTile ||
         (this.hasSeenPlayerPosition &&
           tile.x === this.playerPos.x &&
           tile.y === this.playerPos.y));
     const isFpsPlayerTileNeedingUnderlaySeed =
       this.isFpsMode() &&
       behavior !== null &&
-      (isRuntimeTrackedPlayerTile ||
+      (isRuntimeTrackedPlayerTileInFps ||
         tileRelation.isCurrentPlayerTile ||
         tileRelation.isStepDestinationTile ||
         tileRelation.isPredictedPlayerTile ||
@@ -12471,7 +12470,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       tileRelation.isTrailSuppressedTile &&
       (tileRelation.isPlayerGlyph ||
         tileRelation.isPlayerMaterial ||
-        isRuntimeTrackedPlayerTile);
+        isRuntimeTrackedPlayerTileInFps);
     const shouldKeepVisiblePlayerBillboardInFarLook =
       this.shouldKeepFarLookPlayerBillboardVisible() &&
       tileRelation.isCurrentPlayerTile &&
@@ -12505,7 +12504,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.tileStateCache.get(key) === signature) {
       const shouldHaveElevatedBillboard =
         (behavior !== null &&
-          !isRuntimeTrackedPlayerTile &&
+          !isRuntimeTrackedPlayerTileInFps &&
           !tileRelation.isPlayerGlyph &&
           !tileRelation.isPlayerMaterial &&
           !tileRelation.isStepDestinationTile &&
@@ -24660,7 +24659,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const runtimeTrackedEntityId = this.normalizeRuntimeTrackedEntityId(
       options.runtimeTrackedEntityId,
     );
-    const isRuntimeTrackedPlayerTile = runtimeTrackedEntityId === 0;
+    const isRuntimeTrackedPlayerTileInFps =
+      this.isFpsMode() && runtimeTrackedEntityId === 0;
     const isCurrentKnownPlayerTile =
       this.hasSeenPlayerPosition &&
       x === this.playerPos.x &&
@@ -24690,7 +24690,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       tileRelation.isTrailSuppressedTile &&
       (tileRelation.isPlayerGlyph ||
         tileRelation.isPlayerMaterial ||
-        isRuntimeTrackedPlayerTile);
+        isRuntimeTrackedPlayerTileInFps);
     const isPredictedFpsPlayerTile = tileRelation.isPredictedPlayerTile;
     const shouldKeepVisiblePlayerBillboardInFarLook =
       this.shouldKeepFarLookPlayerBillboardVisible() &&
@@ -24698,10 +24698,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.hasExplicitPlayerVisual(behavior, char);
     const shouldSuppressPlayerTileVisualInFps =
       this.isFpsMode() &&
-      ((isRuntimeTrackedPlayerTile &&
+      ((isRuntimeTrackedPlayerTileInFps &&
         !shouldKeepVisiblePlayerBillboardInFarLook) ||
         ((tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial) &&
-        !shouldKeepVisiblePlayerBillboardInFarLook) ||
+          !shouldKeepVisiblePlayerBillboardInFarLook) ||
         isFpsStepDestinationTile ||
         isPredictedFpsPlayerTile ||
         (tileRelation.isCurrentPlayerTile &&
@@ -25085,7 +25085,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const isPlayerRelatedTileInFps =
       this.isFpsMode() &&
-      (isRuntimeTrackedPlayerTile ||
+      (isRuntimeTrackedPlayerTileInFps ||
         tileRelation.isPlayerGlyph ||
         tileRelation.isPlayerMaterial ||
         isFpsStepDestinationTile ||
@@ -25449,7 +25449,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     // Create or remove a billboard for any entity that should be elevated.
     const shouldRenderEntityBillboardFromTileState =
       shouldUseElevatedBillboard &&
-      !isRuntimeTrackedPlayerTile &&
+      !isRuntimeTrackedPlayerTileInFps &&
       !tileRelation.isPlayerGlyph &&
       !tileRelation.isPlayerMaterial &&
       !isFpsStepDestinationTile &&
