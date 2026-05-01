@@ -2194,6 +2194,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodGroundTexturePartialUploadAreaRatio: number = 0.34;
   private readonly bloodGroundTrailSegmentSpacingPx: number = 3.5;
   private readonly bloodGroundSpecularPixelsPerTile: number = 128;
+  private readonly bloodGroundSpecularReferenceStrength: number = 2.5;
   private readonly bloodGroundNoiseAtlasSize: number = 256;
   private readonly bloodGroundNoiseAtlasMask: number =
     this.bloodGroundNoiseAtlasSize - 1;
@@ -2587,6 +2588,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     uFalloffPower: { value: 1.08 },
     uMaxDarkAlpha: { value: this.lightingVignetteMaxDarkAlpha },
     uIsFpsMode: { value: false },
+    uBloodGroundStrength: { value: this.clientOptions.bloodStrength },
+    uBloodGroundSpecularReferenceStrength: {
+      value: this.bloodGroundSpecularReferenceStrength,
+    },
   };
 
   private patchMaterialForVignette(
@@ -2613,6 +2618,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       shader.uniforms.uFalloffPower = this.vignetteUniforms.uFalloffPower;
       shader.uniforms.uMaxDarkAlpha = this.vignetteUniforms.uMaxDarkAlpha;
       shader.uniforms.uIsFpsMode = this.vignetteUniforms.uIsFpsMode;
+      shader.uniforms.uBloodGroundStrength =
+        this.vignetteUniforms.uBloodGroundStrength;
+      shader.uniforms.uBloodGroundSpecularReferenceStrength =
+        this.vignetteUniforms.uBloodGroundSpecularReferenceStrength;
 
       // Inject varying into Vertex Shader
       shader.vertexShader = `
@@ -2666,6 +2675,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         };
         bloodGroundSpecularPrefix = `
         uniform vec2 uBloodGroundSpecularEffectTexelSize;
+        uniform float uBloodGroundStrength;
+        uniform float uBloodGroundSpecularReferenceStrength;
 
         float bloodGroundSpecularHash(vec2 p) {
           vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -2689,6 +2700,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
         #ifdef USE_MAP
           float bloodGroundOpacityT = clamp(gl_FragColor.a, 0.0, 1.0);
           float bloodGroundVisibleT = smoothstep(0.004, 0.04, bloodGroundOpacityT);
+          float bloodGroundVisualAlphaForSpec = max(bloodGroundOpacityT, 0.001);
+          float bloodGroundDensityFromVisualAlpha = pow(
+            clamp(bloodGroundVisualAlphaForSpec / 0.94, 0.0, 1.0),
+            1.3157895
+          ) / max(uBloodGroundStrength, 0.001);
+          float bloodGroundReferenceOpacityT =
+            pow(
+              clamp(
+                bloodGroundDensityFromVisualAlpha *
+                  uBloodGroundSpecularReferenceStrength,
+                0.0,
+                1.0
+              ),
+              0.76
+            ) *
+            0.94;
+          float bloodGroundInteriorBlendCompensation = clamp(
+            bloodGroundReferenceOpacityT / bloodGroundVisualAlphaForSpec,
+            1.0,
+            2.25
+          );
           vec2 bloodGroundSpecularTexel = max(
             uBloodGroundSpecularEffectTexelSize,
             vec2(0.000001)
@@ -2982,20 +3014,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
           float bloodGroundPooledSheen =
             bloodGroundPooledPhase *
             (0.026 + bloodGroundDepthNoise * 0.012);
+          float bloodGroundCompensatedInnerEdgeDrop = clamp(
+            bloodGroundInnerEdgeDrop * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundCompensatedRimNearDrop = clamp(
+            bloodGroundRimNearDrop * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundCompensatedRimMidDrop = clamp(
+            bloodGroundRimMidDrop * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
           float bloodGroundRimTightT = smoothstep(
             0.03,
             0.16,
-            bloodGroundInnerEdgeDrop
+            bloodGroundCompensatedInnerEdgeDrop
           );
           float bloodGroundRimNearT = smoothstep(
             0.02,
             0.24,
-            bloodGroundRimNearDrop
+            bloodGroundCompensatedRimNearDrop
           );
           float bloodGroundRimMidT = smoothstep(
             0.025,
             0.28,
-            bloodGroundRimMidDrop
+            bloodGroundCompensatedRimMidDrop
           );
           float bloodGroundEdgeTension =
             (
@@ -3006,34 +3053,50 @@ class Nethack3DEngine implements Nethack3DEngineController {
             (0.42 + bloodGroundPooledNoise * 0.58);
           float bloodGroundPooledTensionEdge =
             bloodGroundPooledPhase *
-            bloodGroundEdgeTension;
+            bloodGroundEdgeTension *
+            bloodGroundInteriorBlendCompensation;
           float bloodGroundPooledInteriorT =
             bloodGroundPooledPhase *
             bloodGroundInteriorFadeT;
+          float bloodGroundInteriorSheenCompensation = mix(
+            1.0,
+            bloodGroundInteriorBlendCompensation,
+            bloodGroundInteriorFadeT
+          );
           float bloodGroundPoolCoreT =
             bloodGroundPooledInteriorT *
             smoothstep(0.7, 0.96, bloodGroundOpacityT);
+          float bloodGroundCompensatedPooledInteriorT = clamp(
+            bloodGroundPooledInteriorT * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundCompensatedPoolCoreT = clamp(
+            bloodGroundPoolCoreT * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
           float bloodGroundDepthDarken =
-            bloodGroundPooledInteriorT *
+            bloodGroundCompensatedPooledInteriorT *
               (0.028 + (1.0 - bloodGroundDepthNoise) * 0.048) +
-            bloodGroundPoolCoreT *
+            bloodGroundCompensatedPoolCoreT *
               (0.019 + (1.0 - bloodGroundDepthNoise) * 0.034);
           gl_FragColor.rgb *= 1.0 - bloodGroundDepthDarken;
           gl_FragColor.rgb = mix(
             gl_FragColor.rgb,
             vec3(0.24, 0.0, 0.01),
-            bloodGroundPooledInteriorT *
+            bloodGroundCompensatedPooledInteriorT *
               (0.019 + (1.0 - bloodGroundDepthNoise) * 0.034) +
-              bloodGroundPoolCoreT *
+              bloodGroundCompensatedPoolCoreT *
               (0.013 + (1.0 - bloodGroundDepthNoise) * 0.023)
           );
           gl_FragColor.rgb = mix(
             gl_FragColor.rgb,
             vec3(0.58, 0.015, 0.006),
-            bloodGroundPooledInteriorT * bloodGroundDepthNoise * 0.012
+            bloodGroundCompensatedPooledInteriorT * bloodGroundDepthNoise * 0.012
           );
           float bloodGroundPooledSurfaceSheen =
-            bloodGroundPooledInteriorT *
+            bloodGroundCompensatedPooledInteriorT *
             (
               0.01 +
               bloodGroundDepthNoise * 0.012 +
@@ -3043,7 +3106,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           float bloodGroundHighlight =
             bloodGroundVisibleT *
             (
-              bloodGroundPooledSheen +
+              bloodGroundPooledSheen * bloodGroundInteriorSheenCompensation +
               bloodGroundPooledSurfaceSheen +
               bloodGroundPooledTensionEdge * 0.12
             );
@@ -6822,6 +6885,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previous.snapCameraYawToNearest45 !== normalized.snapCameraYawToNearest45;
 
     this.clientOptions = normalized;
+    this.vignetteUniforms.uBloodGroundStrength.value =
+      normalized.bloodStrength;
     if (cameraYawSnapChanged && !normalized.snapCameraYawToNearest45) {
       this.clearCameraYawSnapTarget();
     }

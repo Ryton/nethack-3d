@@ -4681,7 +4681,7 @@ const clientOptionsConfig: ClientOption[] = [
     label: t.clientOptions.config.bloodStrength.label,
     description: t.clientOptions.config.bloodStrength.description,
     type: "slider",
-    min: 0.5,
+    min: 1,
     max: 2.5,
     step: 0.05,
   },
@@ -12207,7 +12207,7 @@ export default function App(): JSX.Element {
     } else if (key === "gamma") {
       clamped = Math.max(0.5, Math.min(2.5, rawValue));
     } else if (key === "bloodStrength") {
-      clamped = Math.max(0.5, Math.min(2.5, rawValue));
+      clamped = Math.max(1, Math.min(2.5, rawValue));
     } else if (key === "minimapScale") {
       clamped = Math.max(0.6, Math.min(2.2, rawValue));
     } else if (key === "liveMessageDisplayTimeMs") {
