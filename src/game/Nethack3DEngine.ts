@@ -2193,6 +2193,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodGroundMaxDensity: number = 2048;
   private readonly bloodGroundTexturePartialUploadAreaRatio: number = 0.34;
   private readonly bloodGroundTrailSegmentSpacingPx: number = 3.5;
+  private readonly bloodGroundSpecularPixelsPerTile: number = 128;
   private readonly bloodGroundNoiseAtlasSize: number = 256;
   private readonly bloodGroundNoiseAtlasMask: number =
     this.bloodGroundNoiseAtlasSize - 1;
@@ -2588,9 +2589,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     uIsFpsMode: { value: false },
   };
 
-  private patchMaterialForVignette(material: THREE.Material): void {
+  private patchMaterialForVignette(
+    material: THREE.Material,
+    options: {
+      bloodGroundSpecularEffectTexelSize?: THREE.Vector2;
+    } = {},
+  ): void {
+    const bloodGroundSpecularEffectTexelSize =
+      options.bloodGroundSpecularEffectTexelSize;
+    const shaderKeySuffix = bloodGroundSpecularEffectTexelSize
+      ? `_blood_ground_specular_v2_${bloodGroundSpecularEffectTexelSize.x.toFixed(
+          8,
+        )}_${bloodGroundSpecularEffectTexelSize.y.toFixed(8)}`
+      : "";
     // Force Three.js to compile a unique shader for this patch
-    material.customProgramCacheKey = () => "vignette_patch_v8";
+    material.customProgramCacheKey = () =>
+      `vignette_patch_v9${shaderKeySuffix}`;
 
     material.onBeforeCompile = (shader) => {
       // Bind our class-level uniforms to this specific shader
@@ -2644,6 +2658,411 @@ class Nethack3DEngine implements Nethack3DEngineController {
         damageFlashLogic = "float uDamageFlash = uDamageFlashAmount;";
       }
 
+      let bloodGroundSpecularPrefix = "";
+      let bloodGroundSpecularLogic = "";
+      if (bloodGroundSpecularEffectTexelSize) {
+        shader.uniforms.uBloodGroundSpecularEffectTexelSize = {
+          value: bloodGroundSpecularEffectTexelSize.clone(),
+        };
+        bloodGroundSpecularPrefix = `
+        uniform vec2 uBloodGroundSpecularEffectTexelSize;
+
+        float bloodGroundSpecularHash(vec2 p) {
+          vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+          p3 += dot(p3, p3.yzx + 33.33);
+          return fract((p3.x + p3.y) * p3.z);
+        }
+
+        float bloodGroundSpecularNoise(vec2 pixelCoord, float scale, float seed) {
+          vec2 p = pixelCoord * scale + vec2(seed, seed * 1.37);
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          float a = bloodGroundSpecularHash(i);
+          float b = bloodGroundSpecularHash(i + vec2(1.0, 0.0));
+          float c = bloodGroundSpecularHash(i + vec2(0.0, 1.0));
+          float d = bloodGroundSpecularHash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+        `;
+        bloodGroundSpecularLogic = `
+        #ifdef USE_MAP
+          float bloodGroundOpacityT = clamp(gl_FragColor.a, 0.0, 1.0);
+          float bloodGroundVisibleT = smoothstep(0.004, 0.04, bloodGroundOpacityT);
+          vec2 bloodGroundSpecularTexel = max(
+            uBloodGroundSpecularEffectTexelSize,
+            vec2(0.000001)
+          );
+          vec2 bloodGroundPixelCoord = vMapUv / bloodGroundSpecularTexel;
+          float bloodGroundFineNoise = bloodGroundSpecularNoise(
+            bloodGroundPixelCoord,
+            0.1075,
+            13.0
+          );
+          float bloodGroundBroadNoise = bloodGroundSpecularNoise(
+            bloodGroundPixelCoord,
+            0.04,
+            37.0
+          );
+          float bloodGroundPooledNoise = mix(
+            bloodGroundFineNoise,
+            bloodGroundBroadNoise,
+            0.38
+          );
+          float bloodGroundDepthNoise = bloodGroundSpecularNoise(
+            bloodGroundPixelCoord,
+            0.023,
+            71.0
+          );
+
+          float bloodGroundAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundSpecularTexel.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundSpecularTexel.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundSpecularTexel.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundSpecularTexel.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          vec2 bloodGroundInteriorFadeStep = bloodGroundSpecularTexel * 3.0;
+          float bloodGroundFadeNearAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundInteriorFadeStep.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeNearAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundInteriorFadeStep.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeNearAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundInteriorFadeStep.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeNearAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundInteriorFadeStep.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundInteriorFadeStep.x * 3.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundInteriorFadeStep.x * 3.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundInteriorFadeStep.y * 3.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundInteriorFadeStep.y * 3.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundInteriorFadeStep.x * 5.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundInteriorFadeStep.x * 5.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundInteriorFadeStep.y * 5.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundInteriorFadeStep.y * 5.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundNeighborMin = min(
+            min(bloodGroundAlphaLeft, bloodGroundAlphaRight),
+            min(bloodGroundAlphaDown, bloodGroundAlphaUp)
+          );
+          float bloodGroundInnerEdgeDrop = max(
+            bloodGroundOpacityT - bloodGroundNeighborMin,
+            0.0
+          );
+          vec4 bloodGroundFadeNearRing = vec4(
+            bloodGroundFadeNearAlphaLeft,
+            bloodGroundFadeNearAlphaRight,
+            bloodGroundFadeNearAlphaDown,
+            bloodGroundFadeNearAlphaUp
+          );
+          vec4 bloodGroundFadeMidRing = vec4(
+            bloodGroundFadeMidAlphaLeft,
+            bloodGroundFadeMidAlphaRight,
+            bloodGroundFadeMidAlphaDown,
+            bloodGroundFadeMidAlphaUp
+          );
+          vec4 bloodGroundFadeFarRing = vec4(
+            bloodGroundFadeFarAlphaLeft,
+            bloodGroundFadeFarAlphaRight,
+            bloodGroundFadeFarAlphaDown,
+            bloodGroundFadeFarAlphaUp
+          );
+          float bloodGroundFadeNearDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundFadeNearRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundFadeMidDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundFadeMidRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundFadeFarDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundFadeFarRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundRimScale = uIsFpsMode ? 2.0 : 3.0;
+          vec2 bloodGroundRimNearStep =
+            bloodGroundInteriorFadeStep * bloodGroundRimScale;
+          vec2 bloodGroundRimMidStep =
+            bloodGroundInteriorFadeStep * 3.0 * bloodGroundRimScale;
+          vec4 bloodGroundRimNearRing = vec4(
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(bloodGroundRimNearStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(bloodGroundRimNearStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(0.0, bloodGroundRimNearStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(0.0, bloodGroundRimNearStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a
+          );
+          vec4 bloodGroundRimMidRing = vec4(
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(bloodGroundRimMidStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(bloodGroundRimMidStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(0.0, bloodGroundRimMidStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(0.0, bloodGroundRimMidStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a
+          );
+          float bloodGroundRimNearDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundRimNearRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundRimMidDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundRimMidRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundInteriorEdgeReach =
+            smoothstep(0.02, 0.22, bloodGroundFadeNearDrop) * 0.52 +
+            smoothstep(0.02, 0.22, bloodGroundFadeMidDrop) * 0.32 +
+            smoothstep(0.02, 0.22, bloodGroundFadeFarDrop) * 0.16;
+          float bloodGroundInteriorFadeT = smoothstep(
+            0.0,
+            1.0,
+            clamp(1.0 - bloodGroundInteriorEdgeReach, 0.0, 1.0)
+          );
+
+          float bloodGroundPooledPhase = smoothstep(
+            0.55,
+            0.9,
+            bloodGroundOpacityT
+          );
+
+          float bloodGroundPooledSheen =
+            bloodGroundPooledPhase *
+            (0.026 + bloodGroundDepthNoise * 0.012);
+          float bloodGroundRimTightT = smoothstep(
+            0.03,
+            0.16,
+            bloodGroundInnerEdgeDrop
+          );
+          float bloodGroundRimNearT = smoothstep(
+            0.02,
+            0.24,
+            bloodGroundRimNearDrop
+          );
+          float bloodGroundRimMidT = smoothstep(
+            0.025,
+            0.28,
+            bloodGroundRimMidDrop
+          );
+          float bloodGroundEdgeTension =
+            (
+              bloodGroundRimTightT * 0.52 +
+              bloodGroundRimNearT * 0.35 +
+              bloodGroundRimMidT * 0.13
+            ) *
+            (0.42 + bloodGroundPooledNoise * 0.58);
+          float bloodGroundPooledTensionEdge =
+            bloodGroundPooledPhase *
+            bloodGroundEdgeTension;
+          float bloodGroundPooledInteriorT =
+            bloodGroundPooledPhase *
+            bloodGroundInteriorFadeT;
+          float bloodGroundPoolCoreT =
+            bloodGroundPooledInteriorT *
+            smoothstep(0.7, 0.96, bloodGroundOpacityT);
+          float bloodGroundDepthDarken =
+            bloodGroundPooledInteriorT *
+              (0.028 + (1.0 - bloodGroundDepthNoise) * 0.048) +
+            bloodGroundPoolCoreT *
+              (0.019 + (1.0 - bloodGroundDepthNoise) * 0.034);
+          gl_FragColor.rgb *= 1.0 - bloodGroundDepthDarken;
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            vec3(0.24, 0.0, 0.01),
+            bloodGroundPooledInteriorT *
+              (0.019 + (1.0 - bloodGroundDepthNoise) * 0.034) +
+              bloodGroundPoolCoreT *
+              (0.013 + (1.0 - bloodGroundDepthNoise) * 0.023)
+          );
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            vec3(0.58, 0.015, 0.006),
+            bloodGroundPooledInteriorT * bloodGroundDepthNoise * 0.012
+          );
+          float bloodGroundPooledSurfaceSheen =
+            bloodGroundPooledInteriorT *
+            (
+              0.01 +
+              bloodGroundDepthNoise * 0.012 +
+              bloodGroundBroadNoise * 0.006
+            ) *
+            0.72;
+          float bloodGroundHighlight =
+            bloodGroundVisibleT *
+            (
+              bloodGroundPooledSheen +
+              bloodGroundPooledSurfaceSheen +
+              bloodGroundPooledTensionEdge * 0.12
+            );
+          vec3 bloodGroundHighlightColor = mix(
+            vec3(1.0, 0.58, 0.38),
+            vec3(1.0, 0.84, 0.62),
+            bloodGroundPooledPhase
+          );
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            bloodGroundHighlightColor,
+            clamp(bloodGroundHighlight, 0.0, 0.34)
+          );
+          gl_FragColor.rgb +=
+            bloodGroundHighlightColor *
+            clamp(bloodGroundHighlight * 0.45, 0.0, 0.14);
+        #endif`;
+      }
+
       // Inject logic into Fragment Shader right at the end (before fog)
       shader.fragmentShader = `
         uniform vec3 uLightingCenter;
@@ -2652,10 +3071,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
         uniform float uMaxDarkAlpha;
         uniform bool uIsFpsMode;
         varying vec3 vWorldPos;
+        ${bloodGroundSpecularPrefix}
         ${shader.fragmentShader}
       `.replace(
         "#include <fog_fragment>",
-        `#include <fog_fragment>
+        `${bloodGroundSpecularLogic}
+        #include <fog_fragment>
         
         ${damageFlashLogic}
         if (uDamageFlash > 0.0) {
@@ -3555,6 +3976,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const height = this.bloodGroundHeightPx;
 
     const pixelData = new Uint8Array(width * height * 4);
+    // Evaluate specular as a shader-side pass on a fixed high-detail grid so
+    // the highlight quality does not inherit lower blood-mask resolutions.
+    const specularEffectWidth =
+      MINIMAP_WIDTH_TILES * this.bloodGroundSpecularPixelsPerTile;
+    const specularEffectHeight =
+      MINIMAP_HEIGHT_TILES * this.bloodGroundSpecularPixelsPerTile;
     const texture = new THREE.DataTexture(
       pixelData,
       width,
@@ -3581,7 +4008,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       toneMapped: false,
     });
     material.alphaTest = 0.001;
-    this.patchMaterialForVignette(material);
+    this.patchMaterialForVignette(material, {
+      bloodGroundSpecularEffectTexelSize: new THREE.Vector2(
+        1 / specularEffectWidth,
+        1 / specularEffectHeight,
+      ),
+    });
 
     const mesh = new THREE.Mesh(this.bloodGroundPlaneGeometry, material);
     mesh.position.set(
@@ -4449,10 +4881,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private scaleBloodGroundDiscreteCount(
-    count: number,
-    scale: number,
-  ): number {
+  private scaleBloodGroundDiscreteCount(count: number, scale: number): number {
     if (count <= 0) {
       return 0;
     }
@@ -10391,12 +10820,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private extractRuntimeNumberPadModeEnabled(snapshot: unknown): boolean | null {
+  private extractRuntimeNumberPadModeEnabled(
+    snapshot: unknown,
+  ): boolean | null {
     if (!snapshot || typeof snapshot !== "object") {
       return null;
     }
 
-    const readNestedValue = (root: unknown, path: readonly string[]): unknown => {
+    const readNestedValue = (
+      root: unknown,
+      path: readonly string[],
+    ): unknown => {
       let current: unknown = root;
       for (const key of path) {
         if (!current || typeof current !== "object") {
@@ -10438,10 +10872,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return null;
     };
 
-    const globalsRoot = readNestedValue(snapshot, [
-      "nethackGlobal",
-      "globals",
-    ]);
+    const globalsRoot = readNestedValue(snapshot, ["nethackGlobal", "globals"]);
     const candidatePaths: ReadonlyArray<readonly string[]> = [
       ["iflags", "num_pad"],
       ["iflags", "number_pad"],
@@ -11260,7 +11691,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
       runtimeTileIndex:
         typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
-      runtimeSymidx: typeof snapshot.symidx === "number" ? snapshot.symidx : null,
+      runtimeSymidx:
+        typeof snapshot.symidx === "number" ? snapshot.symidx : null,
       priorTerrain: snapshot,
     });
     return behavior.materialKind;
@@ -26416,8 +26848,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const perpendicularX = -deltaY / distance;
       const perpendicularY = deltaX / distance;
       if (transition.id === "player" || partner.id === "player") {
-        const nonPlayerId = transition.id === "player" ? partner.id : transition.id;
-        const playerId = transition.id === "player" ? transition.id : partner.id;
+        const nonPlayerId =
+          transition.id === "player" ? partner.id : transition.id;
+        const playerId =
+          transition.id === "player" ? transition.id : partner.id;
         offsets.set(playerId, { x: 0, y: 0 });
         offsets.set(nonPlayerId, {
           x: perpendicularX * playerSwapOffsetMagnitude,
@@ -26585,7 +27019,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     sprite.visible = true;
     sprite.frustumCulled = false;
     sprite.renderOrder = this.resolveStandardBillboardRenderOrder(
-      this.shouldUseVultureTiles() && this.clientOptions.tilesetMode === "tiles",
+      this.shouldUseVultureTiles() &&
+        this.clientOptions.tilesetMode === "tiles",
     );
     this.scene.add(sprite);
     return {
@@ -26846,9 +27281,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const currentOrQueuedWaypoint =
         transition.destinationKey === destinationKey
           ? null
-          : transition.queuedWaypoints.find(
+          : (transition.queuedWaypoints.find(
               (waypoint) => waypoint.destinationKey === destinationKey,
-            ) ?? null;
+            ) ?? null);
       if (transition.destinationKey === destinationKey) {
         transition.baseDurationMs = sanitizedDurationMs;
       } else if (currentOrQueuedWaypoint) {
@@ -26908,7 +27343,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const transitions = Array.from(this.activeEntityMoveTransitions.values());
     const reciprocalSwapPartnerById =
       this.buildEntityMoveTransitionReciprocalSwapPartnerById(
-        transitions.filter((transition) => !transition.holdAtDestinationUntilConfirmation),
+        transitions.filter(
+          (transition) => !transition.holdAtDestinationUntilConfirmation,
+        ),
       );
     const reciprocalSwapOffsetById =
       this.buildEntityMoveTransitionReciprocalSwapOffsetById(
@@ -26929,7 +27366,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         reciprocalSwapPartnerById.get(transition.id) ?? null;
       const reciprocalSwapPartner =
         reciprocalSwapPartnerId !== null
-          ? this.activeEntityMoveTransitions.get(reciprocalSwapPartnerId) ?? null
+          ? (this.activeEntityMoveTransitions.get(reciprocalSwapPartnerId) ??
+            null)
           : null;
       const reciprocalSwapOffset =
         reciprocalSwapOffsetById.get(transition.id) ?? null;
@@ -26979,7 +27417,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         if (
           transition.id === "player" &&
-          `${this.playerPos.x},${this.playerPos.y}` !== transition.destinationKey
+          `${this.playerPos.x},${this.playerPos.y}` !==
+            transition.destinationKey
         ) {
           transition.holdAtDestinationUntilConfirmation = true;
           continue;
@@ -27039,9 +27478,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!started || hadStandingBillboardSource) {
       return;
     }
-    if (
-      this.hasActiveEntityMoveTransitionDestination(fromKey, transitionId)
-    ) {
+    if (this.hasActiveEntityMoveTransitionDestination(fromKey, transitionId)) {
       const fromTile = this.parseTileKey(fromKey);
       if (fromTile) {
         // Another in-flight transition already owns the replacement occupant
@@ -27123,8 +27560,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       );
     }
 
-    const occupantTransitionId =
-      this.getTrackedEntityMoveTransitionId(destinationOccupantId);
+    const occupantTransitionId = this.getTrackedEntityMoveTransitionId(
+      destinationOccupantId,
+    );
     const occupantTransitionAlreadyActive =
       this.activeEntityMoveTransitions.has(occupantTransitionId);
     const startedOccupantTransition = this.beginOrRetargetEntityMoveTransition(
@@ -29082,8 +29520,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
     return (
-      (normalized.includes("what type") ||
-        normalized.includes("what types")) &&
+      (normalized.includes("what type") || normalized.includes("what types")) &&
       (normalized.includes("object") ||
         normalized.includes("item") ||
         normalized.includes("thing"))
@@ -30473,8 +30910,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (!Number.isFinite(count) || Number(count) < 1) {
         continue;
       }
-      selectedCounts[this.getQuestionMenuSelectionInput(item)] =
-        Math.trunc(Number(count));
+      selectedCounts[this.getQuestionMenuSelectionInput(item)] = Math.trunc(
+        Number(count),
+      );
     }
     const allPickupSelected = this.isAllPickupItemsSelected();
     const activeActionButton = this.getActiveQuestionActionButton();
@@ -31045,7 +31483,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
     this.setActivePickupFocusBySelectionInput(canonicalSelectionInput);
 
-    if (this.activePickupSelections.has(selectionKey) && pendingCount === null) {
+    if (
+      this.activePickupSelections.has(selectionKey) &&
+      pendingCount === null
+    ) {
       this.activePickupSelections.delete(selectionKey);
       this.activePickupSelectionCounts.delete(selectionKey);
     } else {
@@ -31961,7 +32402,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const tokens = sanitizeStartupInitOptionTokens(rawTokens);
     let numberPadEnabled: boolean | null = null;
     for (const token of tokens) {
-      const normalizedToken = String(token || "").trim().toLowerCase();
+      const normalizedToken = String(token || "")
+        .trim()
+        .toLowerCase();
       if (!normalizedToken.startsWith("number_pad:")) {
         continue;
       }
@@ -35646,8 +36089,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       !this.isInQuestion &&
       !this.isInDirectionQuestion
     ) {
-      const priorityTravelShortcutKey =
-        this.resolveTravelPositionShortcutKey(event, true);
+      const priorityTravelShortcutKey = this.resolveTravelPositionShortcutKey(
+        event,
+        true,
+      );
       if (priorityTravelShortcutKey) {
         event.preventDefault();
         this.sendInput(priorityTravelShortcutKey);
