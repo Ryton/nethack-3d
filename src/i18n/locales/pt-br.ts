@@ -1,4 +1,4 @@
-﻿import type { LocaleOverrides } from "../locale-helpers";
+import type { LocaleOverrides } from "../locale-helpers";
 import type { TranslationDictionary } from "./en";
 
 export const ptBrOverrides = {
@@ -921,10 +921,10 @@ export const ptBrOverrides = {
           description:
             "Infere e armazena em cache tiles de paredes de corredor escuro para runtimes legados do NetHack 3.4.3/3.6.x, incluindo Slash'EM.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "Substituir tiles de paredes escuras do NetHack 3.7",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "Substituir tiles de paredes escuras do NetHack 5.0",
           description:
-            "Aplica configurações de substituição de paredes escuras aos tiles de corredor escuro do NetHack 3.7.",
+            "Aplica configurações de substituição de paredes escuras aos tiles de corredor escuro do NetHack 5.0.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Substituir tile de parede escura",
@@ -1220,7 +1220,7 @@ export const ptBrOverrides = {
           darkWallsDisabledByVulture:
             " Desativado enquanto os tiles de Vulture estiverem ativos.",
           enableDarkWallsFirst:
-            " Ative primeiro as paredes escuras de corredor legadas ou as substituições de paredes escuras do NetHack 3.7.",
+            " Ative primeiro as paredes escuras de corredor legadas ou as substituições de paredes escuras do NetHack 5.0.",
           enableFpsFirst:
             " Ative primeiro o modo em primeira pessoa em Exibição.",
         },
@@ -1256,7 +1256,7 @@ export const ptBrOverrides = {
           "Os nomes dos tilesets internos não podem ser alterados.",
         tileLayoutVersion: "Versão do layout dos tiles",
         layout367: "Layout do NetHack 3.6.7",
-        layout37: "Layout do NetHack 3.7",
+        layout5: "Layout do NetHack 5.0",
         tileLayoutDescription:
           "Escolha o layout de índices de tile usado por este atlas enviado.",
         tileImage: "Imagem do tileset",

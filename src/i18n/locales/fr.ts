@@ -1,4 +1,4 @@
-﻿export const fr = {
+export const fr = {
   meta: {
     locale: "fr-FR",
   },
@@ -929,10 +929,10 @@
           description:
             "Deduit et met en cache les tuiles de murs de couloir sombres pour les runtimes NetHack 3.4.3/3.6.x anciens, y compris Slash'EM.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "Remplacer les tuiles de murs sombres NetHack 3.7",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "Remplacer les tuiles de murs sombres NetHack 5.0",
           description:
-            "Applique les reglages de remplacement des murs sombres aux tuiles de murs de couloir sombres de NetHack 3.7.",
+            "Applique les reglages de remplacement des murs sombres aux tuiles de murs de couloir sombres de NetHack 5.0.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Remplacer la tuile de mur sombre",
@@ -1225,7 +1225,7 @@
           darkWallsDisabledByVulture:
             " Desactivee lorsque les tuiles Vulture sont utilisees.",
           enableDarkWallsFirst:
-            " Activez d'abord les murs de couloir sombres legacy ou les remplacements de murs sombres NetHack 3.7.",
+            " Activez d'abord les murs de couloir sombres legacy ou les remplacements de murs sombres NetHack 5.0.",
           enableFpsFirst: " Activez d'abord le mode a la premiere personne dans Affichage.",
         },
         darkWallControls: {
@@ -1259,7 +1259,7 @@
         builtInNamesLocked: "Les noms des jeux de tuiles integres ne peuvent pas etre modifies.",
         tileLayoutVersion: "Version de disposition des tuiles",
         layout367: "Disposition NetHack 3.6.7",
-        layout37: "Disposition NetHack 3.7",
+        layout5: "Disposition NetHack 5.0",
         tileLayoutDescription:
           "Choisissez la disposition d'indices de tuiles utilisee par cet atlas importe.",
         tileImage: "Image du jeu de tuiles",

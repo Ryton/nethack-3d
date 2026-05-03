@@ -1,4 +1,4 @@
-﻿import type { LocaleOverrides } from "../locale-helpers";
+import type { LocaleOverrides } from "../locale-helpers";
 import type { TranslationDictionary } from "./en";
 
 export const esOverrides = {
@@ -843,9 +843,9 @@ export const esOverrides = {
                     label: "Paredes oscuras de pasillo heredadas",
                     description: "Inferir y almacenar en cach\u00E9 los mosaicos de paredes de pasillos oscuros para runtimes heredados de NetHack 3.4.3/3.6.x, incluido Slash'EM.",
                 },
-                overrideNh37DarkCorridorWallTiles: {
-                    label: "Anular los mosaicos de pared oscuros de NetHack 3.7",
-                    description: "Aplique configuraciones de anulaci\u00F3n de paredes oscuras a los mosaicos de paredes de pasillos oscuros de NetHack 3.7.",
+                overrideNh5DarkCorridorWallTiles: {
+                    label: "Anular los mosaicos de pared oscuros de NetHack 5.0",
+                    description: "Aplique configuraciones de anulaci\u00F3n de paredes oscuras a los mosaicos de paredes de pasillos oscuros de NetHack 5.0.",
                 },
                 darkCorridorWallTileOverrideEnabled: {
                     label: "Anular el azulejo de pared oscuro",
@@ -1100,7 +1100,7 @@ export const esOverrides = {
                 hints: {
                     darkWallsAlwaysEnabled: "Siempre habilitado mientras los mosaicos de Vulture est\u00E1n activos.",
                     darkWallsDisabledByVulture: "Deshabilitado mientras los mosaicos de Vulture est\u00E1n activos.",
-                    enableDarkWallsFirst: "Habilite primero las paredes oscuras de pasillo heredadas o las anulaciones de paredes oscuras de NetHack 3.7.",
+                    enableDarkWallsFirst: "Habilite primero las paredes oscuras de pasillo heredadas o las anulaciones de paredes oscuras de NetHack 5.0.",
                     enableFpsFirst: "Habilite el modo en primera persona en Pantalla primero.",
                 },
                 darkWallControls: {
@@ -1131,7 +1131,7 @@ export const esOverrides = {
                 builtInNamesLocked: "Los nombres de los conjuntos de mosaicos integrados no se pueden cambiar.",
                 tileLayoutVersion: "Versi\u00F3n de dise\u00F1o de mosaico",
                 layout367: "Dise\u00F1o de NetHack 3.6.7",
-                layout37: "Dise\u00F1o de NetHack 3.7",
+                layout5: "Dise\u00F1o de NetHack 5.0",
                 tileLayoutDescription: "Elija el dise\u00F1o del \u00EDndice de mosaicos utilizado por este atlas cargado.",
                 tileImage: "Imagen del conjunto de mosaicos",
                 tileImageOptional: "Imagen de mosaico (reemplazo opcional)",

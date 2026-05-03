@@ -1,4 +1,4 @@
-﻿export const en = {
+export const en = {
   meta: {
     locale: "en-US",
   },
@@ -896,10 +896,10 @@
           description:
             "Infer and cache dark corridor wall tiles for legacy NetHack 3.4.3/3.6.x-style runtimes, including Slash'EM.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "Override NetHack 3.7 dark wall tiles",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "Override NetHack 5.0 dark wall tiles",
           description:
-            "Apply dark wall override settings to NetHack 3.7 dark corridor wall tiles.",
+            "Apply dark wall override settings to NetHack 5.0 dark corridor wall tiles.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Override dark wall tile",
@@ -1182,7 +1182,7 @@
           darkWallsDisabledByVulture:
             " Disabled while Vulture tiles are active.",
           enableDarkWallsFirst:
-            " Enable legacy dark corridor walls or NetHack 3.7 dark wall overrides first.",
+            " Enable legacy dark corridor walls or NetHack 5.0 dark wall overrides first.",
           enableFpsFirst: " Enable First-person mode in Display first.",
         },
         darkWallControls: {
@@ -1216,7 +1216,7 @@
         builtInNamesLocked: "Built-in tile set names cannot be changed.",
         tileLayoutVersion: "Tile Layout Version",
         layout367: "NetHack 3.6.7 layout",
-        layout37: "NetHack 3.7 layout",
+        layout5: "NetHack 5.0 layout",
         tileLayoutDescription:
           "Choose the tile index layout used by this uploaded atlas.",
         tileImage: "Tileset Image",

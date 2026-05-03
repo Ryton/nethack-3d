@@ -85,9 +85,9 @@ import {
   type Nh3dTilesetTileLayoutVersion,
 } from "../game/tilesets";
 import {
-  shouldTranslateNh367TilesetForNh37Runtime,
-  translateNh37TileIndexToNh367,
-} from "../game/tileset-367-to-37-translation";
+  shouldTranslateNh367TilesetForNh5Runtime,
+  translateNh5TileIndexToNh367,
+} from "../game/tileset-367-to-5-translation";
 import {
   deleteStoredUserTileset,
   listStoredUserTilesets,
@@ -225,8 +225,8 @@ function resolveTilesetLayoutShortLabel(
       return "Slash'EM";
     case "3.4.3":
       return "3.4.3";
-    case "3.7":
-      return "3.7";
+    case "5.0":
+      return "5.0";
     case "3.6.7":
       return "3.6.7";
     default:
@@ -242,8 +242,8 @@ function resolveTilesetLayoutDisplayLabel(
       return "Slash'EM layout";
     case "3.4.3":
       return "NetHack 3.4.3 layout";
-    case "3.7":
-      return t.dialogs.tilesetManager.layout37;
+    case "5.0":
+      return t.dialogs.tilesetManager.layout5;
     case "3.6.7":
       return t.dialogs.tilesetManager.layout367;
     default:
@@ -255,8 +255,8 @@ function resolveRuntimeVersionDisplayLabel(
   runtimeVersion: NethackRuntimeVersion,
 ): string {
   switch (runtimeVersion) {
-    case "3.7":
-      return "NetHack 3.7";
+    case "5.0":
+      return "NetHack 5.0";
     case "slashem":
       return "Slash'EM";
     case "3.6.7":
@@ -487,7 +487,7 @@ const playerConditionStatusDefinitions367: ReadonlyArray<{
   { mask: 0x00001000, label: t.statusEffects.riding, severity: "good" },
 ];
 
-const playerConditionStatusDefinitions37: ReadonlyArray<{
+const playerConditionStatusDefinitions5: ReadonlyArray<{
   mask: number;
   label: string;
   severity: StatusSeverity;
@@ -659,8 +659,8 @@ function resolveConditionStatusDefinitions(
   label: string;
   severity: StatusSeverity;
 }> {
-  return runtimeVersion === "3.7"
-    ? playerConditionStatusDefinitions37
+  return runtimeVersion === "5.0"
+    ? playerConditionStatusDefinitions5
     : runtimeVersion === "slashem"
       ? playerConditionStatusDefinitionsSlashEm
       : playerConditionStatusDefinitions367;
@@ -690,7 +690,7 @@ function resolveConditionStatusLinePatterns(
   runtimeVersion: NethackRuntimeVersion,
   mask: number,
 ): readonly RegExp[] {
-  if (runtimeVersion === "3.7") {
+  if (runtimeVersion === "5.0") {
     switch (mask >>> 0) {
       case 0x00000001:
         return [/\bbare[- ]handed\b/i];
@@ -1443,7 +1443,7 @@ function isAdjustLetterQuestionPrompt(questionText: string): boolean {
 function isLegacyQuestionChoiceRuntime(
   runtimeVersion: NethackRuntimeVersion,
 ): boolean {
-  return runtimeVersion !== "3.7";
+  return runtimeVersion !== "5.0";
 }
 
 function orderQuestionChoicesForDisplay(
@@ -2725,11 +2725,11 @@ function resolvePreviewAtlasTileIdForRuntime(
   }
   try {
     if (
-      !shouldTranslateNh367TilesetForNh37Runtime(runtimeVersion, atlasTileCount)
+      !shouldTranslateNh367TilesetForNh5Runtime(runtimeVersion, atlasTileCount)
     ) {
       return normalizedTileId;
     }
-    return translateNh37TileIndexToNh367(normalizedTileId);
+    return translateNh5TileIndexToNh367(normalizedTileId);
   } catch {
     return normalizedTileId;
   }
@@ -2758,7 +2758,7 @@ function createDefaultStartupCharacterPreferences(
 function createDefaultStartupCharacterPreferencesByRuntime(): StartupCharacterPreferencesByRuntime {
   return {
     "3.6.7": createDefaultStartupCharacterPreferences("3.6.7"),
-    "3.7": createDefaultStartupCharacterPreferences("3.7"),
+    "5.0": createDefaultStartupCharacterPreferences("5.0"),
     slashem: createDefaultStartupCharacterPreferences("slashem"),
   };
 }
@@ -2966,7 +2966,7 @@ type ClientOptionToggleKey =
   | "soundEnabled"
   | "blockAmbientOcclusion"
   | "darkCorridorWalls367"
-  | "overrideNh37DarkCorridorWallTiles"
+  | "overrideNh5DarkCorridorWallTiles"
   | "darkCorridorWallTileOverrideEnabled"
   | "darkCorridorWallSolidColorOverrideEnabled";
 
@@ -4751,10 +4751,10 @@ const clientOptionsConfig: ClientOption[] = [
     type: "boolean",
   },
   {
-    key: "overrideNh37DarkCorridorWallTiles",
-    label: t.clientOptions.config.overrideNh37DarkCorridorWallTiles.label,
+    key: "overrideNh5DarkCorridorWallTiles",
+    label: t.clientOptions.config.overrideNh5DarkCorridorWallTiles.label,
     description:
-      t.clientOptions.config.overrideNh37DarkCorridorWallTiles.description,
+      t.clientOptions.config.overrideNh5DarkCorridorWallTiles.description,
     type: "boolean",
   },
   {
@@ -11552,8 +11552,8 @@ export default function App(): JSX.Element {
           ? "slashem"
           : tilesetEntry.tileLayoutVersion === "3.4.3"
             ? "3.4.3"
-            : tilesetEntry.tileLayoutVersion === "3.7"
-              ? "3.7"
+            : tilesetEntry.tileLayoutVersion === "5.0"
+              ? "5.0"
               : "3.6.7",
     );
     if (tilesetPath !== currentEditPath) {
@@ -12549,13 +12549,13 @@ export default function App(): JSX.Element {
   useEffect(() => {
     if (
       !clientOptionsDraft.darkCorridorWalls367 &&
-      !clientOptionsDraft.overrideNh37DarkCorridorWallTiles
+      !clientOptionsDraft.overrideNh5DarkCorridorWallTiles
     ) {
       setIsDarkWallTilePickerVisible(false);
     }
   }, [
     clientOptionsDraft.darkCorridorWalls367,
-    clientOptionsDraft.overrideNh37DarkCorridorWallTiles,
+    clientOptionsDraft.overrideNh5DarkCorridorWallTiles,
   ]);
 
   useEffect(() => {
@@ -15019,12 +15019,12 @@ export default function App(): JSX.Element {
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
               onClick={() => {
-                setRuntimeVersion("3.7");
+                setRuntimeVersion("5.0");
                 setStartupFlowStep("choose");
               }}
               type="button"
             >
-              NetHack 3.7
+              NetHack 5.0
             </button>
             <button
               className="nh3d-choice-button nh3d-character-setup-choice-button"
@@ -15935,8 +15935,8 @@ export default function App(): JSX.Element {
                       option.key === "inventoryTileOnlyMotion";
                     const isDarkCorridorWallsOption =
                       option.key === "darkCorridorWalls367";
-                    const isNh37DarkWallOverrideOption =
-                      option.key === "overrideNh37DarkCorridorWallTiles";
+                    const isNh5DarkWallOverrideOption =
+                      option.key === "overrideNh5DarkCorridorWallTiles";
                     const isDarkWallTileOverrideOption =
                       option.key === "darkCorridorWallTileOverrideEnabled";
                     const isDarkWallSolidColorOverrideOption =
@@ -15948,7 +15948,7 @@ export default function App(): JSX.Element {
                     const darkCorridorOptionSuppressedByVulture =
                       isVultureTilesetSelected &&
                       (isDarkCorridorWallsOption ||
-                        isNh37DarkWallOverrideOption ||
+                        isNh5DarkWallOverrideOption ||
                         isDarkWallOverrideOption);
                     const darkCorridorWallsForcedOnByVulture =
                       isVultureTilesetSelected && isDarkCorridorWallsOption;
@@ -15958,7 +15958,7 @@ export default function App(): JSX.Element {
                     const darkWallOverrideDisabledByDarkCorridorWalls =
                       isDarkWallOverrideOption &&
                       !clientOptionsDraft.darkCorridorWalls367 &&
-                      !clientOptionsDraft.overrideNh37DarkCorridorWallTiles;
+                      !clientOptionsDraft.overrideNh5DarkCorridorWallTiles;
                     const enabled = darkCorridorWallsForcedOnByVulture
                       ? true
                       : Boolean(clientOptionsDraft[option.key]);
@@ -16740,8 +16740,8 @@ export default function App(): JSX.Element {
                         setTilesetManagerTileLayoutVersion(
                           event.target.value === "slashem"
                             ? "slashem"
-                            : event.target.value === "3.7"
-                              ? "3.7"
+                            : event.target.value === "5.0"
+                              ? "5.0"
                               : event.target.value === "3.4.3"
                                 ? "3.4.3"
                                 : "3.6.7",
@@ -16754,8 +16754,8 @@ export default function App(): JSX.Element {
                       <option value="3.6.7">
                         {t.dialogs.tilesetManager.layout367}
                       </option>
-                      <option value="3.7">
-                        {t.dialogs.tilesetManager.layout37}
+                      <option value="5.0">
+                        {t.dialogs.tilesetManager.layout5}
                       </option>
                     </select>
                     <div className="nh3d-option-description">

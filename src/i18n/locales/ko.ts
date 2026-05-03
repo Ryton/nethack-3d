@@ -1,4 +1,4 @@
-﻿export const ko = {
+export const ko = {
   meta: {
     locale: "ko-KR",
   },
@@ -896,10 +896,10 @@
           description:
             "Slash'EM을 포함한 레거시 NetHack 3.4.3/3.6.x 계열 런타임용 어두운 복도 벽 타일을 추론하고 캐시합니다.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "NetHack 3.7 어두운 벽 타일 덮어쓰기",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "NetHack 5.0 어두운 벽 타일 덮어쓰기",
           description:
-            "NetHack 3.7 어두운 복도 벽 타일에 어두운 벽 덮어쓰기 설정을 적용합니다.",
+            "NetHack 5.0 어두운 복도 벽 타일에 어두운 벽 덮어쓰기 설정을 적용합니다.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "어두운 벽 타일 덮어쓰기",
@@ -1184,7 +1184,7 @@
           darkWallsDisabledByVulture:
             " Vulture 타일이 활성화되어 있는 동안에는 비활성화됩니다.",
           enableDarkWallsFirst:
-            " 먼저 레거시 어두운 복도 벽 또는 NetHack 3.7 어두운 벽 덮어쓰기를 활성화하세요.",
+            " 먼저 레거시 어두운 복도 벽 또는 NetHack 5.0 어두운 벽 덮어쓰기를 활성화하세요.",
           enableFpsFirst: " 먼저 표시 설정에서 1인칭 모드를 활성화하세요.",
         },
         darkWallControls: {
@@ -1218,7 +1218,7 @@
         builtInNamesLocked: "내장 타일셋 이름은 변경할 수 없습니다.",
         tileLayoutVersion: "타일 레이아웃 버전",
         layout367: "NetHack 3.6.7 레이아웃",
-        layout37: "NetHack 3.7 레이아웃",
+        layout5: "NetHack 5.0 레이아웃",
         tileLayoutDescription:
           "이 업로드된 아틀라스가 사용하는 타일 인덱스 레이아웃을 선택합니다.",
         tileImage: "타일셋 이미지",

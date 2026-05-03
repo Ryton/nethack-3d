@@ -76,7 +76,7 @@ const automaticRuntimeInitOptionTokensByVersion: Readonly<
     "boulder:0",
     "clicklook",
   ],
-  "3.7": [
+  "5.0": [
     "mouse_support",
     "runmode:walk",
     "time",
@@ -101,7 +101,7 @@ const requiredStartupInitOptionTokensByVersion: Readonly<
   Record<NethackRuntimeVersion, readonly string[]>
 > = {
   "3.6.7": ["checkpoint"],
-  "3.7": [],
+  "5.0": [],
   slashem: [],
 };
 
@@ -118,7 +118,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
         { value: "explore", label: startupStrings.options.playmode.options.explore },
         { value: "debug", label: startupStrings.options.playmode.options.debug },
       ],
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     {
       key: "number_pad",
@@ -178,7 +178,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       min: 0,
       max: 50,
       step: 1,
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     {
       key: "autoquiver",
@@ -193,7 +193,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       description: startupStrings.options.autoopen.description,
       control: "boolean",
       defaultValue: true,
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     {
       key: "autodig",
@@ -271,7 +271,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       description: startupStrings.options.implicit_uncursed.description,
       control: "boolean",
       defaultValue: true,
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     {
       key: "mention_walls",
@@ -279,7 +279,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       description: startupStrings.options.mention_walls.description,
       control: "boolean",
       defaultValue: false,
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     // {
     //   key: "news",
@@ -299,7 +299,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
         { value: "l", label: startupStrings.options.sortloot.options.l },
         { value: "n", label: startupStrings.options.sortloot.options.n },
       ],
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     {
       key: "sortpack",
@@ -385,7 +385,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       defaultValue: "",
       maxLength: 64,
       placeholder: "startupStrings.options.paranoid_confirmation.placeholder",
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
     {
       key: "sparkle",
@@ -432,7 +432,7 @@ const supportedPassthroughStartupInitOptionDefinitions: ReadonlyArray<StartupIni
     {
       key: "getpos.autodescribe",
       value: "nothing",
-      supportedRuntimeVersions: ["3.6.7", "3.7"],
+      supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
   ];
 

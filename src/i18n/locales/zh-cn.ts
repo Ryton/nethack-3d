@@ -1,4 +1,4 @@
-﻿import type { LocaleOverrides } from "../locale-helpers";
+import type { LocaleOverrides } from "../locale-helpers";
 import type { TranslationDictionary } from "./en";
 
 export const zhCnOverrides = {
@@ -644,9 +644,9 @@ export const zhCnOverrides = {
           label: "旧版黑暗走廊墙",
           description: "为旧版 NetHack 3.4.3/3.6.x 运行时（包括 Slash'EM）推断并缓存黑暗走廊墙瓦片。",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "覆盖 NetHack 3.7 黑暗墙瓦片",
-          description: "将黑暗墙覆盖设置应用到 NetHack 3.7 的黑暗走廊墙瓦片。",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "覆盖 NetHack 5.0 黑暗墙瓦片",
+          description: "将黑暗墙覆盖设置应用到 NetHack 5.0 的黑暗走廊墙瓦片。",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "覆盖黑暗墙瓦片",
@@ -913,7 +913,7 @@ export const zhCnOverrides = {
           darkWallsAlwaysEnabled: " 使用 Vulture 瓦片时始终启用。",
           darkWallsDisabledByVulture: " 使用 Vulture 瓦片时会被禁用。",
           enableDarkWallsFirst:
-            " 请先启用旧版黑暗走廊墙或 NetHack 3.7 黑暗墙覆盖。",
+            " 请先启用旧版黑暗走廊墙或 NetHack 5.0 黑暗墙覆盖。",
           enableFpsFirst: " 请先在显示中启用第一人称模式。",
         },
         darkWallControls: {
@@ -945,7 +945,7 @@ export const zhCnOverrides = {
         builtInNamesLocked: "内置瓦片集名称不能更改。",
         tileLayoutVersion: "瓦片布局版本",
         layout367: "NetHack 3.6.7 布局",
-        layout37: "NetHack 3.7 布局",
+        layout5: "NetHack 5.0 布局",
         tileLayoutDescription: "选择此上传图集使用的瓦片索引布局。",
         tileImage: "瓦片集图像",
         tileImageOptional: "瓦片集图像（可选替换）",

@@ -218,7 +218,7 @@ export type Nh3dClientOptions = {
   soundEnabled: boolean;
   blockAmbientOcclusion: boolean;
   darkCorridorWalls367: boolean;
-  overrideNh37DarkCorridorWallTiles: boolean;
+  overrideNh5DarkCorridorWallTiles: boolean;
   darkCorridorWallTileOverrideEnabled: boolean;
   darkCorridorWallTileOverrideEnabledByTileset: DarkCorridorWallTileOverrideEnabledByTileset;
   darkCorridorWallTileOverrideTileId: number;
@@ -364,7 +364,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   soundEnabled: true,
   blockAmbientOcclusion: true,
   darkCorridorWalls367: true,
-  overrideNh37DarkCorridorWallTiles: true,
+  overrideNh5DarkCorridorWallTiles: true,
   darkCorridorWallTileOverrideEnabled: false,
   darkCorridorWallTileOverrideEnabledByTileset: {},
   darkCorridorWallTileOverrideTileId: 850,
@@ -1098,10 +1098,10 @@ export function normalizeNh3dClientOptions(
       typeof overrides?.darkCorridorWalls367 === "boolean"
         ? overrides.darkCorridorWalls367
         : defaultNh3dClientOptions.darkCorridorWalls367,
-    overrideNh37DarkCorridorWallTiles:
-      typeof overrides?.overrideNh37DarkCorridorWallTiles === "boolean"
-        ? overrides.overrideNh37DarkCorridorWallTiles
-        : defaultNh3dClientOptions.overrideNh37DarkCorridorWallTiles,
+    overrideNh5DarkCorridorWallTiles:
+      typeof overrides?.overrideNh5DarkCorridorWallTiles === "boolean"
+        ? overrides.overrideNh5DarkCorridorWallTiles
+        : defaultNh3dClientOptions.overrideNh5DarkCorridorWallTiles,
     darkCorridorWallTileOverrideEnabled,
     darkCorridorWallTileOverrideEnabledByTileset,
     darkCorridorWallTileOverrideTileId,

@@ -90,19 +90,19 @@ import {
   findNh3dTilesetByPath,
   inferNh3dTilesetTileSizeFromAtlasWidthForPath,
   resolveDefaultNh3dTilesetWeaponSpriteFlipX,
-  resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime,
+  resolveNh3dFuseBaseTilesetPathForLegacyNh5Runtime,
   resolveNh3dTilesetAssetUrl,
   type Nh3dTilesetTileLayoutVersion,
 } from "./tilesets";
 import {
-  nh37ExpectedTileCount,
-  nh37OutputRows,
-  nh37TilesPerRow,
-  shouldTranslateNh367TilesetForNh37Runtime,
-  translateNh367TileIndexToNh37,
-  translateNh37TileIndexToNh367,
-  translateNh37TileIndexToNh367PreservingAliases,
-} from "./tileset-367-to-37-translation";
+  nh5ExpectedTileCount,
+  nh5OutputRows,
+  nh5TilesPerRow,
+  shouldTranslateNh367TilesetForNh5Runtime,
+  translateNh367TileIndexToNh5,
+  translateNh5TileIndexToNh367,
+  translateNh5TileIndexToNh367PreservingAliases,
+} from "./tileset-367-to-5-translation";
 import { getItemTextClassName } from "./helpers/helpers";
 import { MessageSoundHooks } from "./message-sound-hooks";
 import {
@@ -673,7 +673,7 @@ const DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET: FpsHeldWeaponTileF
       "463": { flipX: false, flipY: true, flipDiagonal: true },
       "464": { flipX: false, flipY: true, flipDiagonal: true },
     },
-    "assets/3.7/Nevanda (3.7).png": {
+    "assets/5.0/Nevanda (5.0).png": {
       "813": { flipX: false, flipY: true, flipDiagonal: false },
       "815": { flipX: false, flipY: true, flipDiagonal: true },
       "827": { flipX: false, flipY: true, flipDiagonal: true },
@@ -689,7 +689,7 @@ const DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET: FpsHeldWeaponTileF
       "875": { flipX: false, flipY: true, flipDiagonal: false },
       "876": { flipX: false, flipY: false, flipDiagonal: true },
     },
-    "assets/3.7/Vanilla NetHack Tiles (3.7).png": {
+    "assets/5.0/Vanilla NetHack Tiles (5.0).png": {
       "807": { flipX: false, flipY: true, flipDiagonal: false },
       "808": { flipX: false, flipY: true, flipDiagonal: false },
       "809": { flipX: false, flipY: true, flipDiagonal: false },
@@ -2409,7 +2409,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    if (runtimeVersion === "3.7") {
+    if (runtimeVersion === "5.0") {
       return false;
     }
 
@@ -6277,7 +6277,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private isDarkCorridorWallInferenceEnabled(): boolean {
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    if (runtimeVersion === "3.7") {
+    if (runtimeVersion === "5.0") {
       return false;
     }
     // Vulture mode relies on legacy 3.4.3/3.6.x dark corridor wall inference, so
@@ -6846,8 +6846,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const darkCorridorWallsChanged =
       previous.darkCorridorWalls367 !== normalized.darkCorridorWalls367;
     const darkCorridorWallTileOverrideChanged =
-      previous.overrideNh37DarkCorridorWallTiles !==
-        normalized.overrideNh37DarkCorridorWallTiles ||
+      previous.overrideNh5DarkCorridorWallTiles !==
+        normalized.overrideNh5DarkCorridorWallTiles ||
       previous.darkCorridorWallTileOverrideEnabled !==
         normalized.darkCorridorWallTileOverrideEnabled ||
       previous.darkCorridorWallTileOverrideTileId !==
@@ -6998,7 +6998,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (darkCorridorWallsChanged || darkCorridorWallTileOverrideChanged) {
       this.requestInferredDarkCorridorWallReconcile({ forceImmediate: true });
-      if (this.resolveRuntimeVersion() === "3.7") {
+      if (this.resolveRuntimeVersion() === "5.0") {
         this.invalidateBillboardTextureCaches();
         this.refreshTilesFromStateCache();
       }
@@ -7461,25 +7461,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return texture;
   }
 
-  private shouldCompileLegacyTilesetAtlasForNh37Runtime(
+  private shouldCompileLegacyTilesetAtlasForNh5Runtime(
     tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
     atlasTileCount: number,
   ): boolean {
-    return shouldTranslateNh367TilesetForNh37Runtime(
+    return shouldTranslateNh367TilesetForNh5Runtime(
       this.resolveRuntimeVersion(),
       atlasTileCount,
       tileLayoutVersion,
     );
   }
 
-  private compileLegacyTilesetAtlasToNh37(
+  private compileLegacyTilesetAtlasToNh5(
     legacyAtlasImage: HTMLImageElement,
     tileSize: number,
     fuseBaseImage: HTMLImageElement | null,
   ): HTMLCanvasElement {
     const outputCanvas = document.createElement("canvas");
-    outputCanvas.width = nh37TilesPerRow * tileSize;
-    outputCanvas.height = nh37OutputRows * tileSize;
+    outputCanvas.width = nh5TilesPerRow * tileSize;
+    outputCanvas.height = nh5OutputRows * tileSize;
     const context = outputCanvas.getContext("2d");
     if (!context) {
       throw new Error("Failed to create compiled tileset atlas canvas context");
@@ -7504,27 +7504,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ? fuseBaseTilesPerRow * fuseBaseRows
         : 0;
     for (
-      let nh37TileIndex = 0;
-      nh37TileIndex < nh37ExpectedTileCount;
-      nh37TileIndex += 1
+      let nh5TileIndex = 0;
+      nh5TileIndex < nh5ExpectedTileCount;
+      nh5TileIndex += 1
     ) {
       const rawMappedTileIndex =
-        translateNh37TileIndexToNh367PreservingAliases(nh37TileIndex);
+        translateNh5TileIndexToNh367PreservingAliases(nh5TileIndex);
       const shouldUseFuseBaseTile =
         rawMappedTileIndex < 0 &&
         fuseBaseImage !== null &&
-        nh37TileIndex < fuseBaseTileCount;
+        nh5TileIndex < fuseBaseTileCount;
       const sourceTileIndex =
         rawMappedTileIndex < 0
           ? Math.abs(rawMappedTileIndex)
           : rawMappedTileIndex;
-      const destX = (nh37TileIndex % nh37TilesPerRow) * tileSize;
-      const destY = Math.floor(nh37TileIndex / nh37TilesPerRow) * tileSize;
+      const destX = (nh5TileIndex % nh5TilesPerRow) * tileSize;
+      const destY = Math.floor(nh5TileIndex / nh5TilesPerRow) * tileSize;
       context.clearRect(destX, destY, tileSize, tileSize);
       if (shouldUseFuseBaseTile && fuseBaseImage) {
-        const fuseSourceX = (nh37TileIndex % fuseBaseTilesPerRow) * tileSize;
+        const fuseSourceX = (nh5TileIndex % fuseBaseTilesPerRow) * tileSize;
         const fuseSourceY =
-          Math.floor(nh37TileIndex / fuseBaseTilesPerRow) * tileSize;
+          Math.floor(nh5TileIndex / fuseBaseTilesPerRow) * tileSize;
         context.drawImage(
           fuseBaseImage,
           fuseSourceX,
@@ -7643,13 +7643,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         let sourceLayoutVersion: Nh3dTilesetTileLayoutVersion =
           tileset.tileLayoutVersion;
         if (
-          this.shouldCompileLegacyTilesetAtlasForNh37Runtime(
+          this.shouldCompileLegacyTilesetAtlasForNh5Runtime(
             tileset.tileLayoutVersion,
             sourceTileCount,
           )
         ) {
           const fuseBaseTilesetPath =
-            resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(tileset.path);
+            resolveNh3dFuseBaseTilesetPathForLegacyNh5Runtime(tileset.path);
           const fuseBaseTilesetAssetUrl = fuseBaseTilesetPath
             ? (resolveNh3dTilesetAssetUrl(fuseBaseTilesetPath) ??
               fuseBaseTilesetPath)
@@ -7670,12 +7670,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
           if (loadRequestId !== this.tilesetTextureLoadRequestId) {
             return;
           }
-          textureSource = this.compileLegacyTilesetAtlasToNh37(
+          textureSource = this.compileLegacyTilesetAtlasToNh5(
             sourceImage,
             tileSize,
             fuseBaseImage,
           );
-          loadedLayoutVersion = "3.7";
+          loadedLayoutVersion = "5.0";
           sourceLayoutVersion =
             tileset.tileLayoutVersion === "unknown"
               ? "3.6.7"
@@ -11621,7 +11621,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return 1187;
     }
-    if (this.loadedTilesetTileLayoutVersion === "3.7") {
+    if (this.loadedTilesetTileLayoutVersion === "5.0") {
       return 1281;
     }
     return 862;
@@ -16321,24 +16321,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.characterCreationConfig.runtimeVersion ?? "3.6.7";
   }
 
-  private shouldUseNh37LegacyTilesetCompatibility(): boolean {
-    if (this.resolveRuntimeVersion() !== "3.7") {
+  private shouldUseNh5LegacyTilesetCompatibility(): boolean {
+    if (this.resolveRuntimeVersion() !== "5.0") {
       return false;
     }
-    if (this.loadedTilesetTileLayoutVersion === "3.7") {
+    if (this.loadedTilesetTileLayoutVersion === "5.0") {
       return false;
     }
     if (this.loadedTilesetTileLayoutVersion === "3.6.7") {
       return true;
     }
-    return shouldTranslateNh367TilesetForNh37Runtime(
-      "3.7",
+    return shouldTranslateNh367TilesetForNh5Runtime(
+      "5.0",
       this.resolveLoadedAtlasTileCount(),
       this.loadedTilesetTileLayoutVersion,
     );
   }
 
-  private isNh37DarkCorridorWallVariantForLegacyTileset(
+  private isNh5DarkCorridorWallVariantForLegacyTileset(
     sourceGlyph: number,
     runtimeTileIndex: number,
     materialKind: TileMaterialKind,
@@ -16347,10 +16347,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.clientOptions.tilesetMode !== "tiles") {
       return false;
     }
-    if (this.resolveRuntimeVersion() !== "3.7") {
+    if (this.resolveRuntimeVersion() !== "5.0") {
       return false;
     }
-    if (!this.clientOptions.overrideNh37DarkCorridorWallTiles) {
+    if (!this.clientOptions.overrideNh5DarkCorridorWallTiles) {
       return false;
     }
     if (materialKind !== "wall" && materialKind !== "dark_wall") {
@@ -16384,14 +16384,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (symidx === null) {
       return false;
     }
-    // NetHack 3.7 dark corridor wall tiles can come through as cmap symidx=0
+    // NetHack 5.0 dark corridor wall tiles can come through as cmap symidx=0
     // (stone/out-of-bounds semantic). Legacy 3.6 tilesets do not contain those
-    // dedicated textures, and some 3.7 tilesets still prefer compatibility
+    // dedicated textures, and some 5.0 tilesets still prefer compatibility
     // overrides for consistency, so route them through dark-wall overrides.
     if (symidx === 0) {
       return true;
     }
-    if (!this.shouldUseNh37LegacyTilesetCompatibility()) {
+    if (!this.shouldUseNh5LegacyTilesetCompatibility()) {
       return false;
     }
     if (symidx < 1 || symidx > 11) {
@@ -16438,7 +16438,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     try {
       if (
-        !shouldTranslateNh367TilesetForNh37Runtime(
+        !shouldTranslateNh367TilesetForNh5Runtime(
           this.resolveRuntimeVersion(),
           atlasTileCount,
           this.loadedTilesetTileLayoutVersion,
@@ -16446,7 +16446,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         return normalizedTileIndex;
       }
-      return translateNh37TileIndexToNh367(normalizedTileIndex);
+      return translateNh5TileIndexToNh367(normalizedTileIndex);
     } catch {
       return normalizedTileIndex;
     }
@@ -16508,7 +16508,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     try {
       if (
-        !shouldTranslateNh367TilesetForNh37Runtime(
+        !shouldTranslateNh367TilesetForNh5Runtime(
           this.resolveRuntimeVersion(),
           this.resolveLoadedAtlasTileCount(),
           this.loadedTilesetSourceLayoutVersion,
@@ -16516,7 +16516,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         return normalizedTileIndex;
       }
-      return translateNh367TileIndexToNh37(normalizedTileIndex);
+      return translateNh367TileIndexToNh5(normalizedTileIndex);
     } catch {
       return normalizedTileIndex;
     }
@@ -22139,7 +22139,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       // Legacy 3.4.3/3.6.x dark corridor walls should chamfer using the dark hallway
       // floor texture, not the generic dark room texture.
       fallbackGlyph =
-        runtimeVersion !== "3.7" ? getDefaultDarkFloorGlyph() : floorGlyph + 1;
+        runtimeVersion !== "5.0" ? getDefaultDarkFloorGlyph() : floorGlyph + 1;
     }
     const behavior = classifyTileBehavior({
       glyph: fallbackGlyph,
@@ -25165,7 +25165,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           : -1;
     const darkCorridorWallCompatibilityActive =
       isInferredDarkCorridorWall ||
-      this.isNh37DarkCorridorWallVariantForLegacyTileset(
+      this.isNh5DarkCorridorWallVariantForLegacyTileset(
         glyph,
         runtimeTileIndexForDarkCorridorCompatibility,
         behavior.materialKind,
@@ -27890,7 +27890,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private resolveStatusConditionBlindMask(): number {
     const runtimeVersion = this.resolveRuntimeVersion();
-    if (runtimeVersion === "3.7") {
+    if (runtimeVersion === "5.0") {
       return 0x00000002;
     }
     if (runtimeVersion === "slashem") {
@@ -27951,7 +27951,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   ): void {
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    const legacyByIndex37: { [key: number]: string } = {
+    const legacyByIndex5: { [key: number]: string } = {
       0: "name",
       1: "strength",
       2: "dexterity",
@@ -27999,7 +27999,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       21: "experience",
     };
     const legacyByIndex =
-      runtimeVersion === "3.7" ? legacyByIndex37 : legacyByIndex367;
+      runtimeVersion === "5.0" ? legacyByIndex5 : legacyByIndex367;
 
     const byName: { [key: string]: string } = {
       BL_TITLE: "name",

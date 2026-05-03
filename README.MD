@@ -122,7 +122,7 @@ Launch it from your Home Screen for a web app fullscreen experience.
 
 ## Credits
 
-- NetHack 3.6.7 to 3.7 tile-order translation logic is adapted from [`horlogeislux/tileto370`](https://github.com/horlogeislux/tileto370) (MIT License).
+- NetHack 3.6.7 to 5.0 tile-order translation logic is adapted from [`horlogeislux/tileto370`](https://github.com/horlogeislux/tileto370) (MIT License).
 
 ## GitHub Pages Deploy
 

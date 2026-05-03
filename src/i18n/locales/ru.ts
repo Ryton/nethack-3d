@@ -895,10 +895,10 @@ export const ru = {
           description:
             "Определять и кэшировать тайлы тёмных стен коридоров для устаревших runtime NetHack 3.4.3/3.6.x, включая Slash'EM.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "Переопределять тёмные стены NetHack 3.7",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "Переопределять тёмные стены NetHack 5.0",
           description:
-            "Применять настройки переопределения тёмных стен к тайлам тёмных коридорных стен NetHack 3.7.",
+            "Применять настройки переопределения тёмных стен к тайлам тёмных коридорных стен NetHack 5.0.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Переопределить тайл тёмной стены",
@@ -1183,7 +1183,7 @@ export const ru = {
           darkWallsDisabledByVulture:
             " Отключено, пока активны тайлы Vulture.",
           enableDarkWallsFirst:
-            " Сначала включите классические тёмные стены коридоров или переопределение тёмных стен NetHack 3.7.",
+            " Сначала включите классические тёмные стены коридоров или переопределение тёмных стен NetHack 5.0.",
           enableFpsFirst: " Сначала включите режим от первого лица в разделе «Отображение».",
         },
         darkWallControls: {
@@ -1217,7 +1217,7 @@ export const ru = {
         builtInNamesLocked: "Имена встроенных тайлсетов нельзя изменять.",
         tileLayoutVersion: "Версия раскладки тайлов",
         layout367: "Раскладка NetHack 3.6.7",
-        layout37: "Раскладка NetHack 3.7",
+        layout5: "Раскладка NetHack 5.0",
         tileLayoutDescription:
           "Выберите раскладку индексов тайлов, используемую этим загруженным атласом.",
         tileImage: "Изображение тайлсета",

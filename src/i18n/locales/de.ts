@@ -1,4 +1,4 @@
-﻿import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
+import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
 import { en, type TranslationDictionary } from "./en";
 
 export const deOverrides: LocaleOverrides<TranslationDictionary> = {
@@ -902,10 +902,10 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Leitet Kacheln f\u00fcr dunkle Korridorw\u00e4nde ab und speichert sie f\u00fcr \u00e4ltere NetHack-3.4.3-/3.6.x-Laufzeiten, einschlie\u00dflich Slash'EM.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "Dunkle Wandkacheln in NetHack 3.7 \u00fcberschreiben",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "Dunkle Wandkacheln in NetHack 5.0 \u00fcberschreiben",
           description:
-            "Wendet Einstellungen f\u00fcr dunkle W\u00e4nde auf dunkle Korridorwand-Kacheln in NetHack 3.7 an.",
+            "Wendet Einstellungen f\u00fcr dunkle W\u00e4nde auf dunkle Korridorwand-Kacheln in NetHack 5.0 an.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Dunkle Wandkachel \u00fcberschreiben",
@@ -1216,7 +1216,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           darkWallsDisabledByVulture:
             " Deaktiviert, solange Vulture-Tiles aktiv sind.",
           enableDarkWallsFirst:
-            " Aktiviere zuerst dunkle Korridorw\u00e4nde f\u00fcr Legacy-Runtimes oder dunkle Wand-\u00dcberschreibungen in NetHack 3.7.",
+            " Aktiviere zuerst dunkle Korridorw\u00e4nde f\u00fcr Legacy-Runtimes oder dunkle Wand-\u00dcberschreibungen in NetHack 5.0.",
           enableFpsFirst:
             " Aktiviere zuerst den Ego-Modus unter Anzeige.",
         },
@@ -1253,7 +1253,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           "Namen integrierter Tilesets k\u00f6nnen nicht ge\u00e4ndert werden.",
         tileLayoutVersion: "Tile-Layout-Version",
         layout367: "NetHack-3.6.7-Layout",
-        layout37: "NetHack-3.7-Layout",
+        layout5: "NetHack-5.0-Layout",
         tileLayoutDescription:
           "W\u00e4hle das Tile-Index-Layout, das dieser hochgeladene Atlas verwendet.",
         tileImage: "Tileset-Bild",

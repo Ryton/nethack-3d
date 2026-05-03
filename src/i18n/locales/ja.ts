@@ -1,4 +1,4 @@
-﻿import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
+import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
 import { en, type TranslationDictionary } from "./en";
 
 export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
@@ -845,10 +845,10 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Slash'EM を含む旧世代の NetHack 3.4.3/3.6.x 系ランタイム向けに、暗い通路壁タイルを推測してキャッシュします。",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "NetHack 3.7 の暗い壁タイルを上書き",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "NetHack 5.0 の暗い壁タイルを上書き",
           description:
-            "暗い壁の上書き設定を NetHack 3.7 の暗い通路壁タイルにも適用します。",
+            "暗い壁の上書き設定を NetHack 5.0 の暗い通路壁タイルにも適用します。",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "暗い壁タイルを上書き",
@@ -1139,7 +1139,7 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           darkWallsDisabledByVulture:
             " Vulture タイルが有効な間は無効です。",
           enableDarkWallsFirst:
-            " 先に旧世代ランタイムの暗い通路壁、または NetHack 3.7 の暗い壁上書きを有効にしてください。",
+            " 先に旧世代ランタイムの暗い通路壁、または NetHack 5.0 の暗い壁上書きを有効にしてください。",
           enableFpsFirst: " 先に表示設定で一人称モードを有効にしてください。",
         },
         darkWallControls: {
@@ -1174,7 +1174,7 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           "組み込みタイルセット名は変更できません。",
         tileLayoutVersion: "タイルレイアウト版",
         layout367: "NetHack 3.6.7 レイアウト",
-        layout37: "NetHack 3.7 レイアウト",
+        layout5: "NetHack 5.0 レイアウト",
         tileLayoutDescription:
           "このアップロード済みアトラスが使うタイルインデックスレイアウトを選択します。",
         tileImage: "タイルセット画像",

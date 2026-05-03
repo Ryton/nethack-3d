@@ -1,4 +1,4 @@
-﻿import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
+import { mergeTranslations, type LocaleOverrides } from "../locale-helpers";
 import { en, type TranslationDictionary } from "./en";
 
 export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
@@ -893,10 +893,10 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Päättele ja välimuistita tummien käytäväseinien ruudut vanhoille NetHack 3.4.3/3.6.x -ajoalustoille, mukaan lukien Slash'EM.",
         },
-        overrideNh37DarkCorridorWallTiles: {
-          label: "Ohita NetHack 3.7:n tummat seinäruudut",
+        overrideNh5DarkCorridorWallTiles: {
+          label: "Ohita NetHack 5.0:n tummat seinäruudut",
           description:
-            "Käytä tumman seinän ohitusasetuksia NetHack 3.7:n tummiin käytäväseinän ruutuihin.",
+            "Käytä tumman seinän ohitusasetuksia NetHack 5.0:n tummiin käytäväseinän ruutuihin.",
         },
         darkCorridorWallTileOverrideEnabled: {
           label: "Ohita tumma seinäruutu",
@@ -1183,7 +1183,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           darkWallsDisabledByVulture:
             " Pois käytöstä, kun Vulture-ruudut ovat aktiivisia.",
           enableDarkWallsFirst:
-            " Ota ensin käyttöön perinteiset tummat käytäväseinät tai NetHack 3.7:n tummien seinien ohitukset.",
+            " Ota ensin käyttöön perinteiset tummat käytäväseinät tai NetHack 5.0:n tummien seinien ohitukset.",
           enableFpsFirst: " Ota ensin käyttöön ensimmäisen persoonan tila Näyttö-osiossa.",
         },
         darkWallControls: {
@@ -1217,7 +1217,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         builtInNamesLocked: "Sisäänrakennettujen ruutusettien nimiä ei voi muuttaa.",
         tileLayoutVersion: "Ruutuasettelun versio",
         layout367: "NetHack 3.6.7 -asettelu",
-        layout37: "NetHack 3.7 -asettelu",
+        layout5: "NetHack 5.0 -asettelu",
         tileLayoutDescription:
           "Valitse tämän ladatun atlaksen käyttämä ruutuindeksien asettelu.",
         tileImage: "Ruutusetin kuva",
