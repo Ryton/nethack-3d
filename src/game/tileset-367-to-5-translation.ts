@@ -118,12 +118,19 @@ function buildNh367TileIndexByNh5TileIndex(): ReadonlyArray<number> {
     TileAlias.GoldDragonScaleMail,
     ...indexRange(477, 487),
     TileAlias.GoldDragonScales,
-    ...indexRange(487, 583),
+    // NetHack 5 inserts drain/shock resistance shields after the small shield.
+    ...indexRange(487, 526),
+    525,
+    525,
+    ...indexRange(526, 583),
     TileAlias.PerforatedAmulet,
     TileAlias.CubicalAmulet,
     ...indexRange(583, 777),
     TileAlias.CheckeredSpellbook,
-    ...indexRange(777, 871),
+    // NetHack 5 inserts the redwood/stasis wand after pine/wishing.
+    ...indexRange(777, 785),
+    TileAlias.GenericWand,
+    ...indexRange(785, 871),
     TileAlias.EngravingInRoom,
     871,
     872,
@@ -169,7 +176,7 @@ function buildNh367TileIndexByNh5TileIndex(): ReadonlyArray<number> {
     1425,
     ...duplicateRange(1426, 1475),
     1475,
-    ...Array.from({ length: 20 }, () => 1476),
+    ...Array.from({ length: 16 }, () => 1476),
   ];
 }
 
