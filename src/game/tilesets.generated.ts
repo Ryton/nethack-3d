@@ -61,14 +61,14 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
     "tileLayoutVersion": "3.6.7"
   },
   {
-    "label": "Nevanda (5.0)",
-    "path": "assets/5.0/Nevanda (5.0).png",
+    "label": "Nevanda",
+    "path": "assets/5.0/Nevanda.png",
     "tileSize": 32,
     "tileLayoutVersion": "5.0"
   },
   {
-    "label": "Vanilla NetHack Tiles (5.0)",
-    "path": "assets/5.0/Vanilla NetHack Tiles (5.0).png",
+    "label": "Vanilla NetHack Tiles",
+    "path": "assets/5.0/Vanilla NetHack Tiles.png",
     "tileSize": 16,
     "tileLayoutVersion": "5.0"
   }
