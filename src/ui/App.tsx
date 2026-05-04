@@ -5735,6 +5735,23 @@ function resolveStartupPlayModeForSavePresentation(
   return "normal";
 }
 
+function resolveSaveResumeInitOptionTokens(
+  rawInitOptions: unknown,
+  runtimeVersion: NethackRuntimeVersion,
+): string[] {
+  const tokens = sanitizeStartupInitOptionTokens(
+    rawInitOptions,
+    runtimeVersion,
+  );
+  const hasNumberPadToken = tokens.some((token) =>
+    String(token || "")
+      .trim()
+      .toLowerCase()
+      .startsWith("number_pad:"),
+  );
+  return hasNumberPadToken ? tokens : [...tokens, "number_pad:1"];
+}
+
 function persistSavePresentationMetadataForCharacter(
   runtimeName: string,
   characterName: string,
@@ -5944,8 +5961,11 @@ async function fetchSavedGames(
           const initOptions =
             presentationMetadata &&
             Array.isArray(presentationMetadata.initOptions)
-              ? sanitizeStartupInitOptionTokens(presentationMetadata.initOptions)
-              : [];
+              ? resolveSaveResumeInitOptionTokens(
+                  presentationMetadata.initOptions,
+                  runtimeVersion,
+                )
+              : resolveSaveResumeInitOptionTokens([], runtimeVersion);
           const existing = saves.get(logicalKey);
           if (existing) {
             existing.files.push({
