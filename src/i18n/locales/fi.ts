@@ -113,7 +113,7 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       zoom_in: {
         label: "Zoomaa (pidä)",
         description:
-          "Pidä painettuna, ja käytä sitten vasenta tai oikeaa sauvaa ylös/alas zoomataksesi sisään tai ulos.",
+          "Pidä painettuna, zoomaa vasemman sauvan ylös/alas-liikkeellä ja kierrä kameraa oikealla sauvalla.",
       },
       recenter_camera: {
         label: "Keskitä kamera",

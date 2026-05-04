@@ -110,7 +110,7 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
       zoom_in: {
         label: "ズーム（長押し）",
         description:
-          "押したまま左右どちらかのスティックを上下すると、ズームイン・ズームアウトします。",
+          "押しながら、左スティック上下でズームし、右スティックでカメラを回転します。",
       },
       recenter_camera: {
         label: "カメラ再中央寄せ",

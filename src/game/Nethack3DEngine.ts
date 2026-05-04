@@ -1784,6 +1784,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private controllerDialogSliderStepCarry: number = 0;
   private controllerDialogActiveSliderElement: HTMLInputElement | null = null;
   private controllerMinimapExpanded: boolean = false;
+  private controllerZoomCameraRotationActive: boolean = false;
   private controllerVirtualCursorElement: HTMLDivElement | null = null;
   private controllerVirtualCursorPulseElement: HTMLDivElement | null = null;
   private controllerVirtualCursorPulseHideTimerId: number | null = null;
@@ -1797,6 +1798,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly controllerCameraPanTilesPerSec: number = 9.2;
   private readonly controllerCameraPanRunSpeedMultiplier: number = 3;
   private readonly controllerZoomDistancePerSec: number = 14;
+  private readonly controllerCameraRotateRadPerSec: number = Math.PI;
   private readonly controllerDialogScrollPxPerSec: number = 1200;
   private readonly controllerDialogCursorPxPerSec: number = 820;
   private readonly controllerDialogSliderFastStepsPerSec: number = 13;
@@ -40074,6 +40076,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.getDirectionInputFromMapDelta(direction.dx, direction.dy);
   }
 
+  private resolveControllerGameplayDirectionInputFromAxes(
+    axisX: number,
+    axisY: number,
+    deadzone: number,
+  ): string | null {
+    if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) {
+      return null;
+    }
+    const localDirection = this.resolveDirectionKeyFromDelta(
+      axisX,
+      axisY,
+      deadzone,
+    );
+    if (!localDirection) {
+      return null;
+    }
+    if (this.isCameraRelativeMovementEnabled()) {
+      return this.resolveCameraRelativeDirectionInputFromLocalDelta(
+        localDirection.dx,
+        localDirection.dy,
+      );
+    }
+    return this.getDirectionInputFromMapDelta(
+      localDirection.dx,
+      localDirection.dy,
+    );
+  }
+
   private getVerticalDirectionPromptInputFromControllerAxes(
     axisX: number,
     axisY: number,
@@ -40913,6 +40943,50 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateMinimapPresentation();
   }
 
+  private finishControllerZoomCameraRotation(): void {
+    if (!this.controllerZoomCameraRotationActive) {
+      return;
+    }
+    this.controllerZoomCameraRotationActive = false;
+    this.queueCameraYawSnapToNearest45();
+  }
+
+  private updateControllerZoomCameraRotation(
+    axisX: number,
+    axisY: number,
+    zoomModifierActive: boolean,
+    deltaSeconds: number,
+  ): void {
+    const yawAxis =
+      zoomModifierActive && Math.abs(axisX) > this.controllerAxisDeadzone
+        ? axisX
+        : 0;
+    const pitchAxis =
+      zoomModifierActive && Math.abs(axisY) > this.controllerAxisDeadzone
+        ? axisY
+        : 0;
+    if (yawAxis === 0 && pitchAxis === 0) {
+      this.finishControllerZoomCameraRotation();
+      return;
+    }
+    this.clearCameraYawSnapTarget();
+    if (yawAxis !== 0) {
+      this.cameraYaw = this.wrapAngle(
+        this.cameraYaw +
+          yawAxis * this.controllerCameraRotateRadPerSec * deltaSeconds,
+      );
+    }
+    if (pitchAxis !== 0) {
+      this.cameraPitch = THREE.MathUtils.clamp(
+        this.cameraPitch +
+          pitchAxis * this.controllerCameraRotateRadPerSec * deltaSeconds,
+        this.minCameraPitch,
+        this.maxCameraPitch,
+      );
+    }
+    this.controllerZoomCameraRotationActive = true;
+  }
+
   private handleControllerGameplayInput(
     snapshot: ControllerActionSnapshot,
     deltaSeconds: number,
@@ -40956,21 +41030,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!this.isFpsMode() && zoomModifierActive) {
       const leftZoomAxis =
         Math.abs(leftY) > this.controllerAxisDeadzone ? leftY : 0;
-      const rightZoomAxis =
-        Math.abs(rightY) > this.controllerAxisDeadzone ? rightY : 0;
-      const zoomAxis =
-        Math.abs(leftZoomAxis) >= Math.abs(rightZoomAxis)
-          ? leftZoomAxis
-          : rightZoomAxis;
-      if (zoomAxis !== 0) {
+      if (leftZoomAxis !== 0) {
         this.cameraDistance = THREE.MathUtils.clamp(
           this.cameraDistance +
-            zoomAxis * this.controllerZoomDistancePerSec * deltaSeconds,
+            leftZoomAxis * this.controllerZoomDistancePerSec * deltaSeconds,
           this.minDistance,
           this.maxDistance,
         );
       }
     }
+    this.updateControllerZoomCameraRotation(
+      rightX,
+      rightY,
+      zoomModifierActive,
+      deltaSeconds,
+    );
     if (snapshot.pressed.cancel_or_context) {
       this.openContextActionsFromController();
     }
@@ -41061,25 +41135,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const panSpeed =
         this.controllerCameraPanTilesPerSec *
         (runModifierActive ? this.controllerCameraPanRunSpeedMultiplier : 1);
-      this.isCameraCenteredOnPlayer = false;
-      this.cameraPanX += rightX * panSpeed * deltaSeconds;
-      this.cameraPanY -= rightY * panSpeed * deltaSeconds;
-      this.cameraPanTargetX = this.cameraPanX;
-      this.cameraPanTargetY = this.cameraPanY;
+      this.panThirdPersonCameraByScreenDelta(
+        rightX,
+        rightY,
+        panSpeed * deltaSeconds,
+        -1,
+      );
     }
 
-    const dpadDirectionInput = this.getDirectionInputFromControllerAxes(
-      dpadX,
-      dpadY,
-      this.controllerAxisDeadzone,
-    );
+    const dpadDirectionInput =
+      this.resolveControllerGameplayDirectionInputFromAxes(
+        dpadX,
+        dpadY,
+        this.controllerAxisDeadzone,
+      );
     this.updateControllerDpadMovePreview(dpadDirectionInput, runModifierActive);
 
-    const leftDirectionInput = this.getDirectionInputFromControllerAxes(
-      zoomModifierActive ? 0 : leftX,
-      zoomModifierActive ? 0 : leftY,
-      this.controllerAxisDeadzone,
-    );
+    const leftDirectionInput =
+      this.resolveControllerGameplayDirectionInputFromAxes(
+        zoomModifierActive ? 0 : leftX,
+        zoomModifierActive ? 0 : leftY,
+        this.controllerAxisDeadzone,
+      );
     if (leftDirectionInput) {
       this.controllerLeftStickMovePreviewInput = leftDirectionInput;
       this.setControllerMovePreviewDirection(leftDirectionInput);
@@ -41307,6 +41384,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearControllerDirectionPromptPreview();
       this.clearControllerMovePreview();
       this.clearControllerDialogSliderInteraction();
+      this.finishControllerZoomCameraRotation();
       this.controllerConfirmRearmPending = false;
       this.controllerCancelRearmPending = false;
       this.controllerFpsDirectionPromptUiUntilMs = 0;
@@ -41337,6 +41415,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (this.isControllerUiInputContextActive()) {
+      this.finishControllerZoomCameraRotation();
       this.handleControllerDialogInput(snapshot, deltaSeconds);
       return;
     }
@@ -41344,6 +41423,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.clearControllerDialogDpadRepeat();
     this.clearControllerDialogSliderInteraction();
     this.clearControllerMovePreview();
+    this.finishControllerZoomCameraRotation();
     this.resetControllerVirtualCursor();
   }
 

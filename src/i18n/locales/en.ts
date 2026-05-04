@@ -103,7 +103,7 @@ export const en = {
       zoom_in: {
         label: "Zoom (Hold)",
         description:
-          "Hold, then use left or right stick up/down to zoom in/out.",
+          "Hold, then use left stick up/down to zoom and right stick to rotate the camera.",
       },
       recenter_camera: {
         label: "Recenter Camera",

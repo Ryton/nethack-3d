@@ -110,7 +110,7 @@ export const ptBrOverrides = {
       zoom_in: {
         label: "Zoom (segurar)",
         description:
-          "Segure e use o analógico esquerdo ou direito para cima/baixo para aproximar ou afastar.",
+          "Segure, use o analógico esquerdo para cima/baixo para zoom e o analógico direito para girar a câmera.",
       },
       recenter_camera: {
         label: "Recentralizar câmera",

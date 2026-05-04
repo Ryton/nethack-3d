@@ -105,7 +105,7 @@ export const esOverrides = {
             },
             zoom_in: {
                 label: "Zoom (mantener)",
-                description: "Mant\u00E9n presionado, luego usa el joystick izquierdo o derecho hacia arriba/abajo para acercar/alejar.",
+                description: "Mant\u00E9n presionado, luego usa el joystick izquierdo arriba/abajo para zoom y el joystick derecho para rotar la c\u00E1mara.",
             },
             recenter_camera: {
                 label: "C\u00E1mara reciente",

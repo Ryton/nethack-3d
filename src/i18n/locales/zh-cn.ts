@@ -52,7 +52,7 @@ export const zhCnOverrides = {
       cancel_or_context: { label: "取消 / 上下文", description: "打开上下文操作或取消当前对话框。" },
       action_menu: { label: "操作菜单", description: "打开控制器径向操作菜单。" },
       run_modifier: { label: "跑步修饰键", description: "按住后在移动前发送跑步前缀。" },
-      zoom_in: { label: "缩放（按住）", description: "按住后使用左或右摇杆上下缩放。" },
+      zoom_in: { label: "缩放（按住）", description: "按住后使用左摇杆上下缩放，并用右摇杆旋转镜头。" },
       recenter_camera: { label: "镜头居中", description: "将镜头返回到玩家中心。" },
       toggle_large_minimap: { label: "切换大型小地图", description: "切换超大尺寸小地图。" },
       pause_menu: { label: "暂停菜单", description: "打开或关闭暂停菜单。" },

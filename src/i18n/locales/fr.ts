@@ -112,7 +112,7 @@ export const fr = {
       zoom_in: {
         label: "Zoom (maintenir)",
         description:
-          "Maintenez, puis utilisez le stick gauche ou droit vers le haut/bas pour zoomer ou dezoomer.",
+          "Maintenez, puis utilisez le stick gauche haut/bas pour zoomer et le stick droit pour faire pivoter la camera.",
       },
       recenter_camera: {
         label: "Recentrer la camera",

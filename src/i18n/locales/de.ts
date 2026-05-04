@@ -112,7 +112,7 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
       zoom_in: {
         label: "Zoom (halten)",
         description:
-          "Gedr\u00fcckt halten und dann linken oder rechten Stick hoch/runter zum Rein- oder Rauszoomen verwenden.",
+          "Gedr\u00fcckt halten, dann mit dem linken Stick hoch/runter zoomen und mit dem rechten Stick die Kamera drehen.",
       },
       recenter_camera: {
         label: "Kamera zentrieren",
