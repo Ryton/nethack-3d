@@ -762,6 +762,11 @@ export const ko = {
           label: "실시간 메시지 로그",
           description: "스크롤되는 게임 내 메시지 로그를 표시합니다.",
         },
+        showPersistentMobileMessageLog: {
+          label: "\uc9c0\uc18d \uba54\uc2dc\uc9c0 \ub85c\uadf8 \ud45c\uc2dc",
+          description:
+            "\uac8c\uc784 \uc911 \ucef4\ud329\ud2b8 \ubaa8\ubc14\uc77c \uba54\uc2dc\uc9c0 \ub85c\uadf8\ub97c \uacc4\uc18d \ud45c\uc2dc\ud569\ub2c8\ub2e4. \ub85c\uadf8 \ubc84\ud2bc\uc73c\ub85c \ub354 \ud070 \ub85c\uadf8\ub97c \uc5f4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        },
         liveMessageDisplayTimeMs: {
           label: "실시간 메시지 표시 시간",
           description:
@@ -918,7 +923,7 @@ export const ko = {
         },
         mobile: {
           label: "모바일",
-          description: "모바일 플레이용 터치 조작 설정입니다.",
+          description: "\ubaa8\ubc14\uc77c\uc6a9 \uc778\ud130\ud398\uc774\uc2a4 \ubc0f \uac8c\uc784\ud50c\ub808\uc774 \uc124\uc815\uc785\ub2c8\ub2e4.",
         },
         controls: {
           label: "조작",

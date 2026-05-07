@@ -788,6 +788,11 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "Live-Nachrichtenprotokoll",
           description: "Zeigt das scrollende Nachrichtenprotokoll im Spiel an.",
         },
+        showPersistentMobileMessageLog: {
+          label: "Persistentes Nachrichtenprotokoll anzeigen",
+          description:
+            "H\u00e4lt das kompakte mobile Nachrichtenprotokoll w\u00e4hrend des Spiels sichtbar. Die Log-Schaltfl\u00e4che kann weiterhin das gr\u00f6\u00dfere Protokoll \u00f6ffnen.",
+        },
         liveMessageDisplayTimeMs: {
           label: "Anzeigedauer f\u00fcr Live-Nachrichten",
           description:
@@ -925,7 +930,8 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         mobile: {
           label: "Mobil",
-          description: "Touch-Steuerung f\u00fcr mobiles Spielen.",
+          description:
+            "Mobile-spezifische Einstellungen f\u00fcr Oberfl\u00e4che und Spielablauf.",
         },
         controls: {
           label: "Steuerung",

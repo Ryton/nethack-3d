@@ -621,8 +621,9 @@ canvas {
   font-size: nh3d-scale-font(12px);
   line-height: 1.4;
   box-shadow: var(--nh3d-ui-shadow);
+  pointer-events: auto;
 
-  .nh3d-mobile-log-scroll {
+  .nh3d-message-log-scroll {
     @extend %custom-scrollbar;
     width: 100%;
     height: 100%;
@@ -654,8 +655,52 @@ canvas {
   }
 }
 
-.nh3d-mobile-log-hidden {
-  display: none;
+.nh3d-mobile-log-collapsed {
+  top: auto;
+  height: clamp(
+    calc(54px * var(--nh3d-ui-font-scale, 1)),
+    14vh,
+    calc(96px * var(--nh3d-ui-font-scale, 1))
+  );
+  z-index: 1700;
+  background: rgba(6, 16, 30, 0.82);
+  border-color: rgba(102, 204, 255, 0.42);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.42),
+    inset 0 0 0 1px rgba(102, 204, 255, 0.08);
+  pointer-events: none;
+
+  * {
+    pointer-events: none;
+  }
+
+  .nh3d-message-log-scroll {
+    overflow: hidden;
+    padding: calc(7px * var(--nh3d-ui-font-scale, 1))
+      calc(9px * var(--nh3d-ui-font-scale, 1));
+  }
+
+  .nh3d-mobile-dialog-close {
+    display: none;
+  }
+
+  @media (orientation: landscape) and (pointer: coarse) {
+    right: calc(110px + env(safe-area-inset-right));
+    height: clamp(
+      calc(44px * var(--nh3d-ui-font-scale, 1)),
+      24vh,
+      calc(82px * var(--nh3d-ui-font-scale, 1))
+    );
+  }
+
+  :root.nh3d-force-touch-layout-landscape & {
+    right: calc(110px + env(safe-area-inset-right));
+    height: clamp(
+      calc(44px * var(--nh3d-ui-font-scale, 1)),
+      24vh,
+      calc(82px * var(--nh3d-ui-font-scale, 1))
+    );
+  }
 }
 
 .question-ui {

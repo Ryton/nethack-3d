@@ -791,6 +791,11 @@ export const fr = {
           label: "Journal de messages en direct",
           description: "Affiche le journal de messages defilant en jeu.",
         },
+        showPersistentMobileMessageLog: {
+          label: "Afficher le journal de messages persistant",
+          description:
+            "Garde le journal de messages mobile compact visible pendant le jeu. Le bouton Journal peut toujours ouvrir le grand journal.",
+        },
         liveMessageDisplayTimeMs: {
           label: "Duree d'affichage des messages en direct",
           description:
@@ -950,8 +955,9 @@ export const fr = {
           description: "Parametres d'interface et d'affichage.",
         },
         mobile: {
-          label: "Tactile",
-          description: "Parametres des commandes tactiles pour le jeu mobile.",
+          label: "Mobile",
+          description:
+            "Parametres d'interface et de jeu specifiques au mobile.",
         },
         controls: {
           label: "Commandes",

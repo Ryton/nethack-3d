@@ -2962,6 +2962,7 @@ type ClientOptionToggleKey =
   | "monsterShatter"
   | "monsterShatterBloodBorders"
   | "liveMessageLog"
+  | "showPersistentMobileMessageLog"
   | "showVersionNotificationsOnLaunch"
   | "soundEnabled"
   | "blockAmbientOcclusion"
@@ -4619,6 +4620,23 @@ const clientOptionsConfig: ClientOption[] = [
     ],
   },
   {
+    key: "group-mobile",
+    label: t.clientOptions.config.groupMobileControls,
+    type: "group",
+  },
+  {
+    key: "section-mobile-messages",
+    label: t.clientOptions.config.sectionDisplayMessages,
+    type: "section",
+  },
+  {
+    key: "showPersistentMobileMessageLog",
+    label: t.clientOptions.config.showPersistentMobileMessageLog.label,
+    description:
+      t.clientOptions.config.showPersistentMobileMessageLog.description,
+    type: "boolean",
+  },
+  {
     key: "group-sound",
     label: t.clientOptions.config.groupSound,
     type: "group",
@@ -4789,6 +4807,12 @@ const clientOptionsTabs: ClientOptionsTab[] = [
     label: t.clientOptions.tabs.controls.label,
     description: t.clientOptions.tabs.controls.description,
     groupKey: "group-controls",
+  },
+  {
+    id: "mobile",
+    label: t.clientOptions.tabs.mobile.label,
+    description: t.clientOptions.tabs.mobile.description,
+    groupKey: "group-mobile",
   },
   {
     id: "sound",
@@ -14665,6 +14689,25 @@ export default function App(): JSX.Element {
     );
   };
 
+  const gameMessageLog = clientOptions.liveMessageLog ? (
+    <div
+      className="nh3d-message-log-scroll"
+      data-nh3d-overflow-glow
+      data-nh3d-overflow-glow-host="parent"
+      id="game-log"
+    >
+      {mobileTouchUiVisible && isMobileLogVisible
+        ? renderMobileDialogCloseButton(
+            () => setIsMobileLogVisible(false),
+            t.dialogs.mobileActions.closeMessageLog,
+          )
+        : null}
+      {gameMessages.map((message, index) => (
+        <div key={`${index}-${message}`}>{message}</div>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <>
       <div className="nh3d-canvas-root" ref={canvasRootRef} />
@@ -15561,24 +15604,16 @@ export default function App(): JSX.Element {
       {!isMobileViewport && isDesktopGameRunning ? (
         <div className="top-left-ui with-stats">
           <div id="game-status">{statusText}</div>
-          {clientOptions.liveMessageLog ? (
-            <div className="nh3d-overflow-glow-frame">
-              <div
-                data-nh3d-overflow-glow
-                data-nh3d-overflow-glow-host="parent"
-                id="game-log"
-              >
-                {gameMessages.map((message, index) => (
-                  <div key={`${index}-${message}`}>{message}</div>
-                ))}
-              </div>
-            </div>
+          {gameMessageLog ? (
+            <div className="nh3d-overflow-glow-frame">{gameMessageLog}</div>
           ) : null}
         </div>
-      ) : mobileTouchUiVisible && clientOptions.liveMessageLog ? (
+      ) : mobileTouchUiVisible &&
+        gameMessageLog &&
+        (isMobileLogVisible || clientOptions.showPersistentMobileMessageLog) ? (
         <div
           className={`nh3d-mobile-log nh3d-overflow-glow-frame${
-            isMobileLogVisible ? "" : " nh3d-mobile-log-hidden"
+            isMobileLogVisible ? "" : " nh3d-mobile-log-collapsed"
           }`}
           style={
             {
@@ -15586,20 +15621,7 @@ export default function App(): JSX.Element {
             } as React.CSSProperties
           }
         >
-          <div
-            className="nh3d-mobile-log-scroll"
-            data-nh3d-overflow-glow
-            data-nh3d-overflow-glow-host="parent"
-            id="game-log"
-          >
-            {renderMobileDialogCloseButton(
-              () => setIsMobileLogVisible(false),
-              t.dialogs.mobileActions.closeMessageLog,
-            )}
-            {gameMessages.map((message, index) => (
-              <div key={`${index}-${message}`}>{message}</div>
-            ))}
-          </div>
+          {gameMessageLog}
         </div>
       ) : null}
 
@@ -19768,7 +19790,10 @@ export default function App(): JSX.Element {
             {t.dialogs.mobileActions.inventory}
           </button>
           <button
-            className="nh3d-mobile-bottom-button"
+            aria-expanded={isMobileLogVisible}
+            className={`nh3d-mobile-bottom-button${
+              isMobileLogVisible ? " is-active" : ""
+            }`}
             disabled={!clientOptions.liveMessageLog}
             onClick={() => {
               controller?.dismissFpsCrosshairContextMenu();
@@ -19810,6 +19835,7 @@ export default function App(): JSX.Element {
             {t.dialogs.mobileActions.search}
           </button>
           <button
+            aria-label={`${t.dialogs.mobileActions.menu} / ${t.dialogs.mobileActions.actions}`}
             className={`nh3d-mobile-bottom-button${
               isMobileActionSheetVisible ? " is-active" : ""
             }`}
@@ -19827,6 +19853,8 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
+            {t.dialogs.mobileActions.menu} /
+            <br />
             {t.dialogs.mobileActions.actions}
           </button>
         </div>

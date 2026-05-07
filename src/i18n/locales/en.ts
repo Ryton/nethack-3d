@@ -762,6 +762,11 @@ export const en = {
           label: "Live message log",
           description: "Display the scrolling in-game message log.",
         },
+        showPersistentMobileMessageLog: {
+          label: "Show persistent message log",
+          description:
+            "Keep the compact mobile message log visible during gameplay. The Log button can still open the larger log.",
+        },
         liveMessageDisplayTimeMs: {
           label: "Live message display time",
           description:
@@ -918,7 +923,7 @@ export const en = {
         },
         mobile: {
           label: "Mobile",
-          description: "Touch control settings for mobile gameplay.",
+          description: "Mobile-specific interface and gameplay settings.",
         },
         controls: {
           label: "Controls",

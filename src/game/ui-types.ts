@@ -209,6 +209,7 @@ export type Nh3dClientOptions = {
   monsterShatter: boolean;
   monsterShatterBloodBorders: boolean;
   liveMessageLog: boolean;
+  showPersistentMobileMessageLog: boolean;
   liveMessageDisplayTimeMs: number;
   liveMessageFadeOutTimeMs: number;
   showVersionNotificationsOnLaunch: boolean;
@@ -355,6 +356,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   monsterShatter: true,
   monsterShatterBloodBorders: true,
   liveMessageLog: true,
+  showPersistentMobileMessageLog: false,
   liveMessageDisplayTimeMs: 3000,
   liveMessageFadeOutTimeMs: 520,
   showVersionNotificationsOnLaunch: true,
@@ -1077,6 +1079,10 @@ export function normalizeNh3dClientOptions(
       typeof overrides?.liveMessageLog === "boolean"
         ? overrides.liveMessageLog
         : defaultNh3dClientOptions.liveMessageLog,
+    showPersistentMobileMessageLog:
+      typeof overrides?.showPersistentMobileMessageLog === "boolean"
+        ? overrides.showPersistentMobileMessageLog
+        : defaultNh3dClientOptions.showPersistentMobileMessageLog,
     liveMessageDisplayTimeMs,
     liveMessageFadeOutTimeMs,
     showVersionNotificationsOnLaunch:

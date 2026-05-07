@@ -737,6 +737,11 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "ライブメッセージログ",
           description: "スクロールするゲーム内メッセージログを表示します。",
         },
+        showPersistentMobileMessageLog: {
+          label: "\u56fa\u5b9a\u30e1\u30c3\u30bb\u30fc\u30b8\u30ed\u30b0\u3092\u8868\u793a",
+          description:
+            "\u30b2\u30fc\u30e0\u4e2d\u306f\u30b3\u30f3\u30d1\u30af\u30c8\u306a\u30e2\u30d0\u30a4\u30eb\u30e1\u30c3\u30bb\u30fc\u30b8\u30ed\u30b0\u3092\u8868\u793a\u3057\u305f\u307e\u307e\u306b\u3057\u307e\u3059\u3002\u30ed\u30b0\u30dc\u30bf\u30f3\u304b\u3089\u5927\u304d\u3044\u30ed\u30b0\u3092\u958b\u3051\u307e\u3059\u3002",
+        },
         liveMessageDisplayTimeMs: {
           label: "ライブメッセージ表示時間",
           description:
@@ -867,7 +872,8 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         mobile: {
           label: "モバイル",
-          description: "モバイル操作設定です。",
+          description:
+            "\u30e2\u30d0\u30a4\u30eb\u5411\u3051\u306e\u30a4\u30f3\u30bf\u30fc\u30d5\u30a7\u30fc\u30b9\u3068\u30b2\u30fc\u30e0\u30d7\u30ec\u30a4\u8a2d\u5b9a\u3067\u3059\u3002",
         },
         controls: {
           label: "操作",

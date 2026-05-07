@@ -525,6 +525,11 @@ export const zhCnOverrides = {
           label: "实时消息日志",
           description: "显示滚动的游戏内消息日志。",
         },
+        showPersistentMobileMessageLog: {
+          label: "\u663e\u793a\u5e38\u9a7b\u6d88\u606f\u65e5\u5fd7",
+          description:
+            "\u6e38\u620f\u65f6\u4fdd\u6301\u7d27\u51d1\u7684\u79fb\u52a8\u6d88\u606f\u65e5\u5fd7\u53ef\u89c1\u3002\u201c\u65e5\u5fd7\u201d\u6309\u94ae\u4ecd\u53ef\u6253\u5f00\u66f4\u5927\u7684\u65e5\u5fd7\u3002",
+        },
         liveMessageDisplayTimeMs: {
           label: "实时消息显示时间",
           description: "浮动消息在淡出前保持完全可见的时间。",
@@ -664,7 +669,7 @@ export const zhCnOverrides = {
         },
         mobile: {
           label: "移动端",
-          description: "移动端游戏的触摸控制设置。",
+          description: "\u79fb\u52a8\u7aef\u4e13\u7528\u7684\u754c\u9762\u548c\u6e38\u620f\u8bbe\u7f6e\u3002",
         },
         controls: {
           label: "控制",

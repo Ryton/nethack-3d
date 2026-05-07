@@ -784,6 +784,11 @@ export const ptBrOverrides = {
           label: "Registro de mensagens ao vivo",
           description: "Exibe o registro de mensagens rolável dentro do jogo.",
         },
+        showPersistentMobileMessageLog: {
+          label: "Mostrar registro de mensagens persistente",
+          description:
+            "Mantem o registro compacto de mensagens no mobile visivel durante o jogo. O botao Registro ainda pode abrir o registro maior.",
+        },
         liveMessageDisplayTimeMs: {
           label: "Tempo de exibição das mensagens ao vivo",
           description:
@@ -944,7 +949,8 @@ export const ptBrOverrides = {
         },
         mobile: {
           label: "Celular",
-          description: "Configurações de toque para jogar no celular.",
+          description:
+            "Configuracoes de interface e jogabilidade especificas para celular.",
         },
         controls: {
           label: "Controles",

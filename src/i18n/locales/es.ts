@@ -724,6 +724,10 @@ export const esOverrides = {
                     label: "Registro de mensajes en vivo",
                     description: "Muestra el registro de mensajes desplazable en el juego.",
                 },
+                showPersistentMobileMessageLog: {
+                    label: "Mostrar registro de mensajes persistente",
+                    description: "Mantiene visible el registro de mensajes m\u00F3vil compacto durante la partida. El bot\u00F3n Registro a\u00FAn puede abrir el registro m\u00E1s grande.",
+                },
                 liveMessageDisplayTimeMs: {
                     label: "Tiempo de visualizaci\u00F3n de mensajes en vivo",
                     description: "Hora en que un mensaje flotante permanece completamente visible antes de desaparecer.",
@@ -863,7 +867,7 @@ export const esOverrides = {
                 },
                 mobile: {
                     label: "M\u00F3vil",
-                    description: "Configuraci\u00F3n de control t\u00E1ctil para juegos m\u00F3viles.",
+                    description: "Configuraci\u00F3n de interfaz y juego espec\u00EDfica para m\u00F3viles.",
                 },
                 controls: {
                     label: "Controles",

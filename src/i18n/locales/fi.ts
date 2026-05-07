@@ -783,6 +783,11 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "Live-viestiloki",
           description: "Näytä vierivä pelinsisäinen viestiloki.",
         },
+        showPersistentMobileMessageLog: {
+          label: "N\u00e4yt\u00e4 pysyv\u00e4 viestiloki",
+          description:
+            "Pid\u00e4 kompakti mobiiliviestiloki n\u00e4kyviss\u00e4 pelaamisen aikana. Loki-painike voi silti avata suuremman lokin.",
+        },
         liveMessageDisplayTimeMs: {
           label: "Live-viestin näyttöaika",
           description:
@@ -915,7 +920,8 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         mobile: {
           label: "Mobiili",
-          description: "Kosketusohjauksen asetukset mobiilipelaamiseen.",
+          description:
+            "Mobiilikohtaiset käyttöliittymän ja pelaamisen asetukset.",
         },
         controls: {
           label: "Ohjaimet",
