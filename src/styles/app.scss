@@ -8126,6 +8126,76 @@ button.nh3d-technique-row {
 
 .nh3d-wizard-commands-sections {
   max-height: min(46vh, 360px);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.nh3d-wizard-commands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nh3d-wizard-command-button {
+  min-height: 54px;
+  border: 1px solid var(--nh3d-ui-button-border);
+  border-radius: 6px;
+  background: var(--nh3d-ui-button-bg);
+  color: var(--nh3d-ui-text);
+  font-family: "Courier New", monospace;
+  padding: 7px 9px;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    background: var(--nh3d-ui-button-bg-hover);
+    border-color: var(--nh3d-ui-border-strong);
+    box-shadow: 0 0 0 1px rgba(102, 204, 255, 0.35);
+  }
+
+  &:active {
+    border-color: var(--nh3d-ui-border-strong);
+    box-shadow: 0 0 0 1px rgba(102, 204, 255, 0.6);
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: 2px solid var(--nh3d-ui-accent);
+    outline-offset: 1px;
+    background: var(--nh3d-ui-button-bg-hover);
+    border-color: var(--nh3d-ui-border-strong);
+    box-shadow: 0 0 0 1px rgba(102, 204, 255, 0.55);
+  }
+}
+
+.nh3d-wizard-command-name,
+.nh3d-wizard-command-description {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nh3d-wizard-command-name {
+  color: var(--nh3d-ui-accent-soft);
+  font-size: nh3d-scale-font(13px);
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.nh3d-wizard-command-raw {
+  color: var(--nh3d-ui-text-muted);
+  font-weight: normal;
+}
+
+.nh3d-wizard-command-description {
+  color: var(--nh3d-ui-text-muted);
+  font-size: nh3d-scale-font(11px);
+  line-height: 1.25;
+  margin-top: 3px;
 }
 
 .nh3d-mobile-actions-sheet {

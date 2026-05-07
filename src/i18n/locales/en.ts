@@ -1347,6 +1347,101 @@ export const en = {
         close: "Close",
         wizardCommands: "Wizard Commands",
         wizard: "Wizard",
+        wizardCommandFallbackDescription: "Run this wizard-only debug command.",
+        wizardCommandDetails: {
+          levelchange: {
+            name: "Level change",
+            description: "Set the hero's experience level.",
+          },
+          lightsources: {
+            name: "Light sources",
+            description: "Show mobile light sources.",
+          },
+          migratemons: {
+            name: "Migrating monsters",
+            description: "Show monsters moving between levels.",
+          },
+          panic: {
+            name: "Panic test",
+            description: "Test panic handling and end this game.",
+          },
+          polyself: {
+            name: "Polymorph self",
+            description: "Change the hero's current form.",
+          },
+          seenv: {
+            name: "Seen vectors",
+            description: "Show the seen-vector debug map.",
+          },
+          stats: {
+            name: "Memory statistics",
+            description: "Show runtime memory statistics.",
+          },
+          timeout: {
+            name: "Timeout queue",
+            description: "Show timed effects and intrinsics.",
+          },
+          vanquished: {
+            name: "Vanquished monsters",
+            description: "Show dead monster counts.",
+          },
+          vision: {
+            name: "Vision array",
+            description: "Show the current vision array.",
+          },
+          wizbury: {
+            name: "Bury nearby objects",
+            description: "Bury ground objects in a 3x3 area.",
+          },
+          wizdetect: {
+            name: "Detect hidden things",
+            description: "Reveal hidden things near the hero.",
+          },
+          wizgenesis: {
+            name: "Create monster",
+            description: "Create a monster by name or class.",
+          },
+          wizidentify: {
+            name: "Identify inventory",
+            description: "Identify every item in inventory.",
+          },
+          wizintrinsic: {
+            name: "Set intrinsics",
+            description: "Adjust selected timed intrinsics.",
+          },
+          wizlevelport: {
+            name: "Level teleport",
+            description: "Teleport to another level or branch.",
+          },
+          wizmakemap: {
+            name: "Recreate level",
+            description: "Generate the current level again.",
+          },
+          wizmap: {
+            name: "Map level",
+            description: "Reveal the level map and traps.",
+          },
+          wizrumorcheck: {
+            name: "Check rumors",
+            description: "Validate true and false rumor files.",
+          },
+          wizsmell: {
+            name: "Smell monster",
+            description: "Smell a selected monster.",
+          },
+          wizwhere: {
+            name: "Special levels",
+            description: "Show where special levels are placed.",
+          },
+          wizwish: {
+            name: "Wish",
+            description: "Create an item, trap, or terrain.",
+          },
+          wmode: {
+            name: "Wall modes",
+            description: "Show wall-mode debug data.",
+          },
+        },
         repeat: "Repeat",
         character: "Character",
         inventory: "Inventory",

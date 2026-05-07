@@ -2802,6 +2802,10 @@ type ControllerActionWheelEntry = MobileActionEntry & {
   labelXPercent: number;
   labelYPercent: number;
 };
+type WizardCommandCopy = {
+  name: string;
+  description: string;
+};
 type MobileActionSheetMode = "quick" | "extended";
 type InventoryContextAction = {
   id: string;
@@ -5386,6 +5390,21 @@ const wizardExtendedCommandNameSet = new Set([
 const fallbackWizardExtendedCommandNames = Array.from(
   wizardExtendedCommandNameSet,
 ).sort((left, right) => left.localeCompare(right));
+
+function getWizardCommandCopy(command: string): WizardCommandCopy {
+  const normalized = String(command || "").trim().toLowerCase();
+  const copy =
+    t.dialogs.mobileActions.wizardCommandDetails[
+      normalized as keyof typeof t.dialogs.mobileActions.wizardCommandDetails
+    ];
+  if (copy) {
+    return copy;
+  }
+  return {
+    name: command,
+    description: t.dialogs.mobileActions.wizardCommandFallbackDescription,
+  };
+}
 
 function isWizardExtendedCommandName(commandName: string): boolean {
   const normalized = String(commandName || "")
@@ -19680,19 +19699,39 @@ export default function App(): JSX.Element {
               className="nh3d-mobile-actions-sections nh3d-wizard-commands-sections"
               data-nh3d-overflow-glow
               data-nh3d-overflow-glow-host="parent"
+              onTouchMove={(event) => {
+                event.stopPropagation();
+              }}
+              onWheel={(event) => {
+                event.stopPropagation();
+              }}
             >
               <div className="nh3d-mobile-actions-section">
-                <div className="nh3d-mobile-actions-grid is-extended">
-                  {wizardExtendedCommandNames.map((command) => (
-                    <button
-                      className="nh3d-mobile-actions-button"
-                      key={`wizard-${command}`}
-                      onClick={() => runWizardExtendedCommand(command)}
-                      type="button"
-                    >
-                      {command}
-                    </button>
-                  ))}
+                <div className="nh3d-wizard-commands-list">
+                  {wizardExtendedCommandNames.map((command) => {
+                    const commandCopy = getWizardCommandCopy(command);
+                    const rawExtendedCommand = `#${command}`;
+                    return (
+                      <button
+                        aria-label={`${commandCopy.name} (${rawExtendedCommand}): ${commandCopy.description}`}
+                        className="nh3d-wizard-command-button"
+                        key={`wizard-${command}`}
+                        onClick={() => runWizardExtendedCommand(command)}
+                        type="button"
+                      >
+                        <span className="nh3d-wizard-command-name">
+                          {commandCopy.name}
+                          <span className="nh3d-wizard-command-raw">
+                            {" "}
+                            ({rawExtendedCommand})
+                          </span>
+                        </span>
+                        <span className="nh3d-wizard-command-description">
+                          {commandCopy.description}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
