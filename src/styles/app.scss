@@ -6,9 +6,13 @@
     --safe-area-inset-top,
     env(safe-area-inset-top, 0px)
   );
-  --nh3d-safe-area-bottom: var(
+  --nh3d-auto-safe-area-bottom: var(
     --safe-area-inset-bottom,
     env(safe-area-inset-bottom, 0px)
+  );
+  --nh3d-safe-area-bottom: var(
+    --nh3d-manual-safe-area-bottom,
+    var(--nh3d-auto-safe-area-bottom)
   );
   --nh3d-mobile-visible-height: 100vh;
   --nh3d-mobile-visible-top-offset: 0px;
@@ -136,6 +140,25 @@
   --nh3d-mobile-bottom-bar-bottom-offset: 0px;
 }
 
+:root.nh3d-manual-mobile-bottom-safe-zone {
+  --nh3d-manual-safe-area-bottom: var(
+    --nh3d-manual-mobile-bottom-safe-zone-vertical,
+    0px
+  );
+  --nh3d-mobile-bottom-bar-bottom-offset: var(
+    --nh3d-manual-safe-area-bottom
+  );
+}
+
+@media (orientation: landscape) {
+  :root.nh3d-manual-mobile-bottom-safe-zone {
+    --nh3d-manual-safe-area-bottom: var(
+      --nh3d-manual-mobile-bottom-safe-zone-horizontal,
+      0px
+    );
+  }
+}
+
 :root.nh3d-disable-animated-transitions,
 :root.nh3d-disable-animated-transitions *,
 :root.nh3d-disable-animated-transitions *::before,
@@ -149,7 +172,7 @@
 @media (orientation: landscape) and (pointer: coarse) {
   :root {
     --nh3d-mobile-bottom-bar-bottom-offset: calc(
-      8px + env(safe-area-inset-bottom)
+      8px + var(--nh3d-safe-area-bottom)
     );
     --nh3d-mobile-bottom-bar-clearance: 0px;
   }
@@ -157,7 +180,7 @@
 
 :root.nh3d-force-touch-layout-landscape {
   --nh3d-mobile-bottom-bar-bottom-offset: calc(
-    8px + env(safe-area-inset-bottom)
+    8px + var(--nh3d-safe-area-bottom)
   );
   --nh3d-mobile-bottom-bar-clearance: 0px;
   --nh3d-mobile-actions-content-height: min(52vh, 316px);
@@ -621,8 +644,9 @@ canvas {
   font-size: nh3d-scale-font(12px);
   line-height: 1.4;
   box-shadow: var(--nh3d-ui-shadow);
+  pointer-events: auto;
 
-  .nh3d-mobile-log-scroll {
+  .nh3d-message-log-scroll {
     @extend %custom-scrollbar;
     width: 100%;
     height: 100%;
@@ -654,8 +678,52 @@ canvas {
   }
 }
 
-.nh3d-mobile-log-hidden {
-  display: none;
+.nh3d-mobile-log-collapsed {
+  top: auto;
+  height: clamp(
+    calc(54px * var(--nh3d-ui-font-scale, 1)),
+    14vh,
+    calc(96px * var(--nh3d-ui-font-scale, 1))
+  );
+  z-index: 1700;
+  background: rgba(6, 16, 30, 0.82);
+  border-color: rgba(102, 204, 255, 0.42);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.42),
+    inset 0 0 0 1px rgba(102, 204, 255, 0.08);
+  pointer-events: none;
+
+  * {
+    pointer-events: none;
+  }
+
+  .nh3d-message-log-scroll {
+    overflow: hidden;
+    padding: calc(7px * var(--nh3d-ui-font-scale, 1))
+      calc(9px * var(--nh3d-ui-font-scale, 1));
+  }
+
+  .nh3d-mobile-dialog-close {
+    display: none;
+  }
+
+  @media (orientation: landscape) and (pointer: coarse) {
+    right: calc(110px + env(safe-area-inset-right));
+    height: clamp(
+      calc(44px * var(--nh3d-ui-font-scale, 1)),
+      24vh,
+      calc(82px * var(--nh3d-ui-font-scale, 1))
+    );
+  }
+
+  :root.nh3d-force-touch-layout-landscape & {
+    right: calc(110px + env(safe-area-inset-right));
+    height: clamp(
+      calc(44px * var(--nh3d-ui-font-scale, 1)),
+      24vh,
+      calc(82px * var(--nh3d-ui-font-scale, 1))
+    );
+  }
 }
 
 .question-ui {
@@ -1672,7 +1740,7 @@ canvas {
       max-height: var(--nh3d-modal-safe-max-height, 80vh);
 
       .nh3d-inventory-items {
-        padding-bottom: env(safe-area-inset-bottom, 0px);
+        padding-bottom: var(--nh3d-safe-area-bottom);
       }
     }
   }
@@ -7788,7 +7856,7 @@ button.nh3d-technique-row {
 .nh3d-desktop-bottom-actions {
   position: fixed;
   left: calc(10px + env(safe-area-inset-left));
-  bottom: calc(10px + env(safe-area-inset-bottom));
+  bottom: calc(10px + var(--nh3d-safe-area-bottom));
   z-index: 1900;
   display: flex;
   flex-direction: column;
@@ -7865,7 +7933,7 @@ button.nh3d-technique-row {
     pointer-events: none;
   }
 
-  .nh3d-mobile-browser-mode & {
+  :root.nh3d-mobile-browser-mode:not(.nh3d-manual-mobile-bottom-safe-zone) & {
     bottom: 0;
 
     &::after {
@@ -7916,6 +7984,47 @@ button.nh3d-technique-row {
   }
 }
 
+.nh3d-mobile-safe-zone-preview {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3600;
+  height: max(2px, var(--nh3d-mobile-safe-zone-preview-height, 0px));
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 3px solid #ffd23f;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 210, 63, 0.34) 0,
+      rgba(255, 210, 63, 0.34) 10px,
+      rgba(255, 106, 0, 0.42) 10px,
+      rgba(255, 106, 0, 0.42) 20px
+    ),
+    rgba(40, 20, 0, 0.3);
+  box-shadow:
+    0 -2px 0 rgba(255, 255, 255, 0.55) inset,
+    0 -12px 30px rgba(255, 152, 0, 0.32);
+
+  span {
+    max-width: calc(100vw - 24px);
+    border: 1px solid rgba(40, 20, 0, 0.45);
+    border-radius: 6px;
+    background: rgba(18, 10, 0, 0.86);
+    color: #fff7c2;
+    font-family: "Courier New", monospace;
+    font-size: nh3d-scale-font(13px);
+    font-weight: bold;
+    line-height: 1.2;
+    padding: 3px 8px;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  }
+}
+
 .nh3d-mobile-bottom-button {
   flex: 1 1 0;
   min-height: 38px;
@@ -7961,7 +8070,7 @@ button.nh3d-technique-row {
 .nh3d-mobile-repeat-button {
   position: fixed;
   right: calc(8px + env(safe-area-inset-right));
-  bottom: calc(58px + env(safe-area-inset-bottom));
+  bottom: calc(58px + var(--nh3d-safe-area-bottom));
   z-index: 1905;
   min-height: 38px;
   min-width: 92px;
@@ -7989,13 +8098,13 @@ button.nh3d-technique-row {
 
   @media (orientation: landscape) and (pointer: coarse) {
     right: calc(110px + env(safe-area-inset-right));
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(8px + var(--nh3d-safe-area-bottom));
     min-width: 82px;
   }
 
   :root.nh3d-force-touch-layout-landscape & {
     right: calc(110px + env(safe-area-inset-right));
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(8px + var(--nh3d-safe-area-bottom));
     min-width: 82px;
   }
 }
@@ -8014,7 +8123,7 @@ button.nh3d-technique-row {
   font-size: nh3d-scale-font(13px);
   font-weight: bold;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
-  bottom: calc(58px + env(safe-area-inset-bottom));
+  bottom: calc(58px + var(--nh3d-safe-area-bottom));
 
   &.is-active,
   &:active {
@@ -8031,12 +8140,12 @@ button.nh3d-technique-row {
   }
 
   @media (orientation: landscape) and (pointer: coarse) {
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(8px + var(--nh3d-safe-area-bottom));
     min-width: 82px;
   }
 
   :root.nh3d-force-touch-layout-landscape & {
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    bottom: calc(8px + var(--nh3d-safe-area-bottom));
     min-width: 82px;
   }
 }
@@ -8059,28 +8168,98 @@ button.nh3d-technique-row {
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55);
 
   &.is-mobile {
-    bottom: calc(102px + env(safe-area-inset-bottom));
+    bottom: calc(102px + var(--nh3d-safe-area-bottom));
   }
 
   &.is-desktop {
-    bottom: calc(58px + env(safe-area-inset-bottom));
+    bottom: calc(58px + var(--nh3d-safe-area-bottom));
   }
 
   @media (orientation: landscape) and (pointer: coarse) {
     &.is-mobile {
-      bottom: calc(52px + env(safe-area-inset-bottom));
+      bottom: calc(52px + var(--nh3d-safe-area-bottom));
       max-height: min(66vh, 408px);
     }
   }
 
   :root.nh3d-force-touch-layout-landscape &.is-mobile {
-    bottom: calc(52px + env(safe-area-inset-bottom));
+    bottom: calc(52px + var(--nh3d-safe-area-bottom));
     max-height: min(66vh, 408px);
   }
 }
 
 .nh3d-wizard-commands-sections {
   max-height: min(46vh, 360px);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.nh3d-wizard-commands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nh3d-wizard-command-button {
+  min-height: 54px;
+  border: 1px solid var(--nh3d-ui-button-border);
+  border-radius: 6px;
+  background: var(--nh3d-ui-button-bg);
+  color: var(--nh3d-ui-text);
+  font-family: "Courier New", monospace;
+  padding: 7px 9px;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    background: var(--nh3d-ui-button-bg-hover);
+    border-color: var(--nh3d-ui-border-strong);
+    box-shadow: 0 0 0 1px rgba(102, 204, 255, 0.35);
+  }
+
+  &:active {
+    border-color: var(--nh3d-ui-border-strong);
+    box-shadow: 0 0 0 1px rgba(102, 204, 255, 0.6);
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: 2px solid var(--nh3d-ui-accent);
+    outline-offset: 1px;
+    background: var(--nh3d-ui-button-bg-hover);
+    border-color: var(--nh3d-ui-border-strong);
+    box-shadow: 0 0 0 1px rgba(102, 204, 255, 0.55);
+  }
+}
+
+.nh3d-wizard-command-name,
+.nh3d-wizard-command-description {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nh3d-wizard-command-name {
+  color: var(--nh3d-ui-accent-soft);
+  font-size: nh3d-scale-font(13px);
+  font-weight: bold;
+  line-height: 1.2;
+}
+
+.nh3d-wizard-command-raw {
+  color: var(--nh3d-ui-text-muted);
+  font-weight: normal;
+}
+
+.nh3d-wizard-command-description {
+  color: var(--nh3d-ui-text-muted);
+  font-size: nh3d-scale-font(11px);
+  line-height: 1.25;
+  margin-top: 3px;
 }
 
 .nh3d-mobile-actions-sheet {

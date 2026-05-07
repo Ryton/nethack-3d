@@ -33630,7 +33630,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const candidates = [
       document.querySelector(".top-left-ui.with-stats"),
       document.querySelector(".top-left-ui"),
-      document.querySelector(".nh3d-mobile-log:not(.nh3d-mobile-log-hidden)"),
+      document.querySelector(
+        ".nh3d-mobile-log:not(.nh3d-mobile-log-collapsed)",
+      ),
     ];
 
     for (const candidate of candidates) {
@@ -37153,8 +37155,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (document.querySelector(".nh3d-mobile-actions-sheet")) {
       return true;
     }
+    if (document.querySelector(".nh3d-wizard-commands-sheet.is-visible")) {
+      return true;
+    }
     const mobileLog = document.querySelector(".nh3d-mobile-log");
-    if (mobileLog && !mobileLog.classList.contains("nh3d-mobile-log-hidden")) {
+    if (
+      mobileLog &&
+      !mobileLog.classList.contains("nh3d-mobile-log-collapsed")
+    ) {
       return true;
     }
     return false;

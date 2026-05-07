@@ -788,6 +788,28 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "Live-Nachrichtenprotokoll",
           description: "Zeigt das scrollende Nachrichtenprotokoll im Spiel an.",
         },
+        showPersistentMobileMessageLog: {
+          label: "Persistentes Nachrichtenprotokoll anzeigen",
+          description:
+            "H\u00e4lt das kompakte mobile Nachrichtenprotokoll w\u00e4hrend des Spiels sichtbar. Die Log-Schaltfl\u00e4che kann weiterhin das gr\u00f6\u00dfere Protokoll \u00f6ffnen.",
+        },
+        sectionMobileSafeZone: "Untere Sicherheitszone",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "Erkannte untere Sicherheitszone \u00fcberschreiben",
+          description:
+            "Verwendet einen manuellen unteren Abstand, wenn Android-Handhelds den sicheren Bereich falsch melden.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "Untere Sicherheitszone im Hochformat",
+          description:
+            "Manuelle untere Sicherheitszone f\u00fcr das mobile Hochformat.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "Untere Sicherheitszone im Querformat",
+          description:
+            "Manuelle untere Sicherheitszone f\u00fcr das mobile Querformat.",
+        },
+        manualMobileBottomSafeZonePreview: "Untere Sicherheitszone",
         liveMessageDisplayTimeMs: {
           label: "Anzeigedauer f\u00fcr Live-Nachrichten",
           description:
@@ -925,7 +947,8 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         mobile: {
           label: "Mobil",
-          description: "Touch-Steuerung f\u00fcr mobiles Spielen.",
+          description:
+            "Mobile-spezifische Einstellungen f\u00fcr Oberfl\u00e4che und Spielablauf.",
         },
         controls: {
           label: "Steuerung",
@@ -1378,6 +1401,33 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
         close: "Schlie\u00dfen",
         wizardCommands: "Zauberer-Befehle",
         wizard: "Zauberer",
+        wizardCommandFallbackDescription:
+          "F\u00fchrt diesen reinen Wizard-Debugbefehl aus.",
+        wizardCommandDetails: {
+          levelchange: { name: "Stufe \u00e4ndern", description: "Setzt die Erfahrungsstufe des Helden." },
+          lightsources: { name: "Lichtquellen", description: "Zeigt bewegliche Lichtquellen." },
+          migratemons: { name: "Wandernde Monster", description: "Zeigt Monster, die zwischen Ebenen wechseln." },
+          panic: { name: "Panic-Test", description: "Testet Panic-Behandlung und beendet dieses Spiel." },
+          polyself: { name: "Selbst polymorphen", description: "Ver\u00e4ndert die aktuelle Gestalt des Helden." },
+          seenv: { name: "Sichtvektoren", description: "Zeigt die Debug-Karte der Sichtvektoren." },
+          stats: { name: "Speicherstatistik", description: "Zeigt Laufzeit-Speicherstatistiken." },
+          timeout: { name: "Timeout-Warteschlange", description: "Zeigt zeitgesteuerte Effekte und Intrinsics." },
+          vanquished: { name: "Besiegte Monster", description: "Zeigt Z\u00e4hlungen get\u00f6teter Monster." },
+          vision: { name: "Sicht-Array", description: "Zeigt das aktuelle Sicht-Array." },
+          wizbury: { name: "Objekte vergraben", description: "Vergr\u00e4bt Bodenobjekte in einem 3x3-Bereich." },
+          wizdetect: { name: "Verborgenes finden", description: "Enth\u00fcllt verborgene Dinge nahe dem Helden." },
+          wizgenesis: { name: "Monster erzeugen", description: "Erzeugt ein Monster nach Name oder Klasse." },
+          wizidentify: { name: "Inventar identifizieren", description: "Identifiziert alle Gegenst\u00e4nde im Inventar." },
+          wizintrinsic: { name: "Intrinsics setzen", description: "Passt ausgew\u00e4hlte zeitgesteuerte Intrinsics an." },
+          wizlevelport: { name: "Ebenen-Teleport", description: "Teleportiert auf eine andere Ebene oder in einen Zweig." },
+          wizmakemap: { name: "Ebene neu erstellen", description: "Generiert die aktuelle Ebene erneut." },
+          wizmap: { name: "Ebene kartieren", description: "Enth\u00fcllt Ebenenkarte und Fallen." },
+          wizrumorcheck: { name: "Ger\u00fcchte pr\u00fcfen", description: "Validiert wahre und falsche Ger\u00fcchtedateien." },
+          wizsmell: { name: "Monster riechen", description: "Riecht ein ausgew\u00e4hltes Monster." },
+          wizwhere: { name: "Spezialebenen", description: "Zeigt die Platzierung aller Spezialebenen." },
+          wizwish: { name: "Wunsch", description: "Erzeugt Gegenstand, Falle oder Terrain." },
+          wmode: { name: "Wandmodi", description: "Zeigt Debug-Daten zu Wandmodi." },
+        },
         repeat: "Wiederholen",
         character: "Charakter",
         inventory: "Inventar",

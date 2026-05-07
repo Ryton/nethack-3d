@@ -791,6 +791,28 @@ export const fr = {
           label: "Journal de messages en direct",
           description: "Affiche le journal de messages defilant en jeu.",
         },
+        showPersistentMobileMessageLog: {
+          label: "Afficher le journal de messages persistant",
+          description:
+            "Garde le journal de messages mobile compact visible pendant le jeu. Le bouton Journal peut toujours ouvrir le grand journal.",
+        },
+        sectionMobileSafeZone: "Zone sure inferieure",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "Remplacer la zone sure inferieure detectee",
+          description:
+            "Utilise une marge inferieure manuelle lorsque les consoles Android portables signalent mal la zone sure.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "Zone sure inferieure verticale",
+          description:
+            "Zone sure inferieure manuelle pour la disposition mobile verticale.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "Zone sure inferieure horizontale",
+          description:
+            "Zone sure inferieure manuelle pour la disposition mobile horizontale.",
+        },
+        manualMobileBottomSafeZonePreview: "Zone sure inferieure",
         liveMessageDisplayTimeMs: {
           label: "Duree d'affichage des messages en direct",
           description:
@@ -950,8 +972,9 @@ export const fr = {
           description: "Parametres d'interface et d'affichage.",
         },
         mobile: {
-          label: "Tactile",
-          description: "Parametres des commandes tactiles pour le jeu mobile.",
+          label: "Mobile",
+          description:
+            "Parametres d'interface et de jeu specifiques au mobile.",
         },
         controls: {
           label: "Commandes",
@@ -1383,6 +1406,33 @@ export const fr = {
         close: "Fermer",
         wizardCommands: "Commandes assistant",
         wizard: "Assistant",
+        wizardCommandFallbackDescription:
+          "Execute cette commande de debogage reservee au mode wizard.",
+        wizardCommandDetails: {
+          levelchange: { name: "Changer le niveau", description: "Definit le niveau d'experience du heros." },
+          lightsources: { name: "Sources de lumiere", description: "Affiche les sources de lumiere mobiles." },
+          migratemons: { name: "Monstres migrateurs", description: "Affiche les monstres qui changent de niveau." },
+          panic: { name: "Test de panique", description: "Teste la panique et termine cette partie." },
+          polyself: { name: "Polymorphie", description: "Change la forme actuelle du heros." },
+          seenv: { name: "Vecteurs vus", description: "Affiche la carte de debogage des vecteurs vus." },
+          stats: { name: "Statistiques memoire", description: "Affiche les statistiques memoire d'execution." },
+          timeout: { name: "File des delais", description: "Affiche effets temporises et intrinseques." },
+          vanquished: { name: "Monstres vaincus", description: "Affiche le compte des monstres morts." },
+          vision: { name: "Tableau de vision", description: "Affiche le tableau de vision actuel." },
+          wizbury: { name: "Enterrer objets proches", description: "Enterre les objets au sol dans une zone 3x3." },
+          wizdetect: { name: "Detecter le cache", description: "Revele les choses cachees pres du heros." },
+          wizgenesis: { name: "Creer monstre", description: "Cree un monstre par nom ou classe." },
+          wizidentify: { name: "Identifier inventaire", description: "Identifie tous les objets de l'inventaire." },
+          wizintrinsic: { name: "Regler intrinseques", description: "Ajuste les intrinseques temporises choisis." },
+          wizlevelport: { name: "Teleport de niveau", description: "Teleporte vers un autre niveau ou branche." },
+          wizmakemap: { name: "Recreer le niveau", description: "Genere a nouveau le niveau actuel." },
+          wizmap: { name: "Cartographier", description: "Revele la carte du niveau et les pieges." },
+          wizrumorcheck: { name: "Verifier rumeurs", description: "Valide les fichiers de vraies et fausses rumeurs." },
+          wizsmell: { name: "Sentir monstre", description: "Sent un monstre selectionne." },
+          wizwhere: { name: "Niveaux speciaux", description: "Affiche l'emplacement des niveaux speciaux." },
+          wizwish: { name: "Souhait", description: "Cree objet, piege ou terrain." },
+          wmode: { name: "Modes des murs", description: "Affiche les donnees debug des murs." },
+        },
         repeat: "Repeter",
         character: "Personnage",
         inventory: "Inventaire",

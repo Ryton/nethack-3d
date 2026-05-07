@@ -209,6 +209,10 @@ export type Nh3dClientOptions = {
   monsterShatter: boolean;
   monsterShatterBloodBorders: boolean;
   liveMessageLog: boolean;
+  showPersistentMobileMessageLog: boolean;
+  manualMobileBottomSafeZoneEnabled: boolean;
+  manualMobileBottomSafeZoneVerticalPx: number;
+  manualMobileBottomSafeZoneHorizontalPx: number;
   liveMessageDisplayTimeMs: number;
   liveMessageFadeOutTimeMs: number;
   showVersionNotificationsOnLaunch: boolean;
@@ -355,6 +359,10 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   monsterShatter: true,
   monsterShatterBloodBorders: true,
   liveMessageLog: true,
+  showPersistentMobileMessageLog: false,
+  manualMobileBottomSafeZoneEnabled: false,
+  manualMobileBottomSafeZoneVerticalPx: 0,
+  manualMobileBottomSafeZoneHorizontalPx: 0,
   liveMessageDisplayTimeMs: 3000,
   liveMessageFadeOutTimeMs: 520,
   showVersionNotificationsOnLaunch: true,
@@ -722,6 +730,22 @@ export function normalizeNh3dClientOptions(
   const liveMessageFadeOutTimeMs = Math.round(
     Math.max(120, Math.min(4000, rawLiveMessageFadeOutTimeMs)),
   );
+  const rawManualMobileBottomSafeZoneVerticalPx =
+    typeof overrides?.manualMobileBottomSafeZoneVerticalPx === "number" &&
+    Number.isFinite(overrides.manualMobileBottomSafeZoneVerticalPx)
+      ? overrides.manualMobileBottomSafeZoneVerticalPx
+      : defaultNh3dClientOptions.manualMobileBottomSafeZoneVerticalPx;
+  const manualMobileBottomSafeZoneVerticalPx = Math.round(
+    Math.max(0, Math.min(100, rawManualMobileBottomSafeZoneVerticalPx)),
+  );
+  const rawManualMobileBottomSafeZoneHorizontalPx =
+    typeof overrides?.manualMobileBottomSafeZoneHorizontalPx === "number" &&
+    Number.isFinite(overrides.manualMobileBottomSafeZoneHorizontalPx)
+      ? overrides.manualMobileBottomSafeZoneHorizontalPx
+      : defaultNh3dClientOptions.manualMobileBottomSafeZoneHorizontalPx;
+  const manualMobileBottomSafeZoneHorizontalPx = Math.round(
+    Math.max(0, Math.min(100, rawManualMobileBottomSafeZoneHorizontalPx)),
+  );
   const rawMinimapScale =
     typeof overrides?.minimapScale === "number" &&
     Number.isFinite(overrides.minimapScale)
@@ -1077,6 +1101,16 @@ export function normalizeNh3dClientOptions(
       typeof overrides?.liveMessageLog === "boolean"
         ? overrides.liveMessageLog
         : defaultNh3dClientOptions.liveMessageLog,
+    showPersistentMobileMessageLog:
+      typeof overrides?.showPersistentMobileMessageLog === "boolean"
+        ? overrides.showPersistentMobileMessageLog
+        : defaultNh3dClientOptions.showPersistentMobileMessageLog,
+    manualMobileBottomSafeZoneEnabled:
+      typeof overrides?.manualMobileBottomSafeZoneEnabled === "boolean"
+        ? overrides.manualMobileBottomSafeZoneEnabled
+        : defaultNh3dClientOptions.manualMobileBottomSafeZoneEnabled,
+    manualMobileBottomSafeZoneVerticalPx,
+    manualMobileBottomSafeZoneHorizontalPx,
     liveMessageDisplayTimeMs,
     liveMessageFadeOutTimeMs,
     showVersionNotificationsOnLaunch:

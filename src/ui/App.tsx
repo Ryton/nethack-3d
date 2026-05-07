@@ -2802,6 +2802,10 @@ type ControllerActionWheelEntry = MobileActionEntry & {
   labelXPercent: number;
   labelYPercent: number;
 };
+type WizardCommandCopy = {
+  name: string;
+  description: string;
+};
 type MobileActionSheetMode = "quick" | "extended";
 type InventoryContextAction = {
   id: string;
@@ -2881,7 +2885,9 @@ type ClientOptionSlider = {
     | "fpsLookSensitivityY"
     | "bloodStrength"
     | "liveMessageDisplayTimeMs"
-    | "liveMessageFadeOutTimeMs";
+    | "liveMessageFadeOutTimeMs"
+    | "manualMobileBottomSafeZoneVerticalPx"
+    | "manualMobileBottomSafeZoneHorizontalPx";
   label: string;
   description: string;
   type: "slider";
@@ -2962,6 +2968,8 @@ type ClientOptionToggleKey =
   | "monsterShatter"
   | "monsterShatterBloodBorders"
   | "liveMessageLog"
+  | "showPersistentMobileMessageLog"
+  | "manualMobileBottomSafeZoneEnabled"
   | "showVersionNotificationsOnLaunch"
   | "soundEnabled"
   | "blockAmbientOcclusion"
@@ -4619,6 +4627,55 @@ const clientOptionsConfig: ClientOption[] = [
     ],
   },
   {
+    key: "group-mobile",
+    label: t.clientOptions.config.groupMobileControls,
+    type: "group",
+  },
+  {
+    key: "section-mobile-messages",
+    label: t.clientOptions.config.sectionDisplayMessages,
+    type: "section",
+  },
+  {
+    key: "showPersistentMobileMessageLog",
+    label: t.clientOptions.config.showPersistentMobileMessageLog.label,
+    description:
+      t.clientOptions.config.showPersistentMobileMessageLog.description,
+    type: "boolean",
+  },
+  {
+    key: "section-mobile-safe-zone",
+    label: t.clientOptions.config.sectionMobileSafeZone,
+    type: "section",
+  },
+  {
+    key: "manualMobileBottomSafeZoneEnabled",
+    label: t.clientOptions.config.manualMobileBottomSafeZoneEnabled.label,
+    description:
+      t.clientOptions.config.manualMobileBottomSafeZoneEnabled.description,
+    type: "boolean",
+  },
+  {
+    key: "manualMobileBottomSafeZoneVerticalPx",
+    label: t.clientOptions.config.manualMobileBottomSafeZoneVerticalPx.label,
+    description:
+      t.clientOptions.config.manualMobileBottomSafeZoneVerticalPx.description,
+    type: "slider",
+    min: 0,
+    max: 100,
+    step: 1,
+  },
+  {
+    key: "manualMobileBottomSafeZoneHorizontalPx",
+    label: t.clientOptions.config.manualMobileBottomSafeZoneHorizontalPx.label,
+    description:
+      t.clientOptions.config.manualMobileBottomSafeZoneHorizontalPx.description,
+    type: "slider",
+    min: 0,
+    max: 100,
+    step: 1,
+  },
+  {
     key: "group-sound",
     label: t.clientOptions.config.groupSound,
     type: "group",
@@ -4789,6 +4846,12 @@ const clientOptionsTabs: ClientOptionsTab[] = [
     label: t.clientOptions.tabs.controls.label,
     description: t.clientOptions.tabs.controls.description,
     groupKey: "group-controls",
+  },
+  {
+    id: "mobile",
+    label: t.clientOptions.tabs.mobile.label,
+    description: t.clientOptions.tabs.mobile.description,
+    groupKey: "group-mobile",
   },
   {
     id: "sound",
@@ -5362,6 +5425,21 @@ const wizardExtendedCommandNameSet = new Set([
 const fallbackWizardExtendedCommandNames = Array.from(
   wizardExtendedCommandNameSet,
 ).sort((left, right) => left.localeCompare(right));
+
+function getWizardCommandCopy(command: string): WizardCommandCopy {
+  const normalized = String(command || "").trim().toLowerCase();
+  const copy =
+    t.dialogs.mobileActions.wizardCommandDetails[
+      normalized as keyof typeof t.dialogs.mobileActions.wizardCommandDetails
+    ];
+  if (copy) {
+    return copy;
+  }
+  return {
+    name: command,
+    description: t.dialogs.mobileActions.wizardCommandFallbackDescription,
+  };
+}
 
 function isWizardExtendedCommandName(commandName: string): boolean {
   const normalized = String(commandName || "")
@@ -6472,6 +6550,9 @@ export default function App(): JSX.Element {
   );
   const [clientOptionsDraft, setClientOptionsDraft] =
     useState<Nh3dClientOptions>(() => initialClientOptions);
+  const [manualSafeZonePreviewHeightPx, setManualSafeZonePreviewHeightPx] =
+    useState<number | null>(null);
+  const manualSafeZonePreviewTimerRef = useRef<number | null>(null);
   const [hasHydratedUserTilesets, setHasHydratedUserTilesets] = useState(false);
   const [isClientOptionsVisible, setIsClientOptionsVisible] = useState(false);
   const [activeClientOptionsTab, setActiveClientOptionsTab] =
@@ -6898,6 +6979,37 @@ export default function App(): JSX.Element {
     clientOptions.liveMessageLogFontScale,
     clientOptions.desktopMessageLogWindowScale,
     clientOptions.minimapScale,
+  ]);
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const root = document.documentElement;
+    root.classList.toggle(
+      "nh3d-manual-mobile-bottom-safe-zone",
+      clientOptions.manualMobileBottomSafeZoneEnabled,
+    );
+    root.style.setProperty(
+      "--nh3d-manual-mobile-bottom-safe-zone-vertical",
+      `${Math.round(clientOptions.manualMobileBottomSafeZoneVerticalPx)}px`,
+    );
+    root.style.setProperty(
+      "--nh3d-manual-mobile-bottom-safe-zone-horizontal",
+      `${Math.round(clientOptions.manualMobileBottomSafeZoneHorizontalPx)}px`,
+    );
+    return () => {
+      root.classList.remove("nh3d-manual-mobile-bottom-safe-zone");
+      root.style.removeProperty(
+        "--nh3d-manual-mobile-bottom-safe-zone-vertical",
+      );
+      root.style.removeProperty(
+        "--nh3d-manual-mobile-bottom-safe-zone-horizontal",
+      );
+    };
+  }, [
+    clientOptions.manualMobileBottomSafeZoneEnabled,
+    clientOptions.manualMobileBottomSafeZoneVerticalPx,
+    clientOptions.manualMobileBottomSafeZoneHorizontalPx,
   ]);
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -11947,6 +12059,32 @@ export default function App(): JSX.Element {
     }));
   };
 
+  const showManualSafeZonePreview = useCallback((rawHeightPx: number): void => {
+    const heightPx = Math.max(0, Math.min(100, Math.round(rawHeightPx)));
+    setManualSafeZonePreviewHeightPx(heightPx);
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (manualSafeZonePreviewTimerRef.current !== null) {
+      window.clearTimeout(manualSafeZonePreviewTimerRef.current);
+    }
+    manualSafeZonePreviewTimerRef.current = window.setTimeout(() => {
+      setManualSafeZonePreviewHeightPx(null);
+      manualSafeZonePreviewTimerRef.current = null;
+    }, 1200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (
+        typeof window !== "undefined" &&
+        manualSafeZonePreviewTimerRef.current !== null
+      ) {
+        window.clearTimeout(manualSafeZonePreviewTimerRef.current);
+      }
+    };
+  }, []);
+
   const closeControllerRemapDialog = useCallback((): void => {
     setControllerRemapListening(null);
     setIsControllerRemapVisible(false);
@@ -12240,13 +12378,20 @@ export default function App(): JSX.Element {
       clamped = Math.max(0.33, Math.min(1.5, rawValue));
     } else if (key === "controllerFpsMoveRepeatMs") {
       clamped = Math.max(80, Math.min(900, rawValue));
+    } else if (
+      key === "manualMobileBottomSafeZoneVerticalPx" ||
+      key === "manualMobileBottomSafeZoneHorizontalPx"
+    ) {
+      clamped = Math.max(0, Math.min(100, rawValue));
     } else {
       clamped = Math.max(120, Math.min(4000, rawValue));
     }
     if (
       key === "controllerFpsMoveRepeatMs" ||
       key === "liveMessageDisplayTimeMs" ||
-      key === "liveMessageFadeOutTimeMs"
+      key === "liveMessageFadeOutTimeMs" ||
+      key === "manualMobileBottomSafeZoneVerticalPx" ||
+      key === "manualMobileBottomSafeZoneHorizontalPx"
     ) {
       updateClientOptionDraft(key, Math.round(clamped));
       return;
@@ -14665,6 +14810,25 @@ export default function App(): JSX.Element {
     );
   };
 
+  const gameMessageLog = clientOptions.liveMessageLog ? (
+    <div
+      className="nh3d-message-log-scroll"
+      data-nh3d-overflow-glow
+      data-nh3d-overflow-glow-host="parent"
+      id="game-log"
+    >
+      {mobileTouchUiVisible && isMobileLogVisible
+        ? renderMobileDialogCloseButton(
+            () => setIsMobileLogVisible(false),
+            t.dialogs.mobileActions.closeMessageLog,
+          )
+        : null}
+      {gameMessages.map((message, index) => (
+        <div key={`${index}-${message}`}>{message}</div>
+      ))}
+    </div>
+  ) : null;
+
   return (
     <>
       <div className="nh3d-canvas-root" ref={canvasRootRef} />
@@ -15561,24 +15725,16 @@ export default function App(): JSX.Element {
       {!isMobileViewport && isDesktopGameRunning ? (
         <div className="top-left-ui with-stats">
           <div id="game-status">{statusText}</div>
-          {clientOptions.liveMessageLog ? (
-            <div className="nh3d-overflow-glow-frame">
-              <div
-                data-nh3d-overflow-glow
-                data-nh3d-overflow-glow-host="parent"
-                id="game-log"
-              >
-                {gameMessages.map((message, index) => (
-                  <div key={`${index}-${message}`}>{message}</div>
-                ))}
-              </div>
-            </div>
+          {gameMessageLog ? (
+            <div className="nh3d-overflow-glow-frame">{gameMessageLog}</div>
           ) : null}
         </div>
-      ) : mobileTouchUiVisible && clientOptions.liveMessageLog ? (
+      ) : mobileTouchUiVisible &&
+        gameMessageLog &&
+        (isMobileLogVisible || clientOptions.showPersistentMobileMessageLog) ? (
         <div
           className={`nh3d-mobile-log nh3d-overflow-glow-frame${
-            isMobileLogVisible ? "" : " nh3d-mobile-log-hidden"
+            isMobileLogVisible ? "" : " nh3d-mobile-log-collapsed"
           }`}
           style={
             {
@@ -15586,20 +15742,7 @@ export default function App(): JSX.Element {
             } as React.CSSProperties
           }
         >
-          <div
-            className="nh3d-mobile-log-scroll"
-            data-nh3d-overflow-glow
-            data-nh3d-overflow-glow-host="parent"
-            id="game-log"
-          >
-            {renderMobileDialogCloseButton(
-              () => setIsMobileLogVisible(false),
-              t.dialogs.mobileActions.closeMessageLog,
-            )}
-            {gameMessages.map((message, index) => (
-              <div key={`${index}-${message}`}>{message}</div>
-            ))}
-          </div>
+          {gameMessageLog}
         </div>
       ) : null}
 
@@ -16360,6 +16503,9 @@ export default function App(): JSX.Element {
                   }
                   if (option.type === "slider") {
                     const sliderValue = clientOptionsDraft[option.key];
+                    const isManualBottomSafeZoneSlider =
+                      option.key === "manualMobileBottomSafeZoneVerticalPx" ||
+                      option.key === "manualMobileBottomSafeZoneHorizontalPx";
                     const sliderDisabledByFpsMode =
                       (option.key === "controllerFpsMoveRepeatMs" ||
                         option.key === "fpsFov" ||
@@ -16373,17 +16519,23 @@ export default function App(): JSX.Element {
                       option.key === "bloodStrength" &&
                       !clientOptionsDraft.bloodMist &&
                       !clientOptionsDraft.bloodGround;
+                    const sliderDisabledByManualSafeZone =
+                      isManualBottomSafeZoneSlider &&
+                      !clientOptionsDraft.manualMobileBottomSafeZoneEnabled;
                     const sliderDisabled =
                       sliderDisabledByFpsMode ||
                       sliderDisabledByController ||
-                      sliderDisabledByBlood;
+                      sliderDisabledByBlood ||
+                      sliderDisabledByManualSafeZone;
                     const sliderLabel =
                       option.key === "bloodStrength"
                         ? `${sliderValue.toFixed(2)}x`
                         : option.key === "gamma"
                         ? `${sliderValue.toFixed(2)}x`
-                        : option.key === "fpsFov"
+                      : option.key === "fpsFov"
                           ? `${Math.round(sliderValue)}\u00b0`
+                          : isManualBottomSafeZoneSlider
+                            ? `${Math.round(sliderValue)}px`
                           : option.key === "fpsLookSensitivityX" ||
                               option.key === "fpsLookSensitivityY"
                             ? `${sliderValue.toFixed(2)}x`
@@ -16418,18 +16570,39 @@ export default function App(): JSX.Element {
                             disabled={sliderDisabled}
                             max={option.max}
                             min={option.min}
-                            onInput={(event) =>
-                              updateClientSliderDraft(
-                                option.key,
-                                Number(event.currentTarget.value),
-                              )
-                            }
-                            onChange={(event) =>
-                              updateClientSliderDraft(
-                                option.key,
-                                Number(event.currentTarget.value),
-                              )
-                            }
+                            onBlur={() => {
+                              if (isManualBottomSafeZoneSlider) {
+                                setManualSafeZonePreviewHeightPx(null);
+                              }
+                            }}
+                            onFocus={() => {
+                              if (isManualBottomSafeZoneSlider) {
+                                showManualSafeZonePreview(sliderValue);
+                              }
+                            }}
+                            onInput={(event) => {
+                              const nextValue = Number(
+                                event.currentTarget.value,
+                              );
+                              updateClientSliderDraft(option.key, nextValue);
+                              if (isManualBottomSafeZoneSlider) {
+                                showManualSafeZonePreview(nextValue);
+                              }
+                            }}
+                            onChange={(event) => {
+                              const nextValue = Number(
+                                event.currentTarget.value,
+                              );
+                              updateClientSliderDraft(option.key, nextValue);
+                              if (isManualBottomSafeZoneSlider) {
+                                showManualSafeZonePreview(nextValue);
+                              }
+                            }}
+                            onPointerDown={() => {
+                              if (isManualBottomSafeZoneSlider) {
+                                showManualSafeZonePreview(sliderValue);
+                              }
+                            }}
                             step={option.step}
                             type="range"
                             value={sliderValue}
@@ -19658,19 +19831,39 @@ export default function App(): JSX.Element {
               className="nh3d-mobile-actions-sections nh3d-wizard-commands-sections"
               data-nh3d-overflow-glow
               data-nh3d-overflow-glow-host="parent"
+              onTouchMove={(event) => {
+                event.stopPropagation();
+              }}
+              onWheel={(event) => {
+                event.stopPropagation();
+              }}
             >
               <div className="nh3d-mobile-actions-section">
-                <div className="nh3d-mobile-actions-grid is-extended">
-                  {wizardExtendedCommandNames.map((command) => (
-                    <button
-                      className="nh3d-mobile-actions-button"
-                      key={`wizard-${command}`}
-                      onClick={() => runWizardExtendedCommand(command)}
-                      type="button"
-                    >
-                      {command}
-                    </button>
-                  ))}
+                <div className="nh3d-wizard-commands-list">
+                  {wizardExtendedCommandNames.map((command) => {
+                    const commandCopy = getWizardCommandCopy(command);
+                    const rawExtendedCommand = `#${command}`;
+                    return (
+                      <button
+                        aria-label={`${commandCopy.name} (${rawExtendedCommand}): ${commandCopy.description}`}
+                        className="nh3d-wizard-command-button"
+                        key={`wizard-${command}`}
+                        onClick={() => runWizardExtendedCommand(command)}
+                        type="button"
+                      >
+                        <span className="nh3d-wizard-command-name">
+                          {commandCopy.name}
+                          <span className="nh3d-wizard-command-raw">
+                            {" "}
+                            ({rawExtendedCommand})
+                          </span>
+                        </span>
+                        <span className="nh3d-wizard-command-description">
+                          {commandCopy.description}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -19702,6 +19895,20 @@ export default function App(): JSX.Element {
         >
           {t.dialogs.mobileActions.repeat}
         </button>
+      ) : null}
+
+      {manualSafeZonePreviewHeightPx !== null ? (
+        <div
+          aria-hidden="true"
+          className="nh3d-mobile-safe-zone-preview"
+          style={
+            {
+              "--nh3d-mobile-safe-zone-preview-height": `${manualSafeZonePreviewHeightPx}px`,
+            } as CSSProperties
+          }
+        >
+          <span>{t.clientOptions.config.manualMobileBottomSafeZonePreview}</span>
+        </div>
       ) : null}
 
       {isDesktopGameRunning && !clientOptions.controllerEnabled ? (
@@ -19768,7 +19975,10 @@ export default function App(): JSX.Element {
             {t.dialogs.mobileActions.inventory}
           </button>
           <button
-            className="nh3d-mobile-bottom-button"
+            aria-expanded={isMobileLogVisible}
+            className={`nh3d-mobile-bottom-button${
+              isMobileLogVisible ? " is-active" : ""
+            }`}
             disabled={!clientOptions.liveMessageLog}
             onClick={() => {
               controller?.dismissFpsCrosshairContextMenu();
@@ -19810,6 +20020,7 @@ export default function App(): JSX.Element {
             {t.dialogs.mobileActions.search}
           </button>
           <button
+            aria-label={`${t.dialogs.mobileActions.menu} / ${t.dialogs.mobileActions.actions}`}
             className={`nh3d-mobile-bottom-button${
               isMobileActionSheetVisible ? " is-active" : ""
             }`}
@@ -19827,6 +20038,8 @@ export default function App(): JSX.Element {
             }}
             type="button"
           >
+            {t.dialogs.mobileActions.menu} /
+            <br />
             {t.dialogs.mobileActions.actions}
           </button>
         </div>

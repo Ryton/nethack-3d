@@ -783,6 +783,28 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           label: "Live-viestiloki",
           description: "Näytä vierivä pelinsisäinen viestiloki.",
         },
+        showPersistentMobileMessageLog: {
+          label: "N\u00e4yt\u00e4 pysyv\u00e4 viestiloki",
+          description:
+            "Pid\u00e4 kompakti mobiiliviestiloki n\u00e4kyviss\u00e4 pelaamisen aikana. Loki-painike voi silti avata suuremman lokin.",
+        },
+        sectionMobileSafeZone: "Alareunan turva-alue",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "Ohita tunnistettu alareunan turva-alue",
+          description:
+            "K\u00e4yt\u00e4 manuaalista alareunan marginaalia, kun Android-k\u00e4sikonsolit ilmoittavat turva-alueen v\u00e4\u00e4rin.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "Pystysuunnan alareunan turva-alue",
+          description:
+            "Manuaalinen alareunan turva-alue pystysuuntaiselle mobiiliasettelulle.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "Vaakasuunnan alareunan turva-alue",
+          description:
+            "Manuaalinen alareunan turva-alue vaakasuuntaiselle mobiiliasettelulle.",
+        },
+        manualMobileBottomSafeZonePreview: "Alareunan turva-alue",
         liveMessageDisplayTimeMs: {
           label: "Live-viestin näyttöaika",
           description:
@@ -915,7 +937,8 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         },
         mobile: {
           label: "Mobiili",
-          description: "Kosketusohjauksen asetukset mobiilipelaamiseen.",
+          description:
+            "Mobiilikohtaiset käyttöliittymän ja pelaamisen asetukset.",
         },
         controls: {
           label: "Ohjaimet",
@@ -1340,6 +1363,33 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
         close: "Sulje",
         wizardCommands: "Wizard-komennot",
         wizard: "Wizard-tila",
+        wizardCommandFallbackDescription:
+          "Suorita t\u00e4m\u00e4 vain wizard-tilan debug-komento.",
+        wizardCommandDetails: {
+          levelchange: { name: "Muuta tasoa", description: "Aseta sankarin kokemustaso." },
+          lightsources: { name: "Valonl\u00e4hteet", description: "N\u00e4yt\u00e4 liikkuvat valonl\u00e4hteet." },
+          migratemons: { name: "Vaeltavat hirvi\u00f6t", description: "N\u00e4yt\u00e4 tasojen v\u00e4lill\u00e4 liikkuvat hirvi\u00f6t." },
+          panic: { name: "Paniikkitesti", description: "Testaa paniikkik\u00e4sittely ja p\u00e4\u00e4t\u00e4 peli." },
+          polyself: { name: "Polymorfoi itse", description: "Vaihda sankarin nykyist\u00e4 muotoa." },
+          seenv: { name: "N\u00e4hdyt vektorit", description: "N\u00e4yt\u00e4 n\u00e4k\u00f6vektorien debug-kartta." },
+          stats: { name: "Muistitilastot", description: "N\u00e4yt\u00e4 ajonaikaiset muistitilastot." },
+          timeout: { name: "Aikakatkaisujono", description: "N\u00e4yt\u00e4 ajastetut vaikutukset ja intrinsics." },
+          vanquished: { name: "Kukistetut hirvi\u00f6t", description: "N\u00e4yt\u00e4 kuolleiden hirvi\u00f6iden m\u00e4\u00e4r\u00e4t." },
+          vision: { name: "N\u00e4k\u00f6taulukko", description: "N\u00e4yt\u00e4 nykyinen n\u00e4k\u00f6taulukko." },
+          wizbury: { name: "Hautaa l\u00e4hiesineet", description: "Hautaa lattiaesineet 3x3-alueella." },
+          wizdetect: { name: "Havaitse piilotetut", description: "Paljasta piilotetut asiat sankarin l\u00e4helt\u00e4." },
+          wizgenesis: { name: "Luo hirvi\u00f6", description: "Luo hirvi\u00f6 nimell\u00e4 tai luokalla." },
+          wizidentify: { name: "Tunnista tavarat", description: "Tunnista kaikki inventaarion esineet." },
+          wizintrinsic: { name: "Aseta intrinsics", description: "S\u00e4\u00e4d\u00e4 valittuja ajastettuja intrinsics-arvoja." },
+          wizlevelport: { name: "Tasoteleportti", description: "Teleporttaa toiselle tasolle tai haaraan." },
+          wizmakemap: { name: "Luo taso uudelleen", description: "Generoi nykyinen taso uudelleen." },
+          wizmap: { name: "Kartoita taso", description: "Paljasta tason kartta ja ansat." },
+          wizrumorcheck: { name: "Tarkista huhut", description: "Vahvista tosi- ja ep\u00e4tosihuhujen tiedostot." },
+          wizsmell: { name: "Haista hirvi\u00f6", description: "Haista valittu hirvi\u00f6." },
+          wizwhere: { name: "Erikoistasot", description: "N\u00e4yt\u00e4 erikoistasojen sijainnit." },
+          wizwish: { name: "Toive", description: "Luo esine, ansa tai maastoa." },
+          wmode: { name: "Sein\u00e4tilat", description: "N\u00e4yt\u00e4 sein\u00e4tilojen debug-tiedot." },
+        },
         repeat: "Toista",
         character: "Hahmo",
         inventory: "Tavarat",
