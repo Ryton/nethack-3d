@@ -767,6 +767,23 @@ export const ko = {
           description:
             "\uac8c\uc784 \uc911 \ucef4\ud329\ud2b8 \ubaa8\ubc14\uc77c \uba54\uc2dc\uc9c0 \ub85c\uadf8\ub97c \uacc4\uc18d \ud45c\uc2dc\ud569\ub2c8\ub2e4. \ub85c\uadf8 \ubc84\ud2bc\uc73c\ub85c \ub354 \ud070 \ub85c\uadf8\ub97c \uc5f4 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
         },
+        sectionMobileSafeZone: "\ud558\ub2e8 \uc548\uc804 \uc601\uc5ed",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "\uac10\uc9c0\ub41c \ud558\ub2e8 \uc548\uc804 \uc601\uc5ed \uc7ac\uc815\uc758",
+          description:
+            "Android \ud734\ub300\uc6a9 \uae30\uae30\uac00 \uc548\uc804 \uc601\uc5ed\uc744 \uc798\ubabb \ubcf4\uace0\ud560 \ub54c \uc218\ub3d9 \ud558\ub2e8 \uc5ec\ubc31\uc744 \uc0ac\uc6a9\ud569\ub2c8\ub2e4.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "\uc138\ub85c \ubc29\ud5a5 \ud558\ub2e8 \uc548\uc804 \uc601\uc5ed",
+          description:
+            "\uc138\ub85c \ubaa8\ubc14\uc77c \ub808\uc774\uc544\uc6c3\uc5d0 \uc0ac\uc6a9\ud560 \uc218\ub3d9 \ud558\ub2e8 \uc548\uc804 \uc601\uc5ed\uc785\ub2c8\ub2e4.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "\uac00\ub85c \ubc29\ud5a5 \ud558\ub2e8 \uc548\uc804 \uc601\uc5ed",
+          description:
+            "\uac00\ub85c \ubaa8\ubc14\uc77c \ub808\uc774\uc544\uc6c3\uc5d0 \uc0ac\uc6a9\ud560 \uc218\ub3d9 \ud558\ub2e8 \uc548\uc804 \uc601\uc5ed\uc785\ub2c8\ub2e4.",
+        },
+        manualMobileBottomSafeZonePreview: "\ud558\ub2e8 \uc548\uc804 \uc601\uc5ed",
         liveMessageDisplayTimeMs: {
           label: "실시간 메시지 표시 시간",
           description:

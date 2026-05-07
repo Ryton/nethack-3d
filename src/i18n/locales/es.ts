@@ -728,6 +728,20 @@ export const esOverrides = {
                     label: "Mostrar registro de mensajes persistente",
                     description: "Mantiene visible el registro de mensajes m\u00F3vil compacto durante la partida. El bot\u00F3n Registro a\u00FAn puede abrir el registro m\u00E1s grande.",
                 },
+                sectionMobileSafeZone: "Zona segura inferior",
+                manualMobileBottomSafeZoneEnabled: {
+                    label: "Anular la zona segura inferior detectada",
+                    description: "Use un margen inferior manual cuando las consolas Android port\u00E1tiles informen mal el \u00E1rea segura.",
+                },
+                manualMobileBottomSafeZoneVerticalPx: {
+                    label: "Zona segura inferior vertical",
+                    description: "Zona segura inferior manual para el dise\u00F1o m\u00F3vil vertical.",
+                },
+                manualMobileBottomSafeZoneHorizontalPx: {
+                    label: "Zona segura inferior horizontal",
+                    description: "Zona segura inferior manual para el dise\u00F1o m\u00F3vil horizontal.",
+                },
+                manualMobileBottomSafeZonePreview: "Zona segura inferior",
                 liveMessageDisplayTimeMs: {
                     label: "Tiempo de visualizaci\u00F3n de mensajes en vivo",
                     description: "Hora en que un mensaje flotante permanece completamente visible antes de desaparecer.",

@@ -788,6 +788,23 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Pid\u00e4 kompakti mobiiliviestiloki n\u00e4kyviss\u00e4 pelaamisen aikana. Loki-painike voi silti avata suuremman lokin.",
         },
+        sectionMobileSafeZone: "Alareunan turva-alue",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "Ohita tunnistettu alareunan turva-alue",
+          description:
+            "K\u00e4yt\u00e4 manuaalista alareunan marginaalia, kun Android-k\u00e4sikonsolit ilmoittavat turva-alueen v\u00e4\u00e4rin.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "Pystysuunnan alareunan turva-alue",
+          description:
+            "Manuaalinen alareunan turva-alue pystysuuntaiselle mobiiliasettelulle.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "Vaakasuunnan alareunan turva-alue",
+          description:
+            "Manuaalinen alareunan turva-alue vaakasuuntaiselle mobiiliasettelulle.",
+        },
+        manualMobileBottomSafeZonePreview: "Alareunan turva-alue",
         liveMessageDisplayTimeMs: {
           label: "Live-viestin näyttöaika",
           description:

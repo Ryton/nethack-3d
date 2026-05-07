@@ -793,6 +793,23 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "H\u00e4lt das kompakte mobile Nachrichtenprotokoll w\u00e4hrend des Spiels sichtbar. Die Log-Schaltfl\u00e4che kann weiterhin das gr\u00f6\u00dfere Protokoll \u00f6ffnen.",
         },
+        sectionMobileSafeZone: "Untere Sicherheitszone",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "Erkannte untere Sicherheitszone \u00fcberschreiben",
+          description:
+            "Verwendet einen manuellen unteren Abstand, wenn Android-Handhelds den sicheren Bereich falsch melden.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "Untere Sicherheitszone im Hochformat",
+          description:
+            "Manuelle untere Sicherheitszone f\u00fcr das mobile Hochformat.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "Untere Sicherheitszone im Querformat",
+          description:
+            "Manuelle untere Sicherheitszone f\u00fcr das mobile Querformat.",
+        },
+        manualMobileBottomSafeZonePreview: "Untere Sicherheitszone",
         liveMessageDisplayTimeMs: {
           label: "Anzeigedauer f\u00fcr Live-Nachrichten",
           description:

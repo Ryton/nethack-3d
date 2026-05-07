@@ -530,6 +530,23 @@ export const zhCnOverrides = {
           description:
             "\u6e38\u620f\u65f6\u4fdd\u6301\u7d27\u51d1\u7684\u79fb\u52a8\u6d88\u606f\u65e5\u5fd7\u53ef\u89c1\u3002\u201c\u65e5\u5fd7\u201d\u6309\u94ae\u4ecd\u53ef\u6253\u5f00\u66f4\u5927\u7684\u65e5\u5fd7\u3002",
         },
+        sectionMobileSafeZone: "\u5e95\u90e8\u5b89\u5168\u533a",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "\u8986\u76d6\u68c0\u6d4b\u5230\u7684\u5e95\u90e8\u5b89\u5168\u533a",
+          description:
+            "\u5f53 Android \u638c\u673a\u9519\u8bef\u62a5\u544a\u5b89\u5168\u533a\u65f6\uff0c\u4f7f\u7528\u624b\u52a8\u5e95\u90e8\u7559\u767d\u3002",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "\u7eb5\u5411\u5e95\u90e8\u5b89\u5168\u533a",
+          description:
+            "\u7528\u4e8e\u7eb5\u5411\u79fb\u52a8\u5e03\u5c40\u7684\u624b\u52a8\u5e95\u90e8\u5b89\u5168\u533a\u3002",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "\u6a2a\u5411\u5e95\u90e8\u5b89\u5168\u533a",
+          description:
+            "\u7528\u4e8e\u6a2a\u5411\u79fb\u52a8\u5e03\u5c40\u7684\u624b\u52a8\u5e95\u90e8\u5b89\u5168\u533a\u3002",
+        },
+        manualMobileBottomSafeZonePreview: "\u5e95\u90e8\u5b89\u5168\u533a",
         liveMessageDisplayTimeMs: {
           label: "实时消息显示时间",
           description: "浮动消息在淡出前保持完全可见的时间。",

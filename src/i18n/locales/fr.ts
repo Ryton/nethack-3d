@@ -796,6 +796,23 @@ export const fr = {
           description:
             "Garde le journal de messages mobile compact visible pendant le jeu. Le bouton Journal peut toujours ouvrir le grand journal.",
         },
+        sectionMobileSafeZone: "Zone sure inferieure",
+        manualMobileBottomSafeZoneEnabled: {
+          label: "Remplacer la zone sure inferieure detectee",
+          description:
+            "Utilise une marge inferieure manuelle lorsque les consoles Android portables signalent mal la zone sure.",
+        },
+        manualMobileBottomSafeZoneVerticalPx: {
+          label: "Zone sure inferieure verticale",
+          description:
+            "Zone sure inferieure manuelle pour la disposition mobile verticale.",
+        },
+        manualMobileBottomSafeZoneHorizontalPx: {
+          label: "Zone sure inferieure horizontale",
+          description:
+            "Zone sure inferieure manuelle pour la disposition mobile horizontale.",
+        },
+        manualMobileBottomSafeZonePreview: "Zone sure inferieure",
         liveMessageDisplayTimeMs: {
           label: "Duree d'affichage des messages en direct",
           description:
