@@ -63,7 +63,11 @@
       "!node_modules/@capacitor/core",
       "!node_modules/@capacitor/core/**",
       "!node_modules/@capacitor/android",
-      "!node_modules/@capacitor/android/**"
+      "!node_modules/@capacitor/android/**",
+      "!node_modules/@capacitor/*/android/build/**",
+      "!node_modules/@capacitor/*/android/.gradle/**",
+      "!node_modules/@capacitor/*/android/.cxx/**",
+      "!node_modules/@capacitor/*/ios/**"
     ],
     "linux": {
       "category": "Game",
