@@ -6278,10 +6278,10 @@ export default function App(): JSX.Element {
     () => savedGames.filter((save) => save.isResumable),
     [savedGames],
   );
-  // Checkpoint-only autosaves become actionable only when the current wasm-367
-  // build exposes a full browser-side checkpoint resume bridge. The low-level
-  // recover_savefile() export alone is not enough because libnhmain still
-  // reaches unixunix.c/getlock() first in current builds.
+  // Checkpoint-only autosaves become actionable only when the selected wasm
+  // build exposes the browser-side checkpoint resume bridge. The low-level
+  // recover_savefile() export alone is not enough because libnhmain can still
+  // reach unixunix.c/getlock() before the web host can prepare recovery.
   const savedGameSections = useMemo(
     () =>
       [

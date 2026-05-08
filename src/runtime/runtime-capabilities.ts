@@ -1,9 +1,5 @@
 import type { NethackRuntimeVersion } from "./types";
 
-// Temporary kill-switch for 5.0 checkpoint autosave resume. This keeps
-// checkpoint-only autosaves out of the loadable-save UI and disables the
-// runtime paths that depend on browser-side checkpoint recovery support.
-const ENABLE_RUNTIME_5_CHECKPOINT_RECOVERY = false;
 const ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY = false;
 
 function readDefinedBoolean(value: unknown): boolean {
@@ -44,9 +40,6 @@ export function supportsRuntimeCheckpointRecovery(
   runtimeVersion: NethackRuntimeVersion,
 ): boolean {
   if (runtimeVersion === "5.0") {
-    if (!ENABLE_RUNTIME_5_CHECKPOINT_RECOVERY) {
-      return false;
-    }
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_5_HAS_CHECKPOINT_RESUME_BRIDGE,
     );

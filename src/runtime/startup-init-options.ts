@@ -101,7 +101,7 @@ const requiredStartupInitOptionTokensByVersion: Readonly<
   Record<NethackRuntimeVersion, readonly string[]>
 > = {
   "3.6.7": ["checkpoint"],
-  "5.0": [],
+  "5.0": ["checkpoint"],
   slashem: [],
 };
 
