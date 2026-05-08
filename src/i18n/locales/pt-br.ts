@@ -789,11 +789,11 @@ export const ptBrOverrides = {
           description:
             "Mantem o registro compacto de mensagens no mobile visivel durante o jogo. O botao Registro ainda pode abrir o registro maior.",
         },
-        sectionMobileSafeZone: "Area segura inferior",
+        sectionMobileSafeZone: "Areas seguras mobile",
         manualMobileBottomSafeZoneEnabled: {
-          label: "Substituir a area segura inferior detectada",
+          label: "Substituir areas seguras mobile detectadas",
           description:
-            "Use uma margem inferior manual quando portateis Android informarem a area segura incorretamente.",
+            "Use margens de area segura manuais quando portateis Android informarem areas seguras incorretamente.",
         },
         manualMobileBottomSafeZoneVerticalPx: {
           label: "Area segura inferior vertical",
@@ -805,7 +805,13 @@ export const ptBrOverrides = {
           description:
             "Area segura inferior manual para o layout mobile horizontal.",
         },
+        manualMobileRightSafeZoneHorizontalPx: {
+          label: "Area segura direita horizontal",
+          description:
+            "Area segura direita manual para o layout mobile horizontal.",
+        },
         manualMobileBottomSafeZonePreview: "Area segura inferior",
+        manualMobileRightSafeZonePreview: "Area segura direita",
         liveMessageDisplayTimeMs: {
           label: "Tempo de exibição das mensagens ao vivo",
           description:

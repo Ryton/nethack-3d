@@ -2887,7 +2887,8 @@ type ClientOptionSlider = {
     | "liveMessageDisplayTimeMs"
     | "liveMessageFadeOutTimeMs"
     | "manualMobileBottomSafeZoneVerticalPx"
-    | "manualMobileBottomSafeZoneHorizontalPx";
+    | "manualMobileBottomSafeZoneHorizontalPx"
+    | "manualMobileRightSafeZoneHorizontalPx";
   label: string;
   description: string;
   type: "slider";
@@ -2941,6 +2942,10 @@ type ClientOptionsTab = {
   label: string;
   description: string;
   groupKey: string;
+};
+type ManualSafeZonePreview = {
+  side: "bottom" | "right";
+  sizePx: number;
 };
 
 type ClientOptionToggleKey =
@@ -4676,6 +4681,16 @@ const clientOptionsConfig: ClientOption[] = [
     step: 1,
   },
   {
+    key: "manualMobileRightSafeZoneHorizontalPx",
+    label: t.clientOptions.config.manualMobileRightSafeZoneHorizontalPx.label,
+    description:
+      t.clientOptions.config.manualMobileRightSafeZoneHorizontalPx.description,
+    type: "slider",
+    min: 0,
+    max: 100,
+    step: 1,
+  },
+  {
     key: "group-sound",
     label: t.clientOptions.config.groupSound,
     type: "group",
@@ -4908,7 +4923,7 @@ const clampInventoryContextMenuPosition = (
     ) + 4;
   const safeRight =
     parseCssPixelValue(
-      rootStyle.getPropertyValue("--nh3d-modal-safe-right-inset"),
+      rootStyle.getPropertyValue("--nh3d-action-context-safe-right-inset"),
       8,
     ) + 4;
   const safeTop =
@@ -4954,7 +4969,7 @@ const resolveInventoryContextMenuPosition = (
     ) + 4;
   const safeRight =
     parseCssPixelValue(
-      rootStyle.getPropertyValue("--nh3d-modal-safe-right-inset"),
+      rootStyle.getPropertyValue("--nh3d-action-context-safe-right-inset"),
       8,
     ) + 4;
   const safeTop =
@@ -5066,7 +5081,7 @@ const clampTileContextMenuPosition = (
     ) + 4;
   const safeRight =
     parseCssPixelValue(
-      rootStyle.getPropertyValue("--nh3d-modal-safe-right-inset"),
+      rootStyle.getPropertyValue("--nh3d-action-context-safe-right-inset"),
       8,
     ) + 4;
   const safeTop =
@@ -6550,8 +6565,8 @@ export default function App(): JSX.Element {
   );
   const [clientOptionsDraft, setClientOptionsDraft] =
     useState<Nh3dClientOptions>(() => initialClientOptions);
-  const [manualSafeZonePreviewHeightPx, setManualSafeZonePreviewHeightPx] =
-    useState<number | null>(null);
+  const [manualSafeZonePreview, setManualSafeZonePreview] =
+    useState<ManualSafeZonePreview | null>(null);
   const manualSafeZonePreviewTimerRef = useRef<number | null>(null);
   const [hasHydratedUserTilesets, setHasHydratedUserTilesets] = useState(false);
   const [isClientOptionsVisible, setIsClientOptionsVisible] = useState(false);
@@ -6997,6 +7012,10 @@ export default function App(): JSX.Element {
       "--nh3d-manual-mobile-bottom-safe-zone-horizontal",
       `${Math.round(clientOptions.manualMobileBottomSafeZoneHorizontalPx)}px`,
     );
+    root.style.setProperty(
+      "--nh3d-manual-mobile-right-safe-zone-horizontal",
+      `${Math.round(clientOptions.manualMobileRightSafeZoneHorizontalPx)}px`,
+    );
     return () => {
       root.classList.remove("nh3d-manual-mobile-bottom-safe-zone");
       root.style.removeProperty(
@@ -7005,11 +7024,15 @@ export default function App(): JSX.Element {
       root.style.removeProperty(
         "--nh3d-manual-mobile-bottom-safe-zone-horizontal",
       );
+      root.style.removeProperty(
+        "--nh3d-manual-mobile-right-safe-zone-horizontal",
+      );
     };
   }, [
     clientOptions.manualMobileBottomSafeZoneEnabled,
     clientOptions.manualMobileBottomSafeZoneVerticalPx,
     clientOptions.manualMobileBottomSafeZoneHorizontalPx,
+    clientOptions.manualMobileRightSafeZoneHorizontalPx,
   ]);
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -12059,20 +12082,23 @@ export default function App(): JSX.Element {
     }));
   };
 
-  const showManualSafeZonePreview = useCallback((rawHeightPx: number): void => {
-    const heightPx = Math.max(0, Math.min(100, Math.round(rawHeightPx)));
-    setManualSafeZonePreviewHeightPx(heightPx);
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (manualSafeZonePreviewTimerRef.current !== null) {
-      window.clearTimeout(manualSafeZonePreviewTimerRef.current);
-    }
-    manualSafeZonePreviewTimerRef.current = window.setTimeout(() => {
-      setManualSafeZonePreviewHeightPx(null);
-      manualSafeZonePreviewTimerRef.current = null;
-    }, 1200);
-  }, []);
+  const showManualSafeZonePreview = useCallback(
+    (side: ManualSafeZonePreview["side"], rawSizePx: number): void => {
+      const sizePx = Math.max(0, Math.min(100, Math.round(rawSizePx)));
+      setManualSafeZonePreview({ side, sizePx });
+      if (typeof window === "undefined") {
+        return;
+      }
+      if (manualSafeZonePreviewTimerRef.current !== null) {
+        window.clearTimeout(manualSafeZonePreviewTimerRef.current);
+      }
+      manualSafeZonePreviewTimerRef.current = window.setTimeout(() => {
+        setManualSafeZonePreview(null);
+        manualSafeZonePreviewTimerRef.current = null;
+      }, 1200);
+    },
+    [],
+  );
 
   useEffect(() => {
     return () => {
@@ -12380,7 +12406,8 @@ export default function App(): JSX.Element {
       clamped = Math.max(80, Math.min(900, rawValue));
     } else if (
       key === "manualMobileBottomSafeZoneVerticalPx" ||
-      key === "manualMobileBottomSafeZoneHorizontalPx"
+      key === "manualMobileBottomSafeZoneHorizontalPx" ||
+      key === "manualMobileRightSafeZoneHorizontalPx"
     ) {
       clamped = Math.max(0, Math.min(100, rawValue));
     } else {
@@ -12391,7 +12418,8 @@ export default function App(): JSX.Element {
       key === "liveMessageDisplayTimeMs" ||
       key === "liveMessageFadeOutTimeMs" ||
       key === "manualMobileBottomSafeZoneVerticalPx" ||
-      key === "manualMobileBottomSafeZoneHorizontalPx"
+      key === "manualMobileBottomSafeZoneHorizontalPx" ||
+      key === "manualMobileRightSafeZoneHorizontalPx"
     ) {
       updateClientOptionDraft(key, Math.round(clamped));
       return;
@@ -16506,6 +16534,11 @@ export default function App(): JSX.Element {
                     const isManualBottomSafeZoneSlider =
                       option.key === "manualMobileBottomSafeZoneVerticalPx" ||
                       option.key === "manualMobileBottomSafeZoneHorizontalPx";
+                    const isManualRightSafeZoneSlider =
+                      option.key === "manualMobileRightSafeZoneHorizontalPx";
+                    const isManualSafeZoneSlider =
+                      isManualBottomSafeZoneSlider ||
+                      isManualRightSafeZoneSlider;
                     const sliderDisabledByFpsMode =
                       (option.key === "controllerFpsMoveRepeatMs" ||
                         option.key === "fpsFov" ||
@@ -16520,7 +16553,7 @@ export default function App(): JSX.Element {
                       !clientOptionsDraft.bloodMist &&
                       !clientOptionsDraft.bloodGround;
                     const sliderDisabledByManualSafeZone =
-                      isManualBottomSafeZoneSlider &&
+                      isManualSafeZoneSlider &&
                       !clientOptionsDraft.manualMobileBottomSafeZoneEnabled;
                     const sliderDisabled =
                       sliderDisabledByFpsMode ||
@@ -16534,7 +16567,7 @@ export default function App(): JSX.Element {
                         ? `${sliderValue.toFixed(2)}x`
                       : option.key === "fpsFov"
                           ? `${Math.round(sliderValue)}\u00b0`
-                          : isManualBottomSafeZoneSlider
+                          : isManualSafeZoneSlider
                             ? `${Math.round(sliderValue)}px`
                           : option.key === "fpsLookSensitivityX" ||
                               option.key === "fpsLookSensitivityY"
@@ -16571,13 +16604,15 @@ export default function App(): JSX.Element {
                             max={option.max}
                             min={option.min}
                             onBlur={() => {
-                              if (isManualBottomSafeZoneSlider) {
-                                setManualSafeZonePreviewHeightPx(null);
+                              if (isManualSafeZoneSlider) {
+                                setManualSafeZonePreview(null);
                               }
                             }}
                             onFocus={() => {
                               if (isManualBottomSafeZoneSlider) {
-                                showManualSafeZonePreview(sliderValue);
+                                showManualSafeZonePreview("bottom", sliderValue);
+                              } else if (isManualRightSafeZoneSlider) {
+                                showManualSafeZonePreview("right", sliderValue);
                               }
                             }}
                             onInput={(event) => {
@@ -16586,7 +16621,9 @@ export default function App(): JSX.Element {
                               );
                               updateClientSliderDraft(option.key, nextValue);
                               if (isManualBottomSafeZoneSlider) {
-                                showManualSafeZonePreview(nextValue);
+                                showManualSafeZonePreview("bottom", nextValue);
+                              } else if (isManualRightSafeZoneSlider) {
+                                showManualSafeZonePreview("right", nextValue);
                               }
                             }}
                             onChange={(event) => {
@@ -16595,12 +16632,16 @@ export default function App(): JSX.Element {
                               );
                               updateClientSliderDraft(option.key, nextValue);
                               if (isManualBottomSafeZoneSlider) {
-                                showManualSafeZonePreview(nextValue);
+                                showManualSafeZonePreview("bottom", nextValue);
+                              } else if (isManualRightSafeZoneSlider) {
+                                showManualSafeZonePreview("right", nextValue);
                               }
                             }}
                             onPointerDown={() => {
                               if (isManualBottomSafeZoneSlider) {
-                                showManualSafeZonePreview(sliderValue);
+                                showManualSafeZonePreview("bottom", sliderValue);
+                              } else if (isManualRightSafeZoneSlider) {
+                                showManualSafeZonePreview("right", sliderValue);
                               }
                             }}
                             step={option.step}
@@ -19897,17 +19938,21 @@ export default function App(): JSX.Element {
         </button>
       ) : null}
 
-      {manualSafeZonePreviewHeightPx !== null ? (
+      {manualSafeZonePreview ? (
         <div
           aria-hidden="true"
-          className="nh3d-mobile-safe-zone-preview"
+          className={`nh3d-mobile-safe-zone-preview is-${manualSafeZonePreview.side}`}
           style={
             {
-              "--nh3d-mobile-safe-zone-preview-height": `${manualSafeZonePreviewHeightPx}px`,
+              "--nh3d-mobile-safe-zone-preview-size": `${manualSafeZonePreview.sizePx}px`,
             } as CSSProperties
           }
         >
-          <span>{t.clientOptions.config.manualMobileBottomSafeZonePreview}</span>
+          <span>
+            {manualSafeZonePreview.side === "right"
+              ? t.clientOptions.config.manualMobileRightSafeZonePreview
+              : t.clientOptions.config.manualMobileBottomSafeZonePreview}
+          </span>
         </div>
       ) : null}
 

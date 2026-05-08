@@ -6,6 +6,11 @@
     --safe-area-inset-top,
     env(safe-area-inset-top, 0px)
   );
+  --nh3d-auto-safe-area-right: env(safe-area-inset-right, 0px);
+  --nh3d-safe-area-right: var(
+    --nh3d-manual-safe-area-right,
+    var(--nh3d-auto-safe-area-right)
+  );
   --nh3d-auto-safe-area-bottom: var(
     --safe-area-inset-bottom,
     env(safe-area-inset-bottom, 0px)
@@ -19,6 +24,10 @@
   --nh3d-mobile-visible-bottom-offset: 0px;
   --nh3d-mobile-bottom-bar-bottom-offset: 0px;
   --nh3d-mobile-bottom-bar-clearance: 68px;
+  --nh3d-mobile-landscape-action-rail-clearance: 0px;
+  --nh3d-action-context-safe-right-inset: var(
+    --nh3d-modal-safe-right-inset
+  );
   // Shared mobile overlay frame for non-modal overlays (for example, log).
   --nh3d-mobile-overlay-top-inset: calc(
     var(--nh3d-mobile-visible-top-offset, 0px) + var(--nh3d-safe-area-top) +
@@ -41,7 +50,7 @@
   --nh3d-modal-safe-top-inset: calc(var(--nh3d-safe-area-top) + 12px);
   --nh3d-modal-safe-bottom-inset: calc(var(--nh3d-safe-area-bottom) + 12px);
   --nh3d-modal-safe-left-inset: calc(env(safe-area-inset-left, 0px) + 12px);
-  --nh3d-modal-safe-right-inset: calc(env(safe-area-inset-right, 0px) + 12px);
+  --nh3d-modal-safe-right-inset: calc(var(--nh3d-safe-area-right) + 12px);
   --nh3d-modal-safe-max-height: calc(
     var(--nh3d-mobile-visible-height, 100vh) - var(
         --nh3d-modal-safe-top-inset
@@ -156,6 +165,10 @@
       --nh3d-manual-mobile-bottom-safe-zone-horizontal,
       0px
     );
+    --nh3d-manual-safe-area-right: var(
+      --nh3d-manual-mobile-right-safe-zone-horizontal,
+      0px
+    );
   }
 }
 
@@ -171,19 +184,31 @@
 
 @media (orientation: landscape) and (pointer: coarse) {
   :root {
+    --nh3d-mobile-landscape-action-rail-clearance: calc(
+      110px + var(--nh3d-safe-area-right)
+    );
     --nh3d-mobile-bottom-bar-bottom-offset: calc(
       8px + var(--nh3d-safe-area-bottom)
     );
     --nh3d-mobile-bottom-bar-clearance: 0px;
+    --nh3d-action-context-safe-right-inset: var(
+      --nh3d-mobile-landscape-action-rail-clearance
+    );
   }
 }
 
 :root.nh3d-force-touch-layout-landscape {
+  --nh3d-mobile-landscape-action-rail-clearance: calc(
+    110px + var(--nh3d-safe-area-right)
+  );
   --nh3d-mobile-bottom-bar-bottom-offset: calc(
     8px + var(--nh3d-safe-area-bottom)
   );
   --nh3d-mobile-bottom-bar-clearance: 0px;
   --nh3d-mobile-actions-content-height: min(52vh, 316px);
+  --nh3d-action-context-safe-right-inset: var(
+    --nh3d-mobile-landscape-action-rail-clearance
+  );
 }
 
 // -----------------------------------------------------------------------------
@@ -501,7 +526,7 @@ canvas {
     top: calc(
       var(--nh3d-safe-area-top) + var(--nh3d-stats-bar-height, 64px) + 8px
     );
-    right: 8px;
+    right: max(8px, var(--nh3d-safe-area-right));
     width: calc(min(44vw, 220px) * var(--nh3d-minimap-scale, 1));
     opacity: 0.85;
 
@@ -510,11 +535,36 @@ canvas {
     }
 
     &.nh3d-minimap-controller-expanded {
-      right: max(6px, env(safe-area-inset-right));
+      right: max(6px, var(--nh3d-safe-area-right));
       width: calc(min(95vw, 640px) * var(--nh3d-minimap-scale, 1));
       max-width: calc(100vw - 12px - env(safe-area-inset-left));
     }
   }
+
+  &.nh3d-minimap-avoid-action-rail {
+    right: var(--nh3d-mobile-landscape-action-rail-clearance);
+    max-width: max(
+      1px,
+      calc(
+        100vw - var(--nh3d-mobile-landscape-action-rail-clearance) - env(
+            safe-area-inset-left
+          ) - 12px
+      )
+    );
+
+    &.nh3d-minimap-controller-expanded {
+      right: var(--nh3d-mobile-landscape-action-rail-clearance);
+      max-width: max(
+        1px,
+        calc(
+          100vw - var(--nh3d-mobile-landscape-action-rail-clearance) - env(
+              safe-area-inset-left
+            ) - 12px
+        )
+      );
+    }
+  }
+
 }
 
 :root.nh3d-game-over-tombstone-active {
@@ -629,7 +679,7 @@ canvas {
   position: fixed;
   // Mobile log only: include left safe-area inset to avoid notch/cutout overlap.
   left: calc(8px + env(safe-area-inset-left));
-  right: calc(8px + env(safe-area-inset-right));
+  right: calc(8px + var(--nh3d-safe-area-right));
   // Reuse the same safe-zone frame as dialogs so logs never collide with bars.
   top: var(--nh3d-mobile-overlay-top-inset);
   bottom: var(--nh3d-mobile-overlay-bottom-inset);
@@ -708,7 +758,7 @@ canvas {
   }
 
   @media (orientation: landscape) and (pointer: coarse) {
-    right: calc(110px + env(safe-area-inset-right));
+    right: calc(110px + var(--nh3d-safe-area-right));
     height: clamp(
       calc(44px * var(--nh3d-ui-font-scale, 1)),
       24vh,
@@ -717,7 +767,7 @@ canvas {
   }
 
   :root.nh3d-force-touch-layout-landscape & {
-    right: calc(110px + env(safe-area-inset-right));
+    right: calc(110px + var(--nh3d-safe-area-right));
     height: clamp(
       calc(44px * var(--nh3d-ui-font-scale, 1)),
       24vh,
@@ -1103,6 +1153,8 @@ canvas {
     overflow-x: auto;
     overflow-y: hidden;
     gap: 10px;
+    box-sizing: border-box;
+    padding-right: calc(10px + var(--nh3d-safe-area-right));
 
     .nh3d-stats-name {
       flex: 0 0 auto;
@@ -6144,6 +6196,28 @@ canvas {
   transform: var(--nh3d-context-menu-transform-base);
   transform-origin: top left;
 
+  @media (orientation: landscape) and (pointer: coarse) {
+    max-width: min(
+      360px,
+      calc(
+        100vw - var(--nh3d-modal-safe-left-inset) - var(
+            --nh3d-action-context-safe-right-inset
+          ) - 8px
+      )
+    );
+  }
+
+  :root.nh3d-force-touch-layout-landscape & {
+    max-width: min(
+      360px,
+      calc(
+        100vw - var(--nh3d-modal-safe-left-inset) - var(
+            --nh3d-action-context-safe-right-inset
+          ) - 8px
+      )
+    );
+  }
+
   &.is-visible {
     opacity: 0;
     animation: nh3d-context-menu-fade-in 140ms ease-out forwards;
@@ -6303,7 +6377,7 @@ canvas {
     260px,
     calc(
       100vw - var(--nh3d-modal-safe-left-inset) - var(
-          --nh3d-modal-safe-right-inset
+          --nh3d-action-context-safe-right-inset
         ) -
         8px
     )
@@ -6313,7 +6387,7 @@ canvas {
     260px,
     calc(
       100vw - var(--nh3d-modal-safe-left-inset) - var(
-          --nh3d-modal-safe-right-inset
+          --nh3d-action-context-safe-right-inset
         ) -
         8px
     )
@@ -6415,12 +6489,13 @@ canvas {
 .nh3d-fps-crosshair-context {
   --nh3d-context-menu-transform-base: translate3d(0, -50%, 0);
   --nh3d-fps-context-side-pad: 8px;
+  --nh3d-fps-context-right-pad: var(--nh3d-fps-context-side-pad);
   --nh3d-fps-context-width: min(280px, max(140px, calc(50vw - 28px)));
   left: clamp(
     var(--nh3d-fps-context-side-pad),
     calc(50% + 75px),
     calc(
-      100vw - var(--nh3d-fps-context-width) - var(--nh3d-fps-context-side-pad)
+      100vw - var(--nh3d-fps-context-width) - var(--nh3d-fps-context-right-pad)
     )
   ) !important;
   top: 50%;
@@ -6429,6 +6504,30 @@ canvas {
   width: fit-content;
   min-width: min(var(--nh3d-fps-context-width), calc(100vw - 16px));
   max-width: calc(100vw - 16px);
+
+  @media (orientation: landscape) and (pointer: coarse) {
+    --nh3d-fps-context-right-pad: var(
+      --nh3d-mobile-landscape-action-rail-clearance
+    );
+    max-width: max(
+      1px,
+      calc(
+        100vw - var(--nh3d-mobile-landscape-action-rail-clearance) - 8px
+      )
+    );
+  }
+
+  :root.nh3d-force-touch-layout-landscape & {
+    --nh3d-fps-context-right-pad: var(
+      --nh3d-mobile-landscape-action-rail-clearance
+    );
+    max-width: max(
+      1px,
+      calc(
+        100vw - var(--nh3d-mobile-landscape-action-rail-clearance) - 8px
+      )
+    );
+  }
 
   .nh3d-context-menu-actions {
     display: grid;
@@ -6448,6 +6547,34 @@ canvas {
   width: fit-content;
   max-width: min(260px, calc(100vw - 24px));
   z-index: 1701;
+
+  @media (orientation: landscape) and (pointer: coarse) {
+    max-width: min(
+      260px,
+      max(
+        1px,
+        calc(
+          100vw - var(--nh3d-modal-safe-left-inset) - var(
+              --nh3d-action-context-safe-right-inset
+            ) - 8px
+        )
+      )
+    );
+  }
+
+  :root.nh3d-force-touch-layout-landscape & {
+    max-width: min(
+      260px,
+      max(
+        1px,
+        calc(
+          100vw - var(--nh3d-modal-safe-left-inset) - var(
+              --nh3d-action-context-safe-right-inset
+            ) - 8px
+        )
+      )
+    );
+  }
 
   .nh3d-context-menu-actions {
     display: grid;
@@ -7943,7 +8070,7 @@ button.nh3d-technique-row {
 
   @media (orientation: landscape) and (pointer: coarse) {
     left: auto;
-    right: env(safe-area-inset-right);
+    right: var(--nh3d-safe-area-right);
     bottom: var(--nh3d-mobile-bottom-bar-bottom-offset);
     width: 94px;
     box-sizing: border-box;
@@ -7964,7 +8091,7 @@ button.nh3d-technique-row {
 
   :root.nh3d-force-touch-layout-landscape & {
     left: auto;
-    right: env(safe-area-inset-right);
+    right: var(--nh3d-safe-area-right);
     bottom: var(--nh3d-mobile-bottom-bar-bottom-offset);
     width: 94px;
     box-sizing: border-box;
@@ -7990,7 +8117,7 @@ button.nh3d-technique-row {
   right: 0;
   bottom: 0;
   z-index: 3600;
-  height: max(2px, var(--nh3d-mobile-safe-zone-preview-height, 0px));
+  height: max(2px, var(--nh3d-mobile-safe-zone-preview-size, 0px));
   pointer-events: none;
   display: flex;
   align-items: center;
@@ -8022,6 +8149,24 @@ button.nh3d-technique-row {
     padding: 3px 8px;
     text-align: center;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  }
+
+  &.is-right {
+    left: auto;
+    top: 0;
+    height: auto;
+    width: max(2px, var(--nh3d-mobile-safe-zone-preview-size, 0px));
+    border-top: 0;
+    border-left: 3px solid #ffd23f;
+    box-shadow:
+      -2px 0 0 rgba(255, 255, 255, 0.55) inset,
+      -12px 0 30px rgba(255, 152, 0, 0.32);
+
+    span {
+      writing-mode: vertical-rl;
+      max-height: calc(100vh - 24px);
+      max-width: none;
+    }
   }
 }
 
@@ -8069,7 +8214,7 @@ button.nh3d-technique-row {
 
 .nh3d-mobile-repeat-button {
   position: fixed;
-  right: calc(8px + env(safe-area-inset-right));
+  right: calc(8px + var(--nh3d-safe-area-right));
   bottom: calc(58px + var(--nh3d-safe-area-bottom));
   z-index: 1905;
   min-height: 38px;
@@ -8097,13 +8242,13 @@ button.nh3d-technique-row {
   }
 
   @media (orientation: landscape) and (pointer: coarse) {
-    right: calc(110px + env(safe-area-inset-right));
+    right: calc(110px + var(--nh3d-safe-area-right));
     bottom: calc(8px + var(--nh3d-safe-area-bottom));
     min-width: 82px;
   }
 
   :root.nh3d-force-touch-layout-landscape & {
-    right: calc(110px + env(safe-area-inset-right));
+    right: calc(110px + var(--nh3d-safe-area-right));
     bottom: calc(8px + var(--nh3d-safe-area-bottom));
     min-width: 82px;
   }
@@ -8155,10 +8300,10 @@ button.nh3d-technique-row {
   left: calc(8px + env(safe-area-inset-left));
   width: min(
     306px,
-    calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))
+    calc(100vw - 16px - env(safe-area-inset-left) - var(--nh3d-safe-area-right))
   );
   max-width: calc(
-    100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)
+    100vw - 16px - env(safe-area-inset-left) - var(--nh3d-safe-area-right)
   );
   z-index: 1910;
   border: 2px solid var(--nh3d-ui-border-strong);
@@ -8280,11 +8425,11 @@ button.nh3d-technique-row {
     width: min(
       306px,
       calc(
-        100vw - 122px - env(safe-area-inset-left) - env(safe-area-inset-right)
+        100vw - 122px - env(safe-area-inset-left) - var(--nh3d-safe-area-right)
       )
     );
     max-width: calc(
-      100vw - 122px - env(safe-area-inset-left) - env(safe-area-inset-right)
+      100vw - 122px - env(safe-area-inset-left) - var(--nh3d-safe-area-right)
     );
     bottom: 8px;
     max-height: min(66vh, 408px);
@@ -8296,11 +8441,11 @@ button.nh3d-technique-row {
     width: min(
       306px,
       calc(
-        100vw - 122px - env(safe-area-inset-left) - env(safe-area-inset-right)
+        100vw - 122px - env(safe-area-inset-left) - var(--nh3d-safe-area-right)
       )
     );
     max-width: calc(
-      100vw - 122px - env(safe-area-inset-left) - env(safe-area-inset-right)
+      100vw - 122px - env(safe-area-inset-left) - var(--nh3d-safe-area-right)
     );
     bottom: 8px;
     max-height: min(66vh, 408px);

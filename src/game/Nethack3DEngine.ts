@@ -2216,6 +2216,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private pendingMinimapCellUpdates: Map<number, number> = new Map();
   private minimapFlushScheduled: boolean = false;
   private minimapDragPointerId: number | null = null;
+  private minimapActionRailSyncRafId: number | null = null;
   private readonly minimapPalette: string[] = [
     "rgba(10, 16, 28, 0.82)",
     "rgba(20, 29, 46, 0.9)",
@@ -3278,6 +3279,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       eventListenerSignal,
     );
     window.addEventListener(
+      "orientationchange",
+      this.scheduleMinimapActionRailOverlapSync.bind(this),
+      eventListenerSignal,
+    );
+    window.addEventListener(
       "keydown",
       this.handleKeyDown.bind(this),
       eventListenerSignal,
@@ -3505,7 +3511,71 @@ class Nethack3DEngine implements Nethack3DEngineController {
       "nh3d-minimap-controller-expanded",
       this.controllerMinimapExpanded,
     );
+    this.scheduleMinimapActionRailOverlapSync();
     this.syncFpsHeldWeaponAnimationDebugPanelPosition();
+  }
+
+  private scheduleMinimapActionRailOverlapSync(): void {
+    if (this.minimapActionRailSyncRafId !== null) {
+      window.cancelAnimationFrame(this.minimapActionRailSyncRafId);
+    }
+    this.minimapActionRailSyncRafId = window.requestAnimationFrame(() => {
+      this.minimapActionRailSyncRafId = null;
+      this.syncMinimapActionRailOverlap();
+    });
+  }
+
+  private syncMinimapActionRailOverlap(): void {
+    const minimap = this.minimapContainer;
+    if (!minimap) {
+      return;
+    }
+
+    const shouldConsiderActionRail =
+      typeof window.matchMedia === "function" &&
+      (window.matchMedia("(orientation: landscape) and (pointer: coarse)")
+        .matches ||
+        document.documentElement.classList.contains(
+          "nh3d-force-touch-layout-landscape",
+        ));
+    if (
+      !shouldConsiderActionRail ||
+      minimap.style.display === "none" ||
+      getComputedStyle(minimap).display === "none"
+    ) {
+      minimap.classList.remove("nh3d-minimap-avoid-action-rail");
+      return;
+    }
+
+    const actionRail = document.querySelector<HTMLElement>(
+      ".nh3d-mobile-bottom-bar",
+    );
+    if (!actionRail || getComputedStyle(actionRail).display === "none") {
+      minimap.classList.remove("nh3d-minimap-avoid-action-rail");
+      return;
+    }
+
+    const wasAvoidingRail = minimap.classList.contains(
+      "nh3d-minimap-avoid-action-rail",
+    );
+    if (wasAvoidingRail) {
+      minimap.classList.remove("nh3d-minimap-avoid-action-rail");
+    }
+
+    const minimapRect = minimap.getBoundingClientRect();
+    const railRect = actionRail.getBoundingClientRect();
+    const overlapPaddingPx = 6;
+    const overlapsRail =
+      minimapRect.width > 0 &&
+      minimapRect.height > 0 &&
+      railRect.width > 0 &&
+      railRect.height > 0 &&
+      minimapRect.right + overlapPaddingPx > railRect.left &&
+      minimapRect.left < railRect.right &&
+      minimapRect.bottom + overlapPaddingPx > railRect.top &&
+      minimapRect.top < railRect.bottom;
+
+    minimap.classList.toggle("nh3d-minimap-avoid-action-rail", overlapsRail);
   }
 
   private buildTileStateSignatureFromPayload(tile: {
@@ -6827,6 +6897,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previous.showItemsUnderPlayerInOverheadTilesMode !==
       normalized.showItemsUnderPlayerInOverheadTilesMode;
     const minimapChanged = previous.minimap !== normalized.minimap;
+    const minimapLayoutChanged =
+      previous.minimapScale !== normalized.minimapScale ||
+      previous.manualMobileBottomSafeZoneEnabled !==
+        normalized.manualMobileBottomSafeZoneEnabled ||
+      previous.manualMobileRightSafeZoneHorizontalPx !==
+        normalized.manualMobileRightSafeZoneHorizontalPx;
     const damageNumbersChanged =
       previous.damageNumbers !== normalized.damageNumbers;
     const tileShakeChanged =
@@ -6906,6 +6982,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (minimapChanged) {
       this.updateMinimapVisibility();
+    } else if (minimapLayoutChanged) {
+      this.scheduleMinimapActionRailOverlapSync();
     }
     if (damageNumbersChanged && !normalized.damageNumbers) {
       this.clearPlayerDamageNumberParticles();
@@ -31588,6 +31666,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       window.clearTimeout(this.fpsTouchRunButtonHoldTimerId);
       this.fpsTouchRunButtonHoldTimerId = null;
     }
+    if (this.minimapActionRailSyncRafId !== null) {
+      window.cancelAnimationFrame(this.minimapActionRailSyncRafId);
+      this.minimapActionRailSyncRafId = null;
+    }
     this.clearGameOverUiRevealDelayState();
     this.clearMapTouchContextHoldTimer();
     this.stopMinimapDrag();
@@ -43204,6 +43286,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.camera.updateProjectionMatrix();
     this.updateRendererResolution();
     this.recenterCameraOnPlayerIfNeeded();
+    this.scheduleMinimapActionRailOverlapSync();
     this.syncFpsHeldWeaponAnimationDebugPanelPosition();
   }
 

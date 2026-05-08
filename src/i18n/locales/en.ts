@@ -767,11 +767,11 @@ export const en = {
           description:
             "Keep the compact mobile message log visible during gameplay. The Log button can still open the larger log.",
         },
-        sectionMobileSafeZone: "Bottom safe zone",
+        sectionMobileSafeZone: "Mobile safe zones",
         manualMobileBottomSafeZoneEnabled: {
-          label: "Override detected bottom safe zone",
+          label: "Override detected mobile safe zones",
           description:
-            "Use a manual bottom inset when Android handhelds report the safe area incorrectly.",
+            "Use manual safe-zone insets when Android handhelds report safe areas incorrectly.",
         },
         manualMobileBottomSafeZoneVerticalPx: {
           label: "Vertical orientation bottom safe zone",
@@ -783,7 +783,13 @@ export const en = {
           description:
             "Manual bottom safe zone for landscape or horizontal mobile layout.",
         },
+        manualMobileRightSafeZoneHorizontalPx: {
+          label: "Horizontal orientation right safe zone",
+          description:
+            "Manual right-side safe zone for landscape mobile layout.",
+        },
         manualMobileBottomSafeZonePreview: "Bottom safe zone",
+        manualMobileRightSafeZonePreview: "Right safe zone",
         liveMessageDisplayTimeMs: {
           label: "Live message display time",
           description:

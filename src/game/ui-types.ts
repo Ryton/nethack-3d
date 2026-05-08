@@ -213,6 +213,7 @@ export type Nh3dClientOptions = {
   manualMobileBottomSafeZoneEnabled: boolean;
   manualMobileBottomSafeZoneVerticalPx: number;
   manualMobileBottomSafeZoneHorizontalPx: number;
+  manualMobileRightSafeZoneHorizontalPx: number;
   liveMessageDisplayTimeMs: number;
   liveMessageFadeOutTimeMs: number;
   showVersionNotificationsOnLaunch: boolean;
@@ -363,6 +364,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   manualMobileBottomSafeZoneEnabled: false,
   manualMobileBottomSafeZoneVerticalPx: 0,
   manualMobileBottomSafeZoneHorizontalPx: 0,
+  manualMobileRightSafeZoneHorizontalPx: 0,
   liveMessageDisplayTimeMs: 3000,
   liveMessageFadeOutTimeMs: 520,
   showVersionNotificationsOnLaunch: true,
@@ -746,6 +748,14 @@ export function normalizeNh3dClientOptions(
   const manualMobileBottomSafeZoneHorizontalPx = Math.round(
     Math.max(0, Math.min(100, rawManualMobileBottomSafeZoneHorizontalPx)),
   );
+  const rawManualMobileRightSafeZoneHorizontalPx =
+    typeof overrides?.manualMobileRightSafeZoneHorizontalPx === "number" &&
+    Number.isFinite(overrides.manualMobileRightSafeZoneHorizontalPx)
+      ? overrides.manualMobileRightSafeZoneHorizontalPx
+      : defaultNh3dClientOptions.manualMobileRightSafeZoneHorizontalPx;
+  const manualMobileRightSafeZoneHorizontalPx = Math.round(
+    Math.max(0, Math.min(100, rawManualMobileRightSafeZoneHorizontalPx)),
+  );
   const rawMinimapScale =
     typeof overrides?.minimapScale === "number" &&
     Number.isFinite(overrides.minimapScale)
@@ -1111,6 +1121,7 @@ export function normalizeNh3dClientOptions(
         : defaultNh3dClientOptions.manualMobileBottomSafeZoneEnabled,
     manualMobileBottomSafeZoneVerticalPx,
     manualMobileBottomSafeZoneHorizontalPx,
+    manualMobileRightSafeZoneHorizontalPx,
     liveMessageDisplayTimeMs,
     liveMessageFadeOutTimeMs,
     showVersionNotificationsOnLaunch:
