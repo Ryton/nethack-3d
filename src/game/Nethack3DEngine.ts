@@ -4,6 +4,8 @@
  */
 
 import * as THREE from "three";
+import { Capacitor } from "@capacitor/core";
+import { Haptics } from "@capacitor/haptics";
 import { WebHaptics } from "web-haptics";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
@@ -136,6 +138,10 @@ type PendingCharacterDamage = {
     x: number;
     y: number;
   } | null;
+};
+
+type Nh3dAndroidHapticsBridge = {
+  vibrate?: (durationMs: number, amplitude: number) => void;
 };
 
 type DirectionalAttackContext = {
@@ -10130,12 +10136,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private triggerDamageRumble(durationMs: number, intensity: number): void {
-    if (!this.clientOptions.rumbleEnabled || !this.webHaptics) {
+    if (!this.clientOptions.rumbleEnabled) {
       return;
     }
 
     const duration = Math.max(1, Math.min(1000, Math.round(durationMs)));
     const clampedIntensity = Math.max(0, Math.min(1, intensity));
+    if (this.tryTriggerAndroidNativeDamageRumble(duration, clampedIntensity)) {
+      return;
+    }
+
+    if (this.isNativeCapacitorPlatform()) {
+      void Haptics.vibrate({ duration }).catch((error) => {
+        console.warn("Unable to trigger native haptic damage rumble.", error);
+      });
+      return;
+    }
+
+    if (!this.webHaptics) {
+      return;
+    }
+
     void this.webHaptics
       .trigger(duration, { intensity: clampedIntensity })
       .catch((error) => {
@@ -10143,13 +10164,65 @@ class Nethack3DEngine implements Nethack3DEngineController {
       });
   }
 
-  private triggerOutgoingDamageRumble(amount: number): void {
-    const damage = Math.max(1, Math.round(Math.abs(amount)));
-    const scaledBonus = Math.min(0.12, damage / 160);
-    this.triggerDamageRumble(
-      this.damageRumbleDurationMs,
-      0.18 + scaledBonus,
-    );
+  private tryTriggerAndroidNativeDamageRumble(
+    durationMs: number,
+    intensity: number,
+  ): boolean {
+    if (
+      this.getNativeCapacitorPlatform() !== "android" ||
+      typeof window === "undefined"
+    ) {
+      return false;
+    }
+
+    const androidBridge = (window as Window & {
+      nh3dAndroid?: Nh3dAndroidHapticsBridge;
+    }).nh3dAndroid;
+    if (typeof androidBridge?.vibrate !== "function") {
+      return false;
+    }
+
+    const amplitude = Math.max(1, Math.min(255, Math.round(255 * intensity)));
+    try {
+      androidBridge.vibrate(durationMs, amplitude);
+      return true;
+    } catch (error) {
+      console.warn("Unable to trigger Android haptic damage rumble.", error);
+      return false;
+    }
+  }
+
+  private isNativeCapacitorPlatform(): boolean {
+    try {
+      return Capacitor.isNativePlatform();
+    } catch {
+      return this.isLikelyCapacitorEnvironment();
+    }
+  }
+
+  private getNativeCapacitorPlatform(): string {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        return Capacitor.getPlatform();
+      }
+    } catch {
+      // Fall through to URL-scheme inference.
+    }
+    return this.isLikelyCapacitorEnvironment() ? "capacitor" : "web";
+  }
+
+  private triggerOutgoingDamageRumble(): void {
+    this.triggerDamageRumble(this.damageRumbleDurationMs, 0.5);
+  }
+
+  private triggerPlayerKillRumble(): void {
+    this.triggerDamageRumble(this.damageRumbleDurationMs, 0.75);
+  }
+
+  private triggerPlayerDeathRumble(): void {
+    this.clearPendingIncomingDamageRumble();
+    this.webHaptics?.cancel();
+    this.triggerDamageRumble(this.damageRumbleDurationMs * 2, 1);
   }
 
   private queueIncomingDamageRumble(amount: number, hpBeforeDamage: number): void {
@@ -10205,7 +10278,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const damageRatio = Math.max(0, Math.min(1, totalDamage / startingHp));
-    const intensity = Math.max(0.35, Math.min(1, 0.35 + damageRatio * 1.2));
+    const intensity = Math.max(0.5, Math.min(1, 0.5 + damageRatio));
     this.triggerDamageRumble(this.damageRumbleDurationMs, intensity);
   }
 
@@ -11394,6 +11467,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.hasTriggeredPlayerDeathEffect = true;
+    this.triggerPlayerDeathRumble();
 
     if (!this.hasSeenPlayerPosition) {
       this.messageSoundHooks.playDamageEffectSound("defeat");
@@ -12873,7 +12947,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.lastParsedDefeatMessage = normalized;
     this.lastParsedDefeatAtMs = now;
-    this.triggerOutgoingDamageRumble(1);
+    this.triggerPlayerKillRumble();
     if (this.tryTriggerPointerMonsterDefeatSpray()) {
       return true;
     }
@@ -12966,6 +13040,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!normalized) {
       return;
     }
+    if (this.isMonsterDefeatMessage(normalized)) {
+      return;
+    }
 
     const explicitPlayerHit = this.isPlayerHitMonsterMessage(normalized);
     const playerAttack =
@@ -12992,7 +13069,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.lastParsedDamageMessage = normalized;
     this.lastParsedDamageAtMs = now;
-    this.triggerOutgoingDamageRumble(amount);
+    this.triggerOutgoingDamageRumble();
 
     if (this.tryTriggerPointerMonsterHitSpray(amount)) {
       return;

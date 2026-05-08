@@ -3,6 +3,10 @@ package com.nethack3d.app;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Build;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 
@@ -516,6 +520,33 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    @SuppressWarnings("deprecation")
+    private Vibrator getDeviceVibrator() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            VibratorManager vibratorManager =
+                (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+            return vibratorManager != null ? vibratorManager.getDefaultVibrator() : null;
+        }
+        return (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void vibrateWithAmplitude(int durationMs, int amplitude) {
+        int clampedDurationMs = Math.max(1, Math.min(1000, durationMs));
+        int clampedAmplitude = Math.max(1, Math.min(255, amplitude));
+        Vibrator vibrator = getDeviceVibrator();
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(
+                VibrationEffect.createOneShot(clampedDurationMs, clampedAmplitude)
+            );
+            return;
+        }
+        vibrator.vibrate(clampedDurationMs);
+    }
+
     private static JSONObject createApplyResult(
         boolean ok,
         boolean applied,
@@ -830,6 +861,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public String applyGameUpdate(String manifestUrl) {
             return applyGameUpdateInternal(manifestUrl).toString();
+        }
+
+        @JavascriptInterface
+        public void vibrate(int durationMs, int amplitude) {
+            vibrateWithAmplitude(durationMs, amplitude);
         }
     }
 }
