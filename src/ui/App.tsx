@@ -2975,6 +2975,7 @@ type ClientOptionToggleKey =
   | "monsterShatterBloodBorders"
   | "liveMessageLog"
   | "showPersistentMobileMessageLog"
+  | "rumbleEnabled"
   | "manualMobileBottomSafeZoneEnabled"
   | "showVersionNotificationsOnLaunch"
   | "soundEnabled"
@@ -4654,6 +4655,12 @@ const clientOptionsConfig: ClientOption[] = [
     label: t.clientOptions.config.showPersistentMobileMessageLog.label,
     description:
       t.clientOptions.config.showPersistentMobileMessageLog.description,
+    type: "boolean",
+  },
+  {
+    key: "rumbleEnabled",
+    label: t.clientOptions.config.rumbleEnabled.label,
+    description: t.clientOptions.config.rumbleEnabled.description,
     type: "boolean",
   },
   {

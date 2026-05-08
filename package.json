@@ -154,6 +154,7 @@
   },
   "dependencies": {
     "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "web-haptics": "^0.0.6"
   }
 }

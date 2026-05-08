@@ -798,6 +798,11 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "H\u00e4lt das kompakte mobile Nachrichtenprotokoll w\u00e4hrend des Spiels sichtbar. Die Log-Schaltfl\u00e4che kann weiterhin das gr\u00f6\u00dfere Protokoll \u00f6ffnen.",
         },
+        rumbleEnabled: {
+          label: "Rumble aktivieren",
+          description:
+            "Verwendet kurzes haptisches Vibrationsfeedback fuer verursachten und erlittenen Schaden auf unterstuetzten Mobilgeraeten.",
+        },
         sectionMobileSafeZone: "Mobile Sicherheitszonen",
         manualMobileBottomSafeZoneEnabled: {
           label: "Erkannte mobile Sicherheitszonen \u00fcberschreiben",

@@ -772,6 +772,11 @@ export const en = {
           description:
             "Keep the compact mobile message log visible during gameplay. The Log button can still open the larger log.",
         },
+        rumbleEnabled: {
+          label: "Enable rumble",
+          description:
+            "Use short haptic vibration feedback for damage dealt and damage taken on supported mobile devices.",
+        },
         sectionMobileSafeZone: "Mobile safe zones",
         manualMobileBottomSafeZoneEnabled: {
           label: "Override detected mobile safe zones",

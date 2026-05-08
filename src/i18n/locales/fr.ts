@@ -801,6 +801,11 @@ export const fr = {
           description:
             "Garde le journal de messages mobile compact visible pendant le jeu. Le bouton Journal peut toujours ouvrir le grand journal.",
         },
+        rumbleEnabled: {
+          label: "Activer les vibrations",
+          description:
+            "Utilise un bref retour haptique pour les degats infliges et subis sur les appareils mobiles compatibles.",
+        },
         sectionMobileSafeZone: "Zones sures mobiles",
         manualMobileBottomSafeZoneEnabled: {
           label: "Remplacer les zones sures mobiles detectees",

@@ -4,6 +4,7 @@
  */
 
 import * as THREE from "three";
+import { WebHaptics } from "web-haptics";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -2072,6 +2073,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     charisma: "Charisma",
     armor: "Armor Class",
   };
+  private webHaptics: WebHaptics | null = null;
+  private pendingIncomingDamageRumbleAmount: number = 0;
+  private pendingIncomingDamageRumbleStartingHp: number | null = null;
+  private pendingIncomingDamageRumbleTimerId: number | null = null;
+  private readonly damageRumbleDurationMs: number = 300;
+  private readonly incomingDamageRumbleDebounceMs: number = 140;
   private pendingCharacterDamageQueue: PendingCharacterDamage[] = [];
   private readonly pendingCharacterDamageMaxAgeMs: number = 420;
   private readonly glyphDamageFlashDurationMs: number = 180;
@@ -3193,6 +3200,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       isSoundEnabled: () => this.clientOptions.soundEnabled,
     });
     this.messageSoundHooks.setEnabled(this.clientOptions.soundEnabled);
+    this.webHaptics = WebHaptics.isSupported ? new WebHaptics() : null;
     this.initThreeJS();
     this.initUI();
     this.connectToRuntime();
@@ -6959,6 +6967,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const gammaChanged = previous.gamma !== normalized.gamma;
     const soundEnabledChanged =
       previous.soundEnabled !== normalized.soundEnabled;
+    const rumbleEnabledChanged =
+      previous.rumbleEnabled !== normalized.rumbleEnabled;
     const cameraYawSnapChanged =
       previous.snapCameraYawToNearest45 !== normalized.snapCameraYawToNearest45;
 
@@ -7087,6 +7097,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (soundEnabledChanged && !normalized.soundEnabled) {
       this.pendingPlayerFootstepSoundArmed = false;
       this.clearPlayerCliparoundInputCooldown();
+    }
+    if (rumbleEnabledChanged && !normalized.rumbleEnabled) {
+      this.clearPendingIncomingDamageRumble();
+      this.webHaptics?.cancel();
     }
     this.syncFmodRuntimeWithClientOptions(normalized.soundEnabled);
     this.syncVultureWallProjectionDebugPanelVisibility();
@@ -10115,6 +10129,98 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fmodRuntime.resumeFromUserGesture();
   }
 
+  private triggerDamageRumble(durationMs: number, intensity: number): void {
+    if (!this.clientOptions.rumbleEnabled || !this.webHaptics) {
+      return;
+    }
+
+    const duration = Math.max(1, Math.min(1000, Math.round(durationMs)));
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+    void this.webHaptics
+      .trigger(duration, { intensity: clampedIntensity })
+      .catch((error) => {
+        console.warn("Unable to trigger haptic damage rumble.", error);
+      });
+  }
+
+  private triggerOutgoingDamageRumble(amount: number): void {
+    const damage = Math.max(1, Math.round(Math.abs(amount)));
+    const scaledBonus = Math.min(0.12, damage / 160);
+    this.triggerDamageRumble(
+      this.damageRumbleDurationMs,
+      0.18 + scaledBonus,
+    );
+  }
+
+  private queueIncomingDamageRumble(amount: number, hpBeforeDamage: number): void {
+    const damage = Math.max(1, Math.round(Math.abs(amount)));
+    if (!Number.isFinite(damage)) {
+      return;
+    }
+
+    this.pendingIncomingDamageRumbleAmount += damage;
+    if (
+      this.pendingIncomingDamageRumbleStartingHp === null ||
+      !Number.isFinite(this.pendingIncomingDamageRumbleStartingHp)
+    ) {
+      this.pendingIncomingDamageRumbleStartingHp = Math.max(
+        damage,
+        Math.round(Math.abs(hpBeforeDamage)),
+        1,
+      );
+    }
+
+    if (
+      this.pendingIncomingDamageRumbleTimerId !== null &&
+      typeof window !== "undefined"
+    ) {
+      window.clearTimeout(this.pendingIncomingDamageRumbleTimerId);
+    }
+
+    if (typeof window === "undefined") {
+      this.flushIncomingDamageRumble();
+      return;
+    }
+
+    this.pendingIncomingDamageRumbleTimerId = window.setTimeout(() => {
+      this.pendingIncomingDamageRumbleTimerId = null;
+      this.flushIncomingDamageRumble();
+    }, this.incomingDamageRumbleDebounceMs);
+  }
+
+  private flushIncomingDamageRumble(): void {
+    const totalDamage = this.pendingIncomingDamageRumbleAmount;
+    const startingHp = this.pendingIncomingDamageRumbleStartingHp;
+    this.pendingIncomingDamageRumbleAmount = 0;
+    this.pendingIncomingDamageRumbleStartingHp = null;
+
+    if (
+      totalDamage <= 0 ||
+      startingHp === null ||
+      startingHp <= 0 ||
+      !Number.isFinite(totalDamage) ||
+      !Number.isFinite(startingHp)
+    ) {
+      return;
+    }
+
+    const damageRatio = Math.max(0, Math.min(1, totalDamage / startingHp));
+    const intensity = Math.max(0.35, Math.min(1, 0.35 + damageRatio * 1.2));
+    this.triggerDamageRumble(this.damageRumbleDurationMs, intensity);
+  }
+
+  private clearPendingIncomingDamageRumble(): void {
+    if (
+      this.pendingIncomingDamageRumbleTimerId !== null &&
+      typeof window !== "undefined"
+    ) {
+      window.clearTimeout(this.pendingIncomingDamageRumbleTimerId);
+    }
+    this.pendingIncomingDamageRumbleTimerId = null;
+    this.pendingIncomingDamageRumbleAmount = 0;
+    this.pendingIncomingDamageRumbleStartingHp = null;
+  }
+
   private getFmodAudioWorkletCopyModeHint(
     diagnostics: FmodThreadingDiagnostics,
   ): {
@@ -12767,6 +12873,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.lastParsedDefeatMessage = normalized;
     this.lastParsedDefeatAtMs = now;
+    this.triggerOutgoingDamageRumble(1);
     if (this.tryTriggerPointerMonsterDefeatSpray()) {
       return true;
     }
@@ -12885,6 +12992,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.lastParsedDamageMessage = normalized;
     this.lastParsedDamageAtMs = now;
+    this.triggerOutgoingDamageRumble(amount);
 
     if (this.tryTriggerPointerMonsterHitSpray(amount)) {
       return;
@@ -19644,6 +19752,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.clearPlayerUiNumberParticles();
 
     this.pendingCharacterDamageQueue = [];
+    this.clearPendingIncomingDamageRumble();
     this.lastDirectionalAttackContext = null;
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.pendingPointerAttackTargetContext = null;
@@ -28210,6 +28319,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const previousDungeon = this.playerStats.dungeon;
     this.applyRuntimeLevelIdentity(data?.levelIdentity);
     let playerDamageTaken: number | null = null;
+    let playerDamageHpBefore: number | null = null;
     let playerHealingGained: number | null = null;
     let playerExperienceDelta: number | null = null;
     let playerLevelUpTo: number | null = null;
@@ -28221,6 +28331,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (typeof previousHp === "number" && Number.isFinite(previousHp)) {
         if (parsedValue < previousHp) {
           playerDamageTaken = Math.round(previousHp - parsedValue);
+          playerDamageHpBefore = previousHp;
         } else if (parsedValue > previousHp) {
           playerHealingGained = Math.round(parsedValue - previousHp);
         }
@@ -28350,6 +28461,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (mappedField === "hp") {
       this.lastKnownPlayerHp = parsedValue;
       if (playerDamageTaken && playerDamageTaken > 0) {
+        this.queueIncomingDamageRumble(
+          playerDamageTaken,
+          playerDamageHpBefore ?? playerDamageTaken,
+        );
         this.triggerDamageEffectsAtTile(
           this.playerPos.x,
           this.playerPos.y,
@@ -31700,6 +31815,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.session?.dispose();
     this.session = null;
     this.messageSoundHooks.dispose();
+    this.clearPendingIncomingDamageRumble();
+    this.webHaptics?.destroy();
+    this.webHaptics = null;
     this.fmodRuntime.dispose();
 
     this.directionPromptOverlay?.dispose();

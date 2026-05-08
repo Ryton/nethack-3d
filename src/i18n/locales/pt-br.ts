@@ -794,6 +794,11 @@ export const ptBrOverrides = {
           description:
             "Mantem o registro compacto de mensagens no mobile visivel durante o jogo. O botao Registro ainda pode abrir o registro maior.",
         },
+        rumbleEnabled: {
+          label: "Ativar vibracao",
+          description:
+            "Usa vibracao haptica curta para dano causado e dano recebido em dispositivos moveis compativeis.",
+        },
         sectionMobileSafeZone: "Areas seguras mobile",
         manualMobileBottomSafeZoneEnabled: {
           label: "Substituir areas seguras mobile detectadas",

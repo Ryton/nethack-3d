@@ -793,6 +793,11 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Pid\u00e4 kompakti mobiiliviestiloki n\u00e4kyviss\u00e4 pelaamisen aikana. Loki-painike voi silti avata suuremman lokin.",
         },
+        rumbleEnabled: {
+          label: "Ota varina kayttoon",
+          description:
+            "Kayta lyhytta haptista varinapalautetta annetusta ja saadusta vahingosta tuetuilla mobiililaitteilla.",
+        },
         sectionMobileSafeZone: "Mobiilin turva-alueet",
         manualMobileBottomSafeZoneEnabled: {
           label: "Ohita tunnistetut mobiilin turva-alueet",

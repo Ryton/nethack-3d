@@ -732,6 +732,10 @@ export const esOverrides = {
                     label: "Mostrar registro de mensajes persistente",
                     description: "Mantiene visible el registro de mensajes m\u00F3vil compacto durante la partida. El bot\u00F3n Registro a\u00FAn puede abrir el registro m\u00E1s grande.",
                 },
+                rumbleEnabled: {
+                    label: "Activar vibracion",
+                    description: "Usa vibracion haptica breve para el dano infligido y recibido en dispositivos moviles compatibles.",
+                },
                 sectionMobileSafeZone: "Zonas seguras m\u00F3viles",
                 manualMobileBottomSafeZoneEnabled: {
                     label: "Anular las zonas seguras m\u00F3viles detectadas",
