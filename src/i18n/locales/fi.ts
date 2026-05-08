@@ -667,6 +667,11 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Kierrä liikenäppäimiä ja pyyhkäisysuuntia kameran Y-akselin kulman perusteella.",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "Ota WASD-n\u00e4pp\u00e4imist\u00f6liike k\u00e4ytt\u00f6\u00f6n FPS-tilassa",
+          description:
+            "K\u00e4yt\u00e4 W/A/S/D-n\u00e4pp\u00e4imi\u00e4 ensimm\u00e4isen persoonan liikkumiseen. Poista k\u00e4yt\u00f6st\u00e4, jotta n\u00e4m\u00e4 n\u00e4pp\u00e4imet toimivat tavallisina NetHack-komentoina.",
+        },
         controllerFpsMoveRepeatMs: {
           label: "FPS-vasemman sauvan liikkeen toisto",
           description:

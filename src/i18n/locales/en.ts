@@ -647,6 +647,11 @@ export const en = {
           description:
             "Rotate movement keys and swipe directions based on the camera Y-axis angle.",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "Enable WASD keyboard movement in FPS mode",
+          description:
+            "Use W/A/S/D for first-person movement. Disable to let those keys behave like normal NetHack commands.",
+        },
         controllerFpsMoveRepeatMs: {
           label: "FPS left-stick move repeat",
           description:

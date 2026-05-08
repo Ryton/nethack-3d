@@ -35129,6 +35129,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.playMode === "fps";
   }
 
+  private isFpsWasdKeyboardMovementEnabled(): boolean {
+    return this.clientOptions.fpsWasdKeyboardMovementEnabled !== false;
+  }
+
+  private isWasdKeyboardInput(key: string, code: string = ""): boolean {
+    const normalizedKey = String(key || "").toLowerCase();
+    if (
+      normalizedKey === "w" ||
+      normalizedKey === "a" ||
+      normalizedKey === "s" ||
+      normalizedKey === "d"
+    ) {
+      return true;
+    }
+    return (
+      code === "KeyW" || code === "KeyA" || code === "KeyS" || code === "KeyD"
+    );
+  }
+
   private getDirectionInputFromMapDelta(dx: number, dy: number): string | null {
     if (dx === 0 && dy === 0) {
       return null;
@@ -35309,6 +35328,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     code: string = "",
   ): string | null {
     const lower = key.toLowerCase();
+    if (
+      !this.isFpsWasdKeyboardMovementEnabled() &&
+      this.isWasdKeyboardInput(key, code)
+    ) {
+      return null;
+    }
     if (this.numberPadModeEnabled && /^[hjklyubn]$/.test(lower)) {
       return null;
     }
@@ -35378,6 +35403,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     key: string,
     code: string = "",
   ): string | null {
+    if (
+      !this.isFpsWasdKeyboardMovementEnabled() &&
+      this.isWasdKeyboardInput(key, code)
+    ) {
+      return null;
+    }
+
     const aim = this.getFpsAimDirectionFromCamera();
     if (!aim) {
       return null;
@@ -35489,6 +35521,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     event: KeyboardEvent,
   ): string | null {
     const lowerKey = event.key.toLowerCase();
+    if (
+      !this.isFpsWasdKeyboardMovementEnabled() &&
+      this.isWasdKeyboardInput(event.key, event.code)
+    ) {
+      return lowerKey === "s" ? "s" : null;
+    }
     if (lowerKey === "a" || lowerKey === "d") {
       return "Escape";
     }
@@ -36361,7 +36399,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
       }
 
-      if (event.key === "f" || event.key === "F") {
+      if (
+        this.isFpsWasdKeyboardMovementEnabled() &&
+        (event.key === "f" || event.key === "F")
+      ) {
         event.preventDefault();
         this.sendInput("s");
         return;

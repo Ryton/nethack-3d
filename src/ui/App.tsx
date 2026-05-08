@@ -2953,6 +2953,7 @@ type ClientOptionToggleKey =
   | "lightingEnabled"
   | "fpsFlattenEntityBillboards"
   | "fpsHeldWeaponVisible"
+  | "fpsWasdKeyboardMovementEnabled"
   | "showItemsUnderPlayerInOverheadTilesMode"
   | "controllerEnabled"
   | "invertLookYAxis"
@@ -4327,6 +4328,13 @@ const clientOptionsConfig: ClientOption[] = [
     key: "cameraRelativeMovement",
     label: t.clientOptions.config.cameraRelativeMovement.label,
     description: t.clientOptions.config.cameraRelativeMovement.description,
+    type: "boolean",
+  },
+  {
+    key: "fpsWasdKeyboardMovementEnabled",
+    label: t.clientOptions.config.fpsWasdKeyboardMovementEnabled.label,
+    description:
+      t.clientOptions.config.fpsWasdKeyboardMovementEnabled.description,
     type: "boolean",
   },
   {

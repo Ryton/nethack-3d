@@ -671,6 +671,11 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "Dreht Bewegungstasten und Wischrichtungen entsprechend dem Y-Achsen-Winkel der Kamera.",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "WASD-Tastaturbewegung im FPS-Modus aktivieren",
+          description:
+            "Verwendet W/A/S/D f\u00fcr Bewegung in der Ego-Perspektive. Deaktivieren, damit diese Tasten wie normale NetHack-Befehle funktionieren.",
+        },
         controllerFpsMoveRepeatMs: {
           label: "FPS-Bewegungswiederholung linker Stick",
           description:

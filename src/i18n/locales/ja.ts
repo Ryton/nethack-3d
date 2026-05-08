@@ -622,6 +622,11 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
           description:
             "カメラの Y 軸角度に応じて移動キーとスワイプ方向を回転させます。",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "FPS \u30e2\u30fc\u30c9\u3067 WASD \u30ad\u30fc\u30dc\u30fc\u30c9\u79fb\u52d5\u3092\u6709\u52b9\u5316",
+          description:
+            "\u4e00\u4eba\u79f0\u8996\u70b9\u306e\u79fb\u52d5\u306b W/A/S/D \u3092\u4f7f\u3044\u307e\u3059\u3002\u7121\u52b9\u306b\u3059\u308b\u3068\u3001\u3053\u308c\u3089\u306e\u30ad\u30fc\u306f\u901a\u5e38\u306e NetHack \u30b3\u30de\u30f3\u30c9\u3068\u3057\u3066\u52d5\u4f5c\u3057\u307e\u3059\u3002",
+        },
         controllerFpsMoveRepeatMs: {
           label: "FPS 左スティック移動リピート",
           description:

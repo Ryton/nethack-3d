@@ -647,6 +647,11 @@ export const ko = {
           description:
             "카메라 Y축 각도에 따라 이동 키와 스와이프 방향을 회전합니다.",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "1\uc778\uce6d \ubaa8\ub4dc\uc5d0\uc11c WASD \ud0a4\ubcf4\ub4dc \uc774\ub3d9 \uc0ac\uc6a9",
+          description:
+            "1\uc778\uce6d \uc774\ub3d9\uc5d0 W/A/S/D\ub97c \uc0ac\uc6a9\ud569\ub2c8\ub2e4. \ub044\uba74 \uc774 \ud0a4\ub4e4\uc774 \uc77c\ubc18 NetHack \uba85\ub839\ucc98\ub7fc \ub3d9\uc791\ud569\ub2c8\ub2e4.",
+        },
         controllerFpsMoveRepeatMs: {
           label: "1인칭 왼쪽 스틱 이동 반복",
           description:
@@ -1254,6 +1259,9 @@ export const ko = {
         selectedFile: (fileName: string) => `선택됨: ${fileName}`,
         currentFile: (fileName: string) => `현재 파일: ${fileName}`,
         uploadedImage: "업로드된 이미지",
+        weaponSpriteFlip: "FPS \ubb34\uae30 \uc2a4\ud504\ub77c\uc774\ud2b8 \ub4a4\uc9d1\uae30",
+        weaponSpriteFlipDescription:
+          "\uc774 \ud0c0\uc77c\uc14b\uc758 \uc7a5\ube44 \ubb34\uae30 \uc2a4\ud504\ub77c\uc774\ud2b8\ub97c \uc218\ud3c9\uc73c\ub85c \ub4a4\uc9d1\uc2b5\ub2c8\ub2e4. \uae30\ubcf8\uc801\uc73c\ub85c \ucf1c\uc838 \uc788\uc2b5\ub2c8\ub2e4.",
         backgroundRemovalDescription:
           "이 타일셋의 빌보드 배경 제거를 설정하거나, 두 모드를 모두 꺼서 아틀라스 배경을 유지할 수 있습니다.",
         backgroundTileRemoval: "배경 타일 제거",

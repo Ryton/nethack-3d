@@ -177,6 +177,7 @@ export type Nh3dClientOptions = {
   fpsFov: number;
   fpsLookSensitivityX: number;
   fpsLookSensitivityY: number;
+  fpsWasdKeyboardMovementEnabled: boolean;
   lightingEnabled: boolean;
   fpsFlattenEntityBillboards: boolean;
   showItemsUnderPlayerInOverheadTilesMode: boolean;
@@ -326,6 +327,7 @@ export const defaultNh3dClientOptions: Nh3dClientOptions = {
   fpsFov: isMobilePortrait.matches ? 95 : 62,
   fpsLookSensitivityX: isMobile.matches ? 1.5 : 1,
   fpsLookSensitivityY: isMobile.matches ? 1.5 : 1,
+  fpsWasdKeyboardMovementEnabled: true,
   lightingEnabled: true,
   fpsFlattenEntityBillboards: true,
   showItemsUnderPlayerInOverheadTilesMode: true,
@@ -1004,6 +1006,10 @@ export function normalizeNh3dClientOptions(
     fpsFov,
     fpsLookSensitivityX,
     fpsLookSensitivityY,
+    fpsWasdKeyboardMovementEnabled:
+      typeof overrides?.fpsWasdKeyboardMovementEnabled === "boolean"
+        ? overrides.fpsWasdKeyboardMovementEnabled
+        : defaultNh3dClientOptions.fpsWasdKeyboardMovementEnabled,
     lightingEnabled:
       typeof overrides?.lightingEnabled === "boolean"
         ? overrides.lightingEnabled

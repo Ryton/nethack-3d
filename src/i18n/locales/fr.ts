@@ -675,6 +675,11 @@ export const fr = {
           description:
             "Fait tourner les touches de deplacement et les directions de glissement selon l'angle Y de la camera.",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "Activer le deplacement WASD au clavier en mode FPS",
+          description:
+            "Utilise W/A/S/D pour le deplacement a la premiere personne. Desactivez cette option pour que ces touches se comportent comme des commandes NetHack normales.",
+        },
         controllerFpsMoveRepeatMs: {
           label: "Repetition du mouvement FPS au stick gauche",
           description:
@@ -1296,6 +1301,9 @@ export const fr = {
         selectedFile: (fileName: string) => `Selected: ${fileName}`,
         currentFile: (fileName: string) => `Current: ${fileName}`,
         uploadedImage: "image importee",
+        weaponSpriteFlip: "Retourner le sprite de l'arme FPS",
+        weaponSpriteFlipDescription:
+          "Inverse horizontalement le sprite de l'arme tenue pour ce jeu de tuiles. Active par defaut.",
         backgroundRemovalDescription:
           "Configurez la suppression d'arriere-plan des panneaux pour ce jeu de tuiles, ou laissez les deux modes desactives pour conserver les fonds de l'atlas.",
         backgroundTileRemoval: "Suppression de la tuile de fond",

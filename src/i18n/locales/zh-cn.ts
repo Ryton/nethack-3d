@@ -419,6 +419,10 @@ export const zhCnOverrides = {
           label: "相对镜头的移动与滑动",
           description: "根据镜头 Y 轴角度旋转移动键和滑动方向。",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "\u5728\u7b2c\u4e00\u4eba\u79f0\u6a21\u5f0f\u542f\u7528 WASD \u952e\u76d8\u79fb\u52a8",
+          description: "\u4f7f\u7528 W/A/S/D \u8fdb\u884c\u7b2c\u4e00\u4eba\u79f0\u79fb\u52a8\u3002\u5173\u95ed\u540e\uff0c\u8fd9\u4e9b\u6309\u952e\u5c06\u50cf\u666e\u901a NetHack \u547d\u4ee4\u4e00\u6837\u5de5\u4f5c\u3002",
+        },
         controllerFpsMoveRepeatMs: {
           label: "第一人称左摇杆移动重复",
           description: "第一人称模式下左摇杆的移动重复延迟（越低越快）。",
@@ -980,6 +984,9 @@ export const zhCnOverrides = {
         selectedFile: (fileName: string) => `已选择：${fileName}`,
         currentFile: (fileName: string) => `当前：${fileName}`,
         uploadedImage: "已上传图像",
+        weaponSpriteFlip: "\u7ffb\u8f6c\u7b2c\u4e00\u4eba\u79f0\u6b66\u5668\u7cbe\u7075",
+        weaponSpriteFlipDescription:
+          "\u4e3a\u6b64\u74e6\u7247\u96c6\u6c34\u5e73\u7ffb\u8f6c\u624b\u6301\u6b66\u5668\u7cbe\u7075\u3002\u9ed8\u8ba4\u542f\u7528\u3002",
         backgroundRemovalDescription:
           "为此瓦片集配置广告牌背景移除，或关闭两种模式以保留图集背景。",
         backgroundTileRemoval: "背景瓦片移除",

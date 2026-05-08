@@ -668,6 +668,11 @@ export const ptBrOverrides = {
           description:
             "Gira teclas de movimento e direções de gesto com base no ângulo do eixo Y da câmera.",
         },
+        fpsWasdKeyboardMovementEnabled: {
+          label: "Ativar movimento WASD pelo teclado no modo FPS",
+          description:
+            "Use W/A/S/D para movimento em primeira pessoa. Desative para que essas teclas se comportem como comandos normais do NetHack.",
+        },
         controllerFpsMoveRepeatMs: {
           label: "Repetição de movimento FPS no analógico esquerdo",
           description:
@@ -1293,6 +1298,9 @@ export const ptBrOverrides = {
         selectedFile: (fileName: string) => `Selecionado: ${fileName}`,
         currentFile: (fileName: string) => `Atual: ${fileName}`,
         uploadedImage: "imagem enviada",
+        weaponSpriteFlip: "Inverter sprite da arma em FPS",
+        weaponSpriteFlipDescription:
+          "Inverte horizontalmente o sprite da arma empunhada para este tileset. Ativado por padr\u00e3o.",
         backgroundRemovalDescription:
           "Configure a remoção de fundo dos billboards para este tileset, ou deixe os dois modos desativados para manter os fundos do atlas intactos.",
         backgroundTileRemoval: "Remoção por tile de fundo",

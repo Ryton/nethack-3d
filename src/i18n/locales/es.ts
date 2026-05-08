@@ -619,6 +619,10 @@ export const esOverrides = {
                     label: "Movimientos y deslizamientos relativos a la c\u00E1mara",
                     description: "Gire las teclas de movimiento y deslice las direcciones seg\u00FAn el \u00E1ngulo del eje Y de la c\u00E1mara.",
                 },
+                fpsWasdKeyboardMovementEnabled: {
+                    label: "Activar movimiento WASD con teclado en modo FPS",
+                    description: "Usa W/A/S/D para moverte en primera persona. Desact\u00EDvalo para que esas teclas se comporten como comandos normales de NetHack.",
+                },
                 controllerFpsMoveRepeatMs: {
                     label: "Repetici\u00F3n de movimiento del joystick izquierdo FPS",
                     description: "Retraso de repetici\u00F3n de movimiento para el joystick izquierdo en modo FPS (m\u00E1s abajo es m\u00E1s r\u00E1pido).",
@@ -1161,6 +1165,8 @@ export const esOverrides = {
                 selectedFile: (fileName: string) => `Seleccionado:${fileName}`,
                 currentFile: (fileName: string) => `Actual:${fileName}`,
                 uploadedImage: "imagen cargada",
+                weaponSpriteFlip: "Voltear sprite del arma en FPS",
+                weaponSpriteFlipDescription: "Voltea horizontalmente el sprite del arma equipada para este conjunto de mosaicos. Activado de forma predeterminada.",
                 backgroundRemovalDescription: "Configure la eliminaci\u00F3n del fondo de cartelera para este conjunto de mosaicos o deje ambos modos desactivados para mantener intactos los fondos del atlas.",
                 backgroundTileRemoval: "Eliminaci\u00F3n de mosaicos de fondo",
                 backgroundTileRemovalDescription: "Utilice un mosaico de atlas seleccionado para eliminar el fondo de la cartelera.",
