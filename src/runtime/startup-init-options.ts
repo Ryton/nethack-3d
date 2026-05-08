@@ -102,7 +102,7 @@ const requiredStartupInitOptionTokensByVersion: Readonly<
 > = {
   "3.6.7": ["checkpoint"],
   "5.0": ["checkpoint"],
-  slashem: [],
+  slashem: ["checkpoint"],
 };
 
 export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefinition> =
@@ -114,9 +114,18 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       control: "select",
       defaultValue: "normal",
       options: [
-        { value: "normal", label: startupStrings.options.playmode.options.normal },
-        { value: "explore", label: startupStrings.options.playmode.options.explore },
-        { value: "debug", label: startupStrings.options.playmode.options.debug },
+        {
+          value: "normal",
+          label: startupStrings.options.playmode.options.normal,
+        },
+        {
+          value: "explore",
+          label: startupStrings.options.playmode.options.explore,
+        },
+        {
+          value: "debug",
+          label: startupStrings.options.playmode.options.debug,
+        },
       ],
       supportedRuntimeVersions: ["3.6.7", "5.0"],
     },
@@ -127,7 +136,10 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
       control: "select",
       defaultValue: "1",
       options: [
-        { value: "1", label: startupStrings.options.number_pad.options.numeric },
+        {
+          value: "1",
+          label: startupStrings.options.number_pad.options.numeric,
+        },
         { value: "0", label: startupStrings.options.number_pad.options.vi },
       ],
     },
@@ -473,7 +485,9 @@ function getRequiredStartupInitOptionTokens(
     return requiredStartupInitOptionTokensByVersion[runtimeVersion] ?? [];
   }
   const tokenByKey = new Map<string, string>();
-  for (const tokens of Object.values(requiredStartupInitOptionTokensByVersion)) {
+  for (const tokens of Object.values(
+    requiredStartupInitOptionTokensByVersion,
+  )) {
     for (const token of tokens) {
       tokenByKey.set(extractOptionKey(token), token);
     }
@@ -705,9 +719,7 @@ export function sanitizeStartupInitOptionToken(
       runtimeVersion,
     );
   }
-  if (
-    !isStartupInitOptionDefinitionSupported(definition, runtimeVersion)
-  ) {
+  if (!isStartupInitOptionDefinitionSupported(definition, runtimeVersion)) {
     return null;
   }
   if (definition.control === "boolean") {

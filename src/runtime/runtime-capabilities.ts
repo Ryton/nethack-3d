@@ -1,7 +1,5 @@
 import type { NethackRuntimeVersion } from "./types";
 
-const ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY = false;
-
 function readDefinedBoolean(value: unknown): boolean {
   if (typeof value === "boolean") {
     return value;
@@ -21,9 +19,6 @@ export function hasRuntimeCheckpointRecoveryPrimitiveExport(
     );
   }
   if (runtimeVersion === "slashem") {
-    if (!ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY) {
-      return false;
-    }
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_RECOVER_SAVEFILE,
     );
@@ -45,9 +40,6 @@ export function supportsRuntimeCheckpointRecovery(
     );
   }
   if (runtimeVersion === "slashem") {
-    if (!ENABLE_RUNTIME_SLASHEM_CHECKPOINT_RECOVERY) {
-      return false;
-    }
     return readDefinedBoolean(
       import.meta.env.VITE_NH3D_WASM_SLASHEM_HAS_CHECKPOINT_RESUME_BRIDGE,
     );
