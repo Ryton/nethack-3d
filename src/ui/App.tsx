@@ -1429,6 +1429,22 @@ function parseQuestionChoices(question: string, choices: string): string[] {
   return merged;
 }
 
+function isSymbolLookupTextQuestion(
+  questionText: string,
+  choices: string,
+): boolean {
+  if (String(choices || "").trim().length > 0) {
+    return false;
+  }
+  const normalizedQuestion = String(questionText || "")
+    .trim()
+    .toLowerCase();
+  return (
+    normalizedQuestion === "what do you look for?" ||
+    normalizedQuestion === "what do you look for"
+  );
+}
+
 function getQuestionBracketChoiceSpec(question: string): string {
   const bracketMatch = String(question || "").match(/\[([^\]]+)\]/);
   return typeof bracketMatch?.[1] === "string"
@@ -6761,6 +6777,8 @@ export default function App(): JSX.Element {
       entries: [],
       index: 0,
     });
+  const questionTextInputRef = useRef<HTMLInputElement | null>(null);
+  const [questionTextInputValue, setQuestionTextInputValue] = useState("");
   useEffect(() => {
     setMessageInfoMenuHistory({
       entries: [],
@@ -10137,6 +10155,11 @@ export default function App(): JSX.Element {
     visibleQuestionChoices,
     activeRuntimeVersion,
   );
+  const shouldRenderQuestionTextInput =
+    Boolean(question) &&
+    (question?.menuItems.length ?? 0) === 0 &&
+    orderedQuestionChoices.length === 0 &&
+    isSymbolLookupTextQuestion(question?.text ?? "", question?.choices ?? "");
   const isYesNoQuestionChoices = isYesNoChoicePrompt(visibleQuestionChoices);
   const isAdjustLetterQuestion = isAdjustLetterQuestionPrompt(
     question?.text ?? "",
@@ -10254,6 +10277,28 @@ export default function App(): JSX.Element {
   const inventoryCloseInstructionText = inventoryContextActionsEnabled
     ? t.dialogs.inventory.closeHintWithContext
     : t.dialogs.inventory.closeHint;
+  const submitQuestionTextInput = useCallback((): void => {
+    const answer = questionTextInputValue.charAt(0);
+    if (!answer) {
+      controller?.cancelActivePrompt();
+      return;
+    }
+    controller?.chooseQuestionChoice(answer);
+    setQuestionTextInputValue("");
+  }, [controller, questionTextInputValue]);
+
+  useEffect(() => {
+    if (!shouldRenderQuestionTextInput) {
+      setQuestionTextInputValue("");
+      return;
+    }
+    setQuestionTextInputValue("");
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        questionTextInputRef.current?.focus();
+      }, 0);
+    }
+  }, [question?.text, shouldRenderQuestionTextInput]);
 
   useLayoutEffect(() => {
     if (typeof document === "undefined") {
@@ -17935,6 +17980,55 @@ export default function App(): JSX.Element {
                   ) : null}
                 </>
               )
+            ) : shouldRenderQuestionTextInput ? (
+              <>
+                <input
+                  aria-label={
+                    displayedQuestionText || t.dialogs.textInput.placeholder
+                  }
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoFocus
+                  className="nh3d-text-input nh3d-question-text-input"
+                  inputMode="text"
+                  maxLength={1}
+                  onChange={(event) =>
+                    setQuestionTextInputValue(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    event.stopPropagation();
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      submitQuestionTextInput();
+                    } else if (event.key === "Escape") {
+                      event.preventDefault();
+                      controller?.cancelActivePrompt();
+                    }
+                  }}
+                  placeholder={t.dialogs.textInput.placeholder}
+                  ref={questionTextInputRef}
+                  spellCheck={false}
+                  type="text"
+                  value={questionTextInputValue}
+                />
+                <div className="nh3d-menu-actions">
+                  <button
+                    className="nh3d-menu-action-button nh3d-menu-action-confirm"
+                    onClick={submitQuestionTextInput}
+                    type="button"
+                  >
+                    {t.dialogs.textInput.ok}
+                  </button>
+                  <button
+                    className="nh3d-menu-action-button nh3d-menu-action-cancel"
+                    onClick={() => controller?.cancelActivePrompt()}
+                    type="button"
+                  >
+                    {commonStrings.cancel}
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <div className="nh3d-overflow-glow-frame">

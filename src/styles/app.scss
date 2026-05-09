@@ -6699,6 +6699,15 @@ canvas {
   }
 }
 
+.nh3d-question-text-input {
+  display: block;
+  width: min(240px, 100%);
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  font-size: nh3d-scale-font(18px);
+}
+
 .nh3d-name-submit {
   padding: 8px 20px;
   background: var(--nh3d-ui-confirm-bg);
