@@ -1166,6 +1166,7 @@ const toneAdjustShader = {
  */
 class Nethack3DEngine implements Nethack3DEngineController {
   private renderer!: THREE.WebGLRenderer;
+  private webGlRendererIdentifier: string | null = null;
   private composer: EffectComposer | null = null;
   private taaRenderPass: TAARenderPass | null = null;
   private fxaaPass: FXAAPass | null = null;
@@ -1225,8 +1226,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     THREE.MeshBasicMaterial
   > | null = null;
   private bloodGroundOverlayMaterial: THREE.MeshBasicMaterial | null = null;
-  private bloodGroundOverlayTexture: THREE.DataTexture | null = null;
-  private bloodGroundPixelData: Uint8Array | null = null;
+  private bloodGroundOverlayTexture: THREE.Texture | null = null;
+  private bloodGroundPixelData: Uint8Array | Uint8ClampedArray | null = null;
   private bloodGroundPixelData32: Uint32Array | null = null;
   private bloodGroundDensity: Uint16Array | null = null;
   private bloodGroundDirtyRect: BloodGroundDirtyRect | null = null;
@@ -1236,6 +1237,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private bloodGroundDirtyRowRangeEnd: number = -1;
   private bloodGroundHasVisibleData: boolean = false;
   private bloodGroundTextureRequiresFullUpload: boolean = false;
+  private bloodGroundCompatibilityMode: boolean = false;
+  private bloodGroundUploadCanvas: HTMLCanvasElement | null = null;
+  private bloodGroundUploadContext: CanvasRenderingContext2D | null = null;
+  private bloodGroundUploadImageData: ImageData | null = null;
   private bloodGroundColorLut: Uint32Array | null = null;
   private bloodGroundNoiseAtlasA: Float32Array | null = null;
   private bloodGroundNoiseAtlasB: Float32Array | null = null;
@@ -2613,9 +2618,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private patchMaterialForVignette(
     material: THREE.Material,
     options: {
+      bloodGroundDiscardEmptyTexels?: boolean;
       bloodGroundSpecularEffectTexelSize?: THREE.Vector2;
     } = {},
   ): void {
+    const bloodGroundDiscardEmptyTexels =
+      options.bloodGroundDiscardEmptyTexels === true;
     const bloodGroundSpecularEffectTexelSize =
       options.bloodGroundSpecularEffectTexelSize;
     const shaderKeySuffix = bloodGroundSpecularEffectTexelSize
@@ -2623,9 +2631,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
           8,
         )}_${bloodGroundSpecularEffectTexelSize.y.toFixed(8)}`
       : "";
+    const bloodGroundGuardKeySuffix = bloodGroundDiscardEmptyTexels
+      ? "_blood_ground_color_guard_v1"
+      : "";
     // Force Three.js to compile a unique shader for this patch
     material.customProgramCacheKey = () =>
-      `vignette_patch_v9${shaderKeySuffix}`;
+      `vignette_patch_v9${shaderKeySuffix}${bloodGroundGuardKeySuffix}`;
 
     material.onBeforeCompile = (shader) => {
       // Bind our class-level uniforms to this specific shader
@@ -2681,6 +2692,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
           `,
         );
         damageFlashLogic = "float uDamageFlash = uDamageFlashAmount;";
+      }
+
+      if (bloodGroundDiscardEmptyTexels) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+          #ifdef USE_MAP
+            float bloodGroundColorCoverage = max(
+              max(diffuseColor.r, diffuseColor.g),
+              diffuseColor.b
+            );
+            if (bloodGroundColorCoverage < 0.0019607843) discard;
+          #endif`,
+        );
       }
 
       let bloodGroundSpecularPrefix = "";
@@ -4123,29 +4148,62 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.ensureBloodGroundLookupTables();
     const width = this.bloodGroundWidthPx;
     const height = this.bloodGroundHeightPx;
+    const useCompatibilityMode = this.shouldUseBloodGroundCompatibilityMode();
+    this.bloodGroundCompatibilityMode = useCompatibilityMode;
 
-    const pixelData = new Uint8Array(width * height * 4);
+    let pixelData: Uint8Array | Uint8ClampedArray;
+    let texture: THREE.Texture;
+    let uploadCanvas: HTMLCanvasElement | null = null;
+    let uploadContext: CanvasRenderingContext2D | null = null;
+    let uploadImageData: ImageData | null = null;
     // Evaluate specular as a shader-side pass on a fixed high-detail grid so
     // the highlight quality does not inherit lower blood-mask resolutions.
     const specularEffectWidth =
       MINIMAP_WIDTH_TILES * this.bloodGroundSpecularPixelsPerTile;
     const specularEffectHeight =
       MINIMAP_HEIGHT_TILES * this.bloodGroundSpecularPixelsPerTile;
-    const texture = new THREE.DataTexture(
-      pixelData,
-      width,
-      height,
-      THREE.RGBAFormat,
-      THREE.UnsignedByteType,
-    );
+    if (useCompatibilityMode && typeof document !== "undefined") {
+      uploadCanvas = document.createElement("canvas");
+      uploadCanvas.width = width;
+      uploadCanvas.height = height;
+      uploadContext = uploadCanvas.getContext("2d");
+      if (uploadContext) {
+        uploadImageData = uploadContext.createImageData(width, height);
+        pixelData = uploadImageData.data;
+        texture = new THREE.CanvasTexture(uploadCanvas);
+      } else {
+        pixelData = new Uint8Array(width * height * 4);
+        texture = new THREE.DataTexture(
+          pixelData,
+          width,
+          height,
+          THREE.RGBAFormat,
+          THREE.UnsignedByteType,
+        );
+      }
+    } else {
+      pixelData = new Uint8Array(width * height * 4);
+      texture = new THREE.DataTexture(
+        pixelData,
+        width,
+        height,
+        THREE.RGBAFormat,
+        THREE.UnsignedByteType,
+      );
+    }
     texture.generateMipmaps = false;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = useCompatibilityMode
+      ? THREE.NearestFilter
+      : THREE.LinearFilter;
+    texture.magFilter = useCompatibilityMode
+      ? THREE.NearestFilter
+      : THREE.LinearFilter;
     texture.flipY = false;
-    texture.anisotropy = Math.max(
-      1,
-      Math.min(2, this.resolveTextureAnisotropyLevel()),
-    );
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.anisotropy = useCompatibilityMode
+      ? 1
+      : Math.max(1, Math.min(2, this.resolveTextureAnisotropyLevel()));
     texture.needsUpdate = true;
 
     const material = new THREE.MeshBasicMaterial({
@@ -4156,13 +4214,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
       depthTest: true,
       toneMapped: false,
     });
-    material.alphaTest = 0.001;
-    this.patchMaterialForVignette(material, {
-      bloodGroundSpecularEffectTexelSize: new THREE.Vector2(
-        1 / specularEffectWidth,
-        1 / specularEffectHeight,
-      ),
-    });
+    material.alphaTest = useCompatibilityMode ? 4 / 255 : 0.001;
+    material.forceSinglePass = true;
+    if (useCompatibilityMode) {
+      this.patchMaterialForVignette(material, {
+        bloodGroundDiscardEmptyTexels: true,
+      });
+    } else {
+      this.patchMaterialForVignette(material, {
+        bloodGroundDiscardEmptyTexels: true,
+        bloodGroundSpecularEffectTexelSize: new THREE.Vector2(
+          1 / specularEffectWidth,
+          1 / specularEffectHeight,
+        ),
+      });
+    }
 
     const mesh = new THREE.Mesh(this.bloodGroundPlaneGeometry, material);
     mesh.position.set(
@@ -4180,7 +4246,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayMaterial = material;
     this.bloodGroundOverlayTexture = texture;
     this.bloodGroundPixelData = pixelData;
-    this.bloodGroundPixelData32 = new Uint32Array(pixelData.buffer);
+    this.bloodGroundPixelData32 = new Uint32Array(
+      pixelData.buffer,
+      pixelData.byteOffset,
+      pixelData.byteLength / 4,
+    );
+    this.bloodGroundUploadCanvas = uploadCanvas;
+    this.bloodGroundUploadContext = uploadContext;
+    this.bloodGroundUploadImageData = uploadImageData;
     this.bloodGroundDensity = new Uint16Array(width * height);
     this.bloodGroundDirtyRowMin = new Int32Array(height);
     this.bloodGroundDirtyRowMax = new Int32Array(height);
@@ -4190,6 +4263,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundTextureRequiresFullUpload = true;
     this.updateBloodGroundOverlayVisibility();
     return true;
+  }
+
+  private flushBloodGroundCompatibilityTexture(): void {
+    if (
+      !this.bloodGroundCompatibilityMode ||
+      !this.bloodGroundUploadContext ||
+      !this.bloodGroundUploadImageData
+    ) {
+      return;
+    }
+
+    this.bloodGroundUploadContext.putImageData(
+      this.bloodGroundUploadImageData,
+      0,
+      0,
+    );
   }
 
   private clearActiveBloodGroundCanvas(): void {
@@ -4205,6 +4294,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.bloodGroundPixelData.fill(0);
     }
     if (this.bloodGroundOverlayTexture) {
+      this.flushBloodGroundCompatibilityTexture();
       this.bloodGroundOverlayTexture.clearUpdateRanges();
       this.bloodGroundOverlayTexture.needsUpdate = true;
     }
@@ -4223,6 +4313,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayTexture = null;
     this.bloodGroundPixelData = null;
     this.bloodGroundPixelData32 = null;
+    this.bloodGroundUploadCanvas = null;
+    this.bloodGroundUploadContext = null;
+    this.bloodGroundUploadImageData = null;
     this.bloodGroundDensity = null;
     this.bloodGroundDirtyRect = null;
     this.bloodGroundDirtyRowMin = null;
@@ -4231,6 +4324,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundDirtyRowRangeEnd = -1;
     this.bloodGroundHasVisibleData = false;
     this.bloodGroundTextureRequiresFullUpload = false;
+    this.bloodGroundCompatibilityMode = false;
   }
 
   private captureActiveBloodGroundCacheSnapshot(): BloodGroundCacheSnapshot | null {
@@ -4447,6 +4541,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const fullArea = width * height;
     const usePartialUpload =
+      !this.bloodGroundCompatibilityMode &&
       !requiresFullUpload &&
       dirtyArea / fullArea <= this.bloodGroundTexturePartialUploadAreaRatio;
     const pixelData32 = this.bloodGroundPixelData32;
@@ -4506,6 +4601,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.resetBloodGroundDirtyRowTracking();
     }
     this.bloodGroundTextureRequiresFullUpload = false;
+    this.flushBloodGroundCompatibilityTexture();
     texture.needsUpdate = true;
     this.bloodGroundDirtyRect = null;
     this.updateBloodGroundOverlayVisibility();
@@ -7188,6 +7284,44 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return true;
     }
     return !window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  private resolveWebGlRendererIdentifier(): string {
+    if (this.webGlRendererIdentifier !== null) {
+      return this.webGlRendererIdentifier;
+    }
+
+    try {
+      const context = this.renderer.getContext();
+      const debugInfo = context.getExtension("WEBGL_debug_renderer_info");
+      const vendor = debugInfo
+        ? context.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)
+        : context.getParameter(context.VENDOR);
+      const renderer = debugInfo
+        ? context.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+        : context.getParameter(context.RENDERER);
+      this.webGlRendererIdentifier = [vendor, renderer]
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean)
+        .join(" ");
+    } catch {
+      this.webGlRendererIdentifier = "";
+    }
+
+    return this.webGlRendererIdentifier;
+  }
+
+  private shouldUseBloodGroundCompatibilityMode(): boolean {
+    const rendererIdentifier = this.resolveWebGlRendererIdentifier();
+    if (/\bmali\b/i.test(rendererIdentifier)) {
+      return true;
+    }
+
+    const isAndroid =
+      this.getNativeCapacitorPlatform() === "android" ||
+      (typeof navigator !== "undefined" &&
+        /\bAndroid\b/i.test(navigator.userAgent || ""));
+    return isAndroid && rendererIdentifier.length === 0;
   }
 
   private resolveTextureAnisotropyLevel(): number {
