@@ -3231,7 +3231,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       isSoundEnabled: () => this.clientOptions.soundEnabled,
     });
     this.messageSoundHooks.setEnabled(this.clientOptions.soundEnabled);
-    this.webHaptics = WebHaptics.isSupported ? new WebHaptics() : null;
+    this.webHaptics = this.shouldInitializeWebHaptics()
+      ? new WebHaptics()
+      : null;
     this.initThreeJS();
     this.initUI();
     this.connectToRuntime();
@@ -10345,6 +10347,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.isLikelyCapacitorEnvironment() ? "capacitor" : "web";
   }
 
+  private shouldInitializeWebHaptics(): boolean {
+    if (WebHaptics.isSupported) {
+      return true;
+    }
+
+    // iOS Safari does not expose navigator.vibrate, but web-haptics includes
+    // an iOS switch-control fallback that can still produce light feedback.
+    return this.isIosTouchWebEnvironment();
+  }
+
   private triggerOutgoingDamageRumble(): void {
     this.triggerDamageRumble(this.damageRumbleDurationMs, 0.5);
   }
@@ -11577,7 +11589,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private isMobileIosWebOrAndroidDevice(): boolean {
+  private isIosTouchDevice(): boolean {
     if (typeof navigator === "undefined") {
       return false;
     }
@@ -11588,10 +11600,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof navigator.maxTouchPoints === "number"
         ? navigator.maxTouchPoints
         : 0;
-    const isIosTouchDevice =
+    return (
       /\b(iPad|iPhone|iPod)\b/i.test(userAgent) ||
-      (/Mac/i.test(platform) && maxTouchPoints > 1);
-    const isIosWeb = isIosTouchDevice && !this.isLikelyCapacitorEnvironment();
+      (/Mac/i.test(platform) && maxTouchPoints > 1)
+    );
+  }
+
+  private isIosTouchWebEnvironment(): boolean {
+    return this.isIosTouchDevice() && !this.isLikelyCapacitorEnvironment();
+  }
+
+  private isMobileIosWebOrAndroidDevice(): boolean {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+
+    const userAgent = navigator.userAgent || "";
+    const isIosWeb = this.isIosTouchWebEnvironment();
     const isAndroid = /\bAndroid\b/i.test(userAgent);
     return isIosWeb || isAndroid;
   }
