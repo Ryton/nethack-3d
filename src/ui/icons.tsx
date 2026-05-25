@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   Minus,
+  X,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -36,3 +37,4 @@ export function Nh3dIcon({
 export const Nh3dIconArrowDown = ArrowDown;
 export const Nh3dIconArrowUp = ArrowUp;
 export const Nh3dIconMinus = Minus;
+export const Nh3dIconX = X;

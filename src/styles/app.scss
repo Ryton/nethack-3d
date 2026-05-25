@@ -1947,25 +1947,22 @@ canvas {
   }
 }
 
-.nh3d-mobile-dialog-close {
-  display: none;
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
+.nh3d-dismiss-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
   border-radius: 999px;
-  border: 1px solid rgba(145, 180, 220, 0.72);
-  background: rgba(12, 26, 42, 0.96);
-  color: #e7f3ff;
+  border: 1px solid var(--nh3d-ui-button-warm-border);
+  background: var(--nh3d-ui-button-warm-bg);
+  color: var(--nh3d-ui-button-warm-text);
   font-family: "Courier New", monospace;
-  font-size: nh3d-scale-font(18px);
   font-weight: 700;
   line-height: 1;
   padding: 0;
   cursor: pointer;
-  z-index: 1;
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -1978,9 +1975,9 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 
   &:hover {
-    border-color: rgba(187, 214, 242, 0.9);
-    background: rgba(20, 37, 58, 0.98);
-    color: #f2f8ff;
+    border-color: var(--nh3d-ui-button-warm-border);
+    background: var(--nh3d-ui-button-warm-bg-hover);
+    color: var(--nh3d-ui-button-warm-text);
     box-shadow:
       0 3px 10px rgba(0, 0, 0, 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.12);
@@ -1997,25 +1994,34 @@ canvas {
     outline-offset: 1px;
   }
 
+  > svg {
+    display: block;
+    flex: 0 0 auto;
+  }
+}
+
+.nh3d-mobile-dialog-close {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+
   @media (pointer: coarse) {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
   }
 }
 
 .nh3d-position-dialog-close {
-  @extend .nh3d-mobile-dialog-close;
   display: none;
 
   @media (pointer: coarse) {
     display: inline-flex;
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 24px;
-    height: 24px;
-    font-size: nh3d-scale-font(19px);
+    position: relative;
+    top: auto;
+    right: auto;
+    float: right;
+    margin: 0 0 6px 10px;
   }
 }
 
@@ -4755,10 +4761,12 @@ canvas {
 #position-dialog {
   position: fixed;
   top: calc(
-    var(--nh3d-safe-area-top) + var(--nh3d-stats-bar-height, 0px) + 20px
+    var(--nh3d-mobile-visible-top-offset, 0px) + 83.333vh - var(
+        --nh3d-safe-area-bottom
+      ) / 2
   );
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   background: var(--nh3d-ui-panel-bg);
   color: var(--nh3d-ui-accent-soft);
   padding: 10px 20px;
@@ -4780,6 +4788,7 @@ canvas {
     width: 100%;
     max-height: inherit;
     overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .nh3d-position-dialog-request {
@@ -4800,11 +4809,42 @@ canvas {
   }
 
   @media (pointer: coarse) {
-    // Position prompt remains anchored to gameplay overlay bounds.
-    top: var(--nh3d-mobile-overlay-top-inset);
-    max-width: calc(100vw - 16px);
+    top: calc(
+      var(--nh3d-mobile-visible-top-offset, 0px) + 83.333vh - var(
+          --nh3d-mobile-overlay-bottom-inset
+        ) / 2
+    );
+    left: calc(8px + env(safe-area-inset-left, 0px));
+    right: calc(
+      8px + max(
+          var(--nh3d-safe-area-right),
+          var(--nh3d-mobile-landscape-action-rail-clearance, 0px)
+        )
+    );
+    width: auto;
+    max-width: none;
     max-height: var(--nh3d-mobile-overlay-max-height);
-    padding-right: 42px;
+    transform: translateY(-50%);
+
+    .nh3d-position-dialog-hint {
+      max-width: none;
+    }
+  }
+
+  @supports (height: 100dvh) {
+    top: calc(
+      var(--nh3d-mobile-visible-top-offset, 0px) + 83.333dvh - var(
+          --nh3d-safe-area-bottom
+        ) / 2
+    );
+
+    @media (pointer: coarse) {
+      top: calc(
+        var(--nh3d-mobile-visible-top-offset, 0px) + 83.333dvh - var(
+            --nh3d-mobile-overlay-bottom-inset
+          ) / 2
+      );
+    }
   }
 }
 

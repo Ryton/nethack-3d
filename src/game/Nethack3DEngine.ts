@@ -32379,6 +32379,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.submitTextInput("");
       return;
     }
+    if (this.positionInputModeActive) {
+      this.cancelPositionInputMode("active prompt cancel");
+      return;
+    }
     this.clearPendingThrownWeaponDirectionSound();
     if (this.isInQuestion || this.isInDirectionQuestion) {
       this.sendInput("Escape");

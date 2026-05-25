@@ -56,6 +56,7 @@ import {
   Nh3dIconArrowDown,
   Nh3dIconArrowUp,
 } from "./icons";
+import { MobileDismissButton } from "./MobileDismissButton";
 import type { NethackRuntimeVersion } from "../runtime/types";
 import {
   appendRequiredStartupInitOptionTokens,
@@ -12901,14 +12902,11 @@ export default function App(): JSX.Element {
     label = "Close",
   ): JSX.Element | null =>
     isMobileViewport ? (
-      <button
-        aria-label={label}
+      <MobileDismissButton
         className="nh3d-mobile-dialog-close"
+        label={label}
         onClick={onClick}
-        type="button"
-      >
-        {"\u00D7"}
-      </button>
+      />
     ) : null;
 
   const focusInventoryItemByAccelerator = useCallback(
@@ -20281,17 +20279,14 @@ export default function App(): JSX.Element {
           data-nh3d-overflow-glow-host="parent"
         >
           {isMobileViewport && positionDialogVisible ? (
-            <button
-              aria-label={t.dialogs.positionPrompt.closeLabel}
+            <MobileDismissButton
               className="nh3d-position-dialog-close"
+              label={t.dialogs.positionPrompt.closeLabel}
               onClick={() => {
                 controller?.cancelActivePrompt();
                 setPositionRequest(null);
               }}
-              type="button"
-            >
-              {"\u00D7"}
-            </button>
+            />
           ) : null}
           {positionRequest ? (
             <div className="nh3d-position-dialog-request">
