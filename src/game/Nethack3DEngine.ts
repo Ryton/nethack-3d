@@ -140,8 +140,16 @@ type PendingCharacterDamage = {
   } | null;
 };
 
-type Nh3dAndroidHapticsBridge = {
+type Nh3dAndroidBridge = {
+  getGamepadStateJson?: () => string;
   vibrate?: (durationMs: number, amplitude: number) => void;
+};
+
+type Nh3dAndroidNativeGamepadState = {
+  connected?: unknown;
+  timestamp?: unknown;
+  axes?: unknown;
+  buttons?: unknown;
 };
 
 type DirectionalAttackContext = {
@@ -10312,7 +10320,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const androidBridge = (window as Window & {
-      nh3dAndroid?: Nh3dAndroidHapticsBridge;
+      nh3dAndroid?: Nh3dAndroidBridge;
     }).nh3dAndroid;
     if (typeof androidBridge?.vibrate !== "function") {
       return false;
@@ -39809,18 +39817,99 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return normalizeNh3dControllerBindings(defaultNh3dControllerBindings);
   }
 
+  private shouldReadAndroidNativeGamepadState(): boolean {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    if (this.getNativeCapacitorPlatform() === "android") {
+      return true;
+    }
+    return (
+      typeof navigator !== "undefined" &&
+      /\bAndroid\b/i.test(navigator.userAgent || "")
+    );
+  }
+
+  private normalizeAndroidNativeGamepadAxes(rawValue: unknown): number[] {
+    const axes = [0, 0, 0, 0];
+    if (!Array.isArray(rawValue)) {
+      return axes;
+    }
+    for (let index = 0; index < axes.length; index += 1) {
+      const value = Number(rawValue[index]);
+      axes[index] = Number.isFinite(value)
+        ? THREE.MathUtils.clamp(value, -1, 1)
+        : 0;
+    }
+    return axes;
+  }
+
+  private normalizeAndroidNativeGamepadButtons(
+    rawValue: unknown,
+  ): GamepadButton[] {
+    const buttonCount = 17;
+    const buttons: GamepadButton[] = [];
+    const rawButtons = Array.isArray(rawValue) ? rawValue : [];
+    for (let index = 0; index < buttonCount; index += 1) {
+      const value = THREE.MathUtils.clamp(Number(rawButtons[index]) || 0, 0, 1);
+      buttons.push({
+        pressed: value >= 0.5,
+        touched: value > 0,
+        value,
+      });
+    }
+    return buttons;
+  }
+
+  private getAndroidNativeGamepad(): Gamepad | null {
+    if (!this.shouldReadAndroidNativeGamepadState()) {
+      return null;
+    }
+    const androidBridge = (window as Window & {
+      nh3dAndroid?: Nh3dAndroidBridge;
+    }).nh3dAndroid;
+    const rawStateJson = androidBridge?.getGamepadStateJson?.();
+    if (!rawStateJson) {
+      return null;
+    }
+    let state: Nh3dAndroidNativeGamepadState;
+    try {
+      state = JSON.parse(rawStateJson) as Nh3dAndroidNativeGamepadState;
+    } catch {
+      return null;
+    }
+    if (state.connected !== true) {
+      return null;
+    }
+    const timestamp = Number(state.timestamp);
+    return {
+      axes: this.normalizeAndroidNativeGamepadAxes(state.axes),
+      buttons: this.normalizeAndroidNativeGamepadButtons(state.buttons),
+      connected: true,
+      hapticActuators: [],
+      id: "Android native controller",
+      index: 0,
+      mapping: "standard",
+      timestamp: Number.isFinite(timestamp) ? timestamp : 0,
+      vibrationActuator: null,
+    } as unknown as Gamepad;
+  }
+
   private getConnectedGamepads(): Gamepad[] {
+    const connected: Gamepad[] = [];
+    const androidNativeGamepad = this.getAndroidNativeGamepad();
+    if (androidNativeGamepad) {
+      connected.push(androidNativeGamepad);
+    }
     if (typeof navigator === "undefined" || !navigator.getGamepads) {
-      return [];
+      return connected;
     }
     const pads = navigator.getGamepads();
-    if (!pads || pads.length === 0) {
-      return [];
-    }
-    const connected: Gamepad[] = [];
-    for (const gamepad of pads) {
-      if (gamepad && gamepad.connected) {
-        connected.push(gamepad);
+    if (pads && pads.length > 0) {
+      for (const gamepad of pads) {
+        if (gamepad && gamepad.connected) {
+          connected.push(gamepad);
+        }
       }
     }
     return connected;
@@ -41642,40 +41731,43 @@ class Nethack3DEngine implements Nethack3DEngineController {
         zoomModifierActive ? 0 : leftY,
         this.controllerAxisDeadzone,
       );
+    const previousLeftStickMovePreviewInput =
+      this.controllerLeftStickMovePreviewInput;
     if (leftDirectionInput) {
       this.controllerLeftStickMovePreviewInput = leftDirectionInput;
       this.setControllerMovePreviewDirection(leftDirectionInput);
-    } else if (this.controllerLeftStickMovePreviewInput) {
+    }
+
+    let confirmConsumedMovement = false;
+    const confirmedLeftStickMoveInput =
+      snapshot.pressed.confirm && !dpadDirectionInput
+        ? leftDirectionInput ?? previousLeftStickMovePreviewInput
+        : leftDirectionInput;
+    if (snapshot.pressed.confirm && confirmedLeftStickMoveInput) {
+      this.submitControllerDirectionalInput(
+        confirmedLeftStickMoveInput,
+        runModifierActive,
+        { preferMouseMove: true },
+      );
+      confirmConsumedMovement = true;
+      // Keep a held stick direction armed so the next move highlight can
+      // advance immediately after the player position updates. Android WebView
+      // can briefly report a centered axis on the same frame as A/RT.
+      this.controllerLeftStickMovePreviewInput = confirmedLeftStickMoveInput;
+      this.setControllerMovePreviewDirection(confirmedLeftStickMoveInput);
+    }
+
+    if (
+      !leftDirectionInput &&
+      !confirmConsumedMovement &&
+      this.controllerLeftStickMovePreviewInput
+    ) {
       this.controllerLeftStickMovePreviewInput = null;
       if (this.controllerDpadMovePreviewInput) {
         this.setControllerMovePreviewDirection(
           this.controllerDpadMovePreviewInput,
         );
       } else {
-        this.controllerMoveHighlightTile = null;
-      }
-    }
-
-    let confirmConsumedMovement = false;
-    if (snapshot.pressed.confirm && this.controllerLeftStickMovePreviewInput) {
-      this.submitControllerDirectionalInput(
-        this.controllerLeftStickMovePreviewInput,
-        runModifierActive,
-        { preferMouseMove: true },
-      );
-      confirmConsumedMovement = true;
-      if (leftDirectionInput) {
-        // Keep a held stick direction armed so the next move highlight can
-        // advance immediately after the player position updates.
-        this.controllerLeftStickMovePreviewInput = leftDirectionInput;
-        this.setControllerMovePreviewDirection(leftDirectionInput);
-      } else if (this.controllerDpadMovePreviewInput) {
-        this.controllerLeftStickMovePreviewInput = null;
-        this.setControllerMovePreviewDirection(
-          this.controllerDpadMovePreviewInput,
-        );
-      } else {
-        this.controllerLeftStickMovePreviewInput = null;
         this.controllerMoveHighlightTile = null;
       }
     }
