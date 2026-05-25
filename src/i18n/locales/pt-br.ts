@@ -1466,6 +1466,12 @@ export const ptBrOverrides = {
       },
       positionPrompt: {
         closeLabel: "Fechar prompt de posição",
+        desktopHint:
+          "Use o comando de movimento ou clique em um quadrado para mover a seleção. Clique novamente no quadrado selecionado ou pressione Enter para confirmar.",
+        mobileHint:
+          "Use o comando de movimento ou toque em um quadrado para mover a seleção. Toque novamente no quadrado selecionado ou pressione Enter para confirmar.",
+        controllerHint:
+          "Use o comando de movimento para mover a seleção. Pressione Enter ou Confirmar para confirmar.",
       },
       controllerSupport: {
         prompt: "Controle detectado. Ativar suporte a controle?",

@@ -1416,6 +1416,12 @@ export const fiOverrides: LocaleOverrides<TranslationDictionary> = {
       },
       positionPrompt: {
         closeLabel: "Sulje sijaintikehote",
+        desktopHint:
+          "Käytä liikesyötettä tai napsauta ruutua siirtääksesi valintaa. Vahvista napsauttamalla valittua ruutua uudelleen tai painamalla Enteriä.",
+        mobileHint:
+          "Käytä liikesyötettä tai napauta ruutua siirtääksesi valintaa. Vahvista napauttamalla valittua ruutua uudelleen tai painamalla Enteriä.",
+        controllerHint:
+          "Käytä liikesyötettä siirtääksesi valintaa. Vahvista painamalla Enteriä tai Vahvista-painiketta.",
       },
       controllerSupport: {
         prompt: "Ohjain havaittu. Otetaanko ohjaintuki käyttöön?",

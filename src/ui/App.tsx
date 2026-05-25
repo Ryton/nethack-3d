@@ -6772,6 +6772,9 @@ export default function App(): JSX.Element {
   const positionInputActive = useGameStore(
     (state) => state.positionInputActive,
   );
+  const positionInputOrigin = useGameStore(
+    (state) => state.positionInputOrigin,
+  );
   const connectionState = useGameStore((state) => state.connectionState);
   const extendedCommands = useGameStore((state) => state.extendedCommands);
   const controller = useGameStore((state) => state.engineController);
@@ -9482,6 +9485,17 @@ export default function App(): JSX.Element {
   const asciiLogoVisible = startupLogoVisible || gameOverDialogShowsTombstone;
   const mobileTouchUiVisible =
     isMobileGameRunning && !gameOverDialogShowsTombstone;
+  const farLookPositionInputActive =
+    positionInputActive && positionInputOrigin !== "travel";
+  const positionInputInstruction = farLookPositionInputActive
+    ? clientOptions.controllerEnabled && !mobileTouchUiVisible
+      ? t.dialogs.positionPrompt.controllerHint
+      : mobileTouchUiVisible
+        ? t.dialogs.positionPrompt.mobileHint
+        : t.dialogs.positionPrompt.desktopHint
+    : null;
+  const positionDialogVisible =
+    Boolean(positionRequest) || Boolean(positionInputInstruction);
   const hideAllUiForDeferredGameOver =
     reopenNewGamePromptOnInteraction && !newGamePrompt.visible;
   const latestGameMessage =
@@ -20253,7 +20267,12 @@ export default function App(): JSX.Element {
       ) : null}
 
       <div
-        className={`${positionRequest ? "is-visible" : ""} nh3d-overflow-glow-frame`.trim()}
+        className={[
+          positionDialogVisible ? "is-visible" : "",
+          "nh3d-overflow-glow-frame",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         id="position-dialog"
       >
         <div
@@ -20261,7 +20280,7 @@ export default function App(): JSX.Element {
           data-nh3d-overflow-glow
           data-nh3d-overflow-glow-host="parent"
         >
-          {isMobileViewport && positionRequest ? (
+          {isMobileViewport && positionDialogVisible ? (
             <button
               aria-label={t.dialogs.positionPrompt.closeLabel}
               className="nh3d-position-dialog-close"
@@ -20274,7 +20293,16 @@ export default function App(): JSX.Element {
               {"\u00D7"}
             </button>
           ) : null}
-          {positionRequest}
+          {positionRequest ? (
+            <div className="nh3d-position-dialog-request">
+              {positionRequest}
+            </div>
+          ) : null}
+          {positionInputInstruction ? (
+            <div className="nh3d-position-dialog-hint">
+              {positionInputInstruction}
+            </div>
+          ) : null}
         </div>
       </div>
 

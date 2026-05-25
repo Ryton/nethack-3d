@@ -1220,7 +1220,7 @@ export interface Nethack3DEngineUIAdapter {
   setTextInput(state: TextInputRequestState | null): void;
   setExtendedCommands(commands: string[]): void;
   setPositionRequest(text: string | null): void;
-  setPositionInputActive(active: boolean): void;
+  setPositionInputActive(active: boolean, origin?: string | null): void;
   setFpsCrosshairContext(state: FpsCrosshairContextState | null): void;
   setRepeatActionVisible(visible: boolean): void;
   setNewGamePrompt(state: NewGamePromptState): void;

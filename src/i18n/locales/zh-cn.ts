@@ -1144,6 +1144,12 @@ export const zhCnOverrides = {
       },
       positionPrompt: {
         closeLabel: "关闭位置提示",
+        desktopHint:
+          "使用移动输入或点击一个格子来移动选择。再次点击选中的格子或按 Enter 确认。",
+        mobileHint:
+          "使用移动输入或轻点一个格子来移动选择。再次轻点选中的格子或按 Enter 确认。",
+        controllerHint:
+          "使用移动输入来移动选择。按 Enter 或确认键确认。",
       },
       controllerSupport: {
         prompt: "检测到控制器。要启用控制器支持吗？",

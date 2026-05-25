@@ -4754,7 +4754,9 @@ canvas {
 
 #position-dialog {
   position: fixed;
-  top: 20px;
+  top: calc(
+    var(--nh3d-safe-area-top) + var(--nh3d-stats-bar-height, 0px) + 20px
+  );
   left: 50%;
   transform: translateX(-50%);
   background: var(--nh3d-ui-panel-bg);
@@ -4764,7 +4766,9 @@ canvas {
   border-radius: 5px;
   z-index: 2000;
   font-family: "Courier New", monospace;
+  font-size: nh3d-scale-font(14px);
   text-align: center;
+  line-height: 1.4;
   display: none;
   overflow: hidden;
 
@@ -4776,6 +4780,23 @@ canvas {
     width: 100%;
     max-height: inherit;
     overflow-y: auto;
+  }
+
+  .nh3d-position-dialog-request {
+    color: var(--nh3d-ui-accent-soft);
+  }
+
+  .nh3d-position-dialog-hint {
+    max-width: min(560px, calc(100vw - 64px));
+    color: var(--nh3d-ui-text);
+    font-family: inherit;
+    font-size: nh3d-scale-font(14px);
+  }
+
+  .nh3d-position-dialog-request + .nh3d-position-dialog-hint {
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(102, 204, 255, 0.24);
   }
 
   @media (pointer: coarse) {

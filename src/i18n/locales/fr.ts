@@ -1467,6 +1467,12 @@ export const fr = {
       },
       positionPrompt: {
         closeLabel: "Fermer l'invite de position",
+        desktopHint:
+          "Utilisez les commandes de déplacement ou cliquez sur une case pour déplacer la sélection. Cliquez de nouveau sur la case sélectionnée ou appuyez sur Entrée pour confirmer.",
+        mobileHint:
+          "Utilisez les commandes de déplacement ou touchez une case pour déplacer la sélection. Touchez de nouveau la case sélectionnée ou appuyez sur Entrée pour confirmer.",
+        controllerHint:
+          "Utilisez les commandes de déplacement pour déplacer la sélection. Appuyez sur Entrée ou Confirmer pour confirmer.",
       },
       controllerSupport: {
         prompt: "Manette detectee. Activer la prise en charge de la manette ?",

@@ -3867,6 +3867,7 @@ class LocalNetHackRuntime {
     if (!pending || typeof pending.resolve !== "function") {
       return;
     }
+    this.armFarLookForExtendedCommandIndex(commandIndex);
     pending.resolve(Number.isInteger(commandIndex) ? commandIndex : -1);
   }
 
@@ -8744,6 +8745,27 @@ class LocalNetHackRuntime {
     return -1;
   }
 
+  resolveExtendedCommandNameByIndex(commandIndex) {
+    if (!Number.isInteger(commandIndex) || commandIndex < 0) {
+      return null;
+    }
+    const entry = this.getExtendedCommandEntries().find(
+      (candidate) => candidate && candidate.index === commandIndex,
+    );
+    return entry && typeof entry.name === "string" ? entry.name : null;
+  }
+
+  armFarLookForExtendedCommandIndex(commandIndex) {
+    const commandName = this.resolveExtendedCommandNameByIndex(commandIndex);
+    if (commandName !== "glance") {
+      return;
+    }
+    console.log("Arming far-look mode for #glance extended command");
+    this.farLookMode = "armed";
+    this.farLookOrigin = "direct";
+    this.pendingLookMenuFarLookArm = false;
+  }
+
   resolveMetaBoundExtendedCommandName(metaKey) {
     if (typeof metaKey !== "string" || metaKey.length === 0) {
       return null;
@@ -10937,6 +10959,7 @@ class LocalNetHackRuntime {
         console.log(
           `Resolved extended command "${extCommandText}" to index ${extCommandIndex}`,
         );
+        this.armFarLookForExtendedCommandIndex(extCommandIndex);
         return extCommandIndex;
 
       case "shim_init_nhwindows":

@@ -23593,7 +23593,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.positionInputModeActive = true;
     this.positionInputOrigin = origin;
-    this.uiAdapter.setPositionInputActive(true);
+    this.uiAdapter.setPositionInputActive(true, origin);
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
     this.fpsPositionCursorReturnActive = false;
@@ -35547,6 +35547,116 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
+  private isFarLookPositionInputMode(): boolean {
+    return (
+      this.positionInputModeActive && this.positionInputOrigin !== "travel"
+    );
+  }
+
+  private isPositionCursorAtTile(x: number, y: number): boolean {
+    return (
+      Number.isFinite(this.positionCursor.x) &&
+      Number.isFinite(this.positionCursor.y) &&
+      Math.trunc(this.positionCursor.x) === Math.trunc(x) &&
+      Math.trunc(this.positionCursor.y) === Math.trunc(y)
+    );
+  }
+
+  private buildPositionCursorMovementInputSequence(
+    targetX: number,
+    targetY: number,
+  ): string[] {
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      return [];
+    }
+    if (
+      !Number.isFinite(this.positionCursor.x) ||
+      !Number.isFinite(this.positionCursor.y)
+    ) {
+      return [];
+    }
+
+    let cursorX = Math.trunc(this.positionCursor.x);
+    let cursorY = Math.trunc(this.positionCursor.y);
+    const destinationX = Math.trunc(targetX);
+    const destinationY = Math.trunc(targetY);
+    const inputs: string[] = [];
+    const maxSteps = 256;
+
+    while (
+      (cursorX !== destinationX || cursorY !== destinationY) &&
+      inputs.length < maxSteps
+    ) {
+      const stepX = Math.sign(destinationX - cursorX);
+      const stepY = Math.sign(destinationY - cursorY);
+      const input = this.getDirectionInputFromMapDelta(stepX, stepY);
+      if (!input) {
+        break;
+      }
+      inputs.push(input);
+      cursorX += stepX;
+      cursorY += stepY;
+    }
+
+    return cursorX === destinationX && cursorY === destinationY ? inputs : [];
+  }
+
+  private getPositionInputPointerTarget(
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } | null {
+    const directTarget = this.resolvePointerTargetTileFromClientCoordinates(
+      clientX,
+      clientY,
+    );
+    if (directTarget) {
+      return directTarget;
+    }
+
+    const gridTarget = this.getGridPositionFromClientCoordinates(
+      clientX,
+      clientY,
+    );
+    if (!gridTarget) {
+      return null;
+    }
+    return {
+      x: Math.round(gridTarget.x),
+      y: Math.round(gridTarget.y),
+    };
+  }
+
+  private handleFarLookPositionPointerSelection(
+    clientX: number,
+    clientY: number,
+    source: string,
+  ): boolean {
+    if (!this.isFarLookPositionInputMode()) {
+      return false;
+    }
+
+    const target = this.getPositionInputPointerTarget(clientX, clientY);
+    if (!target) {
+      return false;
+    }
+
+    if (this.isPositionCursorAtTile(target.x, target.y)) {
+      this.logClickLookTileDebug(source, target.x, target.y);
+      this.sendMouseInput(target.x, target.y, 0);
+      return true;
+    }
+
+    const movementInputs = this.buildPositionCursorMovementInputSequence(
+      target.x,
+      target.y,
+    );
+    this.setPositionCursorPosition(target.x, target.y);
+    if (movementInputs.length > 0) {
+      this.sendInputSequence(movementInputs);
+    }
+    return true;
+  }
+
   private resolveFpsLookSensitivityScale(axis: "x" | "y"): number {
     const rawValue =
       axis === "x"
@@ -42353,6 +42463,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
 
+    if (
+      event.button === 0 &&
+      this.handleFarLookPositionPointerSelection(
+        event.clientX,
+        event.clientY,
+        "mouse-primary",
+      )
+    ) {
+      return true;
+    }
+
     const target = this.getClickedTilePosition(event);
     if (!target && event.button === 0) {
       this.pendingPointerAttackTargetContext = null;
@@ -42492,7 +42613,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         document.pointerLockElement === this.renderer.domElement)
     ) {
       event.preventDefault();
-      this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+      const handledFarLookPointer = this.handleFarLookPositionPointerSelection(
+        event.clientX,
+        event.clientY,
+        "mouse-primary",
+      );
+      if (!handledFarLookPointer && !this.isFarLookPositionInputMode()) {
+        this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+      }
       return;
     }
 
@@ -43257,16 +43385,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
                 consumed = true;
                 continue;
               }
-              this.logClickLookTileDebug(
-                "touch-primary",
-                this.positionCursor.x,
-                this.positionCursor.y,
-              );
-              this.sendMouseInput(
-                this.positionCursor.x,
-                this.positionCursor.y,
-                0,
-              );
+              const handledFarLookPointer =
+                this.handleFarLookPositionPointerSelection(
+                  touch.clientX,
+                  touch.clientY,
+                  "touch-primary",
+                );
+              if (
+                !handledFarLookPointer &&
+                !this.isFarLookPositionInputMode()
+              ) {
+                this.logClickLookTileDebug(
+                  "touch-primary",
+                  this.positionCursor.x,
+                  this.positionCursor.y,
+                );
+                this.sendMouseInput(
+                  this.positionCursor.x,
+                  this.positionCursor.y,
+                  0,
+                );
+              }
               consumed = true;
             }
           }
@@ -43279,7 +43418,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
             this.fpsTouchMoveGesture = null;
             const dx = touch.clientX - gesture.startX;
             const dy = touch.clientY - gesture.startY;
+            const distance = Math.hypot(dx, dy);
             const durationMs = nowMs - gesture.startedAtMs;
+            const isTap =
+              distance < this.fpsTouchLookMoveThresholdPx &&
+              durationMs <= this.fpsTouchTapMaxDurationMs;
+            if (isTap) {
+              if (this.releaseDeferredGameOverUiReveal()) {
+                consumed = true;
+                continue;
+              }
+              const handledFarLookPointer =
+                this.handleFarLookPositionPointerSelection(
+                  touch.clientX,
+                  touch.clientY,
+                  "touch-primary",
+                );
+              if (handledFarLookPointer || this.isFarLookPositionInputMode()) {
+                consumed = true;
+                continue;
+              }
+            }
+
             const fpsMoveInput =
               durationMs <= this.touchSwipeMaxDurationMs
                 ? this.resolveFpsMovementInputFromSwipe(dx, dy)
@@ -43455,14 +43615,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
         Number.isFinite(this.positionCursor.x) &&
         Number.isFinite(this.positionCursor.y)
       ) {
-        this.logClickLookTileDebug(
-          "touch-primary",
-          this.positionCursor.x,
-          this.positionCursor.y,
-        );
-        this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
-        if (event.cancelable) {
-          event.preventDefault();
+        const handledFarLookPointer =
+          this.handleFarLookPositionPointerSelection(
+            touch.clientX,
+            touch.clientY,
+            "touch-primary",
+          );
+        if (!handledFarLookPointer && !this.isFarLookPositionInputMode()) {
+          this.logClickLookTileDebug(
+            "touch-primary",
+            this.positionCursor.x,
+            this.positionCursor.y,
+          );
+          this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+        }
+        if (handledFarLookPointer || !this.isFarLookPositionInputMode()) {
+          if (event.cancelable) {
+            event.preventDefault();
+          }
         }
       }
       return;

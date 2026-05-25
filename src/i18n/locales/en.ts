@@ -1490,6 +1490,12 @@ export const en = {
       },
       positionPrompt: {
         closeLabel: "Close position prompt",
+        desktopHint:
+          "Use movement input or click a tile to move the selection. Click the selected tile again or press Enter to confirm.",
+        mobileHint:
+          "Use movement input or tap a tile to move the selection. Tap the selected tile again or press Enter to confirm.",
+        controllerHint:
+          "Use movement input to move the selection. Press Enter or Confirm to confirm.",
       },
       controllerSupport: {
         prompt: "Controller detected. Enable controller support?",

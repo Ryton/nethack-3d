@@ -1424,6 +1424,12 @@ export const ko = {
       },
       positionPrompt: {
         closeLabel: "위치 프롬프트 닫기",
+        desktopHint:
+          "이동 입력을 사용하거나 타일을 클릭해 선택을 이동하세요. 선택된 타일을 다시 클릭하거나 Enter를 눌러 확인하세요.",
+        mobileHint:
+          "이동 입력을 사용하거나 타일을 탭해 선택을 이동하세요. 선택된 타일을 다시 탭하거나 Enter를 눌러 확인하세요.",
+        controllerHint:
+          "이동 입력으로 선택을 이동하세요. Enter 또는 확인 버튼을 눌러 확인하세요.",
       },
       controllerSupport: {
         prompt: "컨트롤러가 감지되었습니다. 컨트롤러 지원을 사용할까요?",

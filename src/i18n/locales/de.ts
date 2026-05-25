@@ -1454,6 +1454,12 @@ export const deOverrides: LocaleOverrides<TranslationDictionary> = {
       },
       positionPrompt: {
         closeLabel: "Positionsabfrage schlie\u00dfen",
+        desktopHint:
+          "Verwende Bewegungseingaben oder klicke auf ein Feld, um die Auswahl zu verschieben. Klicke erneut auf das ausgewählte Feld oder drücke Enter zum Bestätigen.",
+        mobileHint:
+          "Verwende Bewegungseingaben oder tippe auf ein Feld, um die Auswahl zu verschieben. Tippe erneut auf das ausgewählte Feld oder drücke Enter zum Bestätigen.",
+        controllerHint:
+          "Verwende Bewegungseingaben, um die Auswahl zu verschieben. Drücke Enter oder Bestätigen zum Bestätigen.",
       },
       controllerSupport: {
         prompt:

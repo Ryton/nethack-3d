@@ -1319,6 +1319,12 @@ export const esOverrides = {
             },
             positionPrompt: {
                 closeLabel: "Mensaje de posici\u00F3n cerrada",
+                desktopHint:
+                  "Usa la entrada de movimiento o haz clic en una casilla para mover la selección. Haz clic otra vez en la casilla seleccionada o pulsa Enter para confirmar.",
+                mobileHint:
+                  "Usa la entrada de movimiento o toca una casilla para mover la selección. Toca otra vez la casilla seleccionada o pulsa Enter para confirmar.",
+                controllerHint:
+                  "Usa la entrada de movimiento para mover la selección. Pulsa Enter o Confirmar para confirmar.",
             },
             controllerSupport: {
                 prompt: "Controlador detectado. \u00BFHabilitar la compatibilidad con el controlador?",

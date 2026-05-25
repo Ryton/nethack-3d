@@ -1372,6 +1372,12 @@ export const jaOverrides: LocaleOverrides<TranslationDictionary> = {
       },
       positionPrompt: {
         closeLabel: "位置指定を閉じる",
+        desktopHint:
+          "移動入力を使うかタイルをクリックして選択を移動します。選択中のタイルをもう一度クリックするか、Enterキーで確定します。",
+        mobileHint:
+          "移動入力を使うかタイルをタップして選択を移動します。選択中のタイルをもう一度タップするか、Enterキーで確定します。",
+        controllerHint:
+          "移動入力で選択を移動します。Enterキーまたは決定ボタンで確定します。",
       },
       controllerSupport: {
         prompt: "コントローラーを検出しました。コントローラー対応を有効にしますか？",
