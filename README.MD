@@ -41,14 +41,16 @@ Launch it from your Home Screen for a web app fullscreen experience.
 
 ## Current Features
 
-- Play NetHack 3.6.7 in a 3D dungeon view while keeping core game rules and depth.
+- Play NetHack in a 3D dungeon view while keeping core game rules and depth.
+- Not a reimagining or rework, this is authentic NetHack in a 3D engine.
+- Choose between playing NetHack 5.0, NetHack 3.6.7, and Slash'Em, with separate save states for each.
 - Mix and match gameplay modes: classic top-down or first-person (FPS) modes with ASCII, tiles, or Vulture graphics.
 - Combat feedback effects: Monsters dynamically shatter into bloody pieces, different every time.
 - Full sound support. Monsters die with a satisfying crunch.
 - Customize sound to your liking and create your own sound packs directly in-game.
 - Play on the couch with full controller support. Radial wheel for actions, move confirmation for careful roguelike navigation.
 - Scalable minimap for level awareness, with viewport box and drag-to-center camera navigation.
-- Optional floating damage/heal numbers, status changes, XP, blood mist combat particles.
+- Optional floating damage/heal numbers, status changes, XP, blood mist, blood splatter, and more.
 - Camera panning and rotation.
 - Crisp ASCII monsters and items are supported in addition to tiles.
 - Built-in graphical tilesets: Vulture tiles, Absurdly Evil, DawnHack, NetHack Modern, Nevanda, RZTiles, and Vanilla NetHack Tiles.
