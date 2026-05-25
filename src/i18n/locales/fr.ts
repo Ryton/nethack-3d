@@ -1341,6 +1341,11 @@ export const fr = {
         selectAll: "Tout selectionner",
         deselectAll: "Tout deselectionner",
         page: (current: number, total: number) => `Page ${current} / ${total}`,
+        amount: "Amount",
+        amountDefault: "Default",
+        clearAmount: "Clear amount",
+        decreaseAmount: "Decrease amount by one",
+        increaseAmount: "Increase amount by one",
         pageHintMultiple:
           "Utilisez < et > pour changer de page. Appuyez sur ESC pour annuler",
         pageHintSingle: "Appuyez sur ESC pour annuler",

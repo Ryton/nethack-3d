@@ -51,6 +51,11 @@ import {
 import { registerDebugHelpers } from "../app";
 import { createEngineUiAdapter } from "../state/engineUiAdapter";
 import { defaultPlayerStats, useGameStore } from "../state/gameStore";
+import {
+  Nh3dIcon,
+  Nh3dIconArrowDown,
+  Nh3dIconArrowUp,
+} from "./icons";
 import type { NethackRuntimeVersion } from "../runtime/types";
 import {
   appendRequiredStartupInitOptionTokens,
@@ -10203,6 +10208,9 @@ export default function App(): JSX.Element {
     question.pendingSelectionCount > 0
       ? Math.trunc(question.pendingSelectionCount)
       : null;
+  const showQuestionAmountControls = Boolean(
+    question?.supportsSelectionCount,
+  );
   const questionMenuPageIndex = question?.menuPageIndex ?? 0;
   const questionMenuPageCount = Math.max(1, question?.menuPageCount ?? 1);
   const enhanceMenuData = useMemo(
@@ -17599,12 +17607,57 @@ export default function App(): JSX.Element {
               () => controller?.cancelActivePrompt(),
               t.dialogs.question.cancelPrompt,
             )}
-            <div className="nh3d-question-text">
-              {displayedQuestionText}
-              {displayedQuestionPendingCount !== null ? (
-                <span className="nh3d-question-pending-count">
-                  {` x${displayedQuestionPendingCount}`}
-                </span>
+            <div
+              className={`nh3d-question-text${
+                showQuestionAmountControls
+                  ? " nh3d-question-text-has-amount"
+                  : ""
+              }`}
+            >
+              <span className="nh3d-question-title-label">
+                {displayedQuestionText}
+              </span>
+              {showQuestionAmountControls ? (
+                <div className="nh3d-question-amount-controls">
+                  <button
+                    aria-label={t.dialogs.question.decreaseAmount}
+                    className="nh3d-question-amount-button"
+                    disabled={displayedQuestionPendingCount === null}
+                    onClick={() => controller?.stepQuestionSelectionCount(-1)}
+                    title={t.dialogs.question.decreaseAmount}
+                    type="button"
+                  >
+                    <Nh3dIcon icon={Nh3dIconArrowDown} size={13} />
+                  </button>
+                  <input
+                    aria-label={t.dialogs.question.amount}
+                    className="nh3d-question-amount-input"
+                    inputMode="numeric"
+                    max={999999}
+                    min={1}
+                    onChange={(event) => {
+                      const nextValue = Number(event.currentTarget.value);
+                      controller?.setQuestionSelectionCount(
+                        Number.isFinite(nextValue) ? nextValue : null,
+                      );
+                    }}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onKeyDown={(event) => {
+                      event.stopPropagation();
+                    }}
+                    type="number"
+                    value={displayedQuestionPendingCount ?? 1}
+                  />
+                  <button
+                    aria-label={t.dialogs.question.increaseAmount}
+                    className="nh3d-question-amount-button"
+                    onClick={() => controller?.stepQuestionSelectionCount(1)}
+                    title={t.dialogs.question.increaseAmount}
+                    type="button"
+                  >
+                    <Nh3dIcon icon={Nh3dIconArrowUp} size={13} />
+                  </button>
+                </div>
               ) : null}
             </div>
             {shouldRenderQuestionMenuItems ? (

@@ -1339,6 +1339,11 @@ export const ptBrOverrides = {
         deselectAll: "Desmarcar tudo",
         page: (current: number, total: number) =>
           `Página ${current} / ${total}`,
+        amount: "Amount",
+        amountDefault: "Default",
+        clearAmount: "Clear amount",
+        decreaseAmount: "Decrease amount by one",
+        increaseAmount: "Increase amount by one",
         pageHintMultiple:
           "Use < e > para trocar de página. Pressione ESC para cancelar",
         pageHintSingle: "Pressione ESC para cancelar",

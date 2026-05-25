@@ -1198,6 +1198,11 @@ export const esOverrides = {
                 selectAll: "Seleccionar todo",
                 deselectAll: "Deseleccionar todo",
                 page: (current: number, total: number) => `P\u00E1gina${current} / ${total}`,
+                amount: "Amount",
+                amountDefault: "Default",
+                clearAmount: "Clear amount",
+                decreaseAmount: "Decrease amount by one",
+                increaseAmount: "Increase amount by one",
                 pageHintMultiple: "Utilice < y > para cambiar de p\u00E1gina. Presione ESC para cancelar",
                 pageHintSingle: "Presione ESC para cancelar",
                 choices: {

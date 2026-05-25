@@ -1299,6 +1299,11 @@ export const ko = {
         selectAll: "모두 선택",
         deselectAll: "모두 해제",
         page: (current: number, total: number) => `페이지 ${current} / ${total}`,
+        amount: "Amount",
+        amountDefault: "Default",
+        clearAmount: "Clear amount",
+        decreaseAmount: "Decrease amount by one",
+        increaseAmount: "Increase amount by one",
         pageHintMultiple: "< 와 > 로 페이지를 바꾸세요. 취소하려면 ESC를 누르세요",
         pageHintSingle: "취소하려면 ESC를 누르세요",
         choices: {

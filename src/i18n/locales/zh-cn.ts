@@ -1021,6 +1021,11 @@ export const zhCnOverrides = {
         selectAll: "全选",
         deselectAll: "取消全选",
         page: (current: number, total: number) => `第 ${current} / ${total} 页`,
+        amount: "Amount",
+        amountDefault: "Default",
+        clearAmount: "Clear amount",
+        decreaseAmount: "Decrease amount by one",
+        increaseAmount: "Increase amount by one",
         pageHintMultiple: "使用 < 和 > 切换页面。按 ESC 取消",
         pageHintSingle: "按 ESC 取消",
         choices: {

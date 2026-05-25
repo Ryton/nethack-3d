@@ -78,6 +78,7 @@ export type QuestionDialogState = {
   isPickupDialog: boolean;
   selectedAccelerators: string[];
   selectedCounts?: Record<string, number>;
+  supportsSelectionCount?: boolean;
   pendingSelectionCount?: number | null;
   allPickupSelected?: boolean;
   activePickupSelectionInput?: string | null;
@@ -1232,6 +1233,9 @@ export interface Nethack3DEngineController {
   chooseDirection(directionKey: string): void;
   confirmActiveDirectionQuestion(): void;
   chooseQuestionChoice(choice: string): void;
+  setQuestionSelectionCount(count: number | null): void;
+  stepQuestionSelectionCount(delta: number): void;
+  clearQuestionSelectionCount(): void;
   syncQuestionSelectionFocus(selectionInput: string): void;
   syncQuestionActionFocus(
     action: "select-all" | "confirm" | "cancel",

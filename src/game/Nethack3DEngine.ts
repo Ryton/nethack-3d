@@ -30264,6 +30264,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
+  private setActiveQuestionPendingCount(count: number | null): void {
+    if (
+      !this.isInQuestion ||
+      !this.isCountableInventorySelectionQuestion(this.activeQuestionText)
+    ) {
+      return;
+    }
+    if (count === null || !Number.isFinite(count) || count < 1) {
+      this.activeQuestionPendingCountInput = "";
+      this.syncQuestionDialogState();
+      return;
+    }
+    const normalized = Math.min(999999, Math.trunc(count));
+    this.activeQuestionPendingCountInput = String(normalized);
+    this.syncQuestionDialogState();
+  }
+
   private clearActiveQuestionPendingCount(sync: boolean = true): void {
     if (!this.activeQuestionPendingCountInput) {
       return;
@@ -31404,6 +31421,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       isPickupDialog: this.activeQuestionIsPickupDialog,
       selectedAccelerators,
       selectedCounts,
+      supportsSelectionCount: this.isCountableInventorySelectionQuestion(
+        this.activeQuestionText,
+      ),
       pendingSelectionCount: this.getActiveQuestionPendingCount(),
       allPickupSelected,
       activePickupSelectionInput: this.activeQuestionIsPickupDialog
@@ -32181,6 +32201,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.maybePlayDrinkSoundForQuestionAnswer(resolvedChoice);
     this.sendInputWithPendingQuestionCount(resolvedChoice);
     this.hideQuestion();
+  }
+
+  public stepQuestionSelectionCount(delta: number): void {
+    if (!Number.isFinite(delta) || delta === 0) {
+      return;
+    }
+    const currentCount = this.getActiveQuestionPendingCount() ?? 1;
+    const nextCount = currentCount + Math.trunc(delta);
+    this.setActiveQuestionPendingCount(nextCount > 1 ? nextCount : null);
+  }
+
+  public setQuestionSelectionCount(count: number | null): void {
+    if (count === null || !Number.isFinite(count) || count <= 1) {
+      this.setActiveQuestionPendingCount(null);
+      return;
+    }
+    this.setActiveQuestionPendingCount(count);
+  }
+
+  public clearQuestionSelectionCount(): void {
+    this.clearActiveQuestionPendingCount(true);
   }
 
   public syncQuestionSelectionFocus(selectionInput: string): void {

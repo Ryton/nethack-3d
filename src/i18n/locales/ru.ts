@@ -1305,6 +1305,11 @@ export const ru = {
         selectAll: "Выбрать всё",
         deselectAll: "Снять выделение",
         page: (current: number, total: number) => `Страница ${current} / ${total}`,
+        amount: "Amount",
+        amountDefault: "Default",
+        clearAmount: "Clear amount",
+        decreaseAmount: "Decrease amount by one",
+        increaseAmount: "Increase amount by one",
         pageHintMultiple:
           "Используйте < и > для смены страниц. Нажмите ESC для отмены",
         pageHintSingle: "Нажмите ESC для отмены",
