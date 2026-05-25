@@ -1174,7 +1174,6 @@ const toneAdjustShader = {
  */
 class Nethack3DEngine implements Nethack3DEngineController {
   private renderer!: THREE.WebGLRenderer;
-  private webGlRendererIdentifier: string | null = null;
   private composer: EffectComposer | null = null;
   private taaRenderPass: TAARenderPass | null = null;
   private fxaaPass: FXAAPass | null = null;
@@ -7296,42 +7295,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return !window.matchMedia("(pointer: coarse)").matches;
   }
 
-  private resolveWebGlRendererIdentifier(): string {
-    if (this.webGlRendererIdentifier !== null) {
-      return this.webGlRendererIdentifier;
-    }
-
-    try {
-      const context = this.renderer.getContext();
-      const debugInfo = context.getExtension("WEBGL_debug_renderer_info");
-      const vendor = debugInfo
-        ? context.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)
-        : context.getParameter(context.VENDOR);
-      const renderer = debugInfo
-        ? context.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
-        : context.getParameter(context.RENDERER);
-      this.webGlRendererIdentifier = [vendor, renderer]
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter(Boolean)
-        .join(" ");
-    } catch {
-      this.webGlRendererIdentifier = "";
-    }
-
-    return this.webGlRendererIdentifier;
-  }
-
   private shouldUseBloodGroundCompatibilityMode(): boolean {
-    const rendererIdentifier = this.resolveWebGlRendererIdentifier();
-    if (/\bmali\b/i.test(rendererIdentifier)) {
-      return true;
-    }
-
-    const isAndroid =
+    return (
       this.getNativeCapacitorPlatform() === "android" ||
       (typeof navigator !== "undefined" &&
-        /\bAndroid\b/i.test(navigator.userAgent || ""));
-    return isAndroid && rendererIdentifier.length === 0;
+        /\bAndroid\b/i.test(navigator.userAgent || ""))
+    );
   }
 
   private resolveTextureAnisotropyLevel(): number {
