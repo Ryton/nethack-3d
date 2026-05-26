@@ -2687,6 +2687,85 @@ class LocalNetHackRuntime {
     return selectableItems.length > 0;
   }
 
+  doesMenuItemTextContain(menuItem, text) {
+    if (!menuItem || typeof text !== "string" || text.length === 0) {
+      return false;
+    }
+    const itemText =
+      typeof menuItem.text === "string" ? menuItem.text.toLowerCase() : "";
+    return itemText.includes(text.toLowerCase());
+  }
+
+  resolveRuntime5TileContextSpecialAutoPickMenuItem(selectableItems) {
+    const autoPickRules = [
+      {
+        requiredTexts: ["Talk to ", "Swap places with "],
+        preferredText: "Swap places with ",
+      },
+    ];
+
+    for (const rule of autoPickRules) {
+      const hasRequiredItems = rule.requiredTexts.every((text) =>
+        selectableItems.some((item) => this.doesMenuItemTextContain(item, text)),
+      );
+      if (!hasRequiredItems) {
+        continue;
+      }
+
+      const preferredItem = selectableItems.find((item) =>
+        this.doesMenuItemTextContain(item, rule.preferredText),
+      );
+      if (preferredItem) {
+        return preferredItem;
+      }
+    }
+
+    return null;
+  }
+
+  shouldShowRuntime5TileContextQuestion(selectableItems) {
+    const modalRequiredTexts = ["Examine trap"];
+    return modalRequiredTexts.some((text) =>
+      selectableItems.some((item) => this.doesMenuItemTextContain(item, text)),
+    );
+  }
+
+  resolveRuntime5TileContextAutoPickMenuItem(menuQuestion, menuItems) {
+    if (
+      !this.shouldAutoPickFirstRuntime5TileContextAction(
+        menuQuestion,
+        menuItems,
+      )
+    ) {
+      return null;
+    }
+
+    const selectableItems = menuItems.filter((item) => item && !item.isCategory);
+    if (this.shouldShowRuntime5TileContextQuestion(selectableItems)) {
+      return null;
+    }
+
+    const specialPick =
+      this.resolveRuntime5TileContextSpecialAutoPickMenuItem(selectableItems);
+    return specialPick || selectableItems[0] || null;
+  }
+
+  tryAutoPickRuntime5TileContextMenuItem(menuQuestion, menuItems) {
+    const autoPickItem = this.resolveRuntime5TileContextAutoPickMenuItem(
+      menuQuestion,
+      menuItems,
+    );
+    if (!autoPickItem) {
+      return false;
+    }
+
+    this.runtime5TileContextAutoPickFirstUntilMs = 0;
+    return this.tryAutoSelectMenuItem(
+      autoPickItem,
+      "runtime 5.0 tile context menu auto-pick",
+    );
+  }
+
   getPostActionPlayerTileRefreshReasonForMenuItem(menuItem) {
     if (!menuItem || typeof menuItem !== "object") {
       return null;
@@ -11143,24 +11222,12 @@ class LocalNetHackRuntime {
           }
 
           if (
-            this.shouldAutoPickFirstRuntime5TileContextAction(
+            this.tryAutoPickRuntime5TileContextMenuItem(
               menuQuestion,
               this.currentMenuItems,
             )
           ) {
-            const firstSelectableItem =
-              this.currentMenuItems.find((item) => item && !item.isCategory) ||
-              null;
-            this.runtime5TileContextAutoPickFirstUntilMs = 0;
-            if (
-              firstSelectableItem &&
-              this.tryAutoSelectMenuItem(
-                firstSelectableItem,
-                "runtime 5.0 tile context menu auto-first-option",
-              )
-            ) {
-              return 0;
-            }
+            return 0;
           }
 
           this.lastEndedInventoryMenuKind = "inventory";
