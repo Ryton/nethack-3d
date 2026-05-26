@@ -51,6 +51,7 @@
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
+    "afterPack": "scripts/electron/after-pack.cjs",
     "directories": {
       "output": "release"
     },
