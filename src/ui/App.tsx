@@ -229,6 +229,8 @@ function resolveTilesetLayoutShortLabel(
       return "3.7";
     case "3.6.7":
       return "3.6.7";
+    case "evilhack":
+      return "EvilHack";
     default:
       return "unknown";
   }
@@ -246,6 +248,8 @@ function resolveTilesetLayoutDisplayLabel(
       return t.dialogs.tilesetManager.layout37;
     case "3.6.7":
       return t.dialogs.tilesetManager.layout367;
+    case "evilhack":
+      return "EvilHack layout";
     default:
       return "Unknown layout";
   }

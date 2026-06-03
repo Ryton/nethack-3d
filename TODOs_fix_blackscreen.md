@@ -237,3 +237,62 @@ Current vendored copy is `imported/evilhack-wasm/EvilHack-0.9.2`. Upstream has r
 
 discused in 
 chat /YTk5YTE1YjItODE3Yi00YzlhLTk5NDYtOWVkYzU1ODdlZjY2 , named # building evilhack shim for node app integration
+---
+
+## June 3, 2026 — Post-first-render TODOs
+
+### Walls render as dark/black in FPS mode
+- Game now reaches main loop and renders glyphs (milestone commit d755cb3).
+- In FPS / first-person 3D mode, **walls appear dark / black** with two tilesets.
+- Two tilesets do render correctly otherwise (top-down view is fine).
+- Likely glyph→tile-index mapping issue specific to wall glyphs for EvilHack
+  (EvilHack adds glyphs vs stock 3.6.7 — wall index range may have shifted).
+- Investigation starting points:
+  - `src/game/glyphs/registry.ts` — glyph→material/tile resolution
+  - `src/game/Nethack3DEngine.ts` — FPS wall rendering pass
+  - Compare wall-glyph numeric ranges: stock NH 3.6.7 vs EvilHack `display.h`
+    `GLYPH_CMAP_OFF` + `S_vwall…S_trwall` offsets.
+
+### Walls completely absent in FPS view (June 3 screenshot)
+- Updated finding: walls are not rendered at all (not dark — invisible).
+  Only floor tiles + player + monster visible. Confirmed across multiple tilesets.
+- **Root cause hypothesis**: `src/game/glyphs/glyph-catalog.367.generated.ts`
+  hard-codes stock NH 3.6.7 offsets (`GLYPH_CMAP_OFF: 2359, endExclusive: 2446`).
+  EvilHack adds many monsters/objects → its actual `GLYPH_CMAP_OFF` is higher
+  (likely 2700+). Wall glyphs land outside the stock cmap range, so
+  `behavior.isWall` is false and the FPS pass never creates wall meshes.
+- Verification:
+  1. In browser console: `nethackGlobal.constants.GLYPH_CMAP_OFF` — compare to 2359
+  2. Log a print_glyph call for a known wall tile, check the glyph number
+- Fix options:
+  a. Generate `glyph-catalog.evilhack.generated.ts` from `public/evilhack.js`
+     (run `npm run glyphs:generate` with a runtime selector — check scripts/glyphs/)
+  b. Make glyph classification range-driven from `nethackGlobal.constants.*OFF`
+     instead of static catalog lookup, when runtimeVersion === 'evilhack'.
+  c. Quick smoke test: in `glyph-catalog.367.generated.ts` temporarily bump
+     `GLYPH_CMAP_OFF` to EvilHack's actual offset and see if walls appear.
+
+### Re-enable vaults in WASM build (deferred)
+- Currently bypassed via `fnam = NULL` under `__EMSCRIPTEN__` in mklev.c makerooms().
+- Root cause: vault .lev `load_special()` silently produces 0 rooms in wasm32
+  (not a long-size issue per se — wasm-lev_comp output is byte-correct).
+- Likely a wasm32-vs-x86_64 struct-layout mismatch deeper in `sp_level_loader`
+  or `sp_level_coder` opcode handlers (alignment / padding inside `sp_lev`).
+- Workaround keeps `create_room()` path; vaults absent from generated levels.
+
+### Generate `glyph-catalog.evilhack.generated.ts` (June 3 follow-up)
+- After loading `assets/evilhack/Absurdly Evil 93.bmp` (which has EvilHack's
+  actual tile order), tiles are *mostly* correct but with consistent shifts:
+  player + pet have a small harp icon below them, floor tiles render as
+  stairs in some places.
+- Cause: runtime glyph→tile resolution still uses `glyph-catalog.367.generated.ts`
+  (or implicit slashem catalog), which doesn't account for EvilHack's added
+  monster/object glyphs (gives wrong tileIndex for every glyph past the
+  first inserted EvilHack monster).
+- Fix: extend `scripts/glyphs/` generator to extract glyph catalog from
+  `public/evilhack.js` at build time and emit `glyph-catalog.evilhack.generated.ts`,
+  then wire `LocalNetHackRuntime` / `Nethack3DEngine` to pick it when
+  `runtimeVersion === "evilhack"`.
+- Look at `src/game/glyphs/glyph-catalog.367.generated.ts` header for source
+  metadata (`sourceJsPath`, sha256) — extract step probably runs the wasm
+  in node and reads `nethackGlobal.constants` + tile array.

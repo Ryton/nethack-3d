@@ -668,7 +668,9 @@ struct window_procs shim_procs = {
     (0L
      | WC2_FULLSCREEN
      | WC2_SOFTKEYBOARD
-     | WC2_WRAPTEXT),
+     | WC2_WRAPTEXT
+     | WC2_HILITE_STATUS
+     | WC2_FLUSH_STATUS),
     /* has_color[] */ {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     shim_init_nhwindows,
     shim_player_selection,

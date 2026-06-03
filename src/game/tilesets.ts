@@ -10,6 +10,7 @@ export type Nh3dTilesetTileLayoutVersion =
   | "3.4.3"
   | "3.6.7"
   | "3.7"
+  | "evilhack"
   | "unknown";
 export type Nh3dTilesetBackgroundRemovalMode = "none" | "tile" | "solid";
 
@@ -105,6 +106,9 @@ function normalizeGeneratedTileLayoutVersion(
   if (tileLayoutVersion === "3.4.3") {
     return "3.4.3";
   }
+  if (tileLayoutVersion === "evilhack") {
+    return "evilhack";
+  }
   return "3.6.7";
 }
 
@@ -123,6 +127,9 @@ function normalizeUserTilesetTileLayoutVersion(
   if (tileLayoutVersion === "3.4.3") {
     return "3.4.3";
   }
+  if (tileLayoutVersion === "evilhack") {
+    return "evilhack";
+  }
   return "unknown";
 }
 
@@ -133,7 +140,12 @@ export function isNh3dTilesetLayoutCompatibleWithRuntime(
   if (tileLayoutVersion === "unknown") {
     return true;
   }
+  if (tileLayoutVersion === "evilhack") {
+    return runtimeVersion === "evilhack";
+  }
   if (tileLayoutVersion === "slashem") {
+    // Slash'EM layout is also used as a fallback for EvilHack
+    // (similar expanded glyph layout vs vanilla 3.6.x).
     return runtimeVersion === "slashem" || runtimeVersion === "evilhack";
   }
   if (tileLayoutVersion === "3.4.3") {
@@ -401,6 +413,7 @@ const preferredDefaultTilesetPathByRuntime: Readonly<
   Partial<Record<NethackRuntimeVersion, string>>
 > = {
   slashem: "assets/slashem/Absurd.png",
+  evilhack: "assets/evilhack/Absurdly Evil 93.bmp",
 };
 export const defaultNh3dTilesetPath: string =
   builtinTilesets.find((entry) => entry.path === preferredDefaultTilesetPath)

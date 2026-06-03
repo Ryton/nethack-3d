@@ -9846,6 +9846,10 @@ class LocalNetHackRuntime {
             mod.ENV.NETHACKOPTIONS = existingOptions
               ? `${existingOptions},${runtimeOptions.join(",")}`
               : runtimeOptions.join(",");
+            // EvilHack reads EVILHACKOPTIONS (fallback HACKOPTIONS) rather than
+            // NETHACKOPTIONS, so mirror the same string under those names too.
+            mod.ENV.EVILHACKOPTIONS = mod.ENV.NETHACKOPTIONS;
+            mod.ENV.HACKOPTIONS = mod.ENV.NETHACKOPTIONS;
             this.lastConfiguredNethackOptions = mod.ENV.NETHACKOPTIONS;
             console.log(`Configured NETHACKOPTIONS: ${mod.ENV.NETHACKOPTIONS}`);
 
