@@ -1,1 +1,0 @@
-../include/gem_rsc.h

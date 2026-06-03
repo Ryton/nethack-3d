@@ -1,1 +1,0 @@
-../include/mac-qt.h

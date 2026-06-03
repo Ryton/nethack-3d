@@ -20,3 +20,6 @@ imported/evilhack-wasm/build/evilhack.wasm
 q
 isolate-*.log
 *-objdump.txt
+
+# Vendored EvilHack source (kept locally for build reproducibility, excluded from PR branch)
+imported/evilhack-wasm/

@@ -1,1 +1,0 @@
-../include/dgn_comp.h
