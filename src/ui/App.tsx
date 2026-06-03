@@ -15729,6 +15729,12 @@ export default function App(): JSX.Element {
                 style={resolveCoreStatStyle("armor")}
               >
                 AC:{playerStats.armor}
+                {activeRuntimeVersion === "evilhack" && playerStats.magicCancellation != null && (
+                  <> MC:{playerStats.magicCancellation}</>
+                )}
+                {activeRuntimeVersion === "evilhack" && playerStats.toHit != null && (
+                  <> TH:{playerStats.toHit}</>
+                )}
               </div>
               <div className="nh3d-stats-secondary-exp nh3d-stats-mobile-inline-secondary">
                 Exp:{playerStats.experience}
@@ -15747,6 +15753,12 @@ export default function App(): JSX.Element {
               style={resolveCoreStatStyle("armor")}
             >
               AC:{playerStats.armor}
+              {activeRuntimeVersion === "evilhack" && playerStats.magicCancellation != null && (
+                <> MC:{playerStats.magicCancellation}</>
+              )}
+              {activeRuntimeVersion === "evilhack" && playerStats.toHit != null && (
+                <> TH:{playerStats.toHit}</>
+              )}
             </div>
             <div className="nh3d-stats-secondary-exp nh3d-stats-desktop-secondary">
               Exp:{playerStats.experience}

@@ -98,6 +98,22 @@ const automaticRuntimeInitOptionTokensByVersion: Readonly<
     "showscore",
     "boulder:0",
   ],
+  evilhack: [
+    "number_pad:1",
+    "mouse_support",
+    "runmode:walk",
+    "time",
+    "showexp",
+    "showscore",
+    "statushilites",
+    "boulder:0",
+    // NOTE: do NOT set "player_selection:prompts" here. With prompts mode EvilHack
+    // forces interactive y/n/getlin role/race/gender/align prompting on stdin and
+    // ignores pre-set NETHACKOPTIONS tokens, which causes the engine to block
+    // silently inside player_selection() waiting for stdin we never feed.
+    // Default (VIA_DIALOG) routes through shim_player_selection (handled in
+    // LocalNetHackRuntime) and honors role/race/gender/align/name tokens.
+  ],
 };
 
 const requiredStartupInitOptionTokensByVersion: Readonly<
@@ -106,6 +122,7 @@ const requiredStartupInitOptionTokensByVersion: Readonly<
   "3.6.7": ["checkpoint"],
   "3.7": [],
   slashem: [],
+  evilhack: ["checkpoint"],
 };
 
 export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefinition> =

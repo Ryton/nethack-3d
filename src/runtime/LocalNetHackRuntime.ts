@@ -16,7 +16,7 @@ import {
   getRuntimeSaveMountDir,
   isRecoverableCheckpointLevelZeroByteLength,
 } from "./save-storage";
-import { STATUS_FIELD_MAP_367, STATUS_FIELD_MAP_37 } from "./status-map";
+import { STATUS_FIELD_MAP_367, STATUS_FIELD_MAP_37, STATUS_FIELD_MAP_EVILHACK } from "./status-map";
 
 const process =
   typeof globalThis !== "undefined" && globalThis.process
@@ -384,7 +384,8 @@ class LocalNetHackRuntime {
     const isSlashEm = runtimeVersion === "slashem";
     const isEvilHack = runtimeVersion === "evilhack";
     const addMenuArgCounts = is37 ? [9] : [8];
-    const printGlyphArgCounts = is37 ? [5] : [4, 5];
+    // EvilHack shim always sends 6 args: win, x, y, glyph, monster_id, attacking_target_id
+    const printGlyphArgCounts = is37 ? [5] : isEvilHack ? [6] : [4, 5];
     return {
       abiTag: this.readConfiguredPointerAbiTag(runtimeVersion),
       callbackArgCounts: {
@@ -495,9 +496,12 @@ class LocalNetHackRuntime {
       extcmd: {
         exportedPointerName: "extcmdlist",
         exportedPointerMode: "direct_or_slot",
-        stride: isSlashEm || isEvilHack ? 16 : 24,
-        textPtrOffset: isSlashEm || isEvilHack ? 0 : 4,
-        flagsOffset: isSlashEm || isEvilHack ? 12 : 16,
+        // SlashEM ext_func_tab: { char *ef_txt, int (*ef_funct)(), int flags, char *ef_desc } = 16 bytes
+        // EvilHack ext_func_tab: { uchar key, char *ef_txt, char *ef_desc, int (*ef_funct)(), int flags, char *f_text }
+        //   = 1(key)+3(pad)+4+4+4+4+4 = 24 bytes; textPtr at +4, flags at +16
+        stride: isSlashEm ? 16 : isEvilHack ? 24 : 24,
+        textPtrOffset: isSlashEm ? 0 : isEvilHack ? 4 : 4,
+        flagsOffset: isSlashEm ? 12 : isEvilHack ? 16 : 16,
         maxEntries: 512,
         minEntries: isSlashEm || isEvilHack ? 20 : 10,
         requiredNames: isSlashEm || isEvilHack ? ["2weapon", "pray"] : ["#", "pray"],
@@ -636,7 +640,7 @@ class LocalNetHackRuntime {
     return true;
   }
 
-  notePointerContractViolation(key, message, details = null) {
+   notePointerContractViolation(key, message, details = null) {
     if (!key || this.pointerContractViolationKeys.has(key)) {
       return;
     }
@@ -928,6 +932,7 @@ class LocalNetHackRuntime {
         `arg-count-${name}`,
         `${name} received unexpected arg count ${args.length} (expected ${expectedCounts.join(", ")}).`,
       );
+      console.warn(`[CONTRACT_REJECT] ${name}: got ${args.length} args, expected [${expectedCounts.join(", ")}] — callback DROPPED`);
       return false;
     }
 
@@ -974,9 +979,9 @@ class LocalNetHackRuntime {
   }
 
   getRuntimeStatusFieldMap() {
-    return this.runtimeVersion === "3.7"
-      ? STATUS_FIELD_MAP_37
-      : STATUS_FIELD_MAP_367;
+    if (this.runtimeVersion === "3.7") return STATUS_FIELD_MAP_37;
+    if (this.runtimeVersion === "evilhack") return STATUS_FIELD_MAP_EVILHACK;
+    return STATUS_FIELD_MAP_367;
   }
 
   seedRuntimeStatusFieldConstants() {
@@ -5838,6 +5843,92 @@ class LocalNetHackRuntime {
     return context;
   }
 
+  scheduleEvilhackHangDiagnostic(reason) {
+    console.warn(
+      `[EVILHACK_HANG_DIAG] scheduleEvilhackHangDiagnostic ENTERED reason="${reason}" alreadyScheduled=${Boolean(
+        (this as any).__evilhackHangDiagScheduled,
+      )} runtimeVersion=${this.runtimeVersion} uiCallbackCount=${this.uiCallbackCount}`,
+    );
+    if ((this as any).__evilhackHangDiagScheduled) {
+      return;
+    }
+    (this as any).__evilhackHangDiagScheduled = true;
+    const startCallbackCount = this.uiCallbackCount;
+    const delayMs = 1500;
+    console.warn(
+      `[EVILHACK_HANG_DIAG] arming ${delayMs}ms timer (reason="${reason}")`,
+    );
+    setTimeout(() => {
+      console.warn(
+        `[EVILHACK_HANG_DIAG] timer FIRED (reason="${reason}") — collecting diagnostic...`,
+      );
+      try {
+        const mod: any = this.nethackInstance || {};
+        const FS = mod.FS;
+        const dumpedFs: any = {};
+        let rootEntries: any = null;
+        if (FS && typeof FS.readdir === "function") {
+          try {
+            rootEntries = FS.readdir("/").filter(
+              (n: string) => n !== "." && n !== "..",
+            );
+          } catch (e) {
+            rootEntries = `readdir error: ${String((e as any)?.message || e)}`;
+          }
+          for (const f of [
+            "nhdat",
+            "nhshare",
+            "dungeon",
+            "quest.dat",
+            "data",
+            "rumors",
+            "oracles",
+            "license",
+            "sysconf",
+            "serverseed",
+            "vaults.dat",
+          ]) {
+            try {
+              const st = FS.stat("/" + f);
+              dumpedFs[f] = { present: true, size: st?.size };
+            } catch {
+              dumpedFs[f] = { present: false };
+            }
+          }
+        }
+        const callbacksSince = this.uiCallbackCount - startCallbackCount;
+        const recentNames = Array.isArray((this as any).recentUICallbacks)
+          ? (this as any).recentUICallbacks
+              .slice(-5)
+              .map((c: any) => c?.name || "<?>")
+          : null;
+        console.warn(
+          `[EVILHACK_HANG_DIAG] ${reason} — ${delayMs}ms later:`,
+          {
+            runtimeVersion: this.runtimeVersion,
+            calledMain: mod.calledMain,
+            exitStatus: mod.exitStatus,
+            noExitRuntime: (() => {
+              try { return mod.noExitRuntime; } catch { return "<not-exported>"; }
+            })(),
+            remainingRunDeps:
+              typeof mod.getRunDependencies === "function"
+                ? mod.getRunDependencies()
+                : null,
+            uiCallbackCountSinceMark: callbacksSince,
+            totalUiCallbacks: this.uiCallbackCount,
+            recentCallbacks: recentNames,
+            rootEntries,
+            dumpedFs,
+            isClosed: this.isClosed,
+          },
+        );
+      } catch (e) {
+        console.warn("[EVILHACK_HANG_DIAG] diagnostic failed:", e);
+      }
+    }, delayMs);
+  }
+
   handleShimDisplayFile(args) {
     const [rawName, complain] = Array.isArray(args) ? args : [];
     const fileName =
@@ -5848,7 +5939,6 @@ class LocalNetHackRuntime {
     console.log(
       `DISPLAY FILE request: "${fileName || "<empty>"}" (mustExist=${mustExist})`,
     );
-
     const bundled = getBundledDisplayFile(fileName);
     if (bundled && bundled.lines.length > 0) {
       if (this.eventHandler) {
@@ -5868,6 +5958,7 @@ class LocalNetHackRuntime {
       console.log(
         'DISPLAY FILE optional startup "news" file is not bundled; continuing without it.',
       );
+      this.scheduleEvilhackHangDiagnostic("after display_file news");
       return 0;
     }
 
@@ -8764,14 +8855,18 @@ class LocalNetHackRuntime {
     if (field === -3) {
       return "BL_CHARACTERISTICS";
     }
-    if (field === 23) {
-      return "BL_FLUSH";
-    }
-    if (field === 24) {
-      return "BL_RESET";
-    }
-    if (field === 25) {
-      return "BL_CHARACTERISTICS";
+    // Fields 23/24/25 are flush/reset/characteristics signals only in vanilla 3.7.
+    // EvilHack uses these indices for real data (BL_LEVELDESC/BL_EXP/BL_CONDITION).
+    if (this.runtimeVersion !== "evilhack") {
+      if (field === 23) {
+        return "BL_FLUSH";
+      }
+      if (field === 24) {
+        return "BL_RESET";
+      }
+      if (field === 25) {
+        return "BL_CHARACTERISTICS";
+      }
     }
 
     const constants =
@@ -9452,6 +9547,12 @@ class LocalNetHackRuntime {
       console.log("Starting local NetHack session...");
 
       globalThis.nethackCallback = async (name, ...args) => {
+        // Lightweight ring-buffer of recent callback names for hang diagnosis.
+        const ring = ((globalThis as any).__nh_cb_ring ||= []);
+        ring.push({ t: performance.now(), name });
+        if (ring.length > 200) ring.shift();
+        (globalThis as any).__nh_cb_total =
+          ((globalThis as any).__nh_cb_total || 0) + 1;
         return this.handleUICallback(name, args);
       };
 
@@ -10518,8 +10619,10 @@ class LocalNetHackRuntime {
     this.clearStartupNoCallbackTimer();
     let shouldLogUiCallback = true;
     if (name === "shim_print_glyph") {
-      // Avoid duplicate callback-level spam for map glyph traffic.
-      shouldLogUiCallback = false;
+      // Temporarily log first few to diagnose black map
+      if (!((this as any).__loggedGlyphCallbackCount)) (this as any).__loggedGlyphCallbackCount = 0;
+      (this as any).__loggedGlyphCallbackCount++;
+      shouldLogUiCallback = (this as any).__loggedGlyphCallbackCount <= 3;
     }
     if (shouldLogUiCallback) {
       console.log(`UI Callback: ${name}`, args);
@@ -10585,19 +10688,27 @@ class LocalNetHackRuntime {
         console.log(
           `Resolved extended command "${extCommandText}" to index ${extCommandIndex}`,
         );
+        console.log(`[EXTCMD_DEBUG] Returning index ${extCommandIndex} for "${extCommandText}" — watching for next callback...`);
         return extCommandIndex;
 
-      case "shim_init_nhwindows":
+      case "shim_init_nhwindows": {
         this.nameInitDebugCounter += 1;
+        const initConfiguredName = this.normalizeCharacterNameValue(
+          this.startupOptions?.characterCreation?.name,
+        );
         console.log("[NAME_DEBUG] shim_init_nhwindows", {
           callId: this.nameInitDebugCounter,
           args,
           pendingTextResponses: this.pendingTextResponses.length,
-          configuredName: this.normalizeCharacterNameValue(
-            this.startupOptions?.characterCreation?.name,
-          ),
+          configuredName: initConfiguredName,
         });
-        if (this.eventHandler) {
+        // Only prompt the UI for a name when neither a configured name nor a
+        // queued text response is available; otherwise shim_askname will
+        // resolve silently and the spurious dialog blocks the user.
+        const hasNameAlready =
+          initConfiguredName.length > 0 ||
+          this.pendingTextResponses.length > 0;
+        if (this.eventHandler && !hasNameAlready) {
           this.emit({
             type: "name_request",
             text: "What is your name, adventurer?",
@@ -10605,8 +10716,13 @@ class LocalNetHackRuntime {
             source: "init_nhwindows",
             callId: this.nameInitDebugCounter,
           });
+        } else if (hasNameAlready) {
+          console.log(
+            "[NAME_DEBUG] shim_init_nhwindows skipping name_request emit — name already available (configured or queued)",
+          );
         }
         return 1;
+      }
       case "shim_create_nhwindow":
         const [windowType] = args;
         this.resetWindowTextBuffer(windowType);
@@ -11281,9 +11397,17 @@ class LocalNetHackRuntime {
         }
         return 0;
       case "shim_print_glyph": {
-        // 3.6.7: args = [win, x, y, glyph]
-        // 3.7:   args = [win, x, y, ptrToGlyphInfo, extra]
+        // 3.6.7/SlashEM: args = [win, x, y, glyph]
+        // 3.7:           args = [win, x, y, ptrToGlyphInfo, extra]
+        // EvilHack:      args = [win, x, y, glyph, monster_id, attacking_target_id]
         const [printWin, x, y, a, b] = args as number[];
+
+        // DEBUG: count arriving glyphs to diagnose black map (all versions)
+        if (!((this as any).__evGlyphCount)) (this as any).__evGlyphCount = 0;
+        (this as any).__evGlyphCount++;
+        if ((this as any).__evGlyphCount <= 5 || (this as any).__evGlyphCount % 200 === 0) {
+          console.log(`[GLYPH_DEBUG #${(this as any).__evGlyphCount}] rv=${this.runtimeVersion} win=${printWin} x=${x} y=${y} glyph=${a} isMapWin=${this.isMapWindow(printWin)}`);
+        }
 
         let printGlyph = a;
 
@@ -11378,6 +11502,12 @@ class LocalNetHackRuntime {
           let decodedGlyphFlags = null;
           let floorUnderlay = null;
 
+          // DEBUG: log once to show mapHelper availability
+          if (!(this as any).__evMapHelperLogged) {
+            (this as any).__evMapHelperLogged = true;
+            console.log(`[MAPHELPER_DEBUG] rv=${this.runtimeVersion} mapglyphHelper=${typeof helpers?.mapglyphHelper} mapGlyphInfoHelper=${typeof helpers?.mapGlyphInfoHelper} mapHelper=${typeof mapHelper}`);
+          }
+
           if (mapHelper) {
             try {
               // IMPORTANT: for 3.7 we now pass the decoded glyph (not the pointer)
@@ -11387,6 +11517,12 @@ class LocalNetHackRuntime {
                 y,
                 0,
               );
+
+              // DEBUG: log first mapHelper result
+              if (!(this as any).__evFirstGlyphLogged) {
+                (this as any).__evFirstGlyphLogged = true;
+                console.log(`[MAPHELPER_RESULT] rv=${this.runtimeVersion} glyph=${printGlyph} result=`, glyphInfo, `tileIdx=${this.extractGlyphInfoTileIndex(glyphInfo)}`);
+              }
 
               if (glyphInfo) {
                 if (glyphInfo.ch !== undefined) {
@@ -11993,13 +12129,13 @@ class LocalNetHackRuntime {
         }
         return resolvedName;
       case "shim_mark_synch":
-        console.log("NetHack marking synchronization");
+        console.log(`NetHack marking synchronization — glyphs received so far: ${(this as any).__evGlyphCount ?? 0}`);
         return 0;
 
       case "shim_cliparound":
         const [clipX, clipY] = args;
         console.log(
-          `🎯 Cliparound request for position (${clipX}, ${clipY}) - updating player position`,
+          `🎯 Cliparound request for position (${clipX}, ${clipY}) - updating player position — total glyphs: ${(this as any).__evGlyphCount ?? 0}`,
         );
 
         if (this.positionInputActive || this.isFarLookPositionRequest()) {

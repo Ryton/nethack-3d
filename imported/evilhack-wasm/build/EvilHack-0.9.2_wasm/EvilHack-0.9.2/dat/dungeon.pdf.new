@@ -1,0 +1,282 @@
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:1:3: error: invalid preprocessing directive #NetHack
+    1 | # NetHack 3.6   dungeon.def     $NHDT-Date: 1462486876 2016/05/05 22:21:16 $  $NHDT-Branch: NetHack-3.6.0 $:$NHDT-Revision: 1.14 $
+      |   ^~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:2:9: error: invalid preprocessing directive #Copyright
+    2 | #       Copyright (c) 1990-95 by M. Stephenson
+      |         ^~~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:3:3: error: invalid preprocessing directive #NetHack
+    3 | # NetHack may be freely redistributed.  See license for details.
+      |   ^~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:5:9: error: invalid preprocessing directive #The
+    5 | #       The dungeon description file for the "standard" 3.1 NetHack.
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:7:9: error: invalid preprocessing directive #Note
+    7 | #       Note:   The order of the definition of dungeons in this file
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:8:17: error: invalid preprocessing directive #reflects
+    8 | #               reflects in their order of creation in the real dungeon.
+      |                 ^~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:9:17: error: invalid preprocessing directive #The
+    9 | #               The "Main" branch must *always* be first.
+      |                 ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:10:17: error: invalid preprocessing directive #Also
+   10 | #               Also note that the order of the dungeons in this file
+      |                 ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:11:17: error: invalid preprocessing directive #determines
+   11 | #               determines the order in which branch levels are assigned.
+      |                 ^~~~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:12:17: error: invalid preprocessing directive #If
+   12 | #               If two dungeons have overlapping ranges for their entry
+      |                 ^~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:13:17: error: invalid preprocessing directive #points
+   13 | #               points, then you should list the dungeon with the _least_
+      |                 ^~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:14:17: error: invalid preprocessing directive #number
+   14 | #               number of choices for its branch level _first_.
+      |                 ^~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:21:2: error: invalid preprocessing directive #LEVEL
+   21 | #LEVEL:         "rogue" "R" @ (15, 4)
+      |  ^~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:22:2: error: invalid preprocessing directive #LEVELDESC
+   22 | #LEVELDESC:     roguelike
+      |  ^~~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:39:9: error: invalid preprocessing directive #Gehennom
+   39 | #       Gehennom
+      |         ^~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:41:9: error: invalid preprocessing directive #Now
+   41 | #       Now re-worked for 3.1, hell is hopefully going to be a little
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:42:9: error: invalid preprocessing directive #less
+   42 | #       less boring.  Also, in 3.1, the tower is not considered as a
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:43:9: error: invalid preprocessing directive #part
+   43 | #       part of hell, but is set up as a separate dungeon.
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:45:9: error: invalid preprocessing directive #Gehennom
+   45 | #       Gehennom is no longer considered "hellish" as a complete dungeon.
+      |         ^~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:46:9: error: invalid preprocessing directive #That
+   46 | #       That is, fire resistance is no longer a condition for survival in
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:47:9: error: invalid preprocessing directive #it
+   47 | #       it.  However, Gehennom, and the special levels in it in particular,
+      |         ^~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:48:9: error: invalid preprocessing directive #is
+   48 | #       is abundant with fire traps.  As a result, fire resistance is still
+      |         ^~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:49:9: error: invalid preprocessing directive #a
+   49 | #       a prudent survival strategy in Gehennom.
+      |         ^
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:51:9: error: invalid preprocessing directive #Note
+   51 | #       Note:   Gehennom *must* be the second dungeon defined so that
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:52:17: error: invalid preprocessing directive #monsters
+   52 | #               monsters can properly migrate here under certain
+      |                 ^~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:53:17: error: invalid preprocessing directive #circumstances
+   53 | #               circumstances.
+      |                 ^~~~~~~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:73:9: error: invalid preprocessing directive #The
+   73 | #       The Mines of the Gnomes of Zurich.
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:83:9: error: invalid preprocessing directive #Goblin
+   83 | #       Goblin Town
+      |         ^~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:93:9: error: invalid preprocessing directive #The
+   93 | #       The Questdungeon
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:95:9: error: invalid preprocessing directive #This
+   95 | #       This is a proto-dungeon.  The level file names will be prepended with
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:96:9: error: invalid preprocessing directive #three
+   96 | #       three letter role abbreviation during initialization, replacing "x".
+      |         ^~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:97:9: error: invalid preprocessing directive #A
+   97 | #       A special "x-fill" level must be defined in the levels description
+      |         ^
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:98:9: error: invalid preprocessing directive #file
+   98 | #       file.  It will be used for all levels not defined explicitly below.
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:106:9: error: invalid preprocessing directive #Sokoban
+  106 | #       Sokoban
+      |         ^~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:118:9: error: invalid preprocessing directive #The
+  118 | #       The Central Vault of Croesus.
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:126:9: error: invalid preprocessing directive #The
+  126 | #       The Ice Queen's Realm
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:126:22: warning: missing terminating ' character
+  126 | #       The Ice Queen's Realm
+      |                      ^
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:137:9: error: invalid preprocessing directive #The
+  137 | #       The Hidden Dungeon
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:146:9: error: invalid preprocessing directive #Vecna
+  146 | #       Vecna's Domain
+      |         ^~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:146:14: warning: missing terminating ' character
+  146 | #       Vecna's Domain
+      |              ^
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:157:9: error: invalid preprocessing directive #Vlad
+  157 | #       Vlad's Tower
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:157:13: warning: missing terminating ' character
+  157 | #       Vlad's Tower
+      |             ^
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:159:9: error: invalid preprocessing directive #It
+  159 | #       It has been removed from Gehennom, and it is surrounded by stone.
+      |         ^~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:160:9: error: invalid preprocessing directive #Must
+  160 | #       Must not allow bones files for its top level.
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:168:3: error: invalid preprocessing directive #it
+  168 | # it isn't necessary to list these last three, but doing so makes them
+      |   ^~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:168:9: warning: missing terminating ' character
+  168 | # it isn't necessary to list these last three, but doing so makes them
+      |         ^
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:169:3: error: invalid preprocessing directive #show
+  169 | # show up in ^O output and in the level teleport menu
+      |   ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:175:9: error: invalid preprocessing directive #Purgatory
+  175 | #       Purgatory
+      |         ^~~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:177:9: error: invalid preprocessing directive #Entry
+  177 | #       Entry from the Sanctum
+      |         ^~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:188:9: error: invalid preprocessing directive #The
+  188 | #       The Wizards Tower
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:190:9: error: invalid preprocessing directive #It
+  190 | #       It has been removed from Gehennom, and it is surrounded by stone.
+      |         ^~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:191:9: error: invalid preprocessing directive #Must
+  191 | #       Must not allow bones files for its top level.
+      |         ^~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:202:9: error: invalid preprocessing directive #The
+  202 | #       The Endgame levels
+      |         ^~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:204:9: error: invalid preprocessing directive #Enter
+  204 | #       Enter on 2nd level from bottom; 1st (from bottom) is a
+      |         ^~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:205:9: error: invalid preprocessing directive #placeholder
+  205 | #       placeholder for surface level, and should be unreachable.
+      |         ^~~~~~~~~~~
+/home/simon/repos/nethack-3d/imported/evilhack-wasm/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2/dat/dungeon.def:206:9: error: invalid preprocessing directive #[
+  206 | #       [Note: the name "dummy" is checked for in init_dungeons().]
+      |         ^
+DUNGEON: "The Dungeons of Doom" "D" (25, 5)
+ALIGNMENT: unaligned
+BRANCH: "The Gnomish Mines" @ (2, 3)
+BRANCH: "Goblin Town" @ (2, 2) portal
+RNDLEVEL: "oracle" "O" @ (5, 5) 3
+LEVALIGN: neutral
+CHAINBRANCH: "Sokoban" "oracle" + (1, 0) up
+RNDLEVEL: "bigrm" "B" @ (10, 3) 40 10
+CHAINBRANCH: "The Quest" "oracle" + (6, 2) portal
+BRANCH: "Fort Ludios" @ (18, 4) portal
+LEVEL: "nymph" "N" @ (8, 12) 45
+LEVEL: "forest" "J" @ (12, 10) 40
+RNDLEVEL: "medusa" "none" @ (-5, 4) 4
+LEVALIGN: chaotic
+CHAINBRANCH: "The Ice Queen's Realm" "medusa" + (-1, 0) portal
+RNDLEVEL: "castle" "none" @ (-1, 0) 3
+CHAINBRANCH: "Gehennom" "castle" + (0, 0) no_down
+BRANCH: "The Elemental Planes" @ (1, 0) no_down up
+DUNGEON: "Gehennom" "G" (16, 5)
+DESCRIPTION: mazelike
+DESCRIPTION: hellish
+ALIGNMENT: noalign
+BRANCH: "Vlad's Tower" @ (8, 5) down
+LEVEL: "valley" "V" @ (1, 0)
+RNDLEVEL: "hella" "A" @ (3, 2) 4
+RNDLEVEL: "hellb" "B" @ (6, 2) 3
+RNDLEVEL: "hellc" "C" @ (12, 2) 3
+LEVEL: "orcus" "O" @ (9, 2)
+LEVEL: "sanctum" "none" @ (-1, 0)
+LEVEL: "wizportal" "F" @ (-3, 0)
+CHAINBRANCH: "The Hidden Dungeon" "valley" + (0, 0) portal
+CHAINBRANCH: "Vecna's Domain" "valley" + (1, 0) portal
+CHAINBRANCH: "The Wizard's Tower" "wizportal" + (0, 0) portal up
+CHAINBRANCH: "Purgatory" "sanctum" + (0, 0) portal up
+DUNGEON: "The Gnomish Mines" "M" (8, 2)
+ALIGNMENT: lawful
+DESCRIPTION: mazelike
+RNDLEVEL: "minetn" "T" @ (3, 2) 8
+LEVELDESC: town
+RNDLEVEL: "minend" "E" @ (-1, 0) 5
+DUNGEON: "Goblin Town" "none" (2, 0)
+DESCRIPTION: mazelike
+DESCRIPTION: gtown
+ALIGNMENT: chaotic
+RNDLEVEL: "goblintown-1" "none" @ (1, 0) 2
+LEVEL: "goblintown-2" "none" @ (2, 0)
+DUNGEON: "The Quest" "Q" (5, 2)
+LEVEL: "x-strt" "none" @ (1, 1)
+LEVEL: "x-loca" "L" @ (3, 1)
+LEVEL: "x-goal" "none" @ (-1, 0)
+DUNGEON: "Sokoban" "none" (4, 0)
+DESCRIPTION: mazelike
+ALIGNMENT: neutral
+ENTRY: -1
+RNDLEVEL: "soko1" "none" @ (1, 0) 6
+RNDLEVEL: "soko2" "none" @ (2, 0) 6
+RNDLEVEL: "soko3" "none" @ (3, 0) 6
+RNDLEVEL: "soko4" "none" @ (4, 0) 6
+DUNGEON: "Fort Ludios" "K" (1, 0)
+DESCRIPTION: mazelike
+ALIGNMENT: unaligned
+RNDLEVEL: "knox" "K" @ (-1, 0) 3
+DUNGEON: "The Ice Queen's Realm" "none" (3, 0)
+DESCRIPTION: mazelike
+DESCRIPTION: iceq
+ALIGNMENT: unaligned
+LEVEL: "icequeen-1" "none" @ (1, 0)
+LEVEL: "icequeen-2" "none" @ (2, 0)
+LEVEL: "icequeen-3" "none" @ (3, 0)
+DUNGEON: "The Hidden Dungeon" "none" (1, 0)
+DESCRIPTION: mazelike
+DESCRIPTION: hdgn
+ALIGNMENT: chaotic
+LEVEL: "hdgn" "none" @ (1, 0)
+DUNGEON: "Vecna's Domain" "none" (3, 0)
+DESCRIPTION: mazelike
+DESCRIPTION: vecnad
+ALIGNMENT: chaotic
+LEVEL: "vecna-1" "none" @ (1, 0)
+LEVEL: "vecna-2" "none" @ (2, 0)
+LEVEL: "vecna-3" "none" @ (3, 0)
+DUNGEON: "Vlad's Tower" "T" (4, 0)
+PROTOFILE: "tower"
+DESCRIPTION: mazelike
+ALIGNMENT: chaotic
+ENTRY: -1
+LEVEL: "tower1" "none" @ (1, 0)
+LEVEL: "tower2" "none" @ (2, 0)
+LEVEL: "tower3" "none" @ (3, 0)
+LEVEL: "tower4" "none" @ (4, 0)
+DUNGEON: "Purgatory" "P" (2, 0)
+DESCRIPTION: mazelike
+DESCRIPTION: purg
+ALIGNMENT: neutral
+ENTRY: -1
+LEVEL: "purgatory-1" "none" @ (1, 0)
+LEVEL: "purgatory-2" "none" @ (2, 0)
+DUNGEON: "The Wizard's Tower" "W" (3, 0)
+DESCRIPTION: mazelike
+ALIGNMENT: chaotic
+ENTRY: 3
+LEVEL: "wizard1" "none" @ (1, 0)
+LEVEL: "wizard2" "X" @ (2, 0)
+LEVEL: "wizard3" "Y" @ (3, 0)
+DUNGEON: "The Elemental Planes" "E" (6, 0)
+DESCRIPTION: mazelike
+ALIGNMENT: unaligned
+ENTRY: -2
+LEVEL: "astral" "none" @ (1, 0)
+LEVEL: "water" "none" @ (2, 4)
+LEVEL: "fire" "none" @ (2, 4)
+LEVEL: "air" "none" @ (2, 4)
+LEVEL: "earth" "none" @ (2, 4)
+LEVEL: "dummy" "none" @ (6, 0)
