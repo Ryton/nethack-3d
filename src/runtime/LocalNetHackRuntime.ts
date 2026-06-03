@@ -12375,12 +12375,14 @@ class LocalNetHackRuntime {
           });
         }
         if (
-          normalizedExitMessage.toLowerCase() === "be seeing you..." &&
+          (normalizedExitMessage.toLowerCase() === "be seeing you..." ||
+            normalizedExitMessage.toLowerCase() === "well... bye.") &&
           !this.runtimeTerminationEmitted
         ) {
           // Manual save/quit can reach exit_nhwindows before the Emscripten
           // quit/onExit hooks fire. Emit a termination fallback so the UI can
-          // transition and the worker can flush IDBFS.
+          // transition and the worker can flush IDBFS. Stock NetHack/SlashEM
+          // use "Be seeing you..."; EvilHack save.c uses "Well... bye.".
           this.emitRuntimeTerminated(normalizedExitMessage, 0);
         }
         return 0;

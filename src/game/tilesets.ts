@@ -49,6 +49,8 @@ const vultureDefaultDataRoot = "assets/vulture/win/vulture/gamedata";
 const vultureNominalTileSize = 112;
 const tilesetBackgroundTilePresetByLabel: Readonly<Record<string, number>> = {
   "Absurdly Evil": 869,
+  "Absurdly Evil 9.2": 869,
+  "Absurdly Evil 93": 869,
   DawnHack: 869,
   Nevanda: 1476,
   "Vanilla NetHack TIles": 1476,
@@ -57,6 +59,8 @@ const tilesetBackgroundTilePresetByLabel: Readonly<Record<string, number>> = {
 };
 const tilesetSolidChromaKeyPresetByLabel: Readonly<Record<string, string>> = {
   "Absurdly Evil": "#466d6c",
+  "Absurdly Evil 9.2": "#466d6c",
+  "Absurdly Evil 93": "#466d6c",
   DawnHack: "#466d6c",
   Nevanda: "#466d6c",
   "Nevanda (3.7)": "#466d6c",
@@ -86,6 +90,8 @@ const tilesetBackgroundRemovalModePresetByPath: Readonly<
   "assets/3.6/RZTiles.bmp": "tile",
   "assets/3.6/Absurdly Evil.png": "none",
   "assets/3.6/Vanilla NetHack Tiles.png": "solid",
+  "assets/evilhack/Absurdly Evil 9.2.bmp": "tile",
+  "assets/evilhack/Absurdly Evil 93.bmp": "tile",
 };
 
 function normalizeTilesetPresetLookupLabel(label: string): string {
