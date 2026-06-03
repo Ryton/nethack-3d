@@ -131,6 +131,7 @@ This is a living steering doc. Update it whenever architecture, file ownership, 
 - Runtime pointer ABI tags are build-defined in `vite.config.ts` as `VITE_NH3D_WASM_367_POINTER_ABI_TAG` and `VITE_NH3D_WASM_37_POINTER_ABI_TAG`; pointer-sensitive callback/struct handling must align with these tags.
 - `LocalNetHackRuntime` validates callback argument shapes and pointer layouts (menu_item, extcmd table, glyphinfo) against the active ABI contract and fails closed on mismatches.
 - Current fork note: wasm-367 `shim_print_glyph` uses 5 callback args `(winid, x, y, glyph, bkglyph)` (not a glyphinfo pointer payload).
+- Current fork note: the tracked wasm-367 `shim_print_glyph` extension may emit `monsterId=0` for the current player tile; positive ids remain real NetHack monster `m_id` values.
 - Current fork note: wasm-367 `shim_get_ext_cmd` format is `iv`, so callback args appear as `[undefined]` and that is expected.
 - Current fork note: wasm-37 `shim_add_menu` format is `vipi00iisi` (9 args); menu text is arg index `7`, item flags are arg index `8`, and identifier is delivered as a value (not pointer slot).
 - Current fork note: wasm-37 `shim_print_glyph` format is `vi11pp` and uses glyphinfo pointers at args `3` and `4`.

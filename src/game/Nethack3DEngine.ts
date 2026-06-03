@@ -248,6 +248,53 @@ type MonsterBillboardShatterOptions = {
   splitTargetCountOverride?: number;
   removeSourceBillboard?: boolean;
   persistShardsOnGround?: boolean;
+  directionX?: number;
+  directionY?: number;
+  runtimeMonsterId?: number | null;
+};
+
+type RuntimeMonsterBillboardAppearance = {
+  glyphChar: string;
+  textColor: string;
+  tileIndex: number;
+  sourceGlyph: number | null;
+  materialKind: TileMaterialKind | null;
+  isWall: boolean;
+};
+
+type RuntimeMonsterLastSeenState = {
+  tileKey: string;
+  appearance: RuntimeMonsterBillboardAppearance | null;
+};
+
+type EntityMoveTransitionVisual = {
+  object: THREE.Object3D;
+  dispose: () => void;
+};
+
+type EntityMoveTransitionWaypoint = {
+  destinationKey: string;
+  durationMs: number;
+};
+
+type EntityMoveTransition = {
+  id: string;
+  destinationKey: string;
+  object: THREE.Object3D;
+  dispose: () => void;
+  baseRenderOrder: number;
+  startedAtMs: number;
+  durationMs: number;
+  baseDurationMs: number;
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  queuedWaypoints: EntityMoveTransitionWaypoint[];
+  holdAtDestinationUntilConfirmation: boolean;
+};
+
+type DeferredEntityVisualUpdate = {
+  transitionId: string;
+  tile: any | null;
 };
 
 type DamageEffectOptions = {
@@ -255,6 +302,8 @@ type DamageEffectOptions = {
   radialBloodMistSpread?: boolean;
   bloodMistHorizontalSpeedMultiplier?: number;
   bloodMistVerticalSpeedMultiplier?: number;
+  directionX?: number;
+  directionY?: number;
   billboardShatter?: MonsterBillboardShatterOptions;
 };
 
@@ -371,8 +420,7 @@ const createZeroFpsHeldWeaponAnimationVector =
 
 const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID =
   "__fps_held_weapon_base_pose__";
-const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL =
-  "Weapon Idle Offset";
+const FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL = "Weapon Idle Offset";
 
 const DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET: FpsHeldWeaponTileFlipOverridesByTileset =
   {
@@ -1146,6 +1194,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly tileFlushFrameBudgetMs: number = 5;
   private readonly tileFlushMaxPerFrame: number = 72;
   private tileStateCache: Map<string, string> = new Map();
+  private runtimeMonsterTileKeyById: Map<number, string> = new Map();
+  private runtimeMonsterIdByTileKey: Map<string, number> = new Map();
+  private pendingRuntimeMonsterVacatedTileKeyById: Map<number, string> =
+    new Map();
+  private runtimeMonsterLastSeenStateById: Map<
+    number,
+    RuntimeMonsterLastSeenState
+  > = new Map();
+  private runtimeTrackedPlayerEntitySeen: boolean = false;
   private lastKnownTerrain: Map<string, TerrainSnapshot> = new Map();
   private flatFeatureUnderPlayerCache: Map<string, TerrainSnapshot> = new Map();
   private suppressedLootLikeUnderPlayerCacheKeys: Set<string> = new Set();
@@ -1526,6 +1583,46 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsHeldWeaponFovDepthCompensationStrength: number = 0.92;
   private readonly fpsHeldWeaponFovDepthCompensationMinScale: number = 0.47;
   private readonly fpsHeldWeaponFovDepthCompensationMaxScale: number = 1.2;
+  private fpsHeldWeaponDebugSphere: THREE.Mesh | null = null;
+
+  // Left-hand weapon (offhand/dual-wielding)
+  private fpsHeldLeftWeaponMesh: THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > | null = null;
+  private fpsHeldLeftWeaponMaterial: THREE.MeshBasicMaterial | null = null;
+  private fpsHeldLeftWeaponTexture: THREE.CanvasTexture | null = null;
+  private fpsHeldLeftWeaponTextureSignature: string = "";
+  private fpsHeldLeftWeaponLagYaw: number | null = null;
+  private fpsHeldLeftWeaponLagPitch: number | null = null;
+  private readonly fpsHeldLeftWeaponMovementOffset = new THREE.Vector2();
+  private fpsHeldLeftWeaponSwayPhase: number = 0;
+  private fpsHeldLeftWeaponSwaySpeed: number = 0;
+  private fpsHeldLeftWeaponSwaySpeedTarget: number = 0;
+  private fpsHeldLeftWeaponActiveAnimation: FpsHeldWeaponActiveAnimationState | null =
+    null;
+  private readonly lastPlayedFpsHeldLeftWeaponAnimationVariationIdByGroup: Map<
+    string,
+    string
+  > = new Map();
+  private dualWieldNextAnimatingWeapon: "right" | "left" = "left";
+  private readonly fpsHeldLeftWeaponLocalOffset = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponWorldPosition = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponWorldQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldLeftWeaponBaseRotationEuler = new THREE.Euler();
+  private readonly fpsHeldLeftWeaponBaseRotationQuaternion = new THREE.Quaternion();
+  private readonly fpsHeldLeftWeaponAnimationPivotLocal = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponAnimationCenterFromPivot = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponAnimationRotatedCenter = new THREE.Vector3();
+  private readonly fpsHeldLeftWeaponAnimationEuler = new THREE.Euler();
+  private readonly fpsHeldLeftWeaponAnimationQuaternion = new THREE.Quaternion();
+  // Mirror left weapon to opposite side (negate X for left/right flip)
+  private readonly fpsHeldLeftWeaponBaseLocalOffset = new THREE.Vector3(
+    -0.38,
+    -0.28,
+    -0.72,
+  );
+
   private fpsAimLinePulseUntilMs: number = 0;
   private fpsFireSuppressionUntilMs: number = 0;
   private readonly fpsFireSuppressionDurationMs: number = 1500;
@@ -1587,6 +1684,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private entityBlobShadows: Map<string, THREE.Mesh> = new Map();
   private entityBlobShadowTexture: THREE.CanvasTexture | null = null;
   private monsterBillboards: Map<string, THREE.Sprite> = new Map();
+  private activeEntityMoveTransitions: Map<string, EntityMoveTransition> =
+    new Map();
+  private deferredEntityVisualUpdatesByKey: Map<
+    string,
+    DeferredEntityVisualUpdate
+  > = new Map();
   private monsterBillboardTextures: Map<
     string,
     { texture: THREE.CanvasTexture; refCount: number }
@@ -1598,9 +1701,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly fpsStepCameraRunInputWindowMs: number = 220;
   private readonly fpsStepCameraRapidDurationScale: number = 0.75;
   private readonly fpsStepCameraMinDurationMs: number = 28;
+  private runtimeTravelStepDelayMs: number = 0;
   private readonly fpsPredictedPlayerTileWindowMs: number = 220;
   private readonly asciiPendingPlayerTileWindowMs: number = 220;
   private fpsStepCameraDurationMs: number = this.fpsStepCameraBaseDurationMs;
+  private lastSharedStepMotionStartedAtMs: number = 0;
+  private lastSharedStepMotionDurationMs: number =
+    this.fpsStepCameraBaseDurationMs;
   private readonly fpsAutoMoveDetectionWindowMs: number = 120;
   private lastManualDirectionalInputAtMs: number = 0;
   private lastRunLikeInputAtMs: number = 0;
@@ -1909,11 +2016,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private cameraPanTargetX: number = 0;
   private cameraPanTargetY: number = 0;
   private isCameraCenteredOnPlayer: boolean = true;
+  // Manual overhead pan inertia only.
   private readonly cameraPanHalfLifeMs: number = 135;
+  // Idle overhead follow when centered on the player.
   private cameraFollowHalfLifeMs: number = 85;
+  // The single normal-mode player-move camera speed knob.
+  private normalModePlayerMoveCameraFollowHalfLifeMs: number = 150;
   private cameraFollowInitialized: boolean = false;
   private cameraFollowTarget = new THREE.Vector3();
   private cameraFollowCurrent = new THREE.Vector3();
+  private normalModePlayerMoveCameraFollowActive: boolean = false;
+  private readonly normalModePlayerMoveCameraSettleDistanceSq: number =
+    Math.pow(TILE_SIZE * 0.02, 2);
+  // Used only when transitioning between play modes/camera presets, not for step movement.
   private readonly playModeCameraTransitionHalfLifeMs: number = 120;
   private playModeCameraTransitionActive: boolean = false;
   private playModeCameraTransitionCurrentPosition = new THREE.Vector3();
@@ -2021,6 +2136,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastParsedDamageAtMs: number = 0;
   private lastParsedDefeatMessage: string = "";
   private lastParsedDefeatAtMs: number = 0;
+  private runtimeMonsterKillHeuristicSuppressionUntilMs: number = 0;
   private suppressNextFpsHeldWeaponMissedAttackMessageSound: boolean = false;
   private lastDirectionalAttackContext: DirectionalAttackContext | null = null;
   private readonly directionalAttackContextMaxAgeMs: number = 900;
@@ -2673,7 +2789,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const host = this.mountElement ?? document.body;
     host.style.backgroundColor = "#000011";
     host.appendChild(this.renderer.domElement);
-    this.loadCameraSmoothingFromCSS();
+    this.syncCameraSmoothingCssVariablesFromCode();
 
     // --- Lighting ---
     this.ambientLight = new THREE.AmbientLight(0x404040, 0.4);
@@ -2790,14 +2906,16 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.animate();
   }
 
-  private loadCameraSmoothingFromCSS(): void {
-    const cssValue = getComputedStyle(document.documentElement)
-      .getPropertyValue("--camera-follow-half-life-ms")
-      .trim();
-    const parsed = Number.parseFloat(cssValue);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      this.cameraFollowHalfLifeMs = parsed;
-    }
+  private syncCameraSmoothingCssVariablesFromCode(): void {
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty(
+      "--camera-follow-half-life-ms",
+      `${this.cameraFollowHalfLifeMs}`,
+    );
+    rootStyle.setProperty(
+      "--camera-normal-player-move-follow-half-life-ms",
+      `${this.normalModePlayerMoveCameraFollowHalfLifeMs}`,
+    );
   }
 
   private ensureMinimapOverlay(): void {
@@ -9644,6 +9762,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const data = event as RuntimeEvent & Record<string, any>;
     switch (data.type) {
       case "map_glyph":
+        this.updateRuntimeMonsterTrackingFromTile(data);
         this.capturePendingLevelTransitionTile(data);
         this.maybeFinalizePendingLevelCacheTransition("tile");
         this.tryResolvePendingCharacterDamage(data);
@@ -9655,11 +9774,104 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.capturePendingLevelTransitionTiles(data.tiles);
           this.maybeFinalizePendingLevelCacheTransition("tile");
           for (const tile of data.tiles) {
+            this.updateRuntimeMonsterTrackingFromTile(tile);
             this.tryResolvePendingCharacterDamage(tile);
             this.enqueueTileUpdate(tile);
           }
         }
         break;
+
+      case "monster_attack": {
+        const targetEntityId = this.normalizeRuntimeTargetEntityId(
+          data.targetId,
+        );
+        const fallbackTargetTile =
+          typeof data.targetX === "number" &&
+          Number.isFinite(data.targetX) &&
+          typeof data.targetY === "number" &&
+          Number.isFinite(data.targetY)
+            ? {
+                x: Math.trunc(data.targetX),
+                y: Math.trunc(data.targetY),
+              }
+            : null;
+        const targetTile =
+          targetEntityId === 0
+            ? { x: this.playerPos.x, y: this.playerPos.y }
+            : targetEntityId !== null
+              ? (this.resolveRuntimeMonsterEffectTileById(targetEntityId) ??
+                fallbackTargetTile)
+              : fallbackTargetTile;
+        const attackDirection = this.resolveDamageEffectDirectionFromTiles(
+          this.resolveRuntimeEffectOriginTileByEntityId(data.attackerId),
+          targetTile,
+        );
+        if (targetTile) {
+          this.triggerDamageEffectsAtTile(
+            targetTile.x,
+            targetTile.y,
+            1,
+            "hit",
+            attackDirection
+              ? {
+                  directionX: attackDirection.x,
+                  directionY: attackDirection.y,
+                }
+              : {},
+          );
+        }
+        break;
+      }
+
+      case "monster_killed": {
+        const defeatedMonsterId = this.normalizeRuntimeMonsterId(
+          data.monsterId,
+        );
+        const fallbackTargetTile =
+          typeof data.x === "number" &&
+          Number.isFinite(data.x) &&
+          typeof data.y === "number" &&
+          Number.isFinite(data.y)
+            ? { x: Math.trunc(data.x), y: Math.trunc(data.y) }
+            : null;
+        const targetTile =
+          this.resolveRuntimeMonsterEffectTileById(data.monsterId) ??
+          fallbackTargetTile;
+        const defeatDirection = this.resolveDamageEffectDirectionFromTiles(
+          this.resolveRuntimeEffectOriginTileByEntityId(data.killerId),
+          targetTile,
+        );
+        this.suppressMonsterKillMessageHeuristics();
+        if (targetTile) {
+          this.triggerDamageEffectsAtTile(
+            targetTile.x,
+            targetTile.y,
+            1,
+            "defeat",
+            defeatDirection
+              ? {
+                  directionX: defeatDirection.x,
+                  directionY: defeatDirection.y,
+                  billboardShatter: {
+                    runtimeMonsterId: defeatedMonsterId,
+                  },
+                }
+              : defeatedMonsterId !== null
+                ? {
+                    billboardShatter: {
+                      runtimeMonsterId: defeatedMonsterId,
+                    },
+                  }
+                : {},
+          );
+        }
+        if (this.normalizeRuntimeTargetEntityId(data.killerId) !== 0) {
+          this.messageSoundHooks.playOtherMonsterKilledSound();
+        }
+        this.removeRuntimeMonsterTrackingById(data.monsterId);
+        this.forgetRuntimeMonsterLastSeenStateById(data.monsterId);
+        break;
+      }
 
       case "under_player_item_glyph":
         this.applyUnderPlayerItemGlyphEvent(data);
@@ -9669,12 +9881,26 @@ class Nethack3DEngine implements Nethack3DEngineController {
         this.clearUnderPlayerItemGlyphEvent(data);
         break;
 
+      case "confirmed_boulder_push":
+        this.startConfirmedBoulderPushTransition(data);
+        break;
+
       case "inventory_updated_signal":
         // Inventory mutation is a strong signal that floor stack order at the
         // player tile may have changed (pickup/drop/eat/use from floor).
         this.requestPlayerTileRefresh("inventory-updated-signal");
         if (this.isFpsMode() && !this.pendingStartupInventoryRefresh) {
           this.requestSilentInventoryRefresh("inventory-updated-signal");
+        }
+        break;
+
+      case "travel_step_delay":
+        if (
+          typeof data.delayMs === "number" &&
+          Number.isFinite(data.delayMs) &&
+          data.delayMs >= 0
+        ) {
+          this.runtimeTravelStepDelayMs = Math.trunc(data.delayMs);
         }
         break;
 
@@ -9723,6 +9949,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.refreshPlayerCliparoundInputCooldownFromMovement();
         }
         this.playerPos = { x: data.x, y: data.y };
+        this.finalizeHeldPlayerMoveTransitionIfConfirmed(data.x, data.y);
         this.logAsciiPlayerTileDebug(
           "player_position_applied",
           data.x,
@@ -9806,6 +10033,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           break;
         }
         this.captureAutopickupStateFromMessage(data.text);
+        this.capturePlayerTileTerrainInvalidationFromMessage(data.text);
         this.captureFpsCrosshairGlanceMessage(data.text);
         this.captureFpsHeldWeaponSwipeFromCombatMessage(data.text);
         {
@@ -9826,6 +10054,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           break;
         }
         this.captureAutopickupStateFromMessage(data.text);
+        this.capturePlayerTileTerrainInvalidationFromMessage(data.text);
         this.captureFpsCrosshairGlanceMessage(data.text);
         this.captureFpsHeldWeaponSwipeFromCombatMessage(data.text);
         {
@@ -9946,6 +10175,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
         // Replace current inventory state with latest snapshot.
         this.currentInventory = nextInventory;
+        this.invalidateFpsHeldWeaponTexture();
+        this.invalidateFpsHeldLeftWeaponTexture();
 
         // If we have a pending inventory dialog request, show it now
         if (this.pendingInventoryDialog) {
@@ -10916,6 +11147,99 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private getMaterialKindForTerrainSnapshot(
+    snapshot: TerrainSnapshot | null,
+  ): TileMaterialKind | null {
+    if (!snapshot) {
+      return null;
+    }
+    const behavior = classifyTileBehavior({
+      glyph: snapshot.glyph,
+      runtimeKind: snapshot.kind ?? null,
+      runtimeChar: snapshot.char ?? null,
+      runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
+      runtimeTileIndex:
+        typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
+      runtimeSymidx: typeof snapshot.symidx === "number" ? snapshot.symidx : null,
+      priorTerrain: snapshot,
+    });
+    return behavior.materialKind;
+  }
+
+  private buildFallbackTerrainSnapshotForPlayerTile(): TerrainSnapshot {
+    const fallbackBehavior =
+      this.resolveFloorBehaviorFromNeighborTiles(
+        this.playerPos.x,
+        this.playerPos.y,
+      ) ?? this.resolveNormalRoomFloorBehavior();
+    return {
+      glyph: fallbackBehavior.effective.glyph,
+      char: fallbackBehavior.resolved.char ?? undefined,
+      color: fallbackBehavior.resolved.color ?? undefined,
+      tileIndex: fallbackBehavior.resolved.tileIndex,
+    };
+  }
+
+  private invalidatePlayerTileFeatureFromMessage(
+    materialKind: TileMaterialKind,
+    refreshReason: string,
+  ): void {
+    if (!this.hasSeenPlayerPosition) {
+      return;
+    }
+
+    const tileX = this.playerPos.x;
+    const tileY = this.playerPos.y;
+    const key = `${tileX},${tileY}`;
+    let changed = false;
+
+    const cachedFlatFeature = this.flatFeatureUnderPlayerCache.get(key) ?? null;
+    if (
+      cachedFlatFeature &&
+      this.getMaterialKindForTerrainSnapshot(cachedFlatFeature) === materialKind
+    ) {
+      this.flatFeatureUnderPlayerCache.delete(key);
+      changed = true;
+    }
+
+    const cachedTerrain = this.lastKnownTerrain.get(key) ?? null;
+    if (
+      cachedTerrain &&
+      this.getMaterialKindForTerrainSnapshot(cachedTerrain) === materialKind
+    ) {
+      this.lastKnownTerrain.set(
+        key,
+        this.buildFallbackTerrainSnapshotForPlayerTile(),
+      );
+      changed = true;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.refreshTileVisualFromStateCache(tileX, tileY);
+    this.requestPlayerTileRefresh(refreshReason, { forceRuntime: true });
+  }
+
+  private capturePlayerTileTerrainInvalidationFromMessage(
+    messageLike: unknown,
+  ): void {
+    if (typeof messageLike !== "string") {
+      return;
+    }
+    const normalized = messageLike.trim().toLowerCase();
+    if (!normalized) {
+      return;
+    }
+    if (/\bfountain dries up\b/.test(normalized)) {
+      this.invalidatePlayerTileFeatureFromMessage(
+        "fountain",
+        "fountain-dried-up-message",
+      );
+    }
+  }
+
   private classifyTilePayload(tile: any): TileBehaviorResult | null {
     if (
       !tile ||
@@ -11354,6 +11678,275 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
+  private normalizeRuntimeMonsterId(rawValue: unknown): number | null {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized > 0 ? normalized : null;
+  }
+
+  private normalizeRuntimeTrackedEntityId(rawValue: unknown): number | null {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized >= 0 ? normalized : null;
+  }
+
+  private isRuntimeTrackedPlayerEntityId(rawValue: unknown): boolean {
+    return this.normalizeRuntimeTrackedEntityId(rawValue) === 0;
+  }
+
+  private hasRuntimeTrackedPlayerEntitySupport(): boolean {
+    return this.runtimeTrackedPlayerEntitySeen;
+  }
+
+  private getTrackedEntityMoveTransitionId(entityId: number): string {
+    return entityId === 0 ? "player" : `monster:${entityId}`;
+  }
+
+  private normalizeRuntimeTargetEntityId(rawValue: unknown): number | null {
+    if (typeof rawValue !== "number" || !Number.isFinite(rawValue)) {
+      return null;
+    }
+    const normalized = Math.trunc(rawValue);
+    return normalized >= 0 ? normalized : null;
+  }
+
+  private removeRuntimeMonsterTrackingById(rawValue: unknown): void {
+    const monsterId = this.normalizeRuntimeTrackedEntityId(rawValue);
+    if (monsterId === null) {
+      return;
+    }
+    this.pendingRuntimeMonsterVacatedTileKeyById.delete(monsterId);
+    const key = this.runtimeMonsterTileKeyById.get(monsterId);
+    if (key && this.runtimeMonsterIdByTileKey.get(key) === monsterId) {
+      this.runtimeMonsterIdByTileKey.delete(key);
+    }
+    this.runtimeMonsterTileKeyById.delete(monsterId);
+  }
+
+  private finalizePendingRuntimeMonsterVacatedTracking(): void {
+    for (const [monsterId, key] of Array.from(
+      this.pendingRuntimeMonsterVacatedTileKeyById.entries(),
+    )) {
+      if (this.runtimeMonsterTileKeyById.get(monsterId) === key) {
+        this.runtimeMonsterTileKeyById.delete(monsterId);
+      }
+      this.pendingRuntimeMonsterVacatedTileKeyById.delete(monsterId);
+    }
+  }
+
+  private forgetRuntimeMonsterLastSeenStateById(rawValue: unknown): void {
+    const monsterId = this.normalizeRuntimeTrackedEntityId(rawValue);
+    if (monsterId === null) {
+      return;
+    }
+    this.runtimeMonsterLastSeenStateById.delete(monsterId);
+  }
+
+  private extractRuntimeMonsterBillboardAppearanceFromTile(
+    tile: any,
+  ): RuntimeMonsterBillboardAppearance | null {
+    const behavior = this.classifyTilePayload(tile);
+    const hasTrackablePlayerAppearance =
+      behavior !== null &&
+      this.hasExplicitPlayerVisual(
+        behavior,
+        typeof tile?.char === "string" ? tile.char : null,
+      );
+    if (
+      !behavior ||
+      (!this.isMonsterLikeBehavior(behavior) && !hasTrackablePlayerAppearance)
+    ) {
+      return null;
+    }
+    return {
+      glyphChar: behavior.glyphChar,
+      textColor: behavior.textColor,
+      tileIndex:
+        typeof behavior.effective.tileIndex === "number" &&
+        Number.isFinite(behavior.effective.tileIndex)
+          ? Math.trunc(behavior.effective.tileIndex)
+          : -1,
+      sourceGlyph:
+        typeof behavior.effective.glyph === "number" &&
+        Number.isFinite(behavior.effective.glyph)
+          ? Math.trunc(behavior.effective.glyph)
+          : null,
+      materialKind: behavior.materialKind,
+      isWall: behavior.isWall,
+    };
+  }
+
+  private rememberRuntimeMonsterLastSeenState(
+    monsterId: number,
+    tileKey: string,
+    tile: any,
+  ): void {
+    this.runtimeMonsterLastSeenStateById.set(monsterId, {
+      tileKey,
+      appearance: this.extractRuntimeMonsterBillboardAppearanceFromTile(tile),
+    });
+  }
+
+  private resolveRuntimeMonsterLastSeenStateById(
+    rawMonsterId: unknown,
+  ): RuntimeMonsterLastSeenState | null {
+    const monsterId = this.normalizeRuntimeTrackedEntityId(rawMonsterId);
+    if (monsterId === null) {
+      return null;
+    }
+    return this.runtimeMonsterLastSeenStateById.get(monsterId) ?? null;
+  }
+
+  private updateRuntimeMonsterTrackingFromTile(tile: any): void {
+    if (
+      !tile ||
+      typeof tile.x !== "number" ||
+      !Number.isFinite(tile.x) ||
+      typeof tile.y !== "number" ||
+      !Number.isFinite(tile.y)
+    ) {
+      return;
+    }
+
+    const key = `${Math.trunc(tile.x)},${Math.trunc(tile.y)}`;
+    const eventMonsterId = this.normalizeRuntimeTrackedEntityId(tile.monsterId);
+    if (eventMonsterId === 0) {
+      this.runtimeTrackedPlayerEntitySeen = true;
+    }
+    const previousMonsterId = this.runtimeMonsterIdByTileKey.get(key) ?? null;
+    const isRuntimeClear = Boolean(tile.isRuntimeUndiscoveredClear);
+
+    if (
+      previousMonsterId !== null &&
+      (isRuntimeClear || previousMonsterId !== eventMonsterId)
+    ) {
+      if (this.runtimeMonsterTileKeyById.get(previousMonsterId) === key) {
+        this.pendingRuntimeMonsterVacatedTileKeyById.set(
+          previousMonsterId,
+          key,
+        );
+      }
+      this.runtimeMonsterIdByTileKey.delete(key);
+    }
+
+    if (isRuntimeClear || eventMonsterId === null) {
+      if (eventMonsterId !== null) {
+        this.removeRuntimeMonsterTrackingById(eventMonsterId);
+      }
+      return;
+    }
+
+    this.rememberRuntimeMonsterLastSeenState(eventMonsterId, key, tile);
+    const previousKeyForMonster =
+      this.runtimeMonsterTileKeyById.get(eventMonsterId) ??
+      this.pendingRuntimeMonsterVacatedTileKeyById.get(eventMonsterId) ??
+      null;
+    if (previousKeyForMonster && previousKeyForMonster !== key) {
+      this.startRuntimeMonsterMoveTransition(
+        eventMonsterId,
+        previousKeyForMonster,
+        key,
+        tile,
+      );
+    }
+    if (
+      previousKeyForMonster &&
+      previousKeyForMonster !== key &&
+      this.runtimeMonsterIdByTileKey.get(previousKeyForMonster) ===
+        eventMonsterId
+    ) {
+      this.runtimeMonsterIdByTileKey.delete(previousKeyForMonster);
+    }
+
+    this.pendingRuntimeMonsterVacatedTileKeyById.delete(eventMonsterId);
+    this.runtimeMonsterTileKeyById.set(eventMonsterId, key);
+    this.runtimeMonsterIdByTileKey.set(key, eventMonsterId);
+  }
+
+  private resolveRuntimeMonsterLastSeenTileById(
+    rawMonsterId: unknown,
+  ): { x: number; y: number } | null {
+    const state = this.resolveRuntimeMonsterLastSeenStateById(rawMonsterId);
+    return state ? this.parseTileKey(state.tileKey) : null;
+  }
+
+  private resolveRuntimeMonsterBillboardAppearanceById(
+    rawMonsterId: unknown,
+  ): RuntimeMonsterBillboardAppearance | null {
+    return (
+      this.resolveRuntimeMonsterLastSeenStateById(rawMonsterId)?.appearance ??
+      null
+    );
+  }
+
+  private resolveRuntimeMonsterEffectTileById(
+    rawMonsterId: unknown,
+  ): { x: number; y: number } | null {
+    return (
+      this.resolveRuntimeMonsterTileById(rawMonsterId) ??
+      this.resolveRuntimeMonsterLastSeenTileById(rawMonsterId)
+    );
+  }
+
+  private resolveRuntimeMonsterTileById(
+    rawMonsterId: unknown,
+  ): { x: number; y: number } | null {
+    const monsterId = this.normalizeRuntimeTrackedEntityId(rawMonsterId);
+    if (monsterId === null) {
+      return null;
+    }
+    const key = this.runtimeMonsterTileKeyById.get(monsterId);
+    return key ? this.parseTileKey(key) : null;
+  }
+
+  private resolveRuntimeEffectOriginTileByEntityId(
+    rawEntityId: unknown,
+  ): { x: number; y: number } | null {
+    const entityId = this.normalizeRuntimeTargetEntityId(rawEntityId);
+    if (entityId === null) {
+      return null;
+    }
+    if (entityId === 0) {
+      return this.hasSeenPlayerPosition
+        ? { x: this.playerPos.x, y: this.playerPos.y }
+        : null;
+    }
+    return this.resolveRuntimeMonsterEffectTileById(entityId);
+  }
+
+  private resolveDamageEffectDirectionFromTiles(
+    origin: { x: number; y: number } | null,
+    target: { x: number; y: number } | null,
+  ): { x: number; y: number } | null {
+    if (!origin || !target) {
+      return null;
+    }
+
+    const deltaX = Number(target.x) - Number(origin.x);
+    const deltaY = Number(target.y) - Number(origin.y);
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) {
+      return null;
+    }
+
+    const magnitude = Math.hypot(deltaX, deltaY);
+    if (magnitude < 1e-6) {
+      return null;
+    }
+
+    return {
+      x: deltaX / magnitude,
+      y: -deltaY / magnitude,
+    };
+  }
+
+  private suppressMonsterKillMessageHeuristics(): void {
+    this.runtimeMonsterKillHeuristicSuppressionUntilMs = Date.now() + 180;
+  }
+
   private setPendingPointerAttackTargetFromTile(x: number, y: number): void {
     if (!this.isMonsterAttackTargetTile(x, y)) {
       this.pendingPointerAttackTargetContext = null;
@@ -11478,6 +12071,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
 
+    if (Date.now() < this.runtimeMonsterKillHeuristicSuppressionUntilMs) {
+      return false;
+    }
+
     const normalized = messageLike.replace(/\s+/g, " ").trim();
     if (!normalized || !this.isMonsterDefeatMessage(normalized)) {
       return false;
@@ -11505,6 +12102,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     playerKillHandled: boolean,
   ): void {
     if (playerKillHandled || typeof messageLike !== "string") {
+      return;
+    }
+    if (Date.now() < this.runtimeMonsterKillHeuristicSuppressionUntilMs) {
       return;
     }
     const normalized = messageLike.replace(/\s+/g, " ").trim();
@@ -11691,11 +12291,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const hadElevatedBillboard = this.monsterBillboards.has(key);
     if (variant === "defeat") {
       if (this.clientOptions.monsterShatter) {
-        this.spawnMonsterBillboardShatterEffectAtTile(
-          x,
-          y,
-          options.billboardShatter,
-        );
+        const shatterOptions: MonsterBillboardShatterOptions = {
+          ...options.billboardShatter,
+        };
+        if (
+          typeof shatterOptions.directionX !== "number" &&
+          typeof options.directionX === "number"
+        ) {
+          shatterOptions.directionX = options.directionX;
+        }
+        if (
+          typeof shatterOptions.directionY !== "number" &&
+          typeof options.directionY === "number"
+        ) {
+          shatterOptions.directionY = options.directionY;
+        }
+        this.spawnMonsterBillboardShatterEffectAtTile(x, y, shatterOptions);
       }
     }
     const useMonsterBillboardFlash =
@@ -11736,6 +12347,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (this.clientOptions.bloodMist || this.clientOptions.bloodGround) {
       this.spawnBloodEffects(x, y, damage, variant, {
+        directionX: options.directionX,
+        directionY: options.directionY,
         horizontalSpeedMultiplier: options.bloodMistHorizontalSpeedMultiplier,
         mistParticleCountMultiplier: options.bloodMistCountMultiplier,
         radialSpread: options.radialBloodMistSpread,
@@ -11825,6 +12438,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const signature = this.buildTileStateSignatureFromPayload(tile);
+    const deferredVisualUpdate =
+      this.deferredEntityVisualUpdatesByKey.get(key) ?? null;
+    if (deferredVisualUpdate) {
+      this.tileStateCache.set(key, signature);
+      deferredVisualUpdate.tile = tile;
+      return;
+    }
     if (this.tileStateCache.get(key) === signature) {
       const shouldHaveElevatedBillboard =
         (behavior !== null &&
@@ -11950,6 +12570,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.pendingTileFlushQueueIndex >= this.pendingTileFlushQueue.length) {
       this.pendingTileFlushQueue = [];
       this.pendingTileFlushQueueIndex = 0;
+      this.finalizePendingRuntimeMonsterVacatedTracking();
     }
     // Inferred dark-corridor walls intentionally reconcile from player_position
     // updates, not tile flushes, to avoid transient wall flashes mid-move.
@@ -12158,6 +12779,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private refreshTileVisualFromStateCache(tileX: number, tileY: number): void {
     const key = `${tileX},${tileY}`;
+    if (this.isEntityVisualUpdateDeferred(key)) {
+      return;
+    }
     const snapshot = this.getTileSnapshotFromStateCache(key);
     if (!snapshot) {
       if (
@@ -12224,6 +12848,41 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.refreshTileVisualFromStateCache(this.playerPos.x, this.playerPos.y);
   }
 
+  private refreshVacatedPlayerTileVisualDuringTransition(
+    tileX: number,
+    tileY: number,
+  ): void {
+    const key = `${tileX},${tileY}`;
+    const snapshot =
+      this.getPlayerTileUnderlaySnapshotFromCache(key) ??
+      this.lastKnownTerrain.get(key) ??
+      null;
+    if (!snapshot) {
+      return;
+    }
+    this.updateTile(
+      tileX,
+      tileY,
+      snapshot.glyph,
+      snapshot.char ?? undefined,
+      typeof snapshot.color === "number" && Number.isFinite(snapshot.color)
+        ? Math.trunc(snapshot.color)
+        : undefined,
+      {
+        runtimeTileIndex:
+          typeof snapshot.tileIndex === "number" &&
+          Number.isFinite(snapshot.tileIndex)
+            ? Math.trunc(snapshot.tileIndex)
+            : undefined,
+        runtimeSymidx:
+          typeof snapshot.symidx === "number" &&
+          Number.isFinite(snapshot.symidx)
+            ? Math.trunc(snapshot.symidx)
+            : undefined,
+      },
+    );
+  }
+
   private hasExplicitPlayerVisual(
     behavior: TileBehaviorResult | null,
     runtimeChar?: string | null,
@@ -12280,7 +12939,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     if (this.isFpsMode() || this.clientOptions.tilesetMode === "tiles") {
-      this.refreshTileVisualFromStateCache(fromX, fromY);
+      if (this.activeEntityMoveTransitions.has("player")) {
+        this.refreshVacatedPlayerTileVisualDuringTransition(fromX, fromY);
+      } else {
+        this.refreshTileVisualFromStateCache(fromX, fromY);
+      }
       this.refreshTileVisualFromStateCache(toX, toY);
       return;
     }
@@ -17201,6 +17864,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     damage: number,
     variant: "hit" | "defeat",
     options: {
+      directionX?: number;
+      directionY?: number;
       horizontalSpeedMultiplier?: number;
       mistParticleCountMultiplier?: number;
       radialSpread?: boolean;
@@ -17208,15 +17873,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     } = {},
   ): void {
     const sanitized = Math.max(1, Math.round(Math.abs(damage)));
-    const awayFromPlayer = new THREE.Vector2(
-      tileX - this.playerPos.x,
-      -(tileY - this.playerPos.y),
+    const sprayDirection = new THREE.Vector2(
+      typeof options.directionX === "number" &&
+        Number.isFinite(options.directionX)
+        ? options.directionX
+        : tileX - this.playerPos.x,
+      typeof options.directionY === "number" &&
+        Number.isFinite(options.directionY)
+        ? options.directionY
+        : -(tileY - this.playerPos.y),
     );
-    if (awayFromPlayer.lengthSq() < 0.0001) {
+    if (sprayDirection.lengthSq() < 0.0001) {
       const randomAngle = Math.random() * Math.PI * 2;
-      awayFromPlayer.set(Math.cos(randomAngle), Math.sin(randomAngle));
+      sprayDirection.set(Math.cos(randomAngle), Math.sin(randomAngle));
     } else {
-      awayFromPlayer.normalize();
+      sprayDirection.normalize();
     }
 
     if (this.clientOptions.bloodGround) {
@@ -17225,8 +17896,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         tileY,
         sanitized,
         variant,
-        awayFromPlayer.x,
-        awayFromPlayer.y,
+        sprayDirection.x,
+        sprayDirection.y,
       );
     }
     if (!this.clientOptions.bloodMist) {
@@ -17320,7 +17991,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
       const directionAngle = radialSpread
         ? Math.random() * spreadRadians
-        : Math.atan2(awayFromPlayer.y, awayFromPlayer.x) +
+        : Math.atan2(sprayDirection.y, sprayDirection.x) +
           (Math.random() - 0.5) * spreadRadians;
       const horizontalSpeed =
         (baseHorizontalSpeed +
@@ -18289,6 +18960,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.lastParsedDamageAtMs = 0;
     this.lastParsedDefeatMessage = "";
     this.lastParsedDefeatAtMs = 0;
+    this.runtimeMonsterKillHeuristicSuppressionUntilMs = 0;
+    this.runtimeTrackedPlayerEntitySeen = false;
+    this.normalModePlayerMoveCameraFollowActive = false;
+    this.runtimeMonsterTileKeyById.clear();
+    this.runtimeMonsterIdByTileKey.clear();
+    this.pendingRuntimeMonsterVacatedTileKeyById.clear();
+    this.runtimeMonsterLastSeenStateById.clear();
+    this.clearEntityMoveTransitions();
     this.pendingPlayerFootstepSoundArmed = false;
     this.clearPlayerCliparoundInputCooldown();
     this.messageSoundHooks.reset();
@@ -21543,6 +22222,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       entry.texture.dispose();
     }
     this.monsterBillboardTextures.clear();
+    this.runtimeTrackedPlayerEntitySeen = false;
+    this.normalModePlayerMoveCameraFollowActive = false;
+    this.runtimeMonsterTileKeyById.clear();
+    this.runtimeMonsterIdByTileKey.clear();
+    this.pendingRuntimeMonsterVacatedTileKeyById.clear();
+    this.runtimeMonsterLastSeenStateById.clear();
+    this.clearEntityMoveTransitions();
     if (this.entityBlobShadowTexture) {
       this.entityBlobShadowTexture.dispose();
       this.entityBlobShadowTexture = null;
@@ -21561,6 +22247,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsForwardHighlightTexture = null;
     }
     this.clearFpsHeldWeaponVisual();
+    this.clearFpsHeldLeftWeaponVisual();
     this.fpsAimLinePulseUntilMs = 0;
     this.fpsFireSuppressionUntilMs = 0;
     this.fpsStepCameraActive = false;
@@ -21605,7 +22292,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.glyphTextureCache.clear();
     this.disposeLightingOverlay();
     this.tileStateCache.clear();
+    this.runtimeMonsterKillHeuristicSuppressionUntilMs = 0;
+    this.runtimeTrackedPlayerEntitySeen = false;
+    this.normalModePlayerMoveCameraFollowActive = false;
     this.lastKnownTerrain.clear();
+    this.pendingRuntimeMonsterVacatedTileKeyById.clear();
     this.flatFeatureUnderPlayerCache.clear();
     this.suppressedLootLikeUnderPlayerCacheKeys.clear();
     this.inferredDarkCorridorWallTiles.clear();
@@ -23240,26 +23931,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
     toCamera.normalize();
     const right = new THREE.Vector2(toCamera.y, -toCamera.x);
 
-    const toPlayer = new THREE.Vector2(
-      this.playerPos.x * TILE_SIZE - basePosition.x,
-      -this.playerPos.y * TILE_SIZE - basePosition.y,
+    const awayFromImpactOrigin = new THREE.Vector2(
+      typeof options.directionX === "number" &&
+        Number.isFinite(options.directionX)
+        ? options.directionX
+        : basePosition.x - this.playerPos.x * TILE_SIZE,
+      typeof options.directionY === "number" &&
+        Number.isFinite(options.directionY)
+        ? options.directionY
+        : basePosition.y + this.playerPos.y * TILE_SIZE,
     );
-    if (toPlayer.lengthSq() < 1e-6) {
+    if (awayFromImpactOrigin.lengthSq() < 1e-6) {
       const randomAngle = Math.random() * Math.PI * 2;
-      toPlayer.set(Math.cos(randomAngle), Math.sin(randomAngle));
+      awayFromImpactOrigin.set(Math.cos(randomAngle), Math.sin(randomAngle));
+    } else {
+      awayFromImpactOrigin.normalize();
     }
-    toPlayer.normalize();
-    const awayFromPlayer = toPlayer.clone().multiplyScalar(-1);
+    const towardImpactOrigin = awayFromImpactOrigin.clone().multiplyScalar(-1);
+    if (towardImpactOrigin.lengthSq() < 1e-6) {
+      const randomAngle = Math.random() * Math.PI * 2;
+      towardImpactOrigin.set(Math.cos(randomAngle), Math.sin(randomAngle));
+    } else {
+      towardImpactOrigin.normalize();
+    }
 
     const impulseLocalX = (Math.random() - 0.5) * baseScaleX * 0.72;
     const impulseLocalY = (Math.random() - 0.5) * baseScaleY * 0.72;
     const impulseOrigin = new THREE.Vector3(
       basePosition.x +
         right.x * impulseLocalX +
-        toPlayer.x * this.monsterBillboardShardImpulseTowardPlayer,
+        towardImpactOrigin.x * this.monsterBillboardShardImpulseTowardPlayer,
       basePosition.y +
         right.y * impulseLocalX +
-        toPlayer.y * this.monsterBillboardShardImpulseTowardPlayer,
+        towardImpactOrigin.y * this.monsterBillboardShardImpulseTowardPlayer,
       basePosition.z + impulseLocalY,
     );
 
@@ -23304,13 +24008,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       );
       const radialXY = new THREE.Vector2(radial.x, radial.y);
       if (radialXY.lengthSq() < 1e-8) {
-        radialXY.copy(awayFromPlayer);
+        radialXY.copy(awayFromImpactOrigin);
       } else {
         radialXY.normalize();
       }
-      radialXY.lerp(awayFromPlayer, 0.52);
+      radialXY.lerp(awayFromImpactOrigin, 0.52);
       if (radialXY.lengthSq() < 1e-8) {
-        radialXY.copy(awayFromPlayer);
+        radialXY.copy(awayFromImpactOrigin);
       } else {
         radialXY.normalize();
       }
@@ -23372,24 +24076,68 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
+  private createDetachedRuntimeMonsterBillboardSprite(
+    tileX: number,
+    tileY: number,
+    appearance: RuntimeMonsterBillboardAppearance,
+    runtimeMonsterId: number | null = null,
+  ): THREE.Sprite | null {
+    const tempKey = `runtime-monster-shatter:${runtimeMonsterId ?? "unknown"}:${tileX},${tileY}|${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    this.ensureMonsterBillboard(
+      tempKey,
+      tileX,
+      tileY,
+      appearance.glyphChar,
+      appearance.textColor,
+      appearance.tileIndex,
+      "monster",
+      appearance.isWall,
+      appearance.sourceGlyph,
+      appearance.materialKind,
+    );
+    return this.detachMonsterBillboard(tempKey);
+  }
+
   private spawnMonsterBillboardShatterEffectAtTile(
     tileX: number,
     tileY: number,
     options: MonsterBillboardShatterOptions = {},
   ): boolean {
     const key = `${tileX},${tileY}`;
-    const sprite = this.monsterBillboards.get(key);
+    const runtimeMonsterId = this.normalizeRuntimeMonsterId(
+      options.runtimeMonsterId,
+    );
+    const cachedAppearance =
+      runtimeMonsterId !== null
+        ? this.resolveRuntimeMonsterBillboardAppearanceById(runtimeMonsterId)
+        : null;
+    const sprite =
+      cachedAppearance !== null
+        ? this.createDetachedRuntimeMonsterBillboardSprite(
+            tileX,
+            tileY,
+            cachedAppearance,
+            runtimeMonsterId,
+          )
+        : (this.monsterBillboards.get(key) ?? null);
     if (!sprite) {
       return false;
     }
 
+    const shouldDisposeTemporarySprite = cachedAppearance !== null;
     const material = sprite.material;
     if (!(material instanceof THREE.SpriteMaterial)) {
+      if (shouldDisposeTemporarySprite) {
+        this.disposeDetachedMonsterBillboard(sprite);
+      }
       return false;
     }
 
     const sourceTexture = material.map;
     if (!sourceTexture) {
+      if (shouldDisposeTemporarySprite) {
+        this.disposeDetachedMonsterBillboard(sprite);
+      }
       return false;
     }
     const descriptors = this.createMonsterBillboardShardDescriptors(
@@ -23397,6 +24145,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       options,
     );
     if (!descriptors.length) {
+      if (shouldDisposeTemporarySprite) {
+        this.disposeDetachedMonsterBillboard(sprite);
+      }
       return false;
     }
 
@@ -23410,6 +24161,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (detached) {
         this.disposeDetachedMonsterBillboard(detached);
       }
+    }
+    if (shouldDisposeTemporarySprite) {
+      this.disposeDetachedMonsterBillboard(sprite);
     }
     return true;
   }
@@ -25138,6 +25892,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (moved) {
+      const stepDurationMs = this.reserveSharedStepMotionDurationMs();
       if (this.isFpsMode()) {
         const nowMs = Date.now();
         const moveDx = Math.sign(toX - fromX);
@@ -25151,7 +25906,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
           this.fpsStepCameraRunInputWindowMs;
         const shouldExtrapolateNextRunTile =
           runLikeInputActive || autoMoveLikely;
-        this.beginFpsStepCameraTransition(fromX, fromY, toX, toY);
+        this.beginFpsStepCameraTransition(
+          fromX,
+          fromY,
+          toX,
+          toY,
+          stepDurationMs,
+        );
         this.rememberRecentFpsPlayerTileForSuppression(fromX, fromY, nowMs);
         this.refreshRecentFpsPlayerTrailTileVisual(fromX, fromY);
         if (shouldExtrapolateNextRunTile) {
@@ -25168,6 +25929,30 @@ class Nethack3DEngine implements Nethack3DEngineController {
           autoMoveLikely,
         );
       } else {
+        const startedProvisionalSwapTransition =
+          this.tryStartProvisionalPlayerSwapTransitions(
+            fromX,
+            fromY,
+            toX,
+            toY,
+            stepDurationMs,
+          );
+        const usingTrackedPlayerMoveTransition =
+          this.hasRuntimeTrackedPlayerEntitySupport() &&
+          this.activeEntityMoveTransitions.has("player");
+        this.normalModePlayerMoveCameraFollowActive = true;
+        if (
+          !usingTrackedPlayerMoveTransition &&
+          !startedProvisionalSwapTransition
+        ) {
+          this.startPlayerMoveTransition(
+            fromX,
+            fromY,
+            toX,
+            toY,
+            stepDurationMs,
+          );
+        }
         this.fpsLastPlayerMoveFromTile = null;
         this.recenterCameraOnPlayerIfNeeded();
       }
@@ -25295,11 +26080,65 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.cameraYaw = nextYaw;
   }
 
+  private computeSharedStepMotionDurationMs(
+    now: number = performance.now(),
+    nowMs: number = Date.now(),
+  ): number {
+    let nextDurationMs = this.fpsStepCameraBaseDurationMs;
+    if (
+      nowMs - this.lastRunLikeInputAtMs <=
+      this.fpsStepCameraRunInputWindowMs
+    ) {
+      nextDurationMs = Math.min(
+        nextDurationMs,
+        this.fpsStepCameraRunDurationMs,
+      );
+    }
+    if (this.lastSharedStepMotionStartedAtMs > 0) {
+      const moveCadenceMs = now - this.lastSharedStepMotionStartedAtMs;
+      if (
+        moveCadenceMs > 0 &&
+        moveCadenceMs < this.fpsStepCameraBaseDurationMs
+      ) {
+        const cadenceDurationMs = Math.max(
+          this.fpsStepCameraMinDurationMs,
+          moveCadenceMs * this.fpsStepCameraRapidDurationScale,
+        );
+        nextDurationMs = Math.min(nextDurationMs, cadenceDurationMs);
+      }
+    }
+    return nextDurationMs;
+  }
+
+  private reserveSharedStepMotionDurationMs(): number {
+    const now = performance.now();
+    const durationMs = this.computeSharedStepMotionDurationMs(now, Date.now());
+    this.lastSharedStepMotionStartedAtMs = now;
+    this.lastSharedStepMotionDurationMs = durationMs;
+    return durationMs;
+  }
+
+  private getPreferredEntityMoveDurationMs(): number {
+    if (this.fpsStepCameraActive) {
+      return this.fpsStepCameraDurationMs;
+    }
+    const now = performance.now();
+    if (
+      this.lastSharedStepMotionStartedAtMs > 0 &&
+      now - this.lastSharedStepMotionStartedAtMs <=
+        Math.max(220, this.lastSharedStepMotionDurationMs * 3)
+    ) {
+      return this.lastSharedStepMotionDurationMs;
+    }
+    return this.computeSharedStepMotionDurationMs(now, Date.now());
+  }
+
   private beginFpsStepCameraTransition(
     fromX: number,
     fromY: number,
     toX: number,
     toY: number,
+    durationMs: number,
   ): void {
     if (!this.isFpsMode()) {
       return;
@@ -25310,7 +26149,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const toEyeX = toX * TILE_SIZE;
     const toEyeY = -toY * TILE_SIZE;
     const now = performance.now();
-    const nowMs = Date.now();
 
     if (!this.fpsStepCameraActive) {
       this.fpsStepCameraFrom.set(fromEyeX, fromEyeY, this.firstPersonEyeHeight);
@@ -25325,36 +26163,920 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsStepCameraFrom.lerp(this.fpsStepCameraTo, eased);
     }
 
-    let nextDurationMs = this.fpsStepCameraBaseDurationMs;
-    if (
-      nowMs - this.lastRunLikeInputAtMs <=
-      this.fpsStepCameraRunInputWindowMs
-    ) {
-      nextDurationMs = Math.min(
-        nextDurationMs,
-        this.fpsStepCameraRunDurationMs,
-      );
-    }
-    if (this.fpsStepCameraStartMs > 0) {
-      const moveCadenceMs = now - this.fpsStepCameraStartMs;
-      if (
-        moveCadenceMs > 0 &&
-        moveCadenceMs < this.fpsStepCameraBaseDurationMs
-      ) {
-        const cadenceDurationMs = Math.max(
-          this.fpsStepCameraMinDurationMs,
-          moveCadenceMs * this.fpsStepCameraRapidDurationScale,
-        );
-        nextDurationMs = Math.min(nextDurationMs, cadenceDurationMs);
-      }
-    }
-    this.fpsStepCameraDurationMs = nextDurationMs;
+    this.fpsStepCameraDurationMs = Math.max(
+      this.fpsStepCameraMinDurationMs,
+      Math.trunc(durationMs),
+    );
     this.applyFpsHeldWeaponSwayImpulse(fromX, fromY, toX, toY);
 
     this.fpsStepCameraTo.set(toEyeX, toEyeY, this.firstPersonEyeHeight);
     this.fpsStepCameraTargetTile = { x: toX, y: toY };
     this.fpsStepCameraStartMs = now;
     this.fpsStepCameraActive = true;
+  }
+
+  private isEntityVisualUpdateDeferred(key: string): boolean {
+    return this.deferredEntityVisualUpdatesByKey.has(key);
+  }
+
+  private sanitizeEntityMoveTransitionDurationMs(durationMs: number): number {
+    return Math.max(this.fpsStepCameraMinDurationMs, Math.trunc(durationMs));
+  }
+
+  private getEntityMoveTransitionMinimumSegmentDurationMs(
+    transitionId: string,
+  ): number {
+    if (transitionId !== "player") {
+      return this.fpsStepCameraMinDurationMs;
+    }
+    return Math.max(
+      this.fpsStepCameraMinDurationMs,
+      Number.isFinite(this.runtimeTravelStepDelayMs)
+        ? Math.trunc(this.runtimeTravelStepDelayMs)
+        : 0,
+    );
+  }
+
+  private resolveEntityMoveTransitionSegmentDurationMs(
+    transitionId: string,
+    baseDurationMs: number,
+    queuedWaypointCount: number,
+  ): number {
+    return Math.max(
+      this.getEntityMoveTransitionMinimumSegmentDurationMs(transitionId),
+      Math.trunc(
+        this.sanitizeEntityMoveTransitionDurationMs(baseDurationMs) /
+          Math.max(1, queuedWaypointCount + 1),
+      ),
+    );
+  }
+
+  private areEntityMoveTransitionsReciprocalSwap(
+    first: EntityMoveTransition,
+    second: EntityMoveTransition,
+  ): boolean {
+    const epsilon = TILE_SIZE * 0.01;
+    return (
+      Math.abs(first.from.x - second.to.x) <= epsilon &&
+      Math.abs(first.from.y - second.to.y) <= epsilon &&
+      Math.abs(first.to.x - second.from.x) <= epsilon &&
+      Math.abs(first.to.y - second.from.y) <= epsilon
+    );
+  }
+
+  private buildEntityMoveTransitionReciprocalSwapPartnerById(
+    transitions: EntityMoveTransition[],
+  ): Map<string, string> {
+    const partners = new Map<string, string>();
+    for (let index = 0; index < transitions.length; index += 1) {
+      const transition = transitions[index];
+      if (partners.has(transition.id)) {
+        continue;
+      }
+      for (
+        let otherIndex = index + 1;
+        otherIndex < transitions.length;
+        otherIndex += 1
+      ) {
+        const otherTransition = transitions[otherIndex];
+        if (
+          partners.has(otherTransition.id) ||
+          !this.areEntityMoveTransitionsReciprocalSwap(
+            transition,
+            otherTransition,
+          )
+        ) {
+          continue;
+        }
+        partners.set(transition.id, otherTransition.id);
+        partners.set(otherTransition.id, transition.id);
+        break;
+      }
+    }
+    return partners;
+  }
+
+  private buildEntityMoveTransitionReciprocalSwapOffsetById(
+    transitions: EntityMoveTransition[],
+    partners: Map<string, string>,
+  ): Map<string, { x: number; y: number }> {
+    const offsets = new Map<string, { x: number; y: number }>();
+    const seenPairKeys = new Set<string>();
+    const playerSwapOffsetMagnitude = TILE_SIZE * 0.06;
+    const nonPlayerSwapOffsetMagnitude = TILE_SIZE * 0.04;
+    for (const transition of transitions) {
+      const partnerId = partners.get(transition.id) ?? null;
+      if (!partnerId) {
+        continue;
+      }
+      const pairKey = [transition.id, partnerId].sort().join("|");
+      if (seenPairKeys.has(pairKey)) {
+        continue;
+      }
+      seenPairKeys.add(pairKey);
+      const partner =
+        transitions.find((candidate) => candidate.id === partnerId) ?? null;
+      if (!partner) {
+        continue;
+      }
+      const deltaX = transition.to.x - transition.from.x;
+      const deltaY = transition.to.y - transition.from.y;
+      const distance = Math.hypot(deltaX, deltaY);
+      if (distance <= 1e-6) {
+        continue;
+      }
+      const perpendicularX = -deltaY / distance;
+      const perpendicularY = deltaX / distance;
+      if (transition.id === "player" || partner.id === "player") {
+        const nonPlayerId = transition.id === "player" ? partner.id : transition.id;
+        const playerId = transition.id === "player" ? transition.id : partner.id;
+        offsets.set(playerId, { x: 0, y: 0 });
+        offsets.set(nonPlayerId, {
+          x: perpendicularX * playerSwapOffsetMagnitude,
+          y: perpendicularY * playerSwapOffsetMagnitude,
+        });
+        continue;
+      }
+      offsets.set(transition.id, {
+        x: perpendicularX * nonPlayerSwapOffsetMagnitude,
+        y: perpendicularY * nonPlayerSwapOffsetMagnitude,
+      });
+      offsets.set(partner.id, {
+        x: -perpendicularX * nonPlayerSwapOffsetMagnitude,
+        y: -perpendicularY * nonPlayerSwapOffsetMagnitude,
+      });
+    }
+    return offsets;
+  }
+
+  private hasActiveEntityMoveTransitionDestination(
+    destinationKey: string,
+    excludedTransitionId: string | null = null,
+  ): boolean {
+    for (const transition of this.activeEntityMoveTransitions.values()) {
+      if (
+        excludedTransitionId !== null &&
+        transition.id === excludedTransitionId
+      ) {
+        continue;
+      }
+      if (transition.destinationKey === destinationKey) {
+        return true;
+      }
+      if (
+        transition.queuedWaypoints.some(
+          (waypoint) => waypoint.destinationKey === destinationKey,
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private setEntityMoveTransitionSegment(
+    transition: EntityMoveTransition,
+    destinationKey: string,
+    baseDurationMs: number,
+    now: number = performance.now(),
+  ): boolean {
+    const destinationTile = this.parseTileKey(destinationKey);
+    if (!destinationTile) {
+      return false;
+    }
+    transition.destinationKey = destinationKey;
+    transition.baseDurationMs =
+      this.sanitizeEntityMoveTransitionDurationMs(baseDurationMs);
+    transition.startedAtMs = now;
+    transition.holdAtDestinationUntilConfirmation = false;
+    transition.durationMs = this.resolveEntityMoveTransitionSegmentDurationMs(
+      transition.id,
+      transition.baseDurationMs,
+      transition.queuedWaypoints.length,
+    );
+    transition.from.copy(transition.object.position);
+    transition.to.set(
+      destinationTile.x * TILE_SIZE,
+      -destinationTile.y * TILE_SIZE,
+      transition.object.position.z,
+    );
+    return true;
+  }
+
+  private retuneEntityMoveTransitionForQueuedWaypoints(
+    transition: EntityMoveTransition,
+    now: number = performance.now(),
+  ): void {
+    const nextDurationMs = this.resolveEntityMoveTransitionSegmentDurationMs(
+      transition.id,
+      transition.baseDurationMs,
+      transition.queuedWaypoints.length,
+    );
+    if (nextDurationMs >= transition.durationMs) {
+      return;
+    }
+    transition.from.copy(transition.object.position);
+    transition.startedAtMs = now;
+    transition.durationMs = nextDurationMs;
+  }
+
+  private clearDeferredEntityVisualUpdateForTransition(
+    transitionId: string,
+  ): void {
+    for (const [key, entry] of Array.from(
+      this.deferredEntityVisualUpdatesByKey.entries(),
+    )) {
+      if (entry.transitionId === transitionId) {
+        this.deferredEntityVisualUpdatesByKey.delete(key);
+      }
+    }
+  }
+
+  private applyTilePayloadToVisual(tile: any): void {
+    if (!tile || typeof tile.x !== "number" || typeof tile.y !== "number") {
+      return;
+    }
+    this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
+      runtimeTileIndex:
+        typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
+      runtimeSymidx: typeof tile.symidx === "number" ? tile.symidx : undefined,
+      runtimeFloorUnderlayGlyph:
+        typeof tile.floorUnderlayGlyph === "number"
+          ? tile.floorUnderlayGlyph
+          : undefined,
+      runtimeFloorUnderlayChar:
+        typeof tile.floorUnderlayChar === "string"
+          ? tile.floorUnderlayChar
+          : undefined,
+      runtimeFloorUnderlayColor:
+        typeof tile.floorUnderlayColor === "number"
+          ? tile.floorUnderlayColor
+          : undefined,
+      runtimeFloorUnderlayTileIndex:
+        typeof tile.floorUnderlayTileIndex === "number"
+          ? tile.floorUnderlayTileIndex
+          : undefined,
+      runtimeFloorUnderlaySymidx:
+        typeof tile.floorUnderlaySymidx === "number"
+          ? tile.floorUnderlaySymidx
+          : undefined,
+    });
+  }
+
+  private applyDeferredEntityVisualUpdateForKey(
+    key: string,
+    transitionId: string,
+  ): void {
+    const entry = this.deferredEntityVisualUpdatesByKey.get(key) ?? null;
+    if (!entry || entry.transitionId !== transitionId) {
+      return;
+    }
+    this.deferredEntityVisualUpdatesByKey.delete(key);
+    if (entry.tile) {
+      this.applyTilePayloadToVisual(entry.tile);
+      return;
+    }
+    const tile = this.parseTileKey(key);
+    if (tile) {
+      this.refreshTileVisualFromStateCache(tile.x, tile.y);
+    }
+  }
+
+  private createEntityMoveTransitionVisualFromMonsterBillboardKey(
+    key: string,
+  ): EntityMoveTransitionVisual | null {
+    const sprite = this.detachMonsterBillboard(key);
+    if (!sprite) {
+      return null;
+    }
+    this.disposeMonsterBillboardPitchLockedProxyMesh(sprite);
+    this.disposeMonsterBillboardFlatProxyMesh(sprite);
+    this.disposeMonsterBillboardFlattenedBackdropSprite(sprite);
+    sprite.visible = true;
+    sprite.frustumCulled = false;
+    sprite.renderOrder = this.resolveStandardBillboardRenderOrder(
+      this.shouldUseVultureTiles() && this.clientOptions.tilesetMode === "tiles",
+    );
+    this.scene.add(sprite);
+    return {
+      object: sprite,
+      dispose: () => this.disposeDetachedMonsterBillboard(sprite),
+    };
+  }
+
+  private createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+    entityId: number,
+    key: string,
+  ): EntityMoveTransitionVisual | null {
+    const tile = this.parseTileKey(key);
+    if (!tile) {
+      return null;
+    }
+    const appearance =
+      this.resolveRuntimeMonsterBillboardAppearanceById(entityId);
+    if (!appearance) {
+      return null;
+    }
+    const sprite = this.createDetachedRuntimeMonsterBillboardSprite(
+      tile.x,
+      tile.y,
+      appearance,
+      entityId,
+    );
+    if (!sprite) {
+      return null;
+    }
+    this.disposeMonsterBillboardPitchLockedProxyMesh(sprite);
+    this.disposeMonsterBillboardFlatProxyMesh(sprite);
+    this.disposeMonsterBillboardFlattenedBackdropSprite(sprite);
+    sprite.visible = true;
+    sprite.frustumCulled = false;
+    this.scene.add(sprite);
+    return {
+      object: sprite,
+      dispose: () => this.disposeDetachedMonsterBillboard(sprite),
+    };
+  }
+
+  private createEntityMoveTransitionVisualFromTileKey(
+    key: string,
+  ): EntityMoveTransitionVisual | null {
+    const mesh = this.tileMap.get(key) ?? null;
+    if (!mesh) {
+      return null;
+    }
+
+    const overlay = this.glyphOverlayMap.get(key) ?? null;
+    const overlayTextureKey =
+      overlay && typeof overlay.textureKey === "string"
+        ? overlay.textureKey
+        : "";
+    let texture: THREE.CanvasTexture | null = null;
+    let releaseTexture = (): void => {};
+    let disposeOwnedTexture = (): void => {};
+    let useTileLikeColor = false;
+
+    if (overlay && overlay.texture && overlayTextureKey) {
+      texture = this.acquireGlyphTexture(
+        overlayTextureKey,
+        () => overlay.texture!,
+      );
+      releaseTexture = () => this.releaseGlyphTexture(overlayTextureKey);
+      useTileLikeColor =
+        overlayTextureKey.startsWith("tile:") ||
+        overlayTextureKey.startsWith("vtile:") ||
+        overlayTextureKey.startsWith("solid:");
+    } else {
+      const tileIndex =
+        typeof mesh.userData?.tileIndex === "number" &&
+        Number.isFinite(mesh.userData.tileIndex)
+          ? Math.trunc(mesh.userData.tileIndex)
+          : -1;
+      const sourceGlyph =
+        typeof mesh.userData?.tileTextureSourceGlyph === "number" &&
+        Number.isFinite(mesh.userData.tileTextureSourceGlyph)
+          ? Math.trunc(mesh.userData.tileTextureSourceGlyph)
+          : typeof mesh.userData?.sourceGlyph === "number" &&
+              Number.isFinite(mesh.userData.sourceGlyph)
+            ? Math.trunc(mesh.userData.sourceGlyph)
+            : null;
+      const materialKind =
+        typeof mesh.userData?.materialKind === "string"
+          ? (mesh.userData.materialKind as TileMaterialKind)
+          : null;
+      const glyphChar =
+        typeof mesh.userData?.glyphChar === "string"
+          ? mesh.userData.glyphChar
+          : "?";
+      const textColor =
+        typeof mesh.userData?.glyphTextColor === "string"
+          ? mesh.userData.glyphTextColor
+          : "#ffffff";
+      if (
+        this.clientOptions.tilesetMode === "tiles" &&
+        (tileIndex >= 0 || sourceGlyph !== null)
+      ) {
+        texture = this.createTileTexture(tileIndex, 1, false, {
+          sourceGlyph,
+          materialKind,
+          tileX:
+            typeof mesh.userData?.tileX === "number"
+              ? Math.trunc(mesh.userData.tileX)
+              : null,
+          tileY:
+            typeof mesh.userData?.tileY === "number"
+              ? Math.trunc(mesh.userData.tileY)
+              : null,
+          useBackgroundReferenceTile:
+            mesh.userData?.tileUseBackgroundReferenceTile === true,
+          forceBackgroundRemoval:
+            mesh.userData?.tileTextureForceBackgroundRemoval === true,
+          floorUnderlayGlyph:
+            typeof mesh.userData?.floorUnderlaySourceGlyph === "number"
+              ? Math.trunc(mesh.userData.floorUnderlaySourceGlyph)
+              : null,
+          floorUnderlayTileIndex:
+            typeof mesh.userData?.floorUnderlayTileIndex === "number"
+              ? Math.trunc(mesh.userData.floorUnderlayTileIndex)
+              : null,
+          floorUnderlayUseBackgroundReferenceTile:
+            mesh.userData?.floorUnderlayUseBackgroundReferenceTile === true,
+          floorUnderlayMaterialKind:
+            typeof mesh.userData?.floorUnderlayMaterialKind === "string"
+              ? (mesh.userData.floorUnderlayMaterialKind as TileMaterialKind)
+              : null,
+        });
+        useTileLikeColor = true;
+      } else {
+        texture = this.createMonsterBillboardTexture(glyphChar, textColor);
+      }
+      disposeOwnedTexture = () => texture?.dispose();
+    }
+
+    if (!texture) {
+      return null;
+    }
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+      toneMapped: false,
+    });
+    material.color.set(
+      useTileLikeColor
+        ? "#ffffff"
+        : `#${overlay?.baseColorHex ?? mesh.userData?.glyphBaseColorHex ?? "ffffff"}`,
+    );
+    const plane = new THREE.Mesh(this.floorGeometry, material);
+    plane.frustumCulled = false;
+    plane.renderOrder = 912;
+    plane.position.set(
+      mesh.position.x,
+      mesh.position.y,
+      mesh.position.z + 0.03,
+    );
+    this.scene.add(plane);
+    return {
+      object: plane,
+      dispose: () => {
+        material.dispose();
+        releaseTexture();
+        disposeOwnedTexture();
+      },
+    };
+  }
+
+  private restoreTileVisualFromRememberedTerrain(
+    tileX: number,
+    tileY: number,
+  ): boolean {
+    const key = `${tileX},${tileY}`;
+    const snapshot = this.lastKnownTerrain.get(key) ?? null;
+    if (!snapshot) {
+      return false;
+    }
+    this.updateTile(
+      tileX,
+      tileY,
+      snapshot.glyph,
+      snapshot.char ?? undefined,
+      typeof snapshot.color === "number" ? snapshot.color : undefined,
+      {
+        runtimeTileIndex:
+          typeof snapshot.tileIndex === "number"
+            ? snapshot.tileIndex
+            : undefined,
+        runtimeSymidx:
+          typeof snapshot.symidx === "number" ? snapshot.symidx : undefined,
+      },
+    );
+    return true;
+  }
+
+  private beginOrRetargetEntityMoveTransition(
+    transitionId: string,
+    destinationKey: string,
+    durationMs: number,
+    deferredTile: any | null,
+    visualFactory: () => EntityMoveTransitionVisual | null,
+  ): boolean {
+    const destinationTile = this.parseTileKey(destinationKey);
+    if (!destinationTile) {
+      return false;
+    }
+    const sanitizedDurationMs =
+      this.sanitizeEntityMoveTransitionDurationMs(durationMs);
+    const now = performance.now();
+
+    let transition = this.activeEntityMoveTransitions.get(transitionId) ?? null;
+    if (!transition) {
+      const visual = visualFactory();
+      if (!visual) {
+        return false;
+      }
+      transition = {
+        id: transitionId,
+        destinationKey,
+        object: visual.object,
+        dispose: visual.dispose,
+        baseRenderOrder: visual.object.renderOrder,
+        startedAtMs: now,
+        durationMs: sanitizedDurationMs,
+        baseDurationMs: sanitizedDurationMs,
+        from: visual.object.position.clone(),
+        to: visual.object.position.clone(),
+        queuedWaypoints: [],
+        holdAtDestinationUntilConfirmation: false,
+      };
+      this.activeEntityMoveTransitions.set(transitionId, transition);
+    } else {
+      if (transition.holdAtDestinationUntilConfirmation) {
+        if (transition.destinationKey === destinationKey) {
+          transition.baseDurationMs = sanitizedDurationMs;
+        } else {
+          transition.queuedWaypoints = [];
+          this.setEntityMoveTransitionSegment(
+            transition,
+            destinationKey,
+            sanitizedDurationMs,
+            now,
+          );
+        }
+        this.deferredEntityVisualUpdatesByKey.set(destinationKey, {
+          transitionId,
+          tile: deferredTile,
+        });
+        return true;
+      }
+      const currentOrQueuedWaypoint =
+        transition.destinationKey === destinationKey
+          ? null
+          : transition.queuedWaypoints.find(
+              (waypoint) => waypoint.destinationKey === destinationKey,
+            ) ?? null;
+      if (transition.destinationKey === destinationKey) {
+        transition.baseDurationMs = sanitizedDurationMs;
+      } else if (currentOrQueuedWaypoint) {
+        currentOrQueuedWaypoint.durationMs = sanitizedDurationMs;
+      } else {
+        transition.queuedWaypoints.push({
+          destinationKey,
+          durationMs: sanitizedDurationMs,
+        });
+        this.retuneEntityMoveTransitionForQueuedWaypoints(transition, now);
+      }
+      this.deferredEntityVisualUpdatesByKey.set(destinationKey, {
+        transitionId,
+        tile: deferredTile,
+      });
+      return true;
+    }
+
+    this.setEntityMoveTransitionSegment(
+      transition,
+      destinationKey,
+      sanitizedDurationMs,
+      now,
+    );
+    this.deferredEntityVisualUpdatesByKey.set(destinationKey, {
+      transitionId,
+      tile: deferredTile,
+    });
+    return true;
+  }
+
+  private finishEntityMoveTransition(
+    transitionId: string,
+    applyDeferredVisual: boolean,
+  ): void {
+    const transition = this.activeEntityMoveTransitions.get(transitionId);
+    if (!transition) {
+      return;
+    }
+    this.activeEntityMoveTransitions.delete(transitionId);
+    if (applyDeferredVisual) {
+      this.applyDeferredEntityVisualUpdateForKey(
+        transition.destinationKey,
+        transitionId,
+      );
+    }
+    this.clearDeferredEntityVisualUpdateForTransition(transitionId);
+    transition.object.parent?.remove(transition.object);
+    transition.dispose();
+  }
+
+  private updateEntityMoveTransitions(): void {
+    if (this.activeEntityMoveTransitions.size <= 0) {
+      return;
+    }
+    const now = performance.now();
+    const transitions = Array.from(this.activeEntityMoveTransitions.values());
+    const reciprocalSwapPartnerById =
+      this.buildEntityMoveTransitionReciprocalSwapPartnerById(
+        transitions.filter((transition) => !transition.holdAtDestinationUntilConfirmation),
+      );
+    const reciprocalSwapOffsetById =
+      this.buildEntityMoveTransitionReciprocalSwapOffsetById(
+        transitions,
+        reciprocalSwapPartnerById,
+      );
+    for (const transition of transitions) {
+      if (transition.holdAtDestinationUntilConfirmation) {
+        continue;
+      }
+      const progress = THREE.MathUtils.clamp(
+        (now - transition.startedAtMs) / Math.max(1, transition.durationMs),
+        0,
+        1,
+      );
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const reciprocalSwapPartnerId =
+        reciprocalSwapPartnerById.get(transition.id) ?? null;
+      const reciprocalSwapPartner =
+        reciprocalSwapPartnerId !== null
+          ? this.activeEntityMoveTransitions.get(reciprocalSwapPartnerId) ?? null
+          : null;
+      const reciprocalSwapOffset =
+        reciprocalSwapOffsetById.get(transition.id) ?? null;
+      const reciprocalSwapCurve =
+        reciprocalSwapOffset !== null ? Math.sin(progress * Math.PI) : 0;
+      transition.object.renderOrder = transition.baseRenderOrder;
+      if (reciprocalSwapPartner) {
+        const topRenderOrder =
+          Math.max(
+            transition.baseRenderOrder,
+            reciprocalSwapPartner.baseRenderOrder,
+          ) + 0.5;
+        const bottomRenderOrder = Math.min(
+          transition.baseRenderOrder,
+          reciprocalSwapPartner.baseRenderOrder,
+        );
+        if (transition.id === "player") {
+          transition.object.renderOrder = topRenderOrder;
+        } else if (reciprocalSwapPartner.id === "player") {
+          transition.object.renderOrder = bottomRenderOrder;
+        }
+      }
+      transition.object.position.set(
+        THREE.MathUtils.lerp(transition.from.x, transition.to.x, eased) +
+          (reciprocalSwapOffset?.x ?? 0) * reciprocalSwapCurve,
+        THREE.MathUtils.lerp(transition.from.y, transition.to.y, eased) +
+          (reciprocalSwapOffset?.y ?? 0) * reciprocalSwapCurve,
+        THREE.MathUtils.lerp(transition.from.z, transition.to.z, eased),
+      );
+      if (progress >= 1) {
+        transition.object.position.copy(transition.to);
+        this.applyDeferredEntityVisualUpdateForKey(
+          transition.destinationKey,
+          transition.id,
+        );
+        const nextWaypoint = transition.queuedWaypoints.shift() ?? null;
+        if (nextWaypoint) {
+          const didAdvance = this.setEntityMoveTransitionSegment(
+            transition,
+            nextWaypoint.destinationKey,
+            nextWaypoint.durationMs,
+            now,
+          );
+          if (didAdvance) {
+            continue;
+          }
+        }
+        if (
+          transition.id === "player" &&
+          `${this.playerPos.x},${this.playerPos.y}` !== transition.destinationKey
+        ) {
+          transition.holdAtDestinationUntilConfirmation = true;
+          continue;
+        }
+        this.finishEntityMoveTransition(transition.id, false);
+      }
+    }
+  }
+
+  private finalizeHeldPlayerMoveTransitionIfConfirmed(
+    tileX: number,
+    tileY: number,
+  ): void {
+    const transition = this.activeEntityMoveTransitions.get("player") ?? null;
+    if (!transition || !transition.holdAtDestinationUntilConfirmation) {
+      return;
+    }
+    if (transition.destinationKey !== `${tileX},${tileY}`) {
+      return;
+    }
+    this.finishEntityMoveTransition("player", false);
+  }
+
+  private clearEntityMoveTransitions(): void {
+    for (const transitionId of Array.from(
+      this.activeEntityMoveTransitions.keys(),
+    )) {
+      this.finishEntityMoveTransition(transitionId, false);
+    }
+    this.deferredEntityVisualUpdatesByKey.clear();
+  }
+
+  private startRuntimeMonsterMoveTransition(
+    monsterId: number,
+    fromKey: string,
+    toKey: string,
+    destinationTile: any,
+  ): void {
+    const hadStandingBillboardSource = this.monsterBillboards.has(fromKey);
+    const transitionId = this.getTrackedEntityMoveTransitionId(monsterId);
+    const started = this.beginOrRetargetEntityMoveTransition(
+      transitionId,
+      toKey,
+      this.getPreferredEntityMoveDurationMs(),
+      destinationTile,
+      () =>
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(fromKey) ??
+        this.createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+          monsterId,
+          fromKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTileKey(fromKey),
+    );
+    if (!started || hadStandingBillboardSource) {
+      return;
+    }
+    if (
+      this.hasActiveEntityMoveTransitionDestination(fromKey, transitionId)
+    ) {
+      const fromTile = this.parseTileKey(fromKey);
+      if (fromTile) {
+        // Another in-flight transition already owns the replacement occupant
+        // for this tile, so restore the floor immediately instead of leaving
+        // the source entity art trailing underneath the crossing swap.
+        this.restoreTileVisualFromRememberedTerrain(fromTile.x, fromTile.y);
+      }
+      return;
+    }
+    const sourceTileOccupantId = this.runtimeMonsterIdByTileKey.get(fromKey);
+    if (
+      sourceTileOccupantId !== undefined &&
+      sourceTileOccupantId !== monsterId
+    ) {
+      return;
+    }
+    const fromTile = this.parseTileKey(fromKey);
+    if (fromTile) {
+      this.restoreTileVisualFromRememberedTerrain(fromTile.x, fromTile.y);
+    }
+  }
+
+  private startPlayerMoveTransition(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    durationMs: number,
+  ): void {
+    if (this.isFpsMode()) {
+      return;
+    }
+    this.beginOrRetargetEntityMoveTransition(
+      "player",
+      `${toX},${toY}`,
+      durationMs,
+      null,
+      () =>
+        this.createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+          0,
+          `${fromX},${fromY}`,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTileKey(`${fromX},${fromY}`),
+    );
+  }
+
+  private tryStartProvisionalPlayerSwapTransitions(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    durationMs: number,
+  ): boolean {
+    if (this.isFpsMode()) {
+      return false;
+    }
+    const sourceKey = `${fromX},${fromY}`;
+    const destinationKey = `${toX},${toY}`;
+    const destinationOccupantId =
+      this.runtimeMonsterIdByTileKey.get(destinationKey) ?? null;
+    if (destinationOccupantId === null || destinationOccupantId === 0) {
+      return false;
+    }
+
+    const playerTransitionAlreadyActive =
+      this.activeEntityMoveTransitions.has("player");
+    let startedPlayerTransition = false;
+    if (!playerTransitionAlreadyActive) {
+      startedPlayerTransition = this.beginOrRetargetEntityMoveTransition(
+        "player",
+        destinationKey,
+        durationMs,
+        null,
+        () =>
+          this.createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+            0,
+            sourceKey,
+          ) ?? this.createEntityMoveTransitionVisualFromTileKey(sourceKey),
+      );
+    }
+
+    const occupantTransitionId =
+      this.getTrackedEntityMoveTransitionId(destinationOccupantId);
+    const occupantTransitionAlreadyActive =
+      this.activeEntityMoveTransitions.has(occupantTransitionId);
+    const startedOccupantTransition = this.beginOrRetargetEntityMoveTransition(
+      occupantTransitionId,
+      sourceKey,
+      durationMs,
+      null,
+      () =>
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(
+          destinationKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTrackedEntityAppearance(
+          destinationOccupantId,
+          destinationKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTileKey(destinationKey),
+    );
+
+    if (
+      (playerTransitionAlreadyActive || startedPlayerTransition) &&
+      (occupantTransitionAlreadyActive || startedOccupantTransition)
+    ) {
+      this.restoreTileVisualFromRememberedTerrain(fromX, fromY);
+      this.restoreTileVisualFromRememberedTerrain(toX, toY);
+    }
+
+    return startedPlayerTransition || startedOccupantTransition;
+  }
+
+  private startConfirmedBoulderPushTransition(
+    data: Record<string, unknown>,
+  ): void {
+    const rawFromX = Number(data.fromX);
+    const rawFromY = Number(data.fromY);
+    const rawToX = Number(data.toX);
+    const rawToY = Number(data.toY);
+    if (
+      !Number.isFinite(rawFromX) ||
+      !Number.isFinite(rawFromY) ||
+      !Number.isFinite(rawToX) ||
+      !Number.isFinite(rawToY)
+    ) {
+      return;
+    }
+
+    const fromX = Math.trunc(rawFromX);
+    const fromY = Math.trunc(rawFromY);
+    const toX = Math.trunc(rawToX);
+    const toY = Math.trunc(rawToY);
+    const moveDx = toX - fromX;
+    const moveDy = toY - fromY;
+    if (
+      (moveDx === 0 && moveDy === 0) ||
+      Math.abs(moveDx) > 1 ||
+      Math.abs(moveDy) > 1
+    ) {
+      return;
+    }
+
+    const sourceKey = `${fromX},${fromY}`;
+    const sourceUnderlayBillboardKey =
+      this.getPlayerUnderlayBillboardKey(sourceKey);
+    const started = this.beginOrRetargetEntityMoveTransition(
+      "confirmed-boulder-push",
+      `${toX},${toY}`,
+      this.getPreferredEntityMoveDurationMs(),
+      null,
+      () =>
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(
+          sourceKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromMonsterBillboardKey(
+          sourceUnderlayBillboardKey,
+        ) ??
+        this.createEntityMoveTransitionVisualFromTileKey(sourceKey),
+    );
+    if (!started) {
+      return;
+    }
+
+    const fromTile = this.parseTileKey(sourceKey);
+    if (fromTile) {
+      this.restoreTileVisualFromRememberedTerrain(fromTile.x, fromTile.y);
+    }
+    const toTile = this.parseTileKey(`${toX},${toY}`);
+    if (toTile) {
+      this.restoreTileVisualFromRememberedTerrain(toTile.x, toTile.y);
+    }
   }
 
   private showFloatingGameMessage(message: string): void {
@@ -26244,6 +27966,63 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.suppressNextFpsHeldWeaponMissedAttackMessageSound = false;
   }
 
+  private invalidateFpsHeldLeftWeaponTexture(): void {
+    if (this.fpsHeldLeftWeaponMaterial) {
+      this.fpsHeldLeftWeaponMaterial.map = null;
+      this.fpsHeldLeftWeaponMaterial.needsUpdate = true;
+    }
+    if (this.fpsHeldLeftWeaponTexture) {
+      this.fpsHeldLeftWeaponTexture.dispose();
+      this.fpsHeldLeftWeaponTexture = null;
+    }
+    this.fpsHeldLeftWeaponTextureSignature = "";
+  }
+
+  private clearFpsHeldLeftWeaponVisual(): void {
+    this.invalidateFpsHeldLeftWeaponTexture();
+    if (this.fpsHeldLeftWeaponMesh) {
+      this.scene.remove(this.fpsHeldLeftWeaponMesh);
+      this.fpsHeldLeftWeaponMesh = null;
+    }
+    if (this.fpsHeldLeftWeaponMaterial) {
+      this.fpsHeldLeftWeaponMaterial.dispose();
+      this.fpsHeldLeftWeaponMaterial = null;
+    }
+    this.fpsHeldLeftWeaponLagYaw = null;
+    this.fpsHeldLeftWeaponLagPitch = null;
+    this.fpsHeldLeftWeaponMovementOffset.set(0, 0);
+    this.fpsHeldLeftWeaponSwayPhase = 0;
+    this.fpsHeldLeftWeaponSwaySpeed = 0;
+    this.fpsHeldLeftWeaponSwaySpeedTarget = 0;
+    this.fpsHeldLeftWeaponActiveAnimation = null;
+    this.lastPlayedFpsHeldLeftWeaponAnimationVariationIdByGroup.clear();
+  }
+
+  private ensureFpsHeldLeftWeaponMesh(): THREE.Mesh<
+    THREE.PlaneGeometry,
+    THREE.MeshBasicMaterial
+  > {
+    if (this.fpsHeldLeftWeaponMesh && this.fpsHeldLeftWeaponMaterial) {
+      return this.fpsHeldLeftWeaponMesh;
+    }
+    const material = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const mesh = new THREE.Mesh(this.fpsHeldWeaponGeometry, material);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 981; // In front of right weapon (980) so it shows when overlapping
+    mesh.visible = false;
+    this.scene.add(mesh);
+    this.fpsHeldLeftWeaponMesh = mesh;
+    this.fpsHeldLeftWeaponMaterial = material;
+    return mesh;
+  }
+
   private isHeldWeaponInventoryItem(item: unknown): item is NethackMenuItem {
     if (!item || typeof item !== "object") {
       return false;
@@ -26254,20 +28033,66 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const text =
       typeof candidate.text === "string" ? candidate.text.toLowerCase() : "";
-    return (
+    
+    // Check if item is held in any hand or wielded
+    const isHeld = (
+      text.includes("(in hand)") ||
+      text.includes("(in hands)") ||
+      text.includes("(in right hand)") ||
+      text.includes("(in left hand)") ||
+      text.includes("(in both hands)") ||
+      text.includes("(in other hand)") ||
+      text.includes("(wielded in hand)") ||
+      text.includes("(wielded in hands)") ||
+      text.includes("(wielded in right hand)") ||
+      text.includes("(wielded in left hand)") ||
+      text.includes("(wielded in both hands)") ||
+      text.includes("(wielded in other hand)") ||
       text.includes("(weapon in hand)") ||
+      text.includes("(weapon in hands)") ||
       text.includes("(weapon in right hand)") ||
-      text.includes("(weapon in left hand)")
+      text.includes("(weapon in left hand)") ||
+      text.includes("(weapon in both hands)")
     );
+    
+    return isHeld;
+  }
+
+  private findHeldWeaponInventoryItems(): { right: NethackMenuItem | null; left: NethackMenuItem | null } {
+    let rightHand: NethackMenuItem | null = null;
+    let leftHand: NethackMenuItem | null = null;
+
+    for (let i = 0; i < this.currentInventory.length; i++) {
+      const item = this.currentInventory[i];
+      
+      if (!this.isHeldWeaponInventoryItem(item)) continue;
+
+      const candidate = item as NethackMenuItem;
+      const text =
+        typeof candidate.text === "string" ? candidate.text.toLowerCase() : "";
+
+      // Check for "other hand" or "left hand" - these ALWAYS go to left
+      if (
+        text.includes("(wielded in other hand)") ||
+        text.includes("(in other hand)") ||
+        text.includes("(weapon in left hand)") ||
+        text.includes("(wielded in left hand)") ||
+        text.includes("(in left hand)") ||
+        text.includes("(offhand)")
+      ) {
+        leftHand = candidate;
+      } 
+      // Everything else goes to right hand (primary)
+      else {
+        rightHand = candidate;
+      }
+    }
+    return { right: rightHand, left: leftHand };
   }
 
   private findHeldWeaponInventoryItem(): NethackMenuItem | null {
-    for (const item of this.currentInventory) {
-      if (this.isHeldWeaponInventoryItem(item)) {
-        return item;
-      }
-    }
-    return null;
+    const weapons = this.findHeldWeaponInventoryItems();
+    return weapons.right ?? weapons.left;
   }
 
   private getFpsHeldWeaponTileFlipOverrideTilesetPath(): string {
@@ -26342,19 +28167,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
     tileId: number | null,
   ): FpsHeldWeaponTileFlipOverride {
     const tilesetPath = this.getFpsHeldWeaponTileFlipOverrideTilesetPath();
-    const defaultState =
-      this.resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
-        tilesetPath,
-        tileId,
-      );
+    const defaultState = this.resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
+      tilesetPath,
+      tileId,
+    );
     if (tileId === null || tileId < 0) {
       return defaultState;
     }
     const override =
       tilesetPath && this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath]
-        ? this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath][
+        ? (this.fpsHeldWeaponTileFlipOverridesByTileset[tilesetPath][
             String(Math.trunc(tileId))
-          ] ?? null
+          ] ?? null)
         : null;
     return {
       flipX: override?.flipX ?? defaultState.flipX,
@@ -26373,11 +28197,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    const defaultState =
-      this.resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
-        tilesetPath,
-        normalizedTileId,
-      );
+    const defaultState = this.resolveBuiltInFpsHeldWeaponTileFlipDefaultState(
+      tilesetPath,
+      normalizedTileId,
+    );
     const shouldPersistOverride =
       nextOverride.flipX !== defaultState.flipX ||
       nextOverride.flipY !== defaultState.flipY ||
@@ -26406,7 +28229,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private resolveFpsHeldWeaponTextureState(): FpsHeldWeaponTextureState | null {
-    const previewTileId = this.getActiveFpsHeldWeaponAnimationDebugPreviewTileId();
+    const previewTileId =
+      this.getActiveFpsHeldWeaponAnimationDebugPreviewTileId();
     if (
       !this.isFpsMode() ||
       (!this.clientOptions.fpsHeldWeaponVisible && previewTileId === null) ||
@@ -26415,8 +28239,39 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
-    const item = previewTileId === null ? this.findHeldWeaponInventoryItem() : null;
+    const weapons = this.findHeldWeaponInventoryItems();
+    const item =
+      previewTileId === null ? weapons.right : null;
     if (previewTileId === null && !item) {
+      return null;
+    }
+    return this.resolveFpsWeaponTextureStateForItem(item, previewTileId);
+  }
+
+  private resolveFpsHeldLeftWeaponTextureState(): FpsHeldWeaponTextureState | null {
+    if (
+      !this.isFpsMode() ||
+      !this.clientOptions.fpsHeldWeaponVisible ||
+      this.clientOptions.tilesetMode !== "tiles" ||
+      this.isFpsFarLookViewActive()
+    ) {
+      return null;
+    }
+    const weapons = this.findHeldWeaponInventoryItems();
+    const item = weapons.left;
+    if (!item) {
+      return null;
+    }
+    const result = this.resolveFpsWeaponTextureStateForItem(item, null);
+    return result;
+  }
+
+  private resolveFpsWeaponTextureStateForItem(
+    item: NethackMenuItem | null,
+    previewTileId: number | null,
+  ): FpsHeldWeaponTextureState | null {
+    if (!item && previewTileId === null) {
+      // (log removed)
       return null;
     }
     const sourceGlyph =
@@ -26435,10 +28290,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const assetReady = usingVultureTiles
       ? this.vultureTilesetTranslator !== null
       : this.resolveTilesetAtlasImageSource() !== null;
+    
+    // (log removed)
+    
     if (
       !assetReady ||
       (tileIndex === null && !canUseTranslatedTileWithoutAtlas)
     ) {
+      // (log removed)
       return null;
     }
     const backgroundRemovalKey =
@@ -26698,9 +28557,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       THREE.MathUtils.degToRad(this.defaultFpsCameraFov) / 2,
     );
     const currentFovTan = Math.tan(
-      THREE.MathUtils.degToRad(
-        THREE.MathUtils.clamp(currentFov, 45, 110),
-      ) / 2,
+      THREE.MathUtils.degToRad(THREE.MathUtils.clamp(currentFov, 45, 110)) / 2,
     );
     if (baseFovTan <= 0 || currentFovTan <= 0) {
       return 1;
@@ -26719,7 +28576,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private resolveFpsHeldWeaponHorizontalTranslationScale(): number {
     const cameraAspect =
-      typeof this.camera.aspect === "number" && Number.isFinite(this.camera.aspect)
+      typeof this.camera.aspect === "number" &&
+      Number.isFinite(this.camera.aspect)
         ? this.camera.aspect
         : Number.NaN;
     if (!(cameraAspect > 0)) {
@@ -26744,9 +28602,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   ): FpsHeldWeaponAnimationDefinition | null {
     const variations = animationIds
       .map((animationId) => this.getFpsHeldWeaponAnimation(animationId))
-      .filter(
-        (animation): animation is FpsHeldWeaponAnimationDefinition =>
-          Boolean(animation),
+      .filter((animation): animation is FpsHeldWeaponAnimationDefinition =>
+        Boolean(animation),
       );
     if (variations.length <= 0) {
       return null;
@@ -26810,10 +28667,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private playFpsHeldWeaponSwipeAnimation(): void {
-    const selectedVariation = this.selectWeightedFpsHeldWeaponAnimationVariation(
-      FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID,
-      FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_IDS,
-    );
+    // Toggle which weapon animates next time for dual-wielding
+    const heldWeapons = this.findHeldWeaponInventoryItems();
+    if (heldWeapons.right && heldWeapons.left) {
+      this.dualWieldNextAnimatingWeapon = 
+        this.dualWieldNextAnimatingWeapon === "right" ? "left" : "right";
+    }
+    
+    const selectedVariation =
+      this.selectWeightedFpsHeldWeaponAnimationVariation(
+        FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID,
+        FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_IDS,
+      );
     if (!selectedVariation) {
       this.playFpsHeldWeaponAnimation(FPS_HELD_WEAPON_MELEE_SWIPE_ANIMATION_ID);
       return;
@@ -26842,7 +28707,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const zero = createZeroFpsHeldWeaponAnimationVector();
     const activeAnimation = this.fpsHeldWeaponActiveAnimation;
     if (activeAnimation) {
-      const animation = this.getFpsHeldWeaponAnimation(activeAnimation.animationId);
+      const animation = this.getFpsHeldWeaponAnimation(
+        activeAnimation.animationId,
+      );
       if (animation) {
         const elapsedMs = now - activeAnimation.startedAtMs;
         const sample = sampleFpsHeldWeaponAnimation(
@@ -27039,7 +28906,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.fpsHeldWeaponLocalOffset.y += this.fpsHeldWeaponBasePose.position.y;
       this.fpsHeldWeaponLocalOffset.z += this.fpsHeldWeaponBasePose.position.z;
     }
-    if (animationPose.active) {
+    // Check if both weapons are equipped
+    const heldWeapons = this.findHeldWeaponInventoryItems();
+    const hasDualWield = heldWeapons.right && heldWeapons.left;
+    // Alternate animations only when dual-wielding; single weapon animates normally
+    const shouldAnimateRightWeapon = animationPose.active && 
+      (!hasDualWield || this.dualWieldNextAnimatingWeapon === "right");
+    if (shouldAnimateRightWeapon) {
       const width = horizontalScale;
       const height = verticalScale;
       this.fpsHeldWeaponAnimationPivotLocal.copy(this.fpsHeldWeaponLocalOffset);
@@ -27107,9 +28980,216 @@ class Nethack3DEngine implements Nethack3DEngineController {
     mesh.visible = true;
   }
 
+  private syncFpsHeldLeftWeaponSprite(deltaSeconds: number): void {
+    const textureState = this.resolveFpsHeldLeftWeaponTextureState();
+    if (!textureState) {
+      if (this.fpsHeldLeftWeaponMesh) {
+        this.fpsHeldLeftWeaponMesh.visible = false;
+      }
+      return;
+    }
+
+    const mesh = this.ensureFpsHeldLeftWeaponMesh();
+    const material = this.fpsHeldLeftWeaponMaterial;
+    if (!material) {
+      return;
+    }
+
+    if (
+      this.fpsHeldLeftWeaponTextureSignature !== textureState.signature ||
+      !this.fpsHeldLeftWeaponTexture ||
+      material.map !== this.fpsHeldLeftWeaponTexture
+    ) {
+      this.invalidateFpsHeldLeftWeaponTexture();
+      // Use same texture flip state as right weapon (symmetrical, not mirrored)
+      const tileFlipState = this.resolveFpsHeldWeaponTileFlipState(
+        textureState.tileIndex >= 0 ? textureState.tileIndex : null,
+      );
+      const texture = this.createFpsHeldWeaponFlippedTexture(
+        this.createTileTexture(textureState.tileIndex, 1, true, {
+          sourceGlyph: textureState.sourceGlyph,
+        }),
+        tileFlipState,
+      );
+      const aspectRatio = THREE.MathUtils.clamp(
+        this.measureTextureOpaqueAspectRatio(texture),
+        0.45,
+        1.8,
+      );
+      this.fpsHeldLeftWeaponTexture = texture;
+      this.fpsHeldLeftWeaponTextureSignature = textureState.signature;
+      material.map = texture;
+      material.needsUpdate = true;
+      mesh.userData.aspectRatio = aspectRatio;
+    }
+
+    const aspectRatio =
+      typeof mesh.userData?.aspectRatio === "number" &&
+      Number.isFinite(mesh.userData.aspectRatio)
+        ? THREE.MathUtils.clamp(mesh.userData.aspectRatio, 0.45, 1.8)
+        : 1;
+    const horizontalScale = aspectRatio * this.fpsHeldWeaponScaleY;
+    const verticalScale = this.fpsHeldWeaponScaleY;
+    // Left weapon: flip via negative X and Z scale to properly mirror the right weapon
+    mesh.scale.set(-horizontalScale, verticalScale, -1);
+
+    // Reuse same movement offset and animation from right weapon for perfect sync
+    const movementOffset =
+      this.resolveFpsHeldWeaponMovementOffset(deltaSeconds);
+    const animationPose = this.resolveFpsHeldWeaponAnimationPose();
+    const fovDepthCompensationScale =
+      this.resolveFpsHeldWeaponFovDepthCompensationScale();
+
+    // Add camera lag effects (springy follow) - same as primary weapon, NOT mirrored
+    if (
+      this.fpsHeldLeftWeaponLagYaw === null ||
+      !Number.isFinite(this.fpsHeldLeftWeaponLagYaw)
+    ) {
+      this.fpsHeldLeftWeaponLagYaw = this.wrapAngle(this.cameraYaw);
+    }
+    const lagAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) / this.fpsHeldWeaponYawLagHalfLifeMs,
+      );
+    this.fpsHeldLeftWeaponLagYaw = this.wrapAngle(
+      this.fpsHeldLeftWeaponLagYaw +
+        this.wrapAngle(this.cameraYaw - this.fpsHeldLeftWeaponLagYaw) * lagAlpha,
+    );
+    const yawLagOffset = THREE.MathUtils.clamp(
+      -this.wrapAngle(this.cameraYaw - this.fpsHeldLeftWeaponLagYaw) *
+        this.fpsHeldWeaponYawLagAmount,
+      -this.fpsHeldWeaponYawLagMax,
+      this.fpsHeldWeaponYawLagMax,
+    );
+
+    if (
+      this.fpsHeldLeftWeaponLagPitch === null ||
+      !Number.isFinite(this.fpsHeldLeftWeaponLagPitch)
+    ) {
+      this.fpsHeldLeftWeaponLagPitch = this.cameraPitch;
+    }
+    const pitchLagAlpha =
+      1 -
+      Math.exp(
+        (-Math.LN2 * deltaSeconds * 1000) /
+          this.fpsHeldWeaponPitchLagHalfLifeMs,
+      );
+    this.fpsHeldLeftWeaponLagPitch +=
+      (this.cameraPitch - this.fpsHeldLeftWeaponLagPitch) * pitchLagAlpha;
+    const pitchLagOffset = THREE.MathUtils.clamp(
+      -(this.cameraPitch - this.fpsHeldLeftWeaponLagPitch) *
+        this.fpsHeldWeaponPitchLagAmount,
+      -this.fpsHeldWeaponPitchLagMax,
+      this.fpsHeldWeaponPitchLagMax,
+    );
+
+    const pitchT = THREE.MathUtils.inverseLerp(
+      this.firstPersonPitchMin,
+      this.firstPersonPitchMax,
+      THREE.MathUtils.clamp(
+        this.cameraPitch,
+        this.firstPersonPitchMin,
+        this.firstPersonPitchMax,
+      ),
+    );
+    const pitchOffset =
+      (0.5 - pitchT) * 2 * this.fpsHeldWeaponPitchOffsetRange + pitchLagOffset;
+
+    this.fpsHeldLeftWeaponLocalOffset.set(
+      this.fpsHeldLeftWeaponBaseLocalOffset.x,
+      this.fpsHeldLeftWeaponBaseLocalOffset.y,
+      this.fpsHeldLeftWeaponBaseLocalOffset.z,
+    );
+    this.fpsHeldLeftWeaponLocalOffset.z *= fovDepthCompensationScale;
+    this.fpsHeldLeftWeaponLocalOffset.x += movementOffset.x;
+    this.fpsHeldLeftWeaponLocalOffset.y += movementOffset.y;
+    if (!animationPose.active) {
+      this.fpsHeldLeftWeaponLocalOffset.x += this.fpsHeldWeaponBasePose.position.x;
+      this.fpsHeldLeftWeaponLocalOffset.y += this.fpsHeldWeaponBasePose.position.y;
+      this.fpsHeldLeftWeaponLocalOffset.z += this.fpsHeldWeaponBasePose.position.z;
+    }
+    // Check if both weapons are equipped
+    const heldWeapons = this.findHeldWeaponInventoryItems();
+    const hasDualWield = heldWeapons.right && heldWeapons.left;
+    // Alternate animations only when dual-wielding; single weapon animates normally
+    const shouldAnimateLeftWeapon = animationPose.active && 
+      (!hasDualWield || this.dualWieldNextAnimatingWeapon === "left");
+    if (shouldAnimateLeftWeapon) {
+      const width = horizontalScale;
+      const height = verticalScale;
+      this.fpsHeldWeaponAnimationPivotLocal.copy(this.fpsHeldLeftWeaponLocalOffset);
+      // Mirror animation pivot for X and Z flip
+      this.fpsHeldWeaponAnimationPivotLocal.x +=
+        -width * animationPose.pivotNormalized.x - animationPose.translation.x;
+      this.fpsHeldWeaponAnimationPivotLocal.y +=
+        height * animationPose.pivotNormalized.y + animationPose.translation.y;
+      this.fpsHeldWeaponAnimationPivotLocal.z +=
+        -animationPose.pivotNormalized.z - animationPose.translation.z;
+      this.fpsHeldWeaponAnimationCenterFromPivot.set(
+        width * animationPose.pivotNormalized.x,
+        -height * animationPose.pivotNormalized.y,
+        animationPose.pivotNormalized.z,
+      );
+      this.fpsHeldWeaponAnimationEuler.set(
+        THREE.MathUtils.degToRad(-animationPose.rotationDeg.x),
+        THREE.MathUtils.degToRad(animationPose.rotationDeg.y),
+        THREE.MathUtils.degToRad(-animationPose.rotationDeg.z),
+        "XYZ",
+      );
+      this.fpsHeldWeaponAnimationQuaternion.setFromEuler(
+        this.fpsHeldWeaponAnimationEuler,
+      );
+      this.fpsHeldWeaponAnimationRotatedCenter
+        .copy(this.fpsHeldWeaponAnimationCenterFromPivot)
+        .applyQuaternion(this.fpsHeldWeaponAnimationQuaternion);
+      this.fpsHeldLeftWeaponLocalOffset
+        .copy(this.fpsHeldWeaponAnimationPivotLocal)
+        .add(this.fpsHeldWeaponAnimationRotatedCenter);
+    }
+
+    // Apply aspect ratio correction and position
+    this.fpsHeldLeftWeaponLocalOffset.x *=
+      this.resolveFpsHeldWeaponHorizontalTranslationScale();
+    this.fromCameraLocalOffset(
+      this.fpsHeldLeftWeaponLocalOffset,
+      this.fpsHeldWeaponWorldPosition,
+    );
+    mesh.position.copy(this.fpsHeldWeaponWorldPosition);
+
+    this.fpsHeldLeftWeaponBaseRotationEuler.set(
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? -animationPose.rotationDeg.x
+          : -this.fpsHeldWeaponBasePose.rotationDeg.x,
+      ),
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? -animationPose.rotationDeg.y
+          : -this.fpsHeldWeaponBasePose.rotationDeg.y,
+      ),
+      THREE.MathUtils.degToRad(
+        animationPose.active
+          ? -animationPose.rotationDeg.z
+          : -this.fpsHeldWeaponBasePose.rotationDeg.z,
+      ),
+      "XYZ",
+    );
+    this.fpsHeldLeftWeaponBaseRotationQuaternion.setFromEuler(
+      this.fpsHeldLeftWeaponBaseRotationEuler,
+    );
+    this.fpsHeldLeftWeaponWorldQuaternion
+      .copy(this.camera.quaternion)
+      .multiply(this.fpsHeldLeftWeaponBaseRotationQuaternion);
+    mesh.quaternion.copy(this.fpsHeldLeftWeaponWorldQuaternion);
+    mesh.visible = true;
+  }
+
   private updateInventoryDisplay(items: any[]): void {
     const nextInventory = this.normalizeMenuItemsForUi(items);
     this.currentInventory = nextInventory;
+    this.invalidateFpsHeldWeaponTexture();
+    this.invalidateFpsHeldLeftWeaponTexture();
 
     this.uiAdapter.setInventory(this.buildInventoryDialogState());
   }
@@ -30457,9 +32537,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
   }
 
-  private getFpsHeldWeaponAnimationDebugSelectedAnimation():
-    | FpsHeldWeaponAnimationDefinition
-    | null {
+  private getFpsHeldWeaponAnimationDebugSelectedAnimation(): FpsHeldWeaponAnimationDefinition | null {
     if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
       return null;
     }
@@ -30477,21 +32555,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return fallback;
   }
 
-  private getFpsHeldWeaponAnimationDebugSelectedKeyframe():
-    | FpsHeldWeaponAnimationKeyframe
-    | null {
+  private getFpsHeldWeaponAnimationDebugSelectedKeyframe(): FpsHeldWeaponAnimationKeyframe | null {
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
     if (!animation || animation.keyframes.length <= 0) {
       return null;
     }
-    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = THREE.MathUtils.clamp(
-      this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
-      0,
-      animation.keyframes.length - 1,
-    );
+    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex =
+      THREE.MathUtils.clamp(
+        this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
+        0,
+        animation.keyframes.length - 1,
+      );
     return (
-      animation.keyframes[this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex] ??
-      null
+      animation.keyframes[
+        this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex
+      ] ?? null
     );
   }
 
@@ -30508,8 +32586,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    const animations = Object.values(this.fpsHeldWeaponAnimations).sort((a, b) =>
-      a.label.localeCompare(b.label),
+    const animations = Object.values(this.fpsHeldWeaponAnimations).sort(
+      (a, b) => a.label.localeCompare(b.label),
     );
     if (
       !this.isFpsHeldWeaponAnimationDebugBasePoseSelected() &&
@@ -30524,7 +32602,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     select.replaceChildren();
     const basePoseOption = document.createElement("option");
     basePoseOption.value = FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_ID;
-    basePoseOption.textContent = FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL;
+    basePoseOption.textContent =
+      FPS_HELD_WEAPON_ANIMATION_DEBUG_BASE_POSE_LABEL;
     select.appendChild(basePoseOption);
     for (const animation of animations) {
       const option = document.createElement("option");
@@ -30548,11 +32627,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     select.disabled = false;
-    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = THREE.MathUtils.clamp(
-      this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
-      0,
-      animation.keyframes.length - 1,
-    );
+    this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex =
+      THREE.MathUtils.clamp(
+        this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex,
+        0,
+        animation.keyframes.length - 1,
+      );
 
     animation.keyframes.forEach((keyframe, index) => {
       const option = document.createElement("option");
@@ -30588,7 +32668,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private syncFpsHeldWeaponAnimationDebugFieldValues(): void {
-    const basePoseSelected = this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
+    const basePoseSelected =
+      this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
     const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
     const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
     const basePose = this.fpsHeldWeaponBasePose;
@@ -30616,7 +32697,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         !this.fpsHeldWeaponAnimationDebugPreviewTileEnabled ||
         this.clientOptions.tilesetMode !== "tiles";
     }
-    const previewTileId = this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
+    const previewTileId =
+      this.getConfiguredFpsHeldWeaponAnimationDebugPreviewTileId();
     const canEditTileFlip =
       this.clientOptions.tilesetMode === "tiles" && previewTileId !== null;
     const tileFlipState =
@@ -30704,7 +32786,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         animation.weight,
       );
     }
-    const durationInput = this.fpsHeldWeaponAnimationDebugElements.durationInput;
+    const durationInput =
+      this.fpsHeldWeaponAnimationDebugElements.durationInput;
     if (durationInput) {
       durationInput.value = `${Math.max(1, Math.round(keyframe.durationMs))}`;
     }
@@ -30734,8 +32817,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   }
 
   private syncFpsHeldWeaponAnimationDebugLayout(): void {
-    const basePoseSelected = this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
-    const tilePreviewEnabled = this.fpsHeldWeaponAnimationDebugPreviewTileEnabled;
+    const basePoseSelected =
+      this.isFpsHeldWeaponAnimationDebugBasePoseSelected();
+    const tilePreviewEnabled =
+      this.fpsHeldWeaponAnimationDebugPreviewTileEnabled;
     const { copyButton, noteLabel } = this.fpsHeldWeaponAnimationDebugElements;
     if (copyButton) {
       copyButton.textContent = tilePreviewEnabled
@@ -31127,7 +33212,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     animationSelect.style.font = "11px monospace";
     animationSelect.style.padding = "2px 4px";
     animationSelect.addEventListener("change", () => {
-      this.fpsHeldWeaponAnimationDebugSelectedAnimationId = animationSelect.value;
+      this.fpsHeldWeaponAnimationDebugSelectedAnimationId =
+        animationSelect.value;
       this.fpsHeldWeaponAnimationDebugSelectedKeyframeIndex = 0;
       if (this.isFpsHeldWeaponAnimationDebugBasePoseSelected()) {
         this.clearFpsHeldWeaponAnimationState();
@@ -31226,8 +33312,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     previewControls.appendChild(previewKeyframeLabel);
 
     previewRow.appendChild(previewControls);
-    this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox =
-      slowMoCheckbox;
+    this.fpsHeldWeaponAnimationDebugElements.slowMoCheckbox = slowMoCheckbox;
     this.fpsHeldWeaponAnimationDebugElements.previewKeyframeCheckbox =
       previewKeyframeCheckbox;
 
@@ -31558,28 +33643,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.fpsHeldWeaponAnimationDebugElements.basePositionSection =
       createAxisSection(
-      "Position Offset (camera local)",
-      "0.01",
-      this.fpsHeldWeaponAnimationDebugElements.basePositionInputs,
-      (axis, value) => {
-        this.fpsHeldWeaponBasePose.position[axis] = value;
-      },
-    );
+        "Position Offset (camera local)",
+        "0.01",
+        this.fpsHeldWeaponAnimationDebugElements.basePositionInputs,
+        (axis, value) => {
+          this.fpsHeldWeaponBasePose.position[axis] = value;
+        },
+      );
     this.fpsHeldWeaponAnimationDebugElements.baseRotationSection =
       createAxisSection(
-      "Rotation Offset (deg)",
-      "0.1",
-      this.fpsHeldWeaponAnimationDebugElements.baseRotationInputs,
-      (axis, value) => {
-        this.fpsHeldWeaponBasePose.rotationDeg[axis] = value;
-      },
-    );
+        "Rotation Offset (deg)",
+        "0.1",
+        this.fpsHeldWeaponAnimationDebugElements.baseRotationInputs,
+        (axis, value) => {
+          this.fpsHeldWeaponBasePose.rotationDeg[axis] = value;
+        },
+      );
     this.fpsHeldWeaponAnimationDebugElements.pivotSection = createAxisSection(
       "Pivot (relative to sprite center)",
       "0.01",
       this.fpsHeldWeaponAnimationDebugElements.pivotInputs,
       (axis, value) => {
-        const animation = this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
+        const animation =
+          this.getFpsHeldWeaponAnimationDebugSelectedAnimation();
         if (!animation) {
           return;
         }
@@ -31588,30 +33674,32 @@ class Nethack3DEngine implements Nethack3DEngineController {
     );
     this.fpsHeldWeaponAnimationDebugElements.translationSection =
       createAxisSection(
-      "Translation",
-      "0.01",
-      this.fpsHeldWeaponAnimationDebugElements.translationInputs,
-      (axis, value) => {
-        const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
-        if (!keyframe) {
-          return;
-        }
-        keyframe.translation[axis] = value;
-      },
-    );
+        "Translation",
+        "0.01",
+        this.fpsHeldWeaponAnimationDebugElements.translationInputs,
+        (axis, value) => {
+          const keyframe =
+            this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+          if (!keyframe) {
+            return;
+          }
+          keyframe.translation[axis] = value;
+        },
+      );
     this.fpsHeldWeaponAnimationDebugElements.rotationSection =
       createAxisSection(
-      "Rotation (deg)",
-      "0.1",
-      this.fpsHeldWeaponAnimationDebugElements.rotationInputs,
-      (axis, value) => {
-        const keyframe = this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
-        if (!keyframe) {
-          return;
-        }
-        keyframe.rotationDeg[axis] = value;
-      },
-    );
+        "Rotation (deg)",
+        "0.1",
+        this.fpsHeldWeaponAnimationDebugElements.rotationInputs,
+        (axis, value) => {
+          const keyframe =
+            this.getFpsHeldWeaponAnimationDebugSelectedKeyframe();
+          if (!keyframe) {
+            return;
+          }
+          keyframe.rotationDeg[axis] = value;
+        },
+      );
 
     const note = document.createElement("div");
     note.textContent =
@@ -31645,7 +33733,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (!visible) {
       const activeElement = document.activeElement;
-      if (activeElement instanceof HTMLElement && panel.contains(activeElement)) {
+      if (
+        activeElement instanceof HTMLElement &&
+        panel.contains(activeElement)
+      ) {
         activeElement.blur();
       }
     }
@@ -31749,7 +33840,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return true;
     }
     return Boolean(
-      target.closest("input, textarea, select, button, [contenteditable='true']"),
+      target.closest(
+        "input, textarea, select, button, [contenteditable='true']",
+      ),
     );
   }
 
@@ -33990,18 +36083,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const { x: targetX, y: targetY } =
       this.getOverheadCameraFollowTargetWorldPosition();
     this.cameraFollowTarget.set(targetX, targetY, 0);
+    const normalModePlayerMoveCameraFollowActive =
+      this.normalModePlayerMoveCameraFollowActive &&
+      this.isCameraCenteredOnPlayer &&
+      !this.positionInputModeActive;
 
     if (!this.cameraFollowInitialized) {
       this.cameraFollowCurrent.copy(this.cameraFollowTarget);
       this.cameraFollowInitialized = true;
     } else {
       // Exponential smoothing for camera follow: immediate movement with natural fade-out.
+      const followHalfLifeMs = normalModePlayerMoveCameraFollowActive
+        ? this.normalModePlayerMoveCameraFollowHalfLifeMs
+        : this.cameraFollowHalfLifeMs;
       const alpha =
-        1 -
-        Math.exp(
-          (-Math.LN2 * deltaSeconds * 1000) / this.cameraFollowHalfLifeMs,
-        );
+        1 - Math.exp((-Math.LN2 * deltaSeconds * 1000) / followHalfLifeMs);
       this.cameraFollowCurrent.lerp(this.cameraFollowTarget, alpha);
+    }
+    if (
+      normalModePlayerMoveCameraFollowActive &&
+      this.cameraFollowCurrent.distanceToSquared(this.cameraFollowTarget) <=
+        this.normalModePlayerMoveCameraSettleDistanceSq
+    ) {
+      this.normalModePlayerMoveCameraFollowActive = false;
     }
 
     this.updateQueuedCameraYawSnap(deltaSeconds);
@@ -40532,10 +42636,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.syncFpsPointerLockForUiState(false);
     this.updateControllerInput(deltaSeconds);
+    this.updateEntityMoveTransitions();
     this.updateCameraPanInertia(deltaSeconds);
     this.updateCamera(deltaSeconds);
     this.maybeRequestPendingStartupInventoryRefresh();
     this.syncFpsHeldWeaponSprite(deltaSeconds);
+    this.syncFpsHeldLeftWeaponSprite(deltaSeconds);
     this.updateMonsterBillboardPitchLockState();
     this.syncDirectionPromptOverlayVisibility();
     this.directionPromptOverlay?.update(
