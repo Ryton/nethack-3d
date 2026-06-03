@@ -8540,9 +8540,25 @@ class LocalNetHackRuntime {
       return this.extendedCommandEntries;
     }
 
+    const wasEmpty =
+      !Array.isArray(this.extendedCommandEntries) ||
+      this.extendedCommandEntries.length === 0;
+
     const extracted = this.extractExtendedCommandEntriesFromMemory();
     if (extracted.length > 0) {
       this.extendedCommandEntries = extracted;
+      // First successful extraction after a startup-time empty snapshot:
+      // re-emit so the engine's autocomplete picks up the list. Without
+      // this, EvilHack's `#` prompt has no completions because the extcmd
+      // table wasn't yet linked when sendReconnectSnapshot fired.
+      if (wasEmpty && !this.extendedCommandsEmitFromLazyLoad) {
+        this.extendedCommandsEmitFromLazyLoad = true;
+        try {
+          this.emitExtendedCommands("lazy_load");
+        } catch (error) {
+          console.warn("Failed to emit extended commands on lazy load", error);
+        }
+      }
       return extracted;
     }
 
