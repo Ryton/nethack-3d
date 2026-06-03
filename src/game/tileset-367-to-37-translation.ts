@@ -209,6 +209,7 @@ export function shouldTranslateNh367TilesetForNh37Runtime(
     | "3.4.3"
     | "3.6.7"
     | "3.7"
+    | "evilhack"
     | "unknown" = "unknown",
 ): boolean {
   if (runtimeVersion !== "3.7") {
