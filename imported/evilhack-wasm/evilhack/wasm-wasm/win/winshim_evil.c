@@ -989,6 +989,26 @@ int nh_wasm_init(void)
     extern struct ext_func_tab extcmdlist[];
     js_helpers_init();
     set_const_ptr("extcmdlist", (int) extcmdlist);
+
+    /* Expose glyph layout constants to the TypeScript runtime so the
+     * glyph-catalog generator and renderer can map glyph IDs to kinds. */
+    set_const("GLYPH", "GLYPH_MON_OFF",     GLYPH_MON_OFF);
+    set_const("GLYPH", "GLYPH_PET_OFF",     GLYPH_PET_OFF);
+    set_const("GLYPH", "GLYPH_PEACEFUL_OFF", GLYPH_PEACEFUL_OFF);
+    set_const("GLYPH", "GLYPH_INVIS_OFF",   GLYPH_INVIS_OFF);
+    set_const("GLYPH", "GLYPH_DETECT_OFF",  GLYPH_DETECT_OFF);
+    set_const("GLYPH", "GLYPH_BODY_OFF",    GLYPH_BODY_OFF);
+    set_const("GLYPH", "GLYPH_RIDDEN_OFF",  GLYPH_RIDDEN_OFF);
+    set_const("GLYPH", "GLYPH_OBJ_OFF",     GLYPH_OBJ_OFF);
+    set_const("GLYPH", "GLYPH_CMAP_OFF",    GLYPH_CMAP_OFF);
+    set_const("GLYPH", "GLYPH_EXPLODE_OFF", GLYPH_EXPLODE_OFF);
+    set_const("GLYPH", "GLYPH_ZAP_OFF",     GLYPH_ZAP_OFF);
+    set_const("GLYPH", "GLYPH_SWALLOW_OFF", GLYPH_SWALLOW_OFF);
+    set_const("GLYPH", "GLYPH_WARNING_OFF", GLYPH_WARNING_OFF);
+    set_const("GLYPH", "GLYPH_STATUE_OFF",  GLYPH_STATUE_OFF);
+    set_const("GLYPH", "MAX_GLYPH",         MAX_GLYPH);
+    set_const("GLYPH", "NO_GLYPH",          NO_GLYPH);
+    set_const("GLYPH", "GLYPH_INVISIBLE",   GLYPH_INVISIBLE);
 #endif
     return 0;
 }

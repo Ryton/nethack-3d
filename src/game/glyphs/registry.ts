@@ -72,6 +72,17 @@ async function loadGlyphCatalogModule(
     return mod;
   }
 
+  if (version === "evilhack") {
+    const existing = GLYPH_CATALOG_BY_VERSION.evilhack;
+    if (existing.GLYPH_CATALOG !== GLYPH_CATALOG_367) {
+      return existing;
+    }
+    const mod =
+      (await import("./glyph-catalog.evilhack.generated")) as GlyphCatalogModule;
+    GLYPH_CATALOG_BY_VERSION.evilhack = mod;
+    return mod;
+  }
+
   return GLYPH_CATALOG_BY_VERSION["3.6.7"];
 }
 
@@ -132,6 +143,7 @@ function normalizeRuntimeKind(
   switch (runtimeKind) {
     case "mon":
     case "pet":
+    case "peaceful":
     case "invis":
     case "detect":
     case "body":

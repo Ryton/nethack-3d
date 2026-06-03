@@ -309,6 +309,51 @@ chat /YTk5YTE1YjItODE3Yi00YzlhLTk5NDYtOWVkYzU1ODdlZjY2 , named # building evilha
   metadata (`sourceJsPath`, sha256) — extract step probably runs the wasm
   in node and reads `nethackGlobal.constants` + tile array.
 
+- **June 3, 2026 — fixed**: extended generator to a 4th target. Required
+  changes:
+  - `winshim_evil.c` `nh_wasm_init()` now also exposes all `GLYPH_*_OFF`,
+    `MAX_GLYPH`, `NO_GLYPH`, `GLYPH_INVISIBLE` via `set_const("GLYPH", …)`.
+  - Generator boots evilhack with `HACKDIR=/`, `NETHACKDIR=/`,
+    `EVILHACKOPTIONS=…`, `HACKOPTIONS=…` (evilhack ignores `NETHACKOPTIONS`).
+  - Generator calls `Module._nh_wasm_init()` directly after `_main()` suspends
+    (EvilHack defers it until `shim_init_nhwindows`, which only fires after
+    the first ASYNCIFY boundary).
+  - Added `"peaceful"` to `GlyphKind` (EvilHack adds `GLYPH_PEACEFUL_OFF`
+    between PET and INVIS — distinct from PET).
+- **June 3, 2026 — user-facing gotcha**: after regenerating the catalog,
+  cached state in `localStorage["nh3d-save-presentation-v1"]` (and the
+  IDBFS save store) can pin a character to the stale catalog and prevent
+  fresh boot. Workaround: DevTools → Application → Local Storage → delete
+  `nh3d-save-presentation-v1`. Proper fix: invalidate the presentation
+  entry when its catalog sha doesn't match the loaded runtime's
+  `GLYPH_CATALOG_META.sourceWasmSha256`.
+
+### Tile pack drift for non-meshed cmap glyphs (June 3, 2026)
+- After fixing the glyph catalog drift, most tiles render correctly in 3D
+  mode because walls/floors/doors are replaced by 3D meshes, hiding the
+  underlying tile lookup.
+- Non-meshed cmap glyphs still billboard the BMP tile: **lit corridor**
+  (`#`, glyph 3969), stairs, fountains, etc. These render as wrong sprites
+  — e.g. lit corridor shows as an ant tile, stairs show as a tombstone.
+- Root cause: wasm's compiled-in `glyph2tile[]` (in EvilHack 0.9.3 `tile.c`)
+  doesn't line up with `public/assets/evilhack/Absurdly Evil 93.bmp` —
+  the BMP is identically sized to the 9.2 file (29,982,776 bytes) and was
+  likely just renamed without re-authoring against 0.9.3 monster/object
+  additions, shifting cmap tile indices by ~7 (one BMP row).
+- Verified: walls/floors/doors *do* look correct because they bypass the
+  BMP path entirely (3D mesh substitution).
+- Fix options (deferred):
+  - (preferred) Obtain the original `tile.txt` source for the Absurdly Evil
+    pack; regenerate both `tile.c` (compile into wasm) and BMP together so
+    they're consistent.
+  - (workaround) Author a fresh `Absurdly Evil 93.bmp` from 0.9.3 sources
+    using `tile2bmp` + the 0.9.3 `tile.txt` shipped in the EvilHack tree.
+  - (hack) Add a TS-side cmap-section offset shim in the renderer that
+    subtracts the row delta when looking up cmap glyphs — fragile, breaks
+    if any other section drifts.
+- Acceptable trade-off for now: in 3D mode, only ~10 cmap symbols are
+  affected and they all look "wrong but plausible". Game is fully playable.
+
 ### Extended commands not registered in EvilHack runtime (June 3)
 - `#kick`, `#options`, and the new EvilHack-specific `#telekinesis` are not
   autocompleted at the `#` prompt and are reported as unknown when typed.
@@ -318,6 +363,17 @@ chat /YTk5YTE1YjItODE3Yi00YzlhLTk5NDYtOWVkYzU1ODdlZjY2 , named # building evilha
   wasm runtime (via an exported helper) or from a hardcoded TS list. If
   hardcoded, add an EvilHack-specific catalog (or extract it from the wasm
   the same way as the glyph catalog).
+- **June 3, 2026 — partial fix**: extcmd validator was discarding the whole
+  list because `requiredNames` insisted on SlashEM's `"2weapon"` (EvilHack
+  uses `"twoweapon"`). With that split, `#kick` / `#options` / `#pray` /
+  `#telekinesis` etc. now dispatch correctly when typed in full.
+- **Still TODO — autocomplete UI parity with SlashEM**: typing `#telek<Tab>`
+  (or the partial-match popup we have for SlashEM) does not complete to
+  `#telekinesis` for evilhack. The extcmd menu/autocomplete UI is wired up
+  for slashem but not evilhack. Likely the UI is filtered by runtimeVersion
+  and just needs the evilhack branch added; check the extcmd autocomplete
+  code path that feeds `getExtendedCommandEntries()` into the prompt
+  suggestion list.
 
 ### evilhack-wasm-shims.c is a stub (June 3)
 - Today `scripts/wasm/evilhack-wasm-shims.c` provides empty/zero/no-op
