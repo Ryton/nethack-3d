@@ -33,6 +33,14 @@ Backup branch: `backup/pre-rebase-evilhack` at `0ce476c`.
   cross-compile `lev_comp`/`dgn_comp` with wasm32 alignment, then
   re-enable vault generation in the EvilHack patch.
 - Affected files: see `scripts/wasm/` and `imported/evilhack-wasm/`.
+- **Related symptom (same root cause)**: `Couldn't load "oracle-2.lev" -
+  making a maze.` printed in-game (screenshot 2026-06-03). The Oracle
+  level (and presumably other special rooms: quest, mines, sokoban end,
+  etc.) hits the same `check_version()` silent-fail path as vaults.
+  `mkmaze.c` has a fallback ("making a maze") so it doesn't busy-loop
+  like `makerooms()` does — but the intended hand-designed level is
+  lost. Fixing the version_info header layout will restore all of them
+  in one shot.
 
 ### 3. Flat (2D) shopkeeper / NPC billboards in EvilHack
 - Symptom: shopkeeper (and likely other EvilHack-specific NPCs) renders
@@ -82,3 +90,37 @@ Backup branch: `backup/pre-rebase-evilhack` at `0ce476c`.
 ### 6. Update or remove `TODOs_fix_blackscreen.md`
 - Phase 3 TODO 13 (upstream sync) is now done.
 - Either delete the file or move outstanding items here.
+
+### 7. EvilHack death screen: "Cannot open file xlogfile. Is NetHack installed"
+- Symptom: on death, the tombstone epitaph reads
+  `Cannot open file xlogfile. Is NetHack installed` instead of a
+  player-supplied epitaph (screenshot 2026-06-03).
+- Root cause: EvilHack 0.9.2 `include/config.h` line 229 unconditionally
+  defines `#define XLOGFILE "xlogfile"`. On `end_of_game`, EvilHack calls
+  `lock_file(XLOGFILE, ...)` in `src/files.c:1903` which opens via
+  `open(filename, O_RDWR)` — **no `O_CREAT`** — so when the file is
+  absent in the IDBFS mount, the open fails and `raw_printf("Cannot open
+  file %s.  Is NetHack installed correctly?", filename)` fires. That
+  string then gets stuffed into the tombstone epitaph buffer.
+- **How SlashEM / stock NetHack 3.6.7 avoid it**: they simply don't
+  define `XLOGFILE` at all (grep of `imported/nethack-3.6.7/` returns
+  zero matches). The feature compiles out entirely — no `fopen`, no
+  `lock_file` call, no error path. EvilHack opted to enable it by
+  default.
+- Fix options (in order of preference):
+  1. **Match SlashEM**: `#undef XLOGFILE` under `#ifdef __EMSCRIPTEN__`
+     in EvilHack's `include/config.h`, alongside the existing
+     `COMPRESS` undef. Clean, matches the SlashEM/stock behavior, no
+     filesystem fix-up needed.
+  2. **Pre-touch**: add `xlogfile` (and `livelog`, `wishtracker` —
+     also opened by EvilHack) to the `touch` line at
+     `imported/evilhack-wasm/LOCAL_build.wasm.sh:261`. EvilHack's
+     own `Makefile` (line 305) already touches all six files for
+     native installs; the wasm build only touches four.
+     Trade-off: leaves the feature enabled, so stats get written into
+     IDBFS (then dropped on browser cache clear).
+  3. Patch `lock_file()` to add `O_CREAT` for xlogfile — but that's
+     upstream surgery and out of scope.
+- Recommended: option 1 (config.h undef) — congruent with the
+  existing `COMPRESS` patch and SlashEM's approach.
+
