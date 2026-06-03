@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 
 function getLinuxLibcKind() {
   try {
-    const report = process.report?.getReport();
+    const report = process.report?.getReport?.();
     if (report?.header?.glibcVersionRuntime) {
       return "gnu";
     }
