@@ -4,6 +4,9 @@
  */
 
 import * as THREE from "three";
+import { Capacitor } from "@capacitor/core";
+import { Haptics } from "@capacitor/haptics";
+import { WebHaptics } from "web-haptics";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { FXAAPass } from "three/examples/jsm/postprocessing/FXAAPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -90,19 +93,19 @@ import {
   findNh3dTilesetByPath,
   inferNh3dTilesetTileSizeFromAtlasWidthForPath,
   resolveDefaultNh3dTilesetWeaponSpriteFlipX,
-  resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime,
+  resolveNh3dFuseBaseTilesetPathForLegacyNh5Runtime,
   resolveNh3dTilesetAssetUrl,
   type Nh3dTilesetTileLayoutVersion,
 } from "./tilesets";
 import {
-  nh37ExpectedTileCount,
-  nh37OutputRows,
-  nh37TilesPerRow,
-  shouldTranslateNh367TilesetForNh37Runtime,
-  translateNh367TileIndexToNh37,
-  translateNh37TileIndexToNh367,
-  translateNh37TileIndexToNh367PreservingAliases,
-} from "./tileset-367-to-37-translation";
+  nh5ExpectedTileCount,
+  nh5OutputRows,
+  nh5TilesPerRow,
+  shouldTranslateNh367TilesetForNh5Runtime,
+  translateNh367TileIndexToNh5,
+  translateNh5TileIndexToNh367,
+  translateNh5TileIndexToNh367PreservingAliases,
+} from "./tileset-367-to-5-translation";
 import { getItemTextClassName } from "./helpers/helpers";
 import { MessageSoundHooks } from "./message-sound-hooks";
 import {
@@ -135,6 +138,18 @@ type PendingCharacterDamage = {
     x: number;
     y: number;
   } | null;
+};
+
+type Nh3dAndroidBridge = {
+  getGamepadStateJson?: () => string;
+  vibrate?: (durationMs: number, amplitude: number) => void;
+};
+
+type Nh3dAndroidNativeGamepadState = {
+  connected?: unknown;
+  timestamp?: unknown;
+  axes?: unknown;
+  buttons?: unknown;
 };
 
 type DirectionalAttackContext = {
@@ -673,7 +688,7 @@ const DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET: FpsHeldWeaponTileF
       "463": { flipX: false, flipY: true, flipDiagonal: true },
       "464": { flipX: false, flipY: true, flipDiagonal: true },
     },
-    "assets/3.7/Nevanda (3.7).png": {
+    "assets/5.0/Nevanda (5.0).png": {
       "813": { flipX: false, flipY: true, flipDiagonal: false },
       "815": { flipX: false, flipY: true, flipDiagonal: true },
       "827": { flipX: false, flipY: true, flipDiagonal: true },
@@ -689,7 +704,7 @@ const DEFAULT_FPS_HELD_WEAPON_TILE_FLIP_OVERRIDES_BY_TILESET: FpsHeldWeaponTileF
       "875": { flipX: false, flipY: true, flipDiagonal: false },
       "876": { flipX: false, flipY: false, flipDiagonal: true },
     },
-    "assets/3.7/Vanilla NetHack Tiles (3.7).png": {
+    "assets/5.0/Vanilla NetHack Tiles (5.0).png": {
       "807": { flipX: false, flipY: true, flipDiagonal: false },
       "808": { flipX: false, flipY: true, flipDiagonal: false },
       "809": { flipX: false, flipY: true, flipDiagonal: false },
@@ -884,6 +899,7 @@ type RepeatableActionSpec =
 type TileUpdateOptions = {
   inferredDarkCorridorWall?: boolean;
   restartRevealFade?: boolean;
+  runtimeTrackedEntityId?: number;
   runtimeTileIndex?: number;
   runtimeSymidx?: number;
   runtimeFloorUnderlayGlyph?: number;
@@ -979,6 +995,7 @@ type BloodGroundImpactParams = {
   streakCount: number;
   streakLengthWorld: number;
   elongation: number;
+  intensityScale?: number;
 };
 
 type WallSideTileOverlay = {
@@ -1216,8 +1233,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     THREE.MeshBasicMaterial
   > | null = null;
   private bloodGroundOverlayMaterial: THREE.MeshBasicMaterial | null = null;
-  private bloodGroundOverlayTexture: THREE.DataTexture | null = null;
-  private bloodGroundPixelData: Uint8Array | null = null;
+  private bloodGroundOverlayTexture: THREE.Texture | null = null;
+  private bloodGroundPixelData: Uint8Array | Uint8ClampedArray | null = null;
   private bloodGroundPixelData32: Uint32Array | null = null;
   private bloodGroundDensity: Uint16Array | null = null;
   private bloodGroundDirtyRect: BloodGroundDirtyRect | null = null;
@@ -1227,6 +1244,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private bloodGroundDirtyRowRangeEnd: number = -1;
   private bloodGroundHasVisibleData: boolean = false;
   private bloodGroundTextureRequiresFullUpload: boolean = false;
+  private bloodGroundCompatibilityMode: boolean = false;
+  private bloodGroundUploadCanvas: HTMLCanvasElement | null = null;
+  private bloodGroundUploadContext: CanvasRenderingContext2D | null = null;
+  private bloodGroundUploadImageData: ImageData | null = null;
   private bloodGroundColorLut: Uint32Array | null = null;
   private bloodGroundNoiseAtlasA: Float32Array | null = null;
   private bloodGroundNoiseAtlasB: Float32Array | null = null;
@@ -1363,6 +1384,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private activeQuestionPageSelectionMap: Map<string, string> = new Map();
   private activeQuestionIsPickupDialog: boolean = false;
   private activePickupSelections: Set<string> = new Set();
+  private activePickupSelectionCounts: Map<string, number> = new Map();
+  private activeQuestionPendingCountInput: string = "";
   private activePickupFocusIndex: number = 0;
   private activeQuestionMenuFocusIndex: number = 0;
   private activeQuestionActionFocusIndex: number = -1;
@@ -1820,6 +1843,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private controllerDialogSliderStepCarry: number = 0;
   private controllerDialogActiveSliderElement: HTMLInputElement | null = null;
   private controllerMinimapExpanded: boolean = false;
+  private controllerZoomCameraRotationActive: boolean = false;
   private controllerVirtualCursorElement: HTMLDivElement | null = null;
   private controllerVirtualCursorPulseElement: HTMLDivElement | null = null;
   private controllerVirtualCursorPulseHideTimerId: number | null = null;
@@ -1833,6 +1857,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly controllerCameraPanTilesPerSec: number = 9.2;
   private readonly controllerCameraPanRunSpeedMultiplier: number = 3;
   private readonly controllerZoomDistancePerSec: number = 14;
+  private readonly controllerCameraRotateRadPerSec: number = Math.PI;
   private readonly controllerDialogScrollPxPerSec: number = 1200;
   private readonly controllerDialogCursorPxPerSec: number = 820;
   private readonly controllerDialogSliderFastStepsPerSec: number = 13;
@@ -2036,6 +2061,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private lastFrameTimeMs: number | null = null;
   private fpsDebugDisplayVisible: boolean = false;
   private fpsDebugDisplayElement: HTMLDivElement | null = null;
+  private fpsDebugDisplayMetricsElement: HTMLDivElement | null = null;
+  private fpsDebugDisplayOverrideInput: HTMLInputElement | null = null;
+  private fpsDebugDisplayOverrideFps: number | null = null;
   private fpsDebugDisplaySmoothedFps: number | null = null;
   private fpsDebugDisplaySmoothedFrameTimeMs: number | null = null;
   private fpsDebugDisplaySmoothedRenderTimeMs: number | null = null;
@@ -2103,6 +2131,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     charisma: "Charisma",
     armor: "Armor Class",
   };
+  private webHaptics: WebHaptics | null = null;
+  private pendingIncomingDamageRumbleAmount: number = 0;
+  private pendingIncomingDamageRumbleStartingHp: number | null = null;
+  private pendingIncomingDamageRumbleTimerId: number | null = null;
+  private readonly damageRumbleDurationMs: number = 300;
+  private readonly incomingDamageRumbleDebounceMs: number = 140;
   private pendingCharacterDamageQueue: PendingCharacterDamage[] = [];
   private readonly pendingCharacterDamageMaxAgeMs: number = 420;
   private readonly glyphDamageFlashDurationMs: number = 180;
@@ -2215,6 +2249,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly playerDamageNumberCameraLocalScratch = new THREE.Vector3();
   private readonly playerDamageNumberCameraInverseQuaternion =
     new THREE.Quaternion();
+  private readonly bloodGroundReferenceFrameSeconds: number = 1 / 60;
   private readonly monsterBillboardShardAngularAxis = new THREE.Vector3();
   private readonly monsterBillboardShardDeltaQuaternion =
     new THREE.Quaternion();
@@ -2225,6 +2260,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private readonly bloodGroundMaxDensity: number = 2048;
   private readonly bloodGroundTexturePartialUploadAreaRatio: number = 0.34;
   private readonly bloodGroundTrailSegmentSpacingPx: number = 3.5;
+  private readonly bloodGroundSpecularPixelsPerTile: number = 128;
+  private readonly bloodGroundSpecularReferenceStrength: number = 2.5;
   private readonly bloodGroundNoiseAtlasSize: number = 256;
   private readonly bloodGroundNoiseAtlasMask: number =
     this.bloodGroundNoiseAtlasSize - 1;
@@ -2244,6 +2281,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private pendingMinimapCellUpdates: Map<number, number> = new Map();
   private minimapFlushScheduled: boolean = false;
   private minimapDragPointerId: number | null = null;
+  private minimapActionRailSyncRafId: number | null = null;
   private readonly minimapPalette: string[] = [
     "rgba(10, 16, 28, 0.82)",
     "rgba(20, 29, 46, 0.9)",
@@ -2439,7 +2477,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    if (runtimeVersion === "3.7") {
+    if (runtimeVersion === "5.0") {
       return false;
     }
 
@@ -2618,11 +2656,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
     uFalloffPower: { value: 1.08 },
     uMaxDarkAlpha: { value: this.lightingVignetteMaxDarkAlpha },
     uIsFpsMode: { value: false },
+    uBloodGroundStrength: { value: this.clientOptions.bloodStrength },
+    uBloodGroundSpecularReferenceStrength: {
+      value: this.bloodGroundSpecularReferenceStrength,
+    },
   };
 
-  private patchMaterialForVignette(material: THREE.Material): void {
+  private patchMaterialForVignette(
+    material: THREE.Material,
+    options: {
+      bloodGroundDiscardEmptyTexels?: boolean;
+      bloodGroundSpecularEffectTexelSize?: THREE.Vector2;
+    } = {},
+  ): void {
+    const bloodGroundDiscardEmptyTexels =
+      options.bloodGroundDiscardEmptyTexels === true;
+    const bloodGroundSpecularEffectTexelSize =
+      options.bloodGroundSpecularEffectTexelSize;
+    const shaderKeySuffix = bloodGroundSpecularEffectTexelSize
+      ? `_blood_ground_specular_v2_${bloodGroundSpecularEffectTexelSize.x.toFixed(
+          8,
+        )}_${bloodGroundSpecularEffectTexelSize.y.toFixed(8)}`
+      : "";
+    const bloodGroundGuardKeySuffix = bloodGroundDiscardEmptyTexels
+      ? "_blood_ground_color_guard_v1"
+      : "";
     // Force Three.js to compile a unique shader for this patch
-    material.customProgramCacheKey = () => "vignette_patch_v8";
+    material.customProgramCacheKey = () =>
+      `vignette_patch_v9${shaderKeySuffix}${bloodGroundGuardKeySuffix}`;
 
     material.onBeforeCompile = (shader) => {
       // Bind our class-level uniforms to this specific shader
@@ -2631,6 +2692,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       shader.uniforms.uFalloffPower = this.vignetteUniforms.uFalloffPower;
       shader.uniforms.uMaxDarkAlpha = this.vignetteUniforms.uMaxDarkAlpha;
       shader.uniforms.uIsFpsMode = this.vignetteUniforms.uIsFpsMode;
+      shader.uniforms.uBloodGroundStrength =
+        this.vignetteUniforms.uBloodGroundStrength;
+      shader.uniforms.uBloodGroundSpecularReferenceStrength =
+        this.vignetteUniforms.uBloodGroundSpecularReferenceStrength;
 
       // Inject varying into Vertex Shader
       shader.vertexShader = `
@@ -2676,6 +2741,479 @@ class Nethack3DEngine implements Nethack3DEngineController {
         damageFlashLogic = "float uDamageFlash = uDamageFlashAmount;";
       }
 
+      if (bloodGroundDiscardEmptyTexels) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+          #ifdef USE_MAP
+            float bloodGroundColorCoverage = max(
+              max(diffuseColor.r, diffuseColor.g),
+              diffuseColor.b
+            );
+            if (bloodGroundColorCoverage < 0.0019607843) discard;
+          #endif`,
+        );
+      }
+
+      let bloodGroundSpecularPrefix = "";
+      let bloodGroundSpecularLogic = "";
+      if (bloodGroundSpecularEffectTexelSize) {
+        shader.uniforms.uBloodGroundSpecularEffectTexelSize = {
+          value: bloodGroundSpecularEffectTexelSize.clone(),
+        };
+        bloodGroundSpecularPrefix = `
+        uniform vec2 uBloodGroundSpecularEffectTexelSize;
+        uniform float uBloodGroundStrength;
+        uniform float uBloodGroundSpecularReferenceStrength;
+
+        float bloodGroundSpecularHash(vec2 p) {
+          vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+          p3 += dot(p3, p3.yzx + 33.33);
+          return fract((p3.x + p3.y) * p3.z);
+        }
+
+        float bloodGroundSpecularNoise(vec2 pixelCoord, float scale, float seed) {
+          vec2 p = pixelCoord * scale + vec2(seed, seed * 1.37);
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          float a = bloodGroundSpecularHash(i);
+          float b = bloodGroundSpecularHash(i + vec2(1.0, 0.0));
+          float c = bloodGroundSpecularHash(i + vec2(0.0, 1.0));
+          float d = bloodGroundSpecularHash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+        `;
+        bloodGroundSpecularLogic = `
+        #ifdef USE_MAP
+          float bloodGroundOpacityT = clamp(gl_FragColor.a, 0.0, 1.0);
+          float bloodGroundVisibleT = smoothstep(0.004, 0.04, bloodGroundOpacityT);
+          float bloodGroundVisualAlphaForSpec = max(bloodGroundOpacityT, 0.001);
+          float bloodGroundDensityFromVisualAlpha = pow(
+            clamp(bloodGroundVisualAlphaForSpec / 0.94, 0.0, 1.0),
+            1.3157895
+          ) / max(uBloodGroundStrength, 0.001);
+          float bloodGroundReferenceOpacityT =
+            pow(
+              clamp(
+                bloodGroundDensityFromVisualAlpha *
+                  uBloodGroundSpecularReferenceStrength,
+                0.0,
+                1.0
+              ),
+              0.76
+            ) *
+            0.94;
+          float bloodGroundInteriorBlendCompensation = clamp(
+            bloodGroundReferenceOpacityT / bloodGroundVisualAlphaForSpec,
+            1.0,
+            2.25
+          );
+          vec2 bloodGroundSpecularTexel = max(
+            uBloodGroundSpecularEffectTexelSize,
+            vec2(0.000001)
+          );
+          vec2 bloodGroundPixelCoord = vMapUv / bloodGroundSpecularTexel;
+          float bloodGroundFineNoise = bloodGroundSpecularNoise(
+            bloodGroundPixelCoord,
+            0.1075,
+            13.0
+          );
+          float bloodGroundBroadNoise = bloodGroundSpecularNoise(
+            bloodGroundPixelCoord,
+            0.04,
+            37.0
+          );
+          float bloodGroundPooledNoise = mix(
+            bloodGroundFineNoise,
+            bloodGroundBroadNoise,
+            0.38
+          );
+          float bloodGroundDepthNoise = bloodGroundSpecularNoise(
+            bloodGroundPixelCoord,
+            0.023,
+            71.0
+          );
+
+          float bloodGroundAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundSpecularTexel.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundSpecularTexel.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundSpecularTexel.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundSpecularTexel.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          vec2 bloodGroundInteriorFadeStep = bloodGroundSpecularTexel * 3.0;
+          float bloodGroundFadeNearAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundInteriorFadeStep.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeNearAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundInteriorFadeStep.x, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeNearAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundInteriorFadeStep.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeNearAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundInteriorFadeStep.y),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundInteriorFadeStep.x * 3.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundInteriorFadeStep.x * 3.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundInteriorFadeStep.y * 3.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeMidAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundInteriorFadeStep.y * 3.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaLeft = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(bloodGroundInteriorFadeStep.x * 5.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaRight = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(bloodGroundInteriorFadeStep.x * 5.0, 0.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaDown = texture2D(
+            map,
+            clamp(
+              vMapUv - vec2(0.0, bloodGroundInteriorFadeStep.y * 5.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundFadeFarAlphaUp = texture2D(
+            map,
+            clamp(
+              vMapUv + vec2(0.0, bloodGroundInteriorFadeStep.y * 5.0),
+              vec2(0.0),
+              vec2(1.0)
+            )
+          ).a;
+          float bloodGroundNeighborMin = min(
+            min(bloodGroundAlphaLeft, bloodGroundAlphaRight),
+            min(bloodGroundAlphaDown, bloodGroundAlphaUp)
+          );
+          float bloodGroundInnerEdgeDrop = max(
+            bloodGroundOpacityT - bloodGroundNeighborMin,
+            0.0
+          );
+          vec4 bloodGroundFadeNearRing = vec4(
+            bloodGroundFadeNearAlphaLeft,
+            bloodGroundFadeNearAlphaRight,
+            bloodGroundFadeNearAlphaDown,
+            bloodGroundFadeNearAlphaUp
+          );
+          vec4 bloodGroundFadeMidRing = vec4(
+            bloodGroundFadeMidAlphaLeft,
+            bloodGroundFadeMidAlphaRight,
+            bloodGroundFadeMidAlphaDown,
+            bloodGroundFadeMidAlphaUp
+          );
+          vec4 bloodGroundFadeFarRing = vec4(
+            bloodGroundFadeFarAlphaLeft,
+            bloodGroundFadeFarAlphaRight,
+            bloodGroundFadeFarAlphaDown,
+            bloodGroundFadeFarAlphaUp
+          );
+          float bloodGroundFadeNearDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundFadeNearRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundFadeMidDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundFadeMidRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundFadeFarDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundFadeFarRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundRimScale = uIsFpsMode ? 2.0 : 3.0;
+          vec2 bloodGroundRimNearStep =
+            bloodGroundInteriorFadeStep * bloodGroundRimScale;
+          vec2 bloodGroundRimMidStep =
+            bloodGroundInteriorFadeStep * 3.0 * bloodGroundRimScale;
+          vec4 bloodGroundRimNearRing = vec4(
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(bloodGroundRimNearStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(bloodGroundRimNearStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(0.0, bloodGroundRimNearStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(0.0, bloodGroundRimNearStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a
+          );
+          vec4 bloodGroundRimMidRing = vec4(
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(bloodGroundRimMidStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(bloodGroundRimMidStep.x, 0.0),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv - vec2(0.0, bloodGroundRimMidStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a,
+            texture2D(
+              map,
+              clamp(
+                vMapUv + vec2(0.0, bloodGroundRimMidStep.y),
+                vec2(0.0),
+                vec2(1.0)
+              )
+            ).a
+          );
+          float bloodGroundRimNearDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundRimNearRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundRimMidDrop = max(
+            bloodGroundOpacityT - dot(bloodGroundRimMidRing, vec4(0.25)),
+            0.0
+          );
+          float bloodGroundInteriorEdgeReach =
+            smoothstep(0.02, 0.22, bloodGroundFadeNearDrop) * 0.52 +
+            smoothstep(0.02, 0.22, bloodGroundFadeMidDrop) * 0.32 +
+            smoothstep(0.02, 0.22, bloodGroundFadeFarDrop) * 0.16;
+          float bloodGroundInteriorFadeT = smoothstep(
+            0.0,
+            1.0,
+            clamp(1.0 - bloodGroundInteriorEdgeReach, 0.0, 1.0)
+          );
+
+          float bloodGroundPooledPhase = smoothstep(
+            0.55,
+            0.9,
+            bloodGroundOpacityT
+          );
+
+          float bloodGroundPooledSheen =
+            bloodGroundPooledPhase *
+            (0.026 + bloodGroundDepthNoise * 0.012);
+          float bloodGroundCompensatedInnerEdgeDrop = clamp(
+            bloodGroundInnerEdgeDrop * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundCompensatedRimNearDrop = clamp(
+            bloodGroundRimNearDrop * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundCompensatedRimMidDrop = clamp(
+            bloodGroundRimMidDrop * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundRimTightT = smoothstep(
+            0.03,
+            0.16,
+            bloodGroundCompensatedInnerEdgeDrop
+          );
+          float bloodGroundRimNearT = smoothstep(
+            0.02,
+            0.24,
+            bloodGroundCompensatedRimNearDrop
+          );
+          float bloodGroundRimMidT = smoothstep(
+            0.025,
+            0.28,
+            bloodGroundCompensatedRimMidDrop
+          );
+          float bloodGroundEdgeTension =
+            (
+              bloodGroundRimTightT * 0.52 +
+              bloodGroundRimNearT * 0.35 +
+              bloodGroundRimMidT * 0.13
+            ) *
+            (0.42 + bloodGroundPooledNoise * 0.58);
+          float bloodGroundPooledTensionEdge =
+            bloodGroundPooledPhase *
+            bloodGroundEdgeTension *
+            bloodGroundInteriorBlendCompensation;
+          float bloodGroundPooledInteriorT =
+            bloodGroundPooledPhase *
+            bloodGroundInteriorFadeT;
+          float bloodGroundInteriorSheenCompensation = mix(
+            1.0,
+            bloodGroundInteriorBlendCompensation,
+            bloodGroundInteriorFadeT
+          );
+          float bloodGroundPoolCoreT =
+            bloodGroundPooledInteriorT *
+            smoothstep(0.7, 0.96, bloodGroundOpacityT);
+          float bloodGroundCompensatedPooledInteriorT = clamp(
+            bloodGroundPooledInteriorT * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundCompensatedPoolCoreT = clamp(
+            bloodGroundPoolCoreT * bloodGroundInteriorBlendCompensation,
+            0.0,
+            1.0
+          );
+          float bloodGroundDepthDarken =
+            bloodGroundCompensatedPooledInteriorT *
+              (0.028 + (1.0 - bloodGroundDepthNoise) * 0.048) +
+            bloodGroundCompensatedPoolCoreT *
+              (0.019 + (1.0 - bloodGroundDepthNoise) * 0.034);
+          gl_FragColor.rgb *= 1.0 - bloodGroundDepthDarken;
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            vec3(0.24, 0.0, 0.01),
+            bloodGroundCompensatedPooledInteriorT *
+              (0.019 + (1.0 - bloodGroundDepthNoise) * 0.034) +
+              bloodGroundCompensatedPoolCoreT *
+              (0.013 + (1.0 - bloodGroundDepthNoise) * 0.023)
+          );
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            vec3(0.58, 0.015, 0.006),
+            bloodGroundCompensatedPooledInteriorT * bloodGroundDepthNoise * 0.012
+          );
+          float bloodGroundPooledSurfaceSheen =
+            bloodGroundCompensatedPooledInteriorT *
+            (
+              0.01 +
+              bloodGroundDepthNoise * 0.012 +
+              bloodGroundBroadNoise * 0.006
+            ) *
+            0.72;
+          float bloodGroundHighlight =
+            bloodGroundVisibleT *
+            (
+              bloodGroundPooledSheen * bloodGroundInteriorSheenCompensation +
+              bloodGroundPooledSurfaceSheen +
+              bloodGroundPooledTensionEdge * 0.12
+            );
+          vec3 bloodGroundHighlightColor = mix(
+            vec3(1.0, 0.58, 0.38),
+            vec3(1.0, 0.84, 0.62),
+            bloodGroundPooledPhase
+          );
+          gl_FragColor.rgb = mix(
+            gl_FragColor.rgb,
+            bloodGroundHighlightColor,
+            clamp(bloodGroundHighlight, 0.0, 0.34)
+          );
+          gl_FragColor.rgb +=
+            bloodGroundHighlightColor *
+            clamp(bloodGroundHighlight * 0.45, 0.0, 0.14);
+        #endif`;
+      }
+
       // Inject logic into Fragment Shader right at the end (before fog)
       shader.fragmentShader = `
         uniform vec3 uLightingCenter;
@@ -2684,10 +3222,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
         uniform float uMaxDarkAlpha;
         uniform bool uIsFpsMode;
         varying vec3 vWorldPos;
+        ${bloodGroundSpecularPrefix}
         ${shader.fragmentShader}
       `.replace(
         "#include <fog_fragment>",
-        `#include <fog_fragment>
+        `${bloodGroundSpecularLogic}
+        #include <fog_fragment>
         
         ${damageFlashLogic}
         if (uDamageFlash > 0.0) {
@@ -2716,6 +3256,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       playMode: "normal",
       runtimeVersion: "3.6.7",
     };
+    this.numberPadModeEnabled = this.resolveStartupNumberPadModeEnabled(
+      this.characterCreationConfig.initOptions,
+    );
     this.useNativeExtendedCommandMenu = this.resolveStartupExtmenuEnabled(
       this.characterCreationConfig.initOptions,
     );
@@ -2735,6 +3278,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       isSoundEnabled: () => this.clientOptions.soundEnabled,
     });
     this.messageSoundHooks.setEnabled(this.clientOptions.soundEnabled);
+    this.webHaptics = this.shouldInitializeWebHaptics()
+      ? new WebHaptics()
+      : null;
     this.initThreeJS();
     this.initUI();
     this.connectToRuntime();
@@ -2818,6 +3364,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     window.addEventListener(
       "resize",
       this.onWindowResize.bind(this),
+      eventListenerSignal,
+    );
+    window.addEventListener(
+      "orientationchange",
+      this.scheduleMinimapActionRailOverlapSync.bind(this),
       eventListenerSignal,
     );
     window.addEventListener(
@@ -3048,7 +3599,71 @@ class Nethack3DEngine implements Nethack3DEngineController {
       "nh3d-minimap-controller-expanded",
       this.controllerMinimapExpanded,
     );
+    this.scheduleMinimapActionRailOverlapSync();
     this.syncFpsHeldWeaponAnimationDebugPanelPosition();
+  }
+
+  private scheduleMinimapActionRailOverlapSync(): void {
+    if (this.minimapActionRailSyncRafId !== null) {
+      window.cancelAnimationFrame(this.minimapActionRailSyncRafId);
+    }
+    this.minimapActionRailSyncRafId = window.requestAnimationFrame(() => {
+      this.minimapActionRailSyncRafId = null;
+      this.syncMinimapActionRailOverlap();
+    });
+  }
+
+  private syncMinimapActionRailOverlap(): void {
+    const minimap = this.minimapContainer;
+    if (!minimap) {
+      return;
+    }
+
+    const shouldConsiderActionRail =
+      typeof window.matchMedia === "function" &&
+      (window.matchMedia("(orientation: landscape) and (pointer: coarse)")
+        .matches ||
+        document.documentElement.classList.contains(
+          "nh3d-force-touch-layout-landscape",
+        ));
+    if (
+      !shouldConsiderActionRail ||
+      minimap.style.display === "none" ||
+      getComputedStyle(minimap).display === "none"
+    ) {
+      minimap.classList.remove("nh3d-minimap-avoid-action-rail");
+      return;
+    }
+
+    const actionRail = document.querySelector<HTMLElement>(
+      ".nh3d-mobile-bottom-bar",
+    );
+    if (!actionRail || getComputedStyle(actionRail).display === "none") {
+      minimap.classList.remove("nh3d-minimap-avoid-action-rail");
+      return;
+    }
+
+    const wasAvoidingRail = minimap.classList.contains(
+      "nh3d-minimap-avoid-action-rail",
+    );
+    if (wasAvoidingRail) {
+      minimap.classList.remove("nh3d-minimap-avoid-action-rail");
+    }
+
+    const minimapRect = minimap.getBoundingClientRect();
+    const railRect = actionRail.getBoundingClientRect();
+    const overlapPaddingPx = 6;
+    const overlapsRail =
+      minimapRect.width > 0 &&
+      minimapRect.height > 0 &&
+      railRect.width > 0 &&
+      railRect.height > 0 &&
+      minimapRect.right + overlapPaddingPx > railRect.left &&
+      minimapRect.left < railRect.right &&
+      minimapRect.bottom + overlapPaddingPx > railRect.top &&
+      minimapRect.top < railRect.bottom;
+
+    minimap.classList.toggle("nh3d-minimap-avoid-action-rail", overlapsRail);
   }
 
   private buildTileStateSignatureFromPayload(tile: {
@@ -3582,23 +4197,62 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.ensureBloodGroundLookupTables();
     const width = this.bloodGroundWidthPx;
     const height = this.bloodGroundHeightPx;
+    const useCompatibilityMode = this.shouldUseBloodGroundCompatibilityMode();
+    this.bloodGroundCompatibilityMode = useCompatibilityMode;
 
-    const pixelData = new Uint8Array(width * height * 4);
-    const texture = new THREE.DataTexture(
-      pixelData,
-      width,
-      height,
-      THREE.RGBAFormat,
-      THREE.UnsignedByteType,
-    );
+    let pixelData: Uint8Array | Uint8ClampedArray;
+    let texture: THREE.Texture;
+    let uploadCanvas: HTMLCanvasElement | null = null;
+    let uploadContext: CanvasRenderingContext2D | null = null;
+    let uploadImageData: ImageData | null = null;
+    // Evaluate specular as a shader-side pass on a fixed high-detail grid so
+    // the highlight quality does not inherit lower blood-mask resolutions.
+    const specularEffectWidth =
+      MINIMAP_WIDTH_TILES * this.bloodGroundSpecularPixelsPerTile;
+    const specularEffectHeight =
+      MINIMAP_HEIGHT_TILES * this.bloodGroundSpecularPixelsPerTile;
+    if (useCompatibilityMode && typeof document !== "undefined") {
+      uploadCanvas = document.createElement("canvas");
+      uploadCanvas.width = width;
+      uploadCanvas.height = height;
+      uploadContext = uploadCanvas.getContext("2d");
+      if (uploadContext) {
+        uploadImageData = uploadContext.createImageData(width, height);
+        pixelData = uploadImageData.data;
+        texture = new THREE.CanvasTexture(uploadCanvas);
+      } else {
+        pixelData = new Uint8Array(width * height * 4);
+        texture = new THREE.DataTexture(
+          pixelData,
+          width,
+          height,
+          THREE.RGBAFormat,
+          THREE.UnsignedByteType,
+        );
+      }
+    } else {
+      pixelData = new Uint8Array(width * height * 4);
+      texture = new THREE.DataTexture(
+        pixelData,
+        width,
+        height,
+        THREE.RGBAFormat,
+        THREE.UnsignedByteType,
+      );
+    }
     texture.generateMipmaps = false;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
+    texture.minFilter = useCompatibilityMode
+      ? THREE.NearestFilter
+      : THREE.LinearFilter;
+    texture.magFilter = useCompatibilityMode
+      ? THREE.NearestFilter
+      : THREE.LinearFilter;
     texture.flipY = false;
-    texture.anisotropy = Math.max(
-      1,
-      Math.min(2, this.resolveTextureAnisotropyLevel()),
-    );
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.anisotropy = useCompatibilityMode
+      ? 1
+      : Math.max(1, Math.min(2, this.resolveTextureAnisotropyLevel()));
     texture.needsUpdate = true;
 
     const material = new THREE.MeshBasicMaterial({
@@ -3609,8 +4263,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
       depthTest: true,
       toneMapped: false,
     });
-    material.alphaTest = 0.001;
-    this.patchMaterialForVignette(material);
+    material.alphaTest = useCompatibilityMode ? 4 / 255 : 0.001;
+    material.forceSinglePass = true;
+    if (useCompatibilityMode) {
+      this.patchMaterialForVignette(material, {
+        bloodGroundDiscardEmptyTexels: true,
+      });
+    } else {
+      this.patchMaterialForVignette(material, {
+        bloodGroundDiscardEmptyTexels: true,
+        bloodGroundSpecularEffectTexelSize: new THREE.Vector2(
+          1 / specularEffectWidth,
+          1 / specularEffectHeight,
+        ),
+      });
+    }
 
     const mesh = new THREE.Mesh(this.bloodGroundPlaneGeometry, material);
     mesh.position.set(
@@ -3628,7 +4295,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayMaterial = material;
     this.bloodGroundOverlayTexture = texture;
     this.bloodGroundPixelData = pixelData;
-    this.bloodGroundPixelData32 = new Uint32Array(pixelData.buffer);
+    this.bloodGroundPixelData32 = new Uint32Array(
+      pixelData.buffer,
+      pixelData.byteOffset,
+      pixelData.byteLength / 4,
+    );
+    this.bloodGroundUploadCanvas = uploadCanvas;
+    this.bloodGroundUploadContext = uploadContext;
+    this.bloodGroundUploadImageData = uploadImageData;
     this.bloodGroundDensity = new Uint16Array(width * height);
     this.bloodGroundDirtyRowMin = new Int32Array(height);
     this.bloodGroundDirtyRowMax = new Int32Array(height);
@@ -3638,6 +4312,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundTextureRequiresFullUpload = true;
     this.updateBloodGroundOverlayVisibility();
     return true;
+  }
+
+  private flushBloodGroundCompatibilityTexture(): void {
+    if (
+      !this.bloodGroundCompatibilityMode ||
+      !this.bloodGroundUploadContext ||
+      !this.bloodGroundUploadImageData
+    ) {
+      return;
+    }
+
+    this.bloodGroundUploadContext.putImageData(
+      this.bloodGroundUploadImageData,
+      0,
+      0,
+    );
   }
 
   private clearActiveBloodGroundCanvas(): void {
@@ -3653,6 +4343,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.bloodGroundPixelData.fill(0);
     }
     if (this.bloodGroundOverlayTexture) {
+      this.flushBloodGroundCompatibilityTexture();
       this.bloodGroundOverlayTexture.clearUpdateRanges();
       this.bloodGroundOverlayTexture.needsUpdate = true;
     }
@@ -3671,6 +4362,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundOverlayTexture = null;
     this.bloodGroundPixelData = null;
     this.bloodGroundPixelData32 = null;
+    this.bloodGroundUploadCanvas = null;
+    this.bloodGroundUploadContext = null;
+    this.bloodGroundUploadImageData = null;
     this.bloodGroundDensity = null;
     this.bloodGroundDirtyRect = null;
     this.bloodGroundDirtyRowMin = null;
@@ -3679,6 +4373,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.bloodGroundDirtyRowRangeEnd = -1;
     this.bloodGroundHasVisibleData = false;
     this.bloodGroundTextureRequiresFullUpload = false;
+    this.bloodGroundCompatibilityMode = false;
   }
 
   private captureActiveBloodGroundCacheSnapshot(): BloodGroundCacheSnapshot | null {
@@ -3895,6 +4590,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const fullArea = width * height;
     const usePartialUpload =
+      !this.bloodGroundCompatibilityMode &&
       !requiresFullUpload &&
       dirtyArea / fullArea <= this.bloodGroundTexturePartialUploadAreaRatio;
     const pixelData32 = this.bloodGroundPixelData32;
@@ -3954,6 +4650,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.resetBloodGroundDirtyRowTracking();
     }
     this.bloodGroundTextureRequiresFullUpload = false;
+    this.flushBloodGroundCompatibilityTexture();
     texture.needsUpdate = true;
     this.bloodGroundDirtyRect = null;
     this.updateBloodGroundOverlayVisibility();
@@ -4279,6 +4976,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
+    const intensityScale = THREE.MathUtils.clamp(
+      params.intensityScale ?? 1,
+      0.2,
+      1,
+    );
+    const densityAmount = Math.max(1, params.densityAmount * intensityScale);
+    const scatterCount = this.scaleBloodGroundDiscreteCount(
+      params.scatterCount,
+      intensityScale,
+    );
+    const streakCount = this.scaleBloodGroundDiscreteCount(
+      params.streakCount,
+      intensityScale,
+    );
+
     // Compose each deposit from a denser focal blot, satellite droplets, and
     // directional trails so hits read as splats instead of uniform ovals.
     const seed = Math.floor(Math.random() * 0x7fffffff);
@@ -4365,7 +5077,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       coreRadiusX,
       coreRadiusY,
       impactAngle + (Math.random() - 0.5) * 0.42,
-      params.densityAmount,
+      densityAmount,
       1.4,
       seed,
       pattern,
@@ -4388,13 +5100,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
       baseRadius * (0.55 + Math.random() * 0.2),
       baseRadius * (0.4 + Math.random() * 0.2),
       impactAngle + (Math.random() - 0.5) * 0.55,
-      params.densityAmount * 0.78,
+      densityAmount * 0.78,
       1.7,
       seed + 101,
       pattern,
     );
 
-    for (let i = 0; i < params.scatterCount; i += 1) {
+    for (let i = 0; i < scatterCount; i += 1) {
       const forward =
         Math.pow(Math.random(), 0.78) *
         (baseRadius * 1.25 + params.streakLengthWorld * 0.75);
@@ -4415,14 +5127,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         spotRadius * (0.85 + Math.random() * 0.35),
         spotRadius * (0.8 + Math.random() * 0.25),
         impactAngle + (Math.random() - 0.5) * 1.15,
-        params.densityAmount * (0.18 + Math.random() * 0.28),
+        densityAmount * (0.18 + Math.random() * 0.28),
         1.8 + Math.random() * 0.5,
         seed + 211 + i * 31,
         pattern,
       );
     }
 
-    for (let i = 0; i < params.streakCount; i += 1) {
+    for (let i = 0; i < streakCount; i += 1) {
       const streakStartForward = baseRadius * (0.18 + Math.random() * 0.34);
       const streakLateral = (Math.random() - 0.5) * baseRadius * 0.9;
       const streakLength =
@@ -4456,11 +5168,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
         endY,
         baseRadius * (0.28 + Math.random() * 0.14),
         baseRadius * (0.08 + Math.random() * 0.06),
-        params.densityAmount * (0.36 + Math.random() * 0.22),
+        densityAmount * (0.36 + Math.random() * 0.22),
         seed + 503 + i * 131,
         pattern,
       );
     }
+  }
+
+  private scaleBloodGroundDiscreteCount(count: number, scale: number): number {
+    if (count <= 0) {
+      return 0;
+    }
+    const scaled = count * THREE.MathUtils.clamp(scale, 0, 1);
+    const whole = Math.floor(scaled);
+    return whole + (Math.random() < scaled - whole ? 1 : 0);
+  }
+
+  private resolveBloodGroundLowFpsScale(deltaSeconds: number): number {
+    if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) {
+      return 1;
+    }
+    return THREE.MathUtils.clamp(
+      this.bloodGroundReferenceFrameSeconds / deltaSeconds,
+      0.2,
+      1,
+    );
   }
 
   private paintBloodGroundFromDirectHit(
@@ -4505,6 +5237,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     impactSpeed: number,
     radiusHint: number,
     impactCount: number,
+    intensityScale: number = 1,
   ): void {
     if (impactSpeed < 0.3 || (impactCount > 0 && impactSpeed < 1.05)) {
       return;
@@ -4533,12 +5266,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         0.22,
       ),
       elongation: THREE.MathUtils.clamp(horizontalSpeed / 2.2, 0.12, 0.95),
+      intensityScale,
     });
   }
 
   private paintBloodGroundFromShardImpact(
     particle: BillboardShardParticle,
     impactSpeed: number,
+    intensityScale: number = 1,
   ): void {
     if (
       impactSpeed < 0.35 ||
@@ -4603,6 +5338,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         0.28,
         1.08,
       ),
+      intensityScale,
     });
   }
 
@@ -5772,7 +6508,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private isDarkCorridorWallInferenceEnabled(): boolean {
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    if (runtimeVersion === "3.7") {
+    if (runtimeVersion === "5.0") {
       return false;
     }
     // Vulture mode relies on legacy 3.4.3/3.6.x dark corridor wall inference, so
@@ -6320,6 +7056,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       previous.showItemsUnderPlayerInOverheadTilesMode !==
       normalized.showItemsUnderPlayerInOverheadTilesMode;
     const minimapChanged = previous.minimap !== normalized.minimap;
+    const minimapLayoutChanged =
+      previous.minimapScale !== normalized.minimapScale ||
+      previous.manualMobileBottomSafeZoneEnabled !==
+        normalized.manualMobileBottomSafeZoneEnabled ||
+      previous.manualMobileRightSafeZoneHorizontalPx !==
+        normalized.manualMobileRightSafeZoneHorizontalPx;
     const damageNumbersChanged =
       previous.damageNumbers !== normalized.damageNumbers;
     const tileShakeChanged =
@@ -6341,8 +7083,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const darkCorridorWallsChanged =
       previous.darkCorridorWalls367 !== normalized.darkCorridorWalls367;
     const darkCorridorWallTileOverrideChanged =
-      previous.overrideNh37DarkCorridorWallTiles !==
-        normalized.overrideNh37DarkCorridorWallTiles ||
+      previous.overrideNh5DarkCorridorWallTiles !==
+        normalized.overrideNh5DarkCorridorWallTiles ||
       previous.darkCorridorWallTileOverrideEnabled !==
         normalized.darkCorridorWallTileOverrideEnabled ||
       previous.darkCorridorWallTileOverrideTileId !==
@@ -6376,10 +7118,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const gammaChanged = previous.gamma !== normalized.gamma;
     const soundEnabledChanged =
       previous.soundEnabled !== normalized.soundEnabled;
+    const rumbleEnabledChanged =
+      previous.rumbleEnabled !== normalized.rumbleEnabled;
     const cameraYawSnapChanged =
       previous.snapCameraYawToNearest45 !== normalized.snapCameraYawToNearest45;
 
     this.clientOptions = normalized;
+    this.vignetteUniforms.uBloodGroundStrength.value =
+      normalized.bloodStrength;
     if (cameraYawSnapChanged && !normalized.snapCameraYawToNearest45) {
       this.clearCameraYawSnapTarget();
     }
@@ -6397,6 +7143,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (minimapChanged) {
       this.updateMinimapVisibility();
+    } else if (minimapLayoutChanged) {
+      this.scheduleMinimapActionRailOverlapSync();
     }
     if (damageNumbersChanged && !normalized.damageNumbers) {
       this.clearPlayerDamageNumberParticles();
@@ -6491,7 +7239,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     if (darkCorridorWallsChanged || darkCorridorWallTileOverrideChanged) {
       this.requestInferredDarkCorridorWallReconcile({ forceImmediate: true });
-      if (this.resolveRuntimeVersion() === "3.7") {
+      if (this.resolveRuntimeVersion() === "5.0") {
         this.invalidateBillboardTextureCaches();
         this.refreshTilesFromStateCache();
       }
@@ -6500,6 +7248,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (soundEnabledChanged && !normalized.soundEnabled) {
       this.pendingPlayerFootstepSoundArmed = false;
       this.clearPlayerCliparoundInputCooldown();
+    }
+    if (rumbleEnabledChanged && !normalized.rumbleEnabled) {
+      this.clearPendingIncomingDamageRumble();
+      this.webHaptics?.cancel();
     }
     this.syncFmodRuntimeWithClientOptions(normalized.soundEnabled);
     this.syncVultureWallProjectionDebugPanelVisibility();
@@ -6581,6 +7333,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return true;
     }
     return !window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  private shouldUseBloodGroundCompatibilityMode(): boolean {
+    return (
+      this.getNativeCapacitorPlatform() === "android" ||
+      (typeof navigator !== "undefined" &&
+        /\bAndroid\b/i.test(navigator.userAgent || ""))
+    );
   }
 
   private resolveTextureAnisotropyLevel(): number {
@@ -6954,25 +7714,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return texture;
   }
 
-  private shouldCompileLegacyTilesetAtlasForNh37Runtime(
+  private shouldCompileLegacyTilesetAtlasForNh5Runtime(
     tileLayoutVersion: Nh3dTilesetTileLayoutVersion,
     atlasTileCount: number,
   ): boolean {
-    return shouldTranslateNh367TilesetForNh37Runtime(
+    return shouldTranslateNh367TilesetForNh5Runtime(
       this.resolveRuntimeVersion(),
       atlasTileCount,
       tileLayoutVersion,
     );
   }
 
-  private compileLegacyTilesetAtlasToNh37(
+  private compileLegacyTilesetAtlasToNh5(
     legacyAtlasImage: HTMLImageElement,
     tileSize: number,
     fuseBaseImage: HTMLImageElement | null,
   ): HTMLCanvasElement {
     const outputCanvas = document.createElement("canvas");
-    outputCanvas.width = nh37TilesPerRow * tileSize;
-    outputCanvas.height = nh37OutputRows * tileSize;
+    outputCanvas.width = nh5TilesPerRow * tileSize;
+    outputCanvas.height = nh5OutputRows * tileSize;
     const context = outputCanvas.getContext("2d");
     if (!context) {
       throw new Error("Failed to create compiled tileset atlas canvas context");
@@ -6997,27 +7757,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
         ? fuseBaseTilesPerRow * fuseBaseRows
         : 0;
     for (
-      let nh37TileIndex = 0;
-      nh37TileIndex < nh37ExpectedTileCount;
-      nh37TileIndex += 1
+      let nh5TileIndex = 0;
+      nh5TileIndex < nh5ExpectedTileCount;
+      nh5TileIndex += 1
     ) {
       const rawMappedTileIndex =
-        translateNh37TileIndexToNh367PreservingAliases(nh37TileIndex);
+        translateNh5TileIndexToNh367PreservingAliases(nh5TileIndex);
       const shouldUseFuseBaseTile =
         rawMappedTileIndex < 0 &&
         fuseBaseImage !== null &&
-        nh37TileIndex < fuseBaseTileCount;
+        nh5TileIndex < fuseBaseTileCount;
       const sourceTileIndex =
         rawMappedTileIndex < 0
           ? Math.abs(rawMappedTileIndex)
           : rawMappedTileIndex;
-      const destX = (nh37TileIndex % nh37TilesPerRow) * tileSize;
-      const destY = Math.floor(nh37TileIndex / nh37TilesPerRow) * tileSize;
+      const destX = (nh5TileIndex % nh5TilesPerRow) * tileSize;
+      const destY = Math.floor(nh5TileIndex / nh5TilesPerRow) * tileSize;
       context.clearRect(destX, destY, tileSize, tileSize);
       if (shouldUseFuseBaseTile && fuseBaseImage) {
-        const fuseSourceX = (nh37TileIndex % fuseBaseTilesPerRow) * tileSize;
+        const fuseSourceX = (nh5TileIndex % fuseBaseTilesPerRow) * tileSize;
         const fuseSourceY =
-          Math.floor(nh37TileIndex / fuseBaseTilesPerRow) * tileSize;
+          Math.floor(nh5TileIndex / fuseBaseTilesPerRow) * tileSize;
         context.drawImage(
           fuseBaseImage,
           fuseSourceX,
@@ -7136,13 +7896,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         let sourceLayoutVersion: Nh3dTilesetTileLayoutVersion =
           tileset.tileLayoutVersion;
         if (
-          this.shouldCompileLegacyTilesetAtlasForNh37Runtime(
+          this.shouldCompileLegacyTilesetAtlasForNh5Runtime(
             tileset.tileLayoutVersion,
             sourceTileCount,
           )
         ) {
           const fuseBaseTilesetPath =
-            resolveNh3dFuseBaseTilesetPathForLegacyNh37Runtime(tileset.path);
+            resolveNh3dFuseBaseTilesetPathForLegacyNh5Runtime(tileset.path);
           const fuseBaseTilesetAssetUrl = fuseBaseTilesetPath
             ? (resolveNh3dTilesetAssetUrl(fuseBaseTilesetPath) ??
               fuseBaseTilesetPath)
@@ -7163,12 +7923,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
           if (loadRequestId !== this.tilesetTextureLoadRequestId) {
             return;
           }
-          textureSource = this.compileLegacyTilesetAtlasToNh37(
+          textureSource = this.compileLegacyTilesetAtlasToNh5(
             sourceImage,
             tileSize,
             fuseBaseImage,
           );
-          loadedLayoutVersion = "3.7";
+          loadedLayoutVersion = "5.0";
           sourceLayoutVersion =
             tileset.tileLayoutVersion === "unknown"
               ? "3.6.7"
@@ -9528,6 +10288,175 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.fmodRuntime.resumeFromUserGesture();
   }
 
+  private triggerDamageRumble(durationMs: number, intensity: number): void {
+    if (!this.clientOptions.rumbleEnabled) {
+      return;
+    }
+
+    const duration = Math.max(1, Math.min(1000, Math.round(durationMs)));
+    const clampedIntensity = Math.max(0, Math.min(1, intensity));
+    if (this.tryTriggerAndroidNativeDamageRumble(duration, clampedIntensity)) {
+      return;
+    }
+
+    if (this.isNativeCapacitorPlatform()) {
+      void Haptics.vibrate({ duration }).catch((error) => {
+        console.warn("Unable to trigger native haptic damage rumble.", error);
+      });
+      return;
+    }
+
+    if (!this.webHaptics) {
+      return;
+    }
+
+    void this.webHaptics
+      .trigger(duration, { intensity: clampedIntensity })
+      .catch((error) => {
+        console.warn("Unable to trigger haptic damage rumble.", error);
+      });
+  }
+
+  private tryTriggerAndroidNativeDamageRumble(
+    durationMs: number,
+    intensity: number,
+  ): boolean {
+    if (
+      this.getNativeCapacitorPlatform() !== "android" ||
+      typeof window === "undefined"
+    ) {
+      return false;
+    }
+
+    const androidBridge = (window as Window & {
+      nh3dAndroid?: Nh3dAndroidBridge;
+    }).nh3dAndroid;
+    if (typeof androidBridge?.vibrate !== "function") {
+      return false;
+    }
+
+    const amplitude = Math.max(1, Math.min(255, Math.round(255 * intensity)));
+    try {
+      androidBridge.vibrate(durationMs, amplitude);
+      return true;
+    } catch (error) {
+      console.warn("Unable to trigger Android haptic damage rumble.", error);
+      return false;
+    }
+  }
+
+  private isNativeCapacitorPlatform(): boolean {
+    try {
+      return Capacitor.isNativePlatform();
+    } catch {
+      return this.isLikelyCapacitorEnvironment();
+    }
+  }
+
+  private getNativeCapacitorPlatform(): string {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        return Capacitor.getPlatform();
+      }
+    } catch {
+      // Fall through to URL-scheme inference.
+    }
+    return this.isLikelyCapacitorEnvironment() ? "capacitor" : "web";
+  }
+
+  private shouldInitializeWebHaptics(): boolean {
+    if (WebHaptics.isSupported) {
+      return true;
+    }
+
+    // iOS Safari does not expose navigator.vibrate, but web-haptics includes
+    // an iOS switch-control fallback that can still produce light feedback.
+    return this.isIosTouchWebEnvironment();
+  }
+
+  private triggerOutgoingDamageRumble(): void {
+    this.triggerDamageRumble(this.damageRumbleDurationMs, 0.5);
+  }
+
+  private triggerPlayerKillRumble(): void {
+    this.triggerDamageRumble(this.damageRumbleDurationMs, 0.75);
+  }
+
+  private triggerPlayerDeathRumble(): void {
+    this.clearPendingIncomingDamageRumble();
+    this.webHaptics?.cancel();
+    this.triggerDamageRumble(this.damageRumbleDurationMs * 2, 1);
+  }
+
+  private queueIncomingDamageRumble(amount: number, hpBeforeDamage: number): void {
+    const damage = Math.max(1, Math.round(Math.abs(amount)));
+    if (!Number.isFinite(damage)) {
+      return;
+    }
+
+    this.pendingIncomingDamageRumbleAmount += damage;
+    if (
+      this.pendingIncomingDamageRumbleStartingHp === null ||
+      !Number.isFinite(this.pendingIncomingDamageRumbleStartingHp)
+    ) {
+      this.pendingIncomingDamageRumbleStartingHp = Math.max(
+        damage,
+        Math.round(Math.abs(hpBeforeDamage)),
+        1,
+      );
+    }
+
+    if (
+      this.pendingIncomingDamageRumbleTimerId !== null &&
+      typeof window !== "undefined"
+    ) {
+      window.clearTimeout(this.pendingIncomingDamageRumbleTimerId);
+    }
+
+    if (typeof window === "undefined") {
+      this.flushIncomingDamageRumble();
+      return;
+    }
+
+    this.pendingIncomingDamageRumbleTimerId = window.setTimeout(() => {
+      this.pendingIncomingDamageRumbleTimerId = null;
+      this.flushIncomingDamageRumble();
+    }, this.incomingDamageRumbleDebounceMs);
+  }
+
+  private flushIncomingDamageRumble(): void {
+    const totalDamage = this.pendingIncomingDamageRumbleAmount;
+    const startingHp = this.pendingIncomingDamageRumbleStartingHp;
+    this.pendingIncomingDamageRumbleAmount = 0;
+    this.pendingIncomingDamageRumbleStartingHp = null;
+
+    if (
+      totalDamage <= 0 ||
+      startingHp === null ||
+      startingHp <= 0 ||
+      !Number.isFinite(totalDamage) ||
+      !Number.isFinite(startingHp)
+    ) {
+      return;
+    }
+
+    const damageRatio = Math.max(0, Math.min(1, totalDamage / startingHp));
+    const intensity = Math.max(0.5, Math.min(1, 0.5 + damageRatio));
+    this.triggerDamageRumble(this.damageRumbleDurationMs, intensity);
+  }
+
+  private clearPendingIncomingDamageRumble(): void {
+    if (
+      this.pendingIncomingDamageRumbleTimerId !== null &&
+      typeof window !== "undefined"
+    ) {
+      window.clearTimeout(this.pendingIncomingDamageRumbleTimerId);
+    }
+    this.pendingIncomingDamageRumbleTimerId = null;
+    this.pendingIncomingDamageRumbleAmount = 0;
+    this.pendingIncomingDamageRumbleStartingHp = null;
+  }
+
   private getFmodAudioWorkletCopyModeHint(
     diagnostics: FmodThreadingDiagnostics,
   ): {
@@ -10368,9 +11297,100 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.applyRuntimeObjectTileIndexByObjectId(
       this.extractRuntimeObjectTileIndexByObjectId(snapshot),
     );
+    const runtimeNumberPadModeEnabled =
+      this.extractRuntimeNumberPadModeEnabled(snapshot);
+    if (typeof runtimeNumberPadModeEnabled === "boolean") {
+      this.setNumberPadModeEnabled(runtimeNumberPadModeEnabled, {
+        announce: false,
+      });
+    }
     if (typeof window !== "undefined") {
       (window as any).nethackRuntimeGlobals = this.latestRuntimeGlobalsSnapshot;
     }
+  }
+
+  private extractRuntimeNumberPadModeEnabled(
+    snapshot: unknown,
+  ): boolean | null {
+    if (!snapshot || typeof snapshot !== "object") {
+      return null;
+    }
+
+    const readNestedValue = (
+      root: unknown,
+      path: readonly string[],
+    ): unknown => {
+      let current: unknown = root;
+      for (const key of path) {
+        if (!current || typeof current !== "object") {
+          return null;
+        }
+        current = (current as Record<string, unknown>)[key];
+      }
+      return current;
+    };
+
+    const normalizeNumberPadValue = (value: unknown): boolean | null => {
+      if (typeof value === "boolean") {
+        return value;
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return Math.trunc(value) !== 0;
+      }
+      if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (!normalized) {
+          return null;
+        }
+        if (
+          normalized === "0" ||
+          normalized === "-1" ||
+          normalized === "false" ||
+          normalized === "off"
+        ) {
+          return false;
+        }
+        if (
+          normalized === "1" ||
+          normalized === "true" ||
+          normalized === "on"
+        ) {
+          return true;
+        }
+      }
+      return null;
+    };
+
+    const globalsRoot = readNestedValue(snapshot, ["nethackGlobal", "globals"]);
+    const candidatePaths: ReadonlyArray<readonly string[]> = [
+      ["iflags", "num_pad"],
+      ["iflags", "number_pad"],
+      ["flags", "num_pad"],
+      ["flags", "number_pad"],
+      ["g", "iflags", "num_pad"],
+      ["g", "iflags", "number_pad"],
+      ["g", "flags", "num_pad"],
+      ["g", "flags", "number_pad"],
+    ];
+    for (const path of candidatePaths) {
+      const normalized = normalizeNumberPadValue(
+        readNestedValue(globalsRoot, path),
+      );
+      if (normalized !== null) {
+        return normalized;
+      }
+    }
+
+    const configuredNethackOptions = readNestedValue(snapshot, [
+      "configuredNethackOptions",
+    ]);
+    if (typeof configuredNethackOptions === "string") {
+      return this.extractNumberPadModeEnabledFromOptionTokens(
+        configuredNethackOptions.split(","),
+      );
+    }
+
+    return null;
   }
 
   private applyRuntimeObjectTileIndexByObjectId(rawValue: unknown): void {
@@ -10588,7 +11608,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
   }
 
-  private isMobileIosWebOrAndroidDevice(): boolean {
+  private isIosTouchDevice(): boolean {
     if (typeof navigator === "undefined") {
       return false;
     }
@@ -10599,10 +11619,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
       typeof navigator.maxTouchPoints === "number"
         ? navigator.maxTouchPoints
         : 0;
-    const isIosTouchDevice =
+    return (
       /\b(iPad|iPhone|iPod)\b/i.test(userAgent) ||
-      (/Mac/i.test(platform) && maxTouchPoints > 1);
-    const isIosWeb = isIosTouchDevice && !this.isLikelyCapacitorEnvironment();
+      (/Mac/i.test(platform) && maxTouchPoints > 1)
+    );
+  }
+
+  private isIosTouchWebEnvironment(): boolean {
+    return this.isIosTouchDevice() && !this.isLikelyCapacitorEnvironment();
+  }
+
+  private isMobileIosWebOrAndroidDevice(): boolean {
+    if (typeof navigator === "undefined") {
+      return false;
+    }
+
+    const userAgent = navigator.userAgent || "";
+    const isIosWeb = this.isIosTouchWebEnvironment();
     const isAndroid = /\bAndroid\b/i.test(userAgent);
     return isIosWeb || isAndroid;
   }
@@ -10612,6 +11645,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.hasTriggeredPlayerDeathEffect = true;
+    this.triggerPlayerDeathRumble();
 
     if (!this.hasSeenPlayerPosition) {
       this.messageSoundHooks.playDamageEffectSound("defeat");
@@ -11025,7 +12059,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return 1187;
     }
-    if (this.loadedTilesetTileLayoutVersion === "3.7") {
+    if (this.loadedTilesetTileLayoutVersion === "5.0") {
       return 1281;
     }
     return 862;
@@ -11160,7 +12194,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       runtimeColor: typeof snapshot.color === "number" ? snapshot.color : null,
       runtimeTileIndex:
         typeof snapshot.tileIndex === "number" ? snapshot.tileIndex : null,
-      runtimeSymidx: typeof snapshot.symidx === "number" ? snapshot.symidx : null,
+      runtimeSymidx:
+        typeof snapshot.symidx === "number" ? snapshot.symidx : null,
       priorTerrain: snapshot,
     });
     return behavior.materialKind;
@@ -12090,6 +13125,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     this.lastParsedDefeatMessage = normalized;
     this.lastParsedDefeatAtMs = now;
+    this.triggerPlayerKillRumble();
     if (this.tryTriggerPointerMonsterDefeatSpray()) {
       return true;
     }
@@ -12182,6 +13218,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!normalized) {
       return;
     }
+    if (this.isMonsterDefeatMessage(normalized)) {
+      return;
+    }
 
     const explicitPlayerHit = this.isPlayerHitMonsterMessage(normalized);
     const playerAttack =
@@ -12208,6 +13247,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.lastParsedDamageMessage = normalized;
     this.lastParsedDamageAtMs = now;
+    this.triggerOutgoingDamageRumble();
 
     if (this.tryTriggerPointerMonsterHitSpray(amount)) {
       return;
@@ -12382,6 +13422,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.recordNewlyDiscoveredDarkCorridorTileForCurrentInput(tile);
     const behavior = this.classifyTilePayload(tile);
     const nowMs = Date.now();
+    const isRuntimeTrackedPlayerTileInFps =
+      this.isFpsMode() && this.isRuntimeTrackedPlayerEntityId(tile.monsterId);
     const tileRelation = this.getFpsPlayerTileRelationFlags(
       tile.x,
       tile.y,
@@ -12402,7 +13444,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isFpsPlayerTileNeedingUnderlaySeed =
       this.isFpsMode() &&
       behavior !== null &&
-      (tileRelation.isCurrentPlayerTile ||
+      (isRuntimeTrackedPlayerTileInFps ||
+        tileRelation.isCurrentPlayerTile ||
         tileRelation.isStepDestinationTile ||
         tileRelation.isPredictedPlayerTile ||
         isLikelyPlayerGlyphTile);
@@ -12414,7 +13457,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const shouldSuppressRecentPreviousPlayerTileInFps =
       tileRelation.isTrailSuppressedTile &&
-      (tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial);
+      (tileRelation.isPlayerGlyph ||
+        tileRelation.isPlayerMaterial ||
+        isRuntimeTrackedPlayerTileInFps);
     const shouldKeepVisiblePlayerBillboardInFarLook =
       this.shouldKeepFarLookPlayerBillboardVisible() &&
       tileRelation.isCurrentPlayerTile &&
@@ -12448,6 +13493,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.tileStateCache.get(key) === signature) {
       const shouldHaveElevatedBillboard =
         (behavior !== null &&
+          !isRuntimeTrackedPlayerTileInFps &&
           !tileRelation.isPlayerGlyph &&
           !tileRelation.isPlayerMaterial &&
           !tileRelation.isStepDestinationTile &&
@@ -12465,6 +13511,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         shouldKeepVisiblePlayerBillboardInFarLook;
       if (shouldHaveElevatedBillboard && !this.monsterBillboards.has(key)) {
         this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
+          runtimeTrackedEntityId:
+            typeof tile.monsterId === "number" ? tile.monsterId : undefined,
           runtimeTileIndex:
             typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
           runtimeSymidx:
@@ -15716,24 +16764,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.characterCreationConfig.runtimeVersion ?? "3.6.7";
   }
 
-  private shouldUseNh37LegacyTilesetCompatibility(): boolean {
-    if (this.resolveRuntimeVersion() !== "3.7") {
+  private shouldUseNh5LegacyTilesetCompatibility(): boolean {
+    if (this.resolveRuntimeVersion() !== "5.0") {
       return false;
     }
-    if (this.loadedTilesetTileLayoutVersion === "3.7") {
+    if (this.loadedTilesetTileLayoutVersion === "5.0") {
       return false;
     }
     if (this.loadedTilesetTileLayoutVersion === "3.6.7") {
       return true;
     }
-    return shouldTranslateNh367TilesetForNh37Runtime(
-      "3.7",
+    return shouldTranslateNh367TilesetForNh5Runtime(
+      "5.0",
       this.resolveLoadedAtlasTileCount(),
       this.loadedTilesetTileLayoutVersion,
     );
   }
 
-  private isNh37DarkCorridorWallVariantForLegacyTileset(
+  private isNh5DarkCorridorWallVariantForLegacyTileset(
     sourceGlyph: number,
     runtimeTileIndex: number,
     materialKind: TileMaterialKind,
@@ -15742,10 +16790,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.clientOptions.tilesetMode !== "tiles") {
       return false;
     }
-    if (this.resolveRuntimeVersion() !== "3.7") {
+    if (this.resolveRuntimeVersion() !== "5.0") {
       return false;
     }
-    if (!this.clientOptions.overrideNh37DarkCorridorWallTiles) {
+    if (!this.clientOptions.overrideNh5DarkCorridorWallTiles) {
       return false;
     }
     if (materialKind !== "wall" && materialKind !== "dark_wall") {
@@ -15779,14 +16827,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (symidx === null) {
       return false;
     }
-    // NetHack 3.7 dark corridor wall tiles can come through as cmap symidx=0
+    // NetHack 5.0 dark corridor wall tiles can come through as cmap symidx=0
     // (stone/out-of-bounds semantic). Legacy 3.6 tilesets do not contain those
-    // dedicated textures, and some 3.7 tilesets still prefer compatibility
+    // dedicated textures, and some 5.0 tilesets still prefer compatibility
     // overrides for consistency, so route them through dark-wall overrides.
     if (symidx === 0) {
       return true;
     }
-    if (!this.shouldUseNh37LegacyTilesetCompatibility()) {
+    if (!this.shouldUseNh5LegacyTilesetCompatibility()) {
       return false;
     }
     if (symidx < 1 || symidx > 11) {
@@ -15833,7 +16881,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     try {
       if (
-        !shouldTranslateNh367TilesetForNh37Runtime(
+        !shouldTranslateNh367TilesetForNh5Runtime(
           this.resolveRuntimeVersion(),
           atlasTileCount,
           this.loadedTilesetTileLayoutVersion,
@@ -15841,7 +16889,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         return normalizedTileIndex;
       }
-      return translateNh37TileIndexToNh367(normalizedTileIndex);
+      return translateNh5TileIndexToNh367(normalizedTileIndex);
     } catch {
       return normalizedTileIndex;
     }
@@ -15903,7 +16951,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     try {
       if (
-        !shouldTranslateNh367TilesetForNh37Runtime(
+        !shouldTranslateNh367TilesetForNh5Runtime(
           this.resolveRuntimeVersion(),
           this.resolveLoadedAtlasTileCount(),
           this.loadedTilesetSourceLayoutVersion,
@@ -15911,7 +16959,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       ) {
         return normalizedTileIndex;
       }
-      return translateNh367TileIndexToNh37(normalizedTileIndex);
+      return translateNh367TileIndexToNh5(normalizedTileIndex);
     } catch {
       return normalizedTileIndex;
     }
@@ -18297,6 +19345,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const deltaMs = deltaSeconds * 1000;
     const drag = Math.exp(-this.damageParticleDrag * deltaSeconds);
+    const lowFpsBloodScale = this.resolveBloodGroundLowFpsScale(deltaSeconds);
 
     for (let i = this.damageParticles.length - 1; i >= 0; i -= 1) {
       const particle = this.damageParticles[i];
@@ -18333,6 +19382,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
               impactSpeed,
               particle.radius,
               particle.groundImpactCount,
+              lowFpsBloodScale,
             );
             particle.groundImpactCount += 1;
           }
@@ -18378,6 +19428,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const deltaMs = deltaSeconds * 1000;
     const drag = Math.exp(-this.monsterBillboardShardDrag * deltaSeconds);
+    const lowFpsBloodScale = this.resolveBloodGroundLowFpsScale(deltaSeconds);
 
     for (
       let i = this.monsterBillboardShardParticles.length - 1;
@@ -18415,7 +19466,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
         if (particle.mesh.position.z < this.damageParticleFloorZ) {
           const impactSpeed = particle.velocity.length();
           if (particle.velocity.z < -0.14) {
-            this.paintBloodGroundFromShardImpact(particle, impactSpeed);
+            this.paintBloodGroundFromShardImpact(
+              particle,
+              impactSpeed,
+              lowFpsBloodScale,
+            );
             particle.groundImpactCount += 1;
           }
           onFloor = true;
@@ -18952,6 +20007,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.clearPlayerUiNumberParticles();
 
     this.pendingCharacterDamageQueue = [];
+    this.clearPendingIncomingDamageRumble();
     this.lastDirectionalAttackContext = null;
     this.pendingFpsHeldWeaponMeleeSwipeContext = null;
     this.pendingPointerAttackTargetContext = null;
@@ -21527,7 +22583,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       // Legacy 3.4.3/3.6.x dark corridor walls should chamfer using the dark hallway
       // floor texture, not the generic dark room texture.
       fallbackGlyph =
-        runtimeVersion !== "3.7" ? getDefaultDarkFloorGlyph() : floorGlyph + 1;
+        runtimeVersion !== "5.0" ? getDefaultDarkFloorGlyph() : floorGlyph + 1;
     }
     const behavior = classifyTileBehavior({
       glyph: fallbackGlyph,
@@ -22580,7 +23636,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     this.positionInputModeActive = true;
     this.positionInputOrigin = origin;
-    this.uiAdapter.setPositionInputActive(true);
+    this.uiAdapter.setPositionInputActive(true, origin);
     this.fpsPositionCursorCameraInitialized = false;
     this.fpsPositionCursorManualOverrideUntilMs = 0;
     this.fpsPositionCursorReturnActive = false;
@@ -24082,6 +25138,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     appearance: RuntimeMonsterBillboardAppearance,
     runtimeMonsterId: number | null = null,
   ): THREE.Sprite | null {
+    if (runtimeMonsterId === 0 && this.isFpsMode()) {
+      return null;
+    }
     const tempKey = `runtime-monster-shatter:${runtimeMonsterId ?? "unknown"}:${tileX},${tileY}|${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
     this.ensureMonsterBillboard(
       tempKey,
@@ -24551,7 +25610,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           : -1;
     const darkCorridorWallCompatibilityActive =
       isInferredDarkCorridorWall ||
-      this.isNh37DarkCorridorWallVariantForLegacyTileset(
+      this.isNh5DarkCorridorWallVariantForLegacyTileset(
         glyph,
         runtimeTileIndexForDarkCorridorCompatibility,
         behavior.materialKind,
@@ -24595,6 +25654,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isStatue = behavior.effective.kind === "statue";
     const useTiles = this.clientOptions.tilesetMode === "tiles";
     const nowMs = Date.now();
+    const runtimeTrackedEntityId = this.normalizeRuntimeTrackedEntityId(
+      options.runtimeTrackedEntityId,
+    );
+    const isRuntimeTrackedPlayerTileInFps =
+      this.isFpsMode() && runtimeTrackedEntityId === 0;
     const isCurrentKnownPlayerTile =
       this.hasSeenPlayerPosition &&
       x === this.playerPos.x &&
@@ -24622,7 +25686,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const isFpsStepDestinationTile = tileRelation.isStepDestinationTile;
     const shouldSuppressRecentPreviousPlayerTileInFps =
       tileRelation.isTrailSuppressedTile &&
-      (tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial);
+      (tileRelation.isPlayerGlyph ||
+        tileRelation.isPlayerMaterial ||
+        isRuntimeTrackedPlayerTileInFps);
     const isPredictedFpsPlayerTile = tileRelation.isPredictedPlayerTile;
     const shouldKeepVisiblePlayerBillboardInFarLook =
       this.shouldKeepFarLookPlayerBillboardVisible() &&
@@ -24630,8 +25696,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.hasExplicitPlayerVisual(behavior, char);
     const shouldSuppressPlayerTileVisualInFps =
       this.isFpsMode() &&
-      (((tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial) &&
+      ((isRuntimeTrackedPlayerTileInFps &&
         !shouldKeepVisiblePlayerBillboardInFarLook) ||
+        ((tileRelation.isPlayerGlyph || tileRelation.isPlayerMaterial) &&
+          !shouldKeepVisiblePlayerBillboardInFarLook) ||
         isFpsStepDestinationTile ||
         isPredictedFpsPlayerTile ||
         (tileRelation.isCurrentPlayerTile &&
@@ -25015,7 +26083,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
     const isPlayerRelatedTileInFps =
       this.isFpsMode() &&
-      (tileRelation.isPlayerGlyph ||
+      (isRuntimeTrackedPlayerTileInFps ||
+        tileRelation.isPlayerGlyph ||
         tileRelation.isPlayerMaterial ||
         isFpsStepDestinationTile ||
         isPredictedFpsPlayerTile ||
@@ -25378,6 +26447,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     // Create or remove a billboard for any entity that should be elevated.
     const shouldRenderEntityBillboardFromTileState =
       shouldUseElevatedBillboard &&
+      !isRuntimeTrackedPlayerTileInFps &&
       !tileRelation.isPlayerGlyph &&
       !tileRelation.isPlayerMaterial &&
       !isFpsStepDestinationTile &&
@@ -26288,8 +27358,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const perpendicularX = -deltaY / distance;
       const perpendicularY = deltaX / distance;
       if (transition.id === "player" || partner.id === "player") {
-        const nonPlayerId = transition.id === "player" ? partner.id : transition.id;
-        const playerId = transition.id === "player" ? transition.id : partner.id;
+        const nonPlayerId =
+          transition.id === "player" ? partner.id : transition.id;
+        const playerId =
+          transition.id === "player" ? transition.id : partner.id;
         offsets.set(playerId, { x: 0, y: 0 });
         offsets.set(nonPlayerId, {
           x: perpendicularX * playerSwapOffsetMagnitude,
@@ -26397,6 +27469,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.updateTile(tile.x, tile.y, tile.glyph, tile.char, tile.color, {
+      runtimeTrackedEntityId:
+        typeof tile.monsterId === "number" ? tile.monsterId : undefined,
       runtimeTileIndex:
         typeof tile.tileIndex === "number" ? tile.tileIndex : undefined,
       runtimeSymidx: typeof tile.symidx === "number" ? tile.symidx : undefined,
@@ -26455,7 +27529,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     sprite.visible = true;
     sprite.frustumCulled = false;
     sprite.renderOrder = this.resolveStandardBillboardRenderOrder(
-      this.shouldUseVultureTiles() && this.clientOptions.tilesetMode === "tiles",
+      this.shouldUseVultureTiles() &&
+        this.clientOptions.tilesetMode === "tiles",
     );
     this.scene.add(sprite);
     return {
@@ -26468,6 +27543,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     entityId: number,
     key: string,
   ): EntityMoveTransitionVisual | null {
+    if (entityId === 0 && this.isFpsMode()) {
+      return null;
+    }
     const tile = this.parseTileKey(key);
     if (!tile) {
       return null;
@@ -26713,9 +27791,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const currentOrQueuedWaypoint =
         transition.destinationKey === destinationKey
           ? null
-          : transition.queuedWaypoints.find(
+          : (transition.queuedWaypoints.find(
               (waypoint) => waypoint.destinationKey === destinationKey,
-            ) ?? null;
+            ) ?? null);
       if (transition.destinationKey === destinationKey) {
         transition.baseDurationMs = sanitizedDurationMs;
       } else if (currentOrQueuedWaypoint) {
@@ -26775,7 +27853,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const transitions = Array.from(this.activeEntityMoveTransitions.values());
     const reciprocalSwapPartnerById =
       this.buildEntityMoveTransitionReciprocalSwapPartnerById(
-        transitions.filter((transition) => !transition.holdAtDestinationUntilConfirmation),
+        transitions.filter(
+          (transition) => !transition.holdAtDestinationUntilConfirmation,
+        ),
       );
     const reciprocalSwapOffsetById =
       this.buildEntityMoveTransitionReciprocalSwapOffsetById(
@@ -26796,7 +27876,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         reciprocalSwapPartnerById.get(transition.id) ?? null;
       const reciprocalSwapPartner =
         reciprocalSwapPartnerId !== null
-          ? this.activeEntityMoveTransitions.get(reciprocalSwapPartnerId) ?? null
+          ? (this.activeEntityMoveTransitions.get(reciprocalSwapPartnerId) ??
+            null)
           : null;
       const reciprocalSwapOffset =
         reciprocalSwapOffsetById.get(transition.id) ?? null;
@@ -26846,7 +27927,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         if (
           transition.id === "player" &&
-          `${this.playerPos.x},${this.playerPos.y}` !== transition.destinationKey
+          `${this.playerPos.x},${this.playerPos.y}` !==
+            transition.destinationKey
         ) {
           transition.holdAtDestinationUntilConfirmation = true;
           continue;
@@ -26885,6 +27967,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     toKey: string,
     destinationTile: any,
   ): void {
+    if (monsterId === 0 && this.isFpsMode()) {
+      return;
+    }
     const hadStandingBillboardSource = this.monsterBillboards.has(fromKey);
     const transitionId = this.getTrackedEntityMoveTransitionId(monsterId);
     const started = this.beginOrRetargetEntityMoveTransition(
@@ -26903,9 +27988,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!started || hadStandingBillboardSource) {
       return;
     }
-    if (
-      this.hasActiveEntityMoveTransitionDestination(fromKey, transitionId)
-    ) {
+    if (this.hasActiveEntityMoveTransitionDestination(fromKey, transitionId)) {
       const fromTile = this.parseTileKey(fromKey);
       if (fromTile) {
         // Another in-flight transition already owns the replacement occupant
@@ -26987,8 +28070,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       );
     }
 
-    const occupantTransitionId =
-      this.getTrackedEntityMoveTransitionId(destinationOccupantId);
+    const occupantTransitionId = this.getTrackedEntityMoveTransitionId(
+      destinationOccupantId,
+    );
     const occupantTransitionAlreadyActive =
       this.activeEntityMoveTransitions.has(occupantTransitionId);
     const startedOccupantTransition = this.beginOrRetargetEntityMoveTransition(
@@ -27251,7 +28335,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
   private resolveStatusConditionBlindMask(): number {
     const runtimeVersion = this.resolveRuntimeVersion();
-    if (runtimeVersion === "3.7") {
+    if (runtimeVersion === "5.0") {
       return 0x00000002;
     }
     if (runtimeVersion === "slashem") {
@@ -27312,7 +28396,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
   ): void {
     const runtimeVersion =
       this.characterCreationConfig.runtimeVersion ?? "3.6.7";
-    const legacyByIndex37: { [key: number]: string } = {
+    const legacyByIndex5: { [key: number]: string } = {
       0: "name",
       1: "strength",
       2: "dexterity",
@@ -27360,7 +28444,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       21: "experience",
     };
     const legacyByIndex =
-      runtimeVersion === "3.7" ? legacyByIndex37 : legacyByIndex367;
+      runtimeVersion === "5.0" ? legacyByIndex5 : legacyByIndex367;
 
     const byName: { [key: string]: string } = {
       BL_TITLE: "name",
@@ -27495,6 +28579,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const previousDungeon = this.playerStats.dungeon;
     this.applyRuntimeLevelIdentity(data?.levelIdentity);
     let playerDamageTaken: number | null = null;
+    let playerDamageHpBefore: number | null = null;
     let playerHealingGained: number | null = null;
     let playerExperienceDelta: number | null = null;
     let playerLevelUpTo: number | null = null;
@@ -27506,6 +28591,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (typeof previousHp === "number" && Number.isFinite(previousHp)) {
         if (parsedValue < previousHp) {
           playerDamageTaken = Math.round(previousHp - parsedValue);
+          playerDamageHpBefore = previousHp;
         } else if (parsedValue > previousHp) {
           playerHealingGained = Math.round(parsedValue - previousHp);
         }
@@ -27635,6 +28721,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (mappedField === "hp") {
       this.lastKnownPlayerHp = parsedValue;
       if (playerDamageTaken && playerDamageTaken > 0) {
+        this.queueIncomingDamageRumble(
+          playerDamageTaken,
+          playerDamageHpBefore ?? playerDamageTaken,
+        );
         this.triggerDamageEffectsAtTile(
           this.playerPos.x,
           this.playerPos.y,
@@ -29299,6 +30389,47 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return normalized.includes("what do you want to drink");
   }
 
+  private isObjectTypeCategoryQuestion(questionText: string): boolean {
+    const normalized = String(questionText || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return (
+      (normalized.includes("what type") || normalized.includes("what types")) &&
+      (normalized.includes("object") ||
+        normalized.includes("item") ||
+        normalized.includes("thing"))
+    );
+  }
+
+  private isCountableSimpleInventoryQuestion(questionText: string): boolean {
+    const normalized = String(questionText || "")
+      .trim()
+      .toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return (
+      normalized.includes("what do you want to drop") ||
+      normalized.includes("what would you like to drop") ||
+      normalized.includes("put in what") ||
+      normalized.includes("what do you want to put in") ||
+      normalized.includes("what would you like to put in") ||
+      normalized.includes("take out what") ||
+      normalized.includes("what do you want to take out") ||
+      normalized.includes("what would you like to take out")
+    );
+  }
+
+  private isCountableInventorySelectionQuestion(questionText: string): boolean {
+    return (
+      this.isMultiSelectLootQuestion(questionText) ||
+      this.isCountableSimpleInventoryQuestion(questionText)
+    );
+  }
+
   private findMenuCategoryLabelForItem(
     menuItems: any[],
     targetItem: any,
@@ -29453,7 +30584,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.messageSoundHooks.playThrownWeaponSound();
   }
 
-  private setNumberPadModeEnabled(enabled: boolean): void {
+  private setNumberPadModeEnabled(
+    enabled: boolean,
+    options: { announce?: boolean } = {},
+  ): void {
     const normalized = Boolean(enabled);
     if (this.numberPadModeEnabled === normalized) {
       return;
@@ -29461,7 +30595,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.numberPadModeEnabled = normalized;
     const modeLabel = normalized ? "numpad" : "hjklyubn";
     console.log(`🎮 Number pad mode set to ${modeLabel}`);
-    this.addGameMessage(`Number pad mode: ${modeLabel}`);
+    if (options.announce !== false) {
+      this.addGameMessage(`Number pad mode: ${modeLabel}`);
+    }
     this.uiAdapter.setNumberPadModeEnabled(normalized);
   }
 
@@ -29524,6 +30660,115 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.getMenuSelectionInput(item, fallback);
   }
 
+  private getActiveQuestionPendingCount(): number | null {
+    if (!/^\d+$/.test(this.activeQuestionPendingCountInput)) {
+      return null;
+    }
+    const parsed = Number.parseInt(this.activeQuestionPendingCountInput, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  private setActiveQuestionPendingCount(count: number | null): void {
+    if (
+      !this.isInQuestion ||
+      !this.isCountableInventorySelectionQuestion(this.activeQuestionText)
+    ) {
+      return;
+    }
+    if (count === null || !Number.isFinite(count) || count < 1) {
+      this.activeQuestionPendingCountInput = "";
+      this.syncQuestionDialogState();
+      return;
+    }
+    const normalized = Math.min(999999, Math.trunc(count));
+    this.activeQuestionPendingCountInput = String(normalized);
+    this.syncQuestionDialogState();
+  }
+
+  private clearActiveQuestionPendingCount(sync: boolean = true): void {
+    if (!this.activeQuestionPendingCountInput) {
+      return;
+    }
+    this.activeQuestionPendingCountInput = "";
+    if (sync) {
+      this.syncQuestionDialogState();
+    }
+  }
+
+  private consumeActiveQuestionPendingCount(): number | null {
+    const count = this.getActiveQuestionPendingCount();
+    this.clearActiveQuestionPendingCount(false);
+    return count;
+  }
+
+  private encodeMenuSelectionInputWithCount(
+    selectionInput: string,
+    count: number | null,
+  ): string {
+    if (
+      count === null ||
+      count < 1 ||
+      !selectionInput.startsWith(this.menuSelectionInputPrefix)
+    ) {
+      return selectionInput;
+    }
+    return `${selectionInput}:${Math.trunc(count)}`;
+  }
+
+  private appendActiveQuestionCountDigit(digit: string): void {
+    if (!/^\d$/.test(digit)) {
+      return;
+    }
+    const nextValue = `${this.activeQuestionPendingCountInput}${digit}`.replace(
+      /^0+(?=\d)/,
+      "",
+    );
+    this.activeQuestionPendingCountInput = nextValue.slice(0, 6);
+    this.syncQuestionDialogState();
+  }
+
+  private removeActiveQuestionCountDigit(): void {
+    if (!this.activeQuestionPendingCountInput) {
+      return;
+    }
+    this.activeQuestionPendingCountInput =
+      this.activeQuestionPendingCountInput.slice(0, -1);
+    this.syncQuestionDialogState();
+  }
+
+  private handleQuestionMenuCountKeyDown(event: KeyboardEvent): boolean {
+    if (
+      !this.isInQuestion ||
+      !this.isCountableInventorySelectionQuestion(this.activeQuestionText) ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey
+    ) {
+      return false;
+    }
+    if (/^\d$/.test(event.key)) {
+      event.preventDefault();
+      this.appendActiveQuestionCountDigit(event.key);
+      return true;
+    }
+    if (event.key === "Backspace" && this.activeQuestionPendingCountInput) {
+      event.preventDefault();
+      this.removeActiveQuestionCountDigit();
+      return true;
+    }
+    return false;
+  }
+
+  private sendInputWithPendingQuestionCount(input: string): void {
+    const countDigits = this.activeQuestionPendingCountInput;
+    this.clearActiveQuestionPendingCount(false);
+    if (!countDigits || input.startsWith(this.menuSelectionInputPrefix)) {
+      this.sendInput(input);
+      return;
+    }
+    this.sendInputSequence([...countDigits, input]);
+  }
+
   private getVisiblePickupSelectableMenuItems(): any[] {
     if (!Array.isArray(this.activeQuestionVisibleMenuItems)) {
       return [];
@@ -29574,6 +30819,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     });
   }
 
+  private getPickupSelectableMenuItemsByGroupAccelerator(
+    accelerator: string,
+  ): any[] {
+    if (typeof accelerator !== "string" || accelerator.length !== 1) {
+      return [];
+    }
+    return this.getAllPickupSelectableMenuItems().filter((item) => {
+      const groupAccelerator =
+        typeof item?.groupAccelerator === "string"
+          ? item.groupAccelerator.trim()
+          : "";
+      return groupAccelerator === accelerator;
+    });
+  }
+
   private arePickupMenuItemsAllSelected(items: any[]): boolean {
     if (!Array.isArray(items) || items.length === 0) {
       return false;
@@ -29597,6 +30857,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
 
     const changedInputs: string[] = [];
     let focusSelectionInput: string | null = null;
+    const pendingCount = this.consumeActiveQuestionPendingCount();
 
     for (const menuItem of items) {
       const selectionInput = this.getQuestionMenuSelectionInput(menuItem);
@@ -29605,23 +30866,35 @@ class Nethack3DEngine implements Nethack3DEngineController {
       }
       const selectionKey = this.getMenuSelectionStateKey(menuItem);
       const isSelected = this.activePickupSelections.has(selectionKey);
+      const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+        selectionInput,
+        pendingCount,
+      );
       let didChange = false;
 
       if (operation === "select") {
-        if (!isSelected) {
+        if (!isSelected || pendingCount !== null) {
           this.activePickupSelections.add(selectionKey);
+          if (pendingCount !== null) {
+            this.activePickupSelectionCounts.set(selectionKey, pendingCount);
+          }
           didChange = true;
         }
       } else if (operation === "deselect") {
         if (isSelected) {
           this.activePickupSelections.delete(selectionKey);
+          this.activePickupSelectionCounts.delete(selectionKey);
           didChange = true;
         }
-      } else if (isSelected) {
+      } else if (isSelected && pendingCount === null) {
         this.activePickupSelections.delete(selectionKey);
+        this.activePickupSelectionCounts.delete(selectionKey);
         didChange = true;
       } else {
         this.activePickupSelections.add(selectionKey);
+        if (pendingCount !== null) {
+          this.activePickupSelectionCounts.set(selectionKey, pendingCount);
+        }
         didChange = true;
       }
 
@@ -29632,7 +30905,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (!focusSelectionInput) {
         focusSelectionInput = selectionInput;
       }
-      changedInputs.push(selectionInput);
+      changedInputs.push(countedSelectionInput);
     }
 
     if (focusSelectionInput) {
@@ -29813,6 +31086,19 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.getPickupSelectableMenuItemsByObjectSymbol(symbol),
       shouldSendInput,
     );
+  }
+
+  private togglePickupSelectionsByGroupAccelerator(
+    accelerator: string,
+    shouldSendInput: boolean,
+  ): boolean {
+    const matchingItems =
+      this.getPickupSelectableMenuItemsByGroupAccelerator(accelerator);
+    if (matchingItems.length === 0) {
+      return false;
+    }
+    this.togglePickupMenuItems(matchingItems, shouldSendInput);
+    return true;
   }
 
   private getActiveQuestionActionButtons(): Array<
@@ -30229,8 +31515,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const refreshAction = this.getQuestionSelectionTileRefreshAction(
       this.activeQuestionText,
     );
+    const pendingCount = this.consumeActiveQuestionPendingCount();
+    const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+      this.getQuestionMenuSelectionInput(selectedItem),
+      pendingCount,
+    );
     this.maybePlayDrinkSoundForQuestionMenuSelection(selectedItem);
-    this.sendInput(this.getQuestionMenuSelectionInput(selectedItem));
+    this.sendInput(countedSelectionInput);
     if (refreshAction) {
       this.requestPlayerTileRefresh(`${refreshAction}-question-selection`);
     }
@@ -30340,6 +31631,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
         displayAccelerator,
         selectionInput,
       );
+      const groupAccelerator =
+        this.isObjectTypeCategoryQuestion(this.activeQuestionText) &&
+        typeof menuItem.groupAccelerator === "string"
+          ? menuItem.groupAccelerator.trim()
+          : "";
+      if (groupAccelerator.length === 1) {
+        this.activeQuestionPageSelectionMap.set(
+          groupAccelerator,
+          selectionInput,
+        );
+      }
       selectableInPage += 1;
     }
 
@@ -30454,6 +31756,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.activeQuestionMenuItems.length > 0 &&
       this.isMultiSelectLootQuestion(this.activeQuestionText);
     this.activePickupSelections.clear();
+    this.activePickupSelectionCounts.clear();
+    this.activeQuestionPendingCountInput = "";
     this.activePickupFocusIndex = 0;
     this.activeQuestionMenuFocusIndex = 0;
     this.activeQuestionActionFocusIndex = -1;
@@ -30490,6 +31794,20 @@ class Nethack3DEngine implements Nethack3DEngineController {
         typeof item.accelerator === "string" ? item.accelerator : "",
       )
       .filter((value) => value.length > 0);
+    const selectedCounts: Record<string, number> = {};
+    for (const item of this.activeQuestionVisibleMenuItems) {
+      if (!this.isSelectableQuestionMenuItem(item)) {
+        continue;
+      }
+      const selectionKey = this.getMenuSelectionStateKey(item);
+      const count = this.activePickupSelectionCounts.get(selectionKey);
+      if (!Number.isFinite(count) || Number(count) < 1) {
+        continue;
+      }
+      selectedCounts[this.getQuestionMenuSelectionInput(item)] = Math.trunc(
+        Number(count),
+      );
+    }
     const allPickupSelected = this.isAllPickupItemsSelected();
     const activeActionButton = this.getActiveQuestionActionButton();
     const activeMenuSelectionInput =
@@ -30506,6 +31824,11 @@ class Nethack3DEngine implements Nethack3DEngineController {
       menuItems: [...this.activeQuestionVisibleMenuItems],
       isPickupDialog: this.activeQuestionIsPickupDialog,
       selectedAccelerators,
+      selectedCounts,
+      supportsSelectionCount: this.isCountableInventorySelectionQuestion(
+        this.activeQuestionText,
+      ),
+      pendingSelectionCount: this.getActiveQuestionPendingCount(),
       allPickupSelected,
       activePickupSelectionInput: this.activeQuestionIsPickupDialog
         ? activeMenuSelectionInput
@@ -30946,6 +32269,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.activeQuestionPageSelectionMap.clear();
     this.activeQuestionIsPickupDialog = false;
     this.activePickupSelections.clear();
+    this.activePickupSelectionCounts.clear();
+    this.activeQuestionPendingCountInput = "";
     this.activePickupFocusIndex = 0;
     this.activeQuestionMenuFocusIndex = 0;
     this.activeQuestionActionFocusIndex = -1;
@@ -30961,7 +32286,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     ) {
       return null;
     }
-    const raw = input.slice(this.menuSelectionInputPrefix.length).trim();
+    const raw = input
+      .slice(this.menuSelectionInputPrefix.length)
+      .trim()
+      .split(":")[0];
     if (!/^-?\d+$/.test(raw)) {
       return null;
     }
@@ -31045,16 +32373,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const selectionKey = this.getMenuSelectionStateKey(menuItem);
     const canonicalSelectionInput =
       this.getQuestionMenuSelectionInput(menuItem);
+    const pendingCount = this.consumeActiveQuestionPendingCount();
+    const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+      canonicalSelectionInput,
+      pendingCount,
+    );
     this.setActivePickupFocusBySelectionInput(canonicalSelectionInput);
 
-    if (this.activePickupSelections.has(selectionKey)) {
+    if (
+      this.activePickupSelections.has(selectionKey) &&
+      pendingCount === null
+    ) {
       this.activePickupSelections.delete(selectionKey);
+      this.activePickupSelectionCounts.delete(selectionKey);
     } else {
       this.activePickupSelections.add(selectionKey);
+      if (pendingCount !== null) {
+        this.activePickupSelectionCounts.set(selectionKey, pendingCount);
+      }
     }
 
     if (shouldSendInput) {
-      this.sendInput(canonicalSelectionInput);
+      this.sendInput(countedSelectionInput);
     }
     this.updatePickupFocusVisualState();
   }
@@ -31077,6 +32417,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (this.fpsTouchRunButtonHoldTimerId !== null) {
       window.clearTimeout(this.fpsTouchRunButtonHoldTimerId);
       this.fpsTouchRunButtonHoldTimerId = null;
+    }
+    if (this.minimapActionRailSyncRafId !== null) {
+      window.cancelAnimationFrame(this.minimapActionRailSyncRafId);
+      this.minimapActionRailSyncRafId = null;
     }
     this.clearGameOverUiRevealDelayState();
     this.clearMapTouchContextHoldTimer();
@@ -31108,6 +32452,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.session?.dispose();
     this.session = null;
     this.messageSoundHooks.dispose();
+    this.clearPendingIncomingDamageRumble();
+    this.webHaptics?.destroy();
+    this.webHaptics = null;
     this.fmodRuntime.dispose();
 
     this.directionPromptOverlay?.dispose();
@@ -31233,12 +32580,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.findActiveMenuItemBySelectionInput(resolvedChoice);
     if (selectedItem) {
       const selectionInput = this.getQuestionMenuSelectionInput(selectedItem);
+      const pendingCount = this.consumeActiveQuestionPendingCount();
+      const countedSelectionInput = this.encodeMenuSelectionInputWithCount(
+        selectionInput,
+        pendingCount,
+      );
       const refreshAction = this.getQuestionSelectionTileRefreshAction(
         this.activeQuestionText,
       );
       this.setActiveQuestionMenuFocusBySelectionInput(selectionInput);
       this.maybePlayDrinkSoundForQuestionMenuSelection(selectedItem);
-      this.sendInput(selectionInput);
+      this.sendInput(countedSelectionInput);
       if (refreshAction) {
         this.requestPlayerTileRefresh(`${refreshAction}-question-selection`);
       }
@@ -31251,8 +32603,29 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     this.maybePlayDrinkSoundForQuestionAnswer(resolvedChoice);
-    this.sendInput(resolvedChoice);
+    this.sendInputWithPendingQuestionCount(resolvedChoice);
     this.hideQuestion();
+  }
+
+  public stepQuestionSelectionCount(delta: number): void {
+    if (!Number.isFinite(delta) || delta === 0) {
+      return;
+    }
+    const currentCount = this.getActiveQuestionPendingCount() ?? 1;
+    const nextCount = currentCount + Math.trunc(delta);
+    this.setActiveQuestionPendingCount(nextCount > 1 ? nextCount : null);
+  }
+
+  public setQuestionSelectionCount(count: number | null): void {
+    if (count === null || !Number.isFinite(count) || count <= 1) {
+      this.setActiveQuestionPendingCount(null);
+      return;
+    }
+    this.setActiveQuestionPendingCount(count);
+  }
+
+  public clearQuestionSelectionCount(): void {
+    this.clearActiveQuestionPendingCount(true);
   }
 
   public syncQuestionSelectionFocus(selectionInput: string): void {
@@ -31371,6 +32744,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
         break;
     }
 
+    if (
+      this.isObjectTypeCategoryQuestion(this.activeQuestionText) &&
+      this.togglePickupSelectionsByGroupAccelerator(key, true)
+    ) {
+      return true;
+    }
+
     if (this.pickupMenuObjectClassSymbols.has(key)) {
       this.togglePickupSelectionsByObjectSymbol(key, true);
       return true;
@@ -31401,6 +32781,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
   public cancelActivePrompt(): void {
     if (this.isTextInputActive) {
       this.submitTextInput("");
+      return;
+    }
+    if (this.positionInputModeActive) {
+      this.cancelPositionInputMode("active prompt cancel");
       return;
     }
     this.clearPendingThrownWeaponDirectionSound();
@@ -31941,6 +33325,37 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return extmenuEnabled;
   }
 
+  private extractNumberPadModeEnabledFromOptionTokens(
+    rawTokens: unknown,
+  ): boolean | null {
+    const tokens = sanitizeStartupInitOptionTokens(rawTokens);
+    let numberPadEnabled: boolean | null = null;
+    for (const token of tokens) {
+      const normalizedToken = String(token || "")
+        .trim()
+        .toLowerCase();
+      if (!normalizedToken.startsWith("number_pad:")) {
+        continue;
+      }
+      const value = normalizedToken.slice("number_pad:".length).trim();
+      if (value === "0" || value === "-1") {
+        numberPadEnabled = false;
+      } else if (value) {
+        numberPadEnabled = true;
+      }
+    }
+    return numberPadEnabled;
+  }
+
+  private resolveStartupNumberPadModeEnabled(rawTokens: unknown): boolean {
+    const numberPadEnabled =
+      this.extractNumberPadModeEnabledFromOptionTokens(rawTokens);
+    if (typeof numberPadEnabled === "boolean") {
+      return numberPadEnabled;
+    }
+    return true;
+  }
+
   private startMetaCommandMode(): void {
     if (!this.canStartMetaCommandMode()) {
       return;
@@ -32387,12 +33802,18 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     const element = document.createElement("div");
+    const metrics = document.createElement("div");
+    const controls = document.createElement("label");
+    const controlsText = document.createElement("span");
+    const overrideInput = document.createElement("input");
     element.className = "nh3d-fps-debug-display";
-    element.setAttribute("aria-hidden", "true");
     element.style.position = "fixed";
     element.style.right = "12px";
     element.style.bottom = "12px";
-    element.style.padding = "4px 8px";
+    element.style.display = "none";
+    element.style.flexDirection = "column";
+    element.style.gap = "6px";
+    element.style.padding = "6px 8px";
     element.style.borderRadius = "6px";
     element.style.border = "1px solid rgba(196, 255, 208, 0.45)";
     element.style.background = "rgba(2, 10, 8, 0.82)";
@@ -32403,13 +33824,86 @@ class Nethack3DEngine implements Nethack3DEngineController {
     element.style.fontWeight = "600";
     element.style.lineHeight = "1.2";
     element.style.letterSpacing = "0.03em";
-    element.style.pointerEvents = "none";
-    element.style.userSelect = "none";
+    element.style.pointerEvents = "auto";
+    element.style.userSelect = "text";
     element.style.zIndex = "4200";
-    element.style.display = "none";
-    element.textContent = "FPS: -- | FT: -- ms | RT: -- ms";
+    element.style.boxShadow = "0 10px 24px rgba(0, 0, 0, 0.28)";
+    element.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+    element.addEventListener("pointerup", (event) => {
+      event.stopPropagation();
+    });
+    element.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    element.addEventListener("focusin", () => {
+      if (document.pointerLockElement === this.renderer.domElement) {
+        document.exitPointerLock?.();
+      }
+      this.fpsPointerLockActive = false;
+    });
+    element.addEventListener("focusout", () => {
+      this.syncFpsPointerLockForUiState(true);
+    });
+
+    metrics.textContent = this.getFpsDebugDisplayMetricsText();
+    metrics.style.whiteSpace = "nowrap";
+
+    controls.style.display = "flex";
+    controls.style.alignItems = "center";
+    controls.style.gap = "6px";
+    controls.style.whiteSpace = "nowrap";
+    controls.style.cursor = "text";
+
+    controlsText.textContent = "Override FPS";
+    controlsText.style.opacity = "0.88";
+
+    overrideInput.type = "number";
+    overrideInput.min = "1";
+    overrideInput.max = "240";
+    overrideInput.step = "1";
+    overrideInput.inputMode = "numeric";
+    overrideInput.placeholder = "auto";
+    overrideInput.value =
+      this.fpsDebugDisplayOverrideFps === null
+        ? ""
+        : String(this.fpsDebugDisplayOverrideFps);
+    overrideInput.style.width = "68px";
+    overrideInput.style.padding = "2px 4px";
+    overrideInput.style.borderRadius = "4px";
+    overrideInput.style.border = "1px solid rgba(196, 255, 208, 0.45)";
+    overrideInput.style.background = "rgba(10, 28, 20, 0.96)";
+    overrideInput.style.color = "#ecfff0";
+    overrideInput.style.font = "inherit";
+    overrideInput.style.fontWeight = "600";
+    overrideInput.style.letterSpacing = "inherit";
+    overrideInput.style.outline = "none";
+    overrideInput.title = "Leave blank to use the real frame rate.";
+    overrideInput.addEventListener("input", () => {
+      this.setFpsDebugDisplayOverrideFpsFromInputValue(overrideInput.value);
+    });
+    overrideInput.addEventListener("blur", () => {
+      this.syncFpsDebugDisplayOverrideInputValue();
+    });
+    overrideInput.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        overrideInput.blur();
+      }
+    });
+    overrideInput.addEventListener("keyup", (event) => {
+      event.stopPropagation();
+    });
+
+    controls.appendChild(controlsText);
+    controls.appendChild(overrideInput);
+    element.appendChild(metrics);
+    element.appendChild(controls);
     document.body.appendChild(element);
     this.fpsDebugDisplayElement = element;
+    this.fpsDebugDisplayMetricsElement = metrics;
+    this.fpsDebugDisplayOverrideInput = overrideInput;
     return element;
   }
 
@@ -32422,15 +33916,95 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
 
-    element.style.display = visible ? "block" : "none";
+    element.style.display = visible ? "flex" : "none";
     if (!visible) {
+      if (
+        document.activeElement instanceof HTMLElement &&
+        element.contains(document.activeElement)
+      ) {
+        document.activeElement.blur();
+      }
+      this.syncFpsPointerLockForUiState(true);
       return;
     }
     this.fpsDebugDisplaySmoothedFps = null;
     this.fpsDebugDisplaySmoothedFrameTimeMs = null;
     this.fpsDebugDisplaySmoothedRenderTimeMs = null;
     this.fpsDebugDisplayLastRenderedSignature = null;
-    element.textContent = "FPS: -- | FT: -- ms | RT: -- ms";
+    if (this.fpsDebugDisplayMetricsElement) {
+      this.fpsDebugDisplayMetricsElement.textContent =
+        this.getFpsDebugDisplayMetricsText();
+    }
+    this.syncFpsDebugDisplayOverrideInputValue();
+  }
+
+  private getFpsDebugDisplayMetricsText(
+    smoothedFps: number | null = null,
+    smoothedFrameTimeMs: number | null = null,
+    smoothedRenderTimeMs: number | null = null,
+  ): string {
+    const overrideSuffix =
+      this.fpsDebugDisplayOverrideFps === null
+        ? ""
+        : ` | OVR: ${this.fpsDebugDisplayOverrideFps}`;
+    if (
+      smoothedFps === null ||
+      smoothedFrameTimeMs === null ||
+      smoothedRenderTimeMs === null
+    ) {
+      return `FPS: -- | FT: -- ms | RT: -- ms${overrideSuffix}`;
+    }
+    return `FPS: ${Math.max(0, Math.round(smoothedFps))} | FT: ${smoothedFrameTimeMs.toFixed(2)} ms | RT: ${smoothedRenderTimeMs.toFixed(2)} ms${overrideSuffix}`;
+  }
+
+  private syncFpsDebugDisplayOverrideInputValue(): void {
+    const input = this.fpsDebugDisplayOverrideInput;
+    if (!input) {
+      return;
+    }
+    input.value =
+      this.fpsDebugDisplayOverrideFps === null
+        ? ""
+        : String(this.fpsDebugDisplayOverrideFps);
+  }
+
+  private setFpsDebugDisplayOverrideFpsFromInputValue(rawValue: string): void {
+    const trimmed = String(rawValue || "").trim();
+    if (trimmed.length === 0) {
+      this.fpsDebugDisplayOverrideFps = null;
+      this.fpsDebugDisplayLastRenderedSignature = null;
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      return;
+    }
+    this.fpsDebugDisplayOverrideFps = Math.max(
+      1,
+      Math.min(240, Math.round(parsed)),
+    );
+    this.fpsDebugDisplayLastRenderedSignature = null;
+  }
+
+  private getFpsDebugDisplayOverrideFrameIntervalMs(): number | null {
+    const overrideFps = this.fpsDebugDisplayOverrideFps;
+    if (
+      overrideFps === null ||
+      !Number.isFinite(overrideFps) ||
+      overrideFps <= 0
+    ) {
+      return null;
+    }
+    return 1000 / overrideFps;
+  }
+
+  private shouldSkipFrameForFpsDebugOverride(timeMs: number): boolean {
+    const intervalMs = this.getFpsDebugDisplayOverrideFrameIntervalMs();
+    if (intervalMs === null || this.lastFrameTimeMs === null) {
+      return false;
+    }
+    const elapsedMs = timeMs - this.lastFrameTimeMs;
+    return elapsedMs < intervalMs - 0.25;
   }
 
   private updateFpsDebugDisplay(
@@ -32443,8 +34017,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (rawDeltaMs <= 0 || !Number.isFinite(renderDurationMs)) {
       return;
     }
-    const element = this.fpsDebugDisplayElement;
-    if (!element) {
+    const metricsElement = this.fpsDebugDisplayMetricsElement;
+    if (!metricsElement) {
       return;
     }
 
@@ -32476,17 +34050,23 @@ class Nethack3DEngine implements Nethack3DEngineController {
             this.fpsDebugDisplaySmoothingFactor;
     this.fpsDebugDisplaySmoothedRenderTimeMs = smoothedRenderTimeMs;
 
-    const signature = `FPS: ${Math.max(0, Math.round(smoothedFps))} | FT: ${smoothedFrameTimeMs.toFixed(2)} ms | RT: ${smoothedRenderTimeMs.toFixed(2)} ms`;
+    const signature = this.getFpsDebugDisplayMetricsText(
+      smoothedFps,
+      smoothedFrameTimeMs,
+      smoothedRenderTimeMs,
+    );
     if (signature === this.fpsDebugDisplayLastRenderedSignature) {
       return;
     }
     this.fpsDebugDisplayLastRenderedSignature = signature;
-    element.textContent = signature;
+    metricsElement.textContent = signature;
   }
 
   private removeFpsDebugDisplay(): void {
     this.fpsDebugDisplayElement?.remove();
     this.fpsDebugDisplayElement = null;
+    this.fpsDebugDisplayMetricsElement = null;
+    this.fpsDebugDisplayOverrideInput = null;
     this.fpsDebugDisplayVisible = false;
     this.fpsDebugDisplaySmoothedFps = null;
     this.fpsDebugDisplaySmoothedFrameTimeMs = null;
@@ -32912,7 +34492,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
     const candidates = [
       document.querySelector(".top-left-ui.with-stats"),
       document.querySelector(".top-left-ui"),
-      document.querySelector(".nh3d-mobile-log:not(.nh3d-mobile-log-hidden)"),
+      document.querySelector(
+        ".nh3d-mobile-log:not(.nh3d-mobile-log-collapsed)",
+      ),
     ];
 
     for (const candidate of candidates) {
@@ -34254,6 +35836,31 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return null;
   }
 
+  private resolveTravelPositionShortcutKey(
+    event: KeyboardEvent,
+    priorityOnly: boolean = false,
+  ): string | null {
+    if (this.positionInputOrigin !== "travel") {
+      return null;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey) {
+      return null;
+    }
+    if (typeof event.key !== "string" || event.key.length !== 1) {
+      return null;
+    }
+    if (event.key === " ") {
+      return null;
+    }
+    if (
+      priorityOnly &&
+      !/^[mMoOdDxXaAzZ@?$#!"*,;:<>\[\]{}()+=_\-|\\^~]$/.test(event.key)
+    ) {
+      return null;
+    }
+    return event.key;
+  }
+
   private tryResolvePositionInputMovementKey(
     event: KeyboardEvent,
   ): string | null {
@@ -34302,6 +35909,25 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return this.playMode === "fps";
   }
 
+  private isFpsWasdKeyboardMovementEnabled(): boolean {
+    return this.clientOptions.fpsWasdKeyboardMovementEnabled !== false;
+  }
+
+  private isWasdKeyboardInput(key: string, code: string = ""): boolean {
+    const normalizedKey = String(key || "").toLowerCase();
+    if (
+      normalizedKey === "w" ||
+      normalizedKey === "a" ||
+      normalizedKey === "s" ||
+      normalizedKey === "d"
+    ) {
+      return true;
+    }
+    return (
+      code === "KeyW" || code === "KeyA" || code === "KeyS" || code === "KeyD"
+    );
+  }
+
   private getDirectionInputFromMapDelta(dx: number, dy: number): string | null {
     if (dx === 0 && dy === 0) {
       return null;
@@ -34327,6 +35953,116 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (dx < 0 && dy > 0) return "b";
     if (dx > 0 && dy > 0) return "n";
     return null;
+  }
+
+  private isFarLookPositionInputMode(): boolean {
+    return (
+      this.positionInputModeActive && this.positionInputOrigin !== "travel"
+    );
+  }
+
+  private isPositionCursorAtTile(x: number, y: number): boolean {
+    return (
+      Number.isFinite(this.positionCursor.x) &&
+      Number.isFinite(this.positionCursor.y) &&
+      Math.trunc(this.positionCursor.x) === Math.trunc(x) &&
+      Math.trunc(this.positionCursor.y) === Math.trunc(y)
+    );
+  }
+
+  private buildPositionCursorMovementInputSequence(
+    targetX: number,
+    targetY: number,
+  ): string[] {
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      return [];
+    }
+    if (
+      !Number.isFinite(this.positionCursor.x) ||
+      !Number.isFinite(this.positionCursor.y)
+    ) {
+      return [];
+    }
+
+    let cursorX = Math.trunc(this.positionCursor.x);
+    let cursorY = Math.trunc(this.positionCursor.y);
+    const destinationX = Math.trunc(targetX);
+    const destinationY = Math.trunc(targetY);
+    const inputs: string[] = [];
+    const maxSteps = 256;
+
+    while (
+      (cursorX !== destinationX || cursorY !== destinationY) &&
+      inputs.length < maxSteps
+    ) {
+      const stepX = Math.sign(destinationX - cursorX);
+      const stepY = Math.sign(destinationY - cursorY);
+      const input = this.getDirectionInputFromMapDelta(stepX, stepY);
+      if (!input) {
+        break;
+      }
+      inputs.push(input);
+      cursorX += stepX;
+      cursorY += stepY;
+    }
+
+    return cursorX === destinationX && cursorY === destinationY ? inputs : [];
+  }
+
+  private getPositionInputPointerTarget(
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } | null {
+    const directTarget = this.resolvePointerTargetTileFromClientCoordinates(
+      clientX,
+      clientY,
+    );
+    if (directTarget) {
+      return directTarget;
+    }
+
+    const gridTarget = this.getGridPositionFromClientCoordinates(
+      clientX,
+      clientY,
+    );
+    if (!gridTarget) {
+      return null;
+    }
+    return {
+      x: Math.round(gridTarget.x),
+      y: Math.round(gridTarget.y),
+    };
+  }
+
+  private handleFarLookPositionPointerSelection(
+    clientX: number,
+    clientY: number,
+    source: string,
+  ): boolean {
+    if (!this.isFarLookPositionInputMode()) {
+      return false;
+    }
+
+    const target = this.getPositionInputPointerTarget(clientX, clientY);
+    if (!target) {
+      return false;
+    }
+
+    if (this.isPositionCursorAtTile(target.x, target.y)) {
+      this.logClickLookTileDebug(source, target.x, target.y);
+      this.sendMouseInput(target.x, target.y, 0);
+      return true;
+    }
+
+    const movementInputs = this.buildPositionCursorMovementInputSequence(
+      target.x,
+      target.y,
+    );
+    this.setPositionCursorPosition(target.x, target.y);
+    if (movementInputs.length > 0) {
+      this.sendInputSequence(movementInputs);
+    }
+    return true;
   }
 
   private resolveFpsLookSensitivityScale(axis: "x" | "y"): number {
@@ -34482,6 +36218,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     code: string = "",
   ): string | null {
     const lower = key.toLowerCase();
+    if (
+      !this.isFpsWasdKeyboardMovementEnabled() &&
+      this.isWasdKeyboardInput(key, code)
+    ) {
+      return null;
+    }
     if (this.numberPadModeEnabled && /^[hjklyubn]$/.test(lower)) {
       return null;
     }
@@ -34551,6 +36293,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     key: string,
     code: string = "",
   ): string | null {
+    if (
+      !this.isFpsWasdKeyboardMovementEnabled() &&
+      this.isWasdKeyboardInput(key, code)
+    ) {
+      return null;
+    }
+
     const aim = this.getFpsAimDirectionFromCamera();
     if (!aim) {
       return null;
@@ -34662,6 +36411,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
     event: KeyboardEvent,
   ): string | null {
     const lowerKey = event.key.toLowerCase();
+    if (
+      !this.isFpsWasdKeyboardMovementEnabled() &&
+      this.isWasdKeyboardInput(event.key, event.code)
+    ) {
+      return lowerKey === "s" ? "s" : null;
+    }
     if (lowerKey === "a" || lowerKey === "d") {
       return "Escape";
     }
@@ -34815,12 +36570,22 @@ class Nethack3DEngine implements Nethack3DEngineController {
       (this.isInQuestion && !allowDirectionLook) ||
       (this.isInDirectionQuestion && !allowDirectionLook) ||
       this.isTextInputActive ||
+      this.isFpsDebugDisplayInputFocused() ||
       this.metaCommandModeActive ||
       this.fpsCrosshairContextMenuOpen ||
       this.isInventoryDialogOpen() ||
       this.isInfoDialogOpen() ||
       modalBlocksPointerLock
     );
+  }
+
+  private isFpsDebugDisplayInputFocused(): boolean {
+    const element = this.fpsDebugDisplayElement;
+    const activeElement =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    return Boolean(element && activeElement && element.contains(activeElement));
   }
 
   private isOnlyDirectionDialogVisible(): boolean {
@@ -34866,6 +36631,8 @@ class Nethack3DEngine implements Nethack3DEngineController {
   private getModalNavigationDirection(
     event: KeyboardEvent,
   ): "up" | "down" | "left" | "right" | null {
+    // Reserve letter keys for NetHack prompt/menu input so vi keys and FPS
+    // movement bindings do not hijack menu accelerators while a dialog is open.
     switch (event.key) {
       case "ArrowUp":
         return "up";
@@ -34875,26 +36642,6 @@ class Nethack3DEngine implements Nethack3DEngineController {
         return "left";
       case "ArrowRight":
         return "right";
-      case "h":
-      case "H":
-        return this.numberPadModeEnabled ? null : "left";
-      case "l":
-      case "L":
-        return this.numberPadModeEnabled ? null : "right";
-      case "k":
-      case "K":
-      case "y":
-      case "Y":
-      case "u":
-      case "U":
-        return this.numberPadModeEnabled ? null : "up";
-      case "j":
-      case "J":
-      case "b":
-      case "B":
-      case "n":
-      case "N":
-        return this.numberPadModeEnabled ? null : "down";
       default:
         break;
     }
@@ -35264,7 +37011,13 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (this.isKeyboardEventFromInteractiveElement(event.target)) {
-      return;
+      const shouldRoutePromptKey =
+        (this.isInQuestion || this.isInDirectionQuestion) &&
+        event.key !== "Tab" &&
+        !this.isEditableModalKeyboardTarget(event.target);
+      if (!shouldRoutePromptKey) {
+        return;
+      }
     }
 
     if (this.handleMetaCommandKeyDown(event)) {
@@ -35415,6 +37168,15 @@ class Nethack3DEngine implements Nethack3DEngineController {
       !this.isInQuestion &&
       !this.isInDirectionQuestion
     ) {
+      const priorityTravelShortcutKey = this.resolveTravelPositionShortcutKey(
+        event,
+        true,
+      );
+      if (priorityTravelShortcutKey) {
+        event.preventDefault();
+        this.sendInput(priorityTravelShortcutKey);
+        return;
+      }
       const positionMoveKey = this.tryResolvePositionInputMovementKey(event);
       if (positionMoveKey) {
         event.preventDefault();
@@ -35425,6 +37187,12 @@ class Nethack3DEngine implements Nethack3DEngineController {
       if (positionConfirmKey) {
         event.preventDefault();
         this.sendInput(positionConfirmKey);
+        return;
+      }
+      const travelShortcutKey = this.resolveTravelPositionShortcutKey(event);
+      if (travelShortcutKey) {
+        event.preventDefault();
+        this.sendInput(travelShortcutKey);
         return;
       }
       event.preventDefault();
@@ -35521,7 +37289,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
       }
 
-      if (event.key === "f" || event.key === "F") {
+      if (
+        this.isFpsWasdKeyboardMovementEnabled() &&
+        (event.key === "f" || event.key === "F")
+      ) {
         event.preventDefault();
         this.sendInput("s");
         return;
@@ -35698,6 +37469,10 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const isMenuQuestion = this.activeQuestionMenuItems.length > 0;
       const modalDirection = this.getModalNavigationDirection(event);
 
+      if (this.handleQuestionMenuCountKeyDown(event)) {
+        return;
+      }
+
       if (
         !isMenuQuestion &&
         (modalDirection === "left" || modalDirection === "right")
@@ -35722,7 +37497,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         }
         this.updateNumberPadModeFromChoice(event.key);
         this.maybePlayDrinkSoundForQuestionAnswer(event.key);
-        this.sendInput(event.key);
+        this.sendInputWithPendingQuestionCount(event.key);
         this.hideQuestion();
         return;
       }
@@ -35802,7 +37577,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
           } else if (!isMenuQuestion) {
             // Send the key anyway in case it's a valid NetHack command
             this.updateNumberPadModeFromChoice(event.key);
-            this.sendInput(event.key);
+            this.sendInputWithPendingQuestionCount(event.key);
           }
         }
       } else {
@@ -35846,7 +37621,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
         } else if (!isMenuQuestion) {
           this.updateNumberPadModeFromChoice(event.key);
           this.maybePlayDrinkSoundForQuestionAnswer(event.key);
-          this.sendInput(event.key);
+          this.sendInputWithPendingQuestionCount(event.key);
           this.hideQuestion();
         } else {
           return;
@@ -36393,8 +38168,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (document.querySelector(".nh3d-mobile-actions-sheet")) {
       return true;
     }
+    if (document.querySelector(".nh3d-wizard-commands-sheet.is-visible")) {
+      return true;
+    }
     const mobileLog = document.querySelector(".nh3d-mobile-log");
-    if (mobileLog && !mobileLog.classList.contains("nh3d-mobile-log-hidden")) {
+    if (
+      mobileLog &&
+      !mobileLog.classList.contains("nh3d-mobile-log-collapsed")
+    ) {
       return true;
     }
     return false;
@@ -38564,18 +40345,99 @@ class Nethack3DEngine implements Nethack3DEngineController {
     return normalizeNh3dControllerBindings(defaultNh3dControllerBindings);
   }
 
+  private shouldReadAndroidNativeGamepadState(): boolean {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    if (this.getNativeCapacitorPlatform() === "android") {
+      return true;
+    }
+    return (
+      typeof navigator !== "undefined" &&
+      /\bAndroid\b/i.test(navigator.userAgent || "")
+    );
+  }
+
+  private normalizeAndroidNativeGamepadAxes(rawValue: unknown): number[] {
+    const axes = [0, 0, 0, 0];
+    if (!Array.isArray(rawValue)) {
+      return axes;
+    }
+    for (let index = 0; index < axes.length; index += 1) {
+      const value = Number(rawValue[index]);
+      axes[index] = Number.isFinite(value)
+        ? THREE.MathUtils.clamp(value, -1, 1)
+        : 0;
+    }
+    return axes;
+  }
+
+  private normalizeAndroidNativeGamepadButtons(
+    rawValue: unknown,
+  ): GamepadButton[] {
+    const buttonCount = 17;
+    const buttons: GamepadButton[] = [];
+    const rawButtons = Array.isArray(rawValue) ? rawValue : [];
+    for (let index = 0; index < buttonCount; index += 1) {
+      const value = THREE.MathUtils.clamp(Number(rawButtons[index]) || 0, 0, 1);
+      buttons.push({
+        pressed: value >= 0.5,
+        touched: value > 0,
+        value,
+      });
+    }
+    return buttons;
+  }
+
+  private getAndroidNativeGamepad(): Gamepad | null {
+    if (!this.shouldReadAndroidNativeGamepadState()) {
+      return null;
+    }
+    const androidBridge = (window as Window & {
+      nh3dAndroid?: Nh3dAndroidBridge;
+    }).nh3dAndroid;
+    const rawStateJson = androidBridge?.getGamepadStateJson?.();
+    if (!rawStateJson) {
+      return null;
+    }
+    let state: Nh3dAndroidNativeGamepadState;
+    try {
+      state = JSON.parse(rawStateJson) as Nh3dAndroidNativeGamepadState;
+    } catch {
+      return null;
+    }
+    if (state.connected !== true) {
+      return null;
+    }
+    const timestamp = Number(state.timestamp);
+    return {
+      axes: this.normalizeAndroidNativeGamepadAxes(state.axes),
+      buttons: this.normalizeAndroidNativeGamepadButtons(state.buttons),
+      connected: true,
+      hapticActuators: [],
+      id: "Android native controller",
+      index: 0,
+      mapping: "standard",
+      timestamp: Number.isFinite(timestamp) ? timestamp : 0,
+      vibrationActuator: null,
+    } as unknown as Gamepad;
+  }
+
   private getConnectedGamepads(): Gamepad[] {
+    const connected: Gamepad[] = [];
+    const androidNativeGamepad = this.getAndroidNativeGamepad();
+    if (androidNativeGamepad) {
+      connected.push(androidNativeGamepad);
+    }
     if (typeof navigator === "undefined" || !navigator.getGamepads) {
-      return [];
+      return connected;
     }
     const pads = navigator.getGamepads();
-    if (!pads || pads.length === 0) {
-      return [];
-    }
-    const connected: Gamepad[] = [];
-    for (const gamepad of pads) {
-      if (gamepad && gamepad.connected) {
-        connected.push(gamepad);
+    if (pads && pads.length > 0) {
+      for (const gamepad of pads) {
+        if (gamepad && gamepad.connected) {
+          connected.push(gamepad);
+        }
       }
     }
     return connected;
@@ -39314,6 +41176,34 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return null;
     }
     return this.getDirectionInputFromMapDelta(direction.dx, direction.dy);
+  }
+
+  private resolveControllerGameplayDirectionInputFromAxes(
+    axisX: number,
+    axisY: number,
+    deadzone: number,
+  ): string | null {
+    if (!Number.isFinite(axisX) || !Number.isFinite(axisY)) {
+      return null;
+    }
+    const localDirection = this.resolveDirectionKeyFromDelta(
+      axisX,
+      axisY,
+      deadzone,
+    );
+    if (!localDirection) {
+      return null;
+    }
+    if (this.isCameraRelativeMovementEnabled()) {
+      return this.resolveCameraRelativeDirectionInputFromLocalDelta(
+        localDirection.dx,
+        localDirection.dy,
+      );
+    }
+    return this.getDirectionInputFromMapDelta(
+      localDirection.dx,
+      localDirection.dy,
+    );
   }
 
   private getVerticalDirectionPromptInputFromControllerAxes(
@@ -40155,6 +42045,50 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.updateMinimapPresentation();
   }
 
+  private finishControllerZoomCameraRotation(): void {
+    if (!this.controllerZoomCameraRotationActive) {
+      return;
+    }
+    this.controllerZoomCameraRotationActive = false;
+    this.queueCameraYawSnapToNearest45();
+  }
+
+  private updateControllerZoomCameraRotation(
+    axisX: number,
+    axisY: number,
+    zoomModifierActive: boolean,
+    deltaSeconds: number,
+  ): void {
+    const yawAxis =
+      zoomModifierActive && Math.abs(axisX) > this.controllerAxisDeadzone
+        ? axisX
+        : 0;
+    const pitchAxis =
+      zoomModifierActive && Math.abs(axisY) > this.controllerAxisDeadzone
+        ? axisY
+        : 0;
+    if (yawAxis === 0 && pitchAxis === 0) {
+      this.finishControllerZoomCameraRotation();
+      return;
+    }
+    this.clearCameraYawSnapTarget();
+    if (yawAxis !== 0) {
+      this.cameraYaw = this.wrapAngle(
+        this.cameraYaw +
+          yawAxis * this.controllerCameraRotateRadPerSec * deltaSeconds,
+      );
+    }
+    if (pitchAxis !== 0) {
+      this.cameraPitch = THREE.MathUtils.clamp(
+        this.cameraPitch +
+          pitchAxis * this.controllerCameraRotateRadPerSec * deltaSeconds,
+        this.minCameraPitch,
+        this.maxCameraPitch,
+      );
+    }
+    this.controllerZoomCameraRotationActive = true;
+  }
+
   private handleControllerGameplayInput(
     snapshot: ControllerActionSnapshot,
     deltaSeconds: number,
@@ -40198,21 +42132,21 @@ class Nethack3DEngine implements Nethack3DEngineController {
     if (!this.isFpsMode() && zoomModifierActive) {
       const leftZoomAxis =
         Math.abs(leftY) > this.controllerAxisDeadzone ? leftY : 0;
-      const rightZoomAxis =
-        Math.abs(rightY) > this.controllerAxisDeadzone ? rightY : 0;
-      const zoomAxis =
-        Math.abs(leftZoomAxis) >= Math.abs(rightZoomAxis)
-          ? leftZoomAxis
-          : rightZoomAxis;
-      if (zoomAxis !== 0) {
+      if (leftZoomAxis !== 0) {
         this.cameraDistance = THREE.MathUtils.clamp(
           this.cameraDistance +
-            zoomAxis * this.controllerZoomDistancePerSec * deltaSeconds,
+            leftZoomAxis * this.controllerZoomDistancePerSec * deltaSeconds,
           this.minDistance,
           this.maxDistance,
         );
       }
     }
+    this.updateControllerZoomCameraRotation(
+      rightX,
+      rightY,
+      zoomModifierActive,
+      deltaSeconds,
+    );
     if (snapshot.pressed.cancel_or_context) {
       this.openContextActionsFromController();
     }
@@ -40303,59 +42237,65 @@ class Nethack3DEngine implements Nethack3DEngineController {
       const panSpeed =
         this.controllerCameraPanTilesPerSec *
         (runModifierActive ? this.controllerCameraPanRunSpeedMultiplier : 1);
-      this.isCameraCenteredOnPlayer = false;
-      this.cameraPanX += rightX * panSpeed * deltaSeconds;
-      this.cameraPanY -= rightY * panSpeed * deltaSeconds;
-      this.cameraPanTargetX = this.cameraPanX;
-      this.cameraPanTargetY = this.cameraPanY;
+      this.panThirdPersonCameraByScreenDelta(
+        rightX,
+        rightY,
+        panSpeed * deltaSeconds,
+        -1,
+      );
     }
 
-    const dpadDirectionInput = this.getDirectionInputFromControllerAxes(
-      dpadX,
-      dpadY,
-      this.controllerAxisDeadzone,
-    );
+    const dpadDirectionInput =
+      this.resolveControllerGameplayDirectionInputFromAxes(
+        dpadX,
+        dpadY,
+        this.controllerAxisDeadzone,
+      );
     this.updateControllerDpadMovePreview(dpadDirectionInput, runModifierActive);
 
-    const leftDirectionInput = this.getDirectionInputFromControllerAxes(
-      zoomModifierActive ? 0 : leftX,
-      zoomModifierActive ? 0 : leftY,
-      this.controllerAxisDeadzone,
-    );
+    const leftDirectionInput =
+      this.resolveControllerGameplayDirectionInputFromAxes(
+        zoomModifierActive ? 0 : leftX,
+        zoomModifierActive ? 0 : leftY,
+        this.controllerAxisDeadzone,
+      );
+    const previousLeftStickMovePreviewInput =
+      this.controllerLeftStickMovePreviewInput;
     if (leftDirectionInput) {
       this.controllerLeftStickMovePreviewInput = leftDirectionInput;
       this.setControllerMovePreviewDirection(leftDirectionInput);
-    } else if (this.controllerLeftStickMovePreviewInput) {
+    }
+
+    let confirmConsumedMovement = false;
+    const confirmedLeftStickMoveInput =
+      snapshot.pressed.confirm && !dpadDirectionInput
+        ? leftDirectionInput ?? previousLeftStickMovePreviewInput
+        : leftDirectionInput;
+    if (snapshot.pressed.confirm && confirmedLeftStickMoveInput) {
+      this.submitControllerDirectionalInput(
+        confirmedLeftStickMoveInput,
+        runModifierActive,
+        { preferMouseMove: true },
+      );
+      confirmConsumedMovement = true;
+      // Keep a held stick direction armed so the next move highlight can
+      // advance immediately after the player position updates. Android WebView
+      // can briefly report a centered axis on the same frame as A/RT.
+      this.controllerLeftStickMovePreviewInput = confirmedLeftStickMoveInput;
+      this.setControllerMovePreviewDirection(confirmedLeftStickMoveInput);
+    }
+
+    if (
+      !leftDirectionInput &&
+      !confirmConsumedMovement &&
+      this.controllerLeftStickMovePreviewInput
+    ) {
       this.controllerLeftStickMovePreviewInput = null;
       if (this.controllerDpadMovePreviewInput) {
         this.setControllerMovePreviewDirection(
           this.controllerDpadMovePreviewInput,
         );
       } else {
-        this.controllerMoveHighlightTile = null;
-      }
-    }
-
-    let confirmConsumedMovement = false;
-    if (snapshot.pressed.confirm && this.controllerLeftStickMovePreviewInput) {
-      this.submitControllerDirectionalInput(
-        this.controllerLeftStickMovePreviewInput,
-        runModifierActive,
-        { preferMouseMove: true },
-      );
-      confirmConsumedMovement = true;
-      if (leftDirectionInput) {
-        // Keep a held stick direction armed so the next move highlight can
-        // advance immediately after the player position updates.
-        this.controllerLeftStickMovePreviewInput = leftDirectionInput;
-        this.setControllerMovePreviewDirection(leftDirectionInput);
-      } else if (this.controllerDpadMovePreviewInput) {
-        this.controllerLeftStickMovePreviewInput = null;
-        this.setControllerMovePreviewDirection(
-          this.controllerDpadMovePreviewInput,
-        );
-      } else {
-        this.controllerLeftStickMovePreviewInput = null;
         this.controllerMoveHighlightTile = null;
       }
     }
@@ -40549,6 +42489,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
       this.clearControllerDirectionPromptPreview();
       this.clearControllerMovePreview();
       this.clearControllerDialogSliderInteraction();
+      this.finishControllerZoomCameraRotation();
       this.controllerConfirmRearmPending = false;
       this.controllerCancelRearmPending = false;
       this.controllerFpsDirectionPromptUiUntilMs = 0;
@@ -40579,6 +42520,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     }
 
     if (this.isControllerUiInputContextActive()) {
+      this.finishControllerZoomCameraRotation();
       this.handleControllerDialogInput(snapshot, deltaSeconds);
       return;
     }
@@ -40586,6 +42528,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.clearControllerDialogDpadRepeat();
     this.clearControllerDialogSliderInteraction();
     this.clearControllerMovePreview();
+    this.finishControllerZoomCameraRotation();
     this.resetControllerVirtualCursor();
   }
 
@@ -40928,6 +42871,17 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return false;
     }
 
+    if (
+      event.button === 0 &&
+      this.handleFarLookPositionPointerSelection(
+        event.clientX,
+        event.clientY,
+        "mouse-primary",
+      )
+    ) {
+      return true;
+    }
+
     const target = this.getClickedTilePosition(event);
     if (!target && event.button === 0) {
       this.pendingPointerAttackTargetContext = null;
@@ -41067,7 +43021,14 @@ class Nethack3DEngine implements Nethack3DEngineController {
         document.pointerLockElement === this.renderer.domElement)
     ) {
       event.preventDefault();
-      this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+      const handledFarLookPointer = this.handleFarLookPositionPointerSelection(
+        event.clientX,
+        event.clientY,
+        "mouse-primary",
+      );
+      if (!handledFarLookPointer && !this.isFarLookPositionInputMode()) {
+        this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+      }
       return;
     }
 
@@ -41832,16 +43793,27 @@ class Nethack3DEngine implements Nethack3DEngineController {
                 consumed = true;
                 continue;
               }
-              this.logClickLookTileDebug(
-                "touch-primary",
-                this.positionCursor.x,
-                this.positionCursor.y,
-              );
-              this.sendMouseInput(
-                this.positionCursor.x,
-                this.positionCursor.y,
-                0,
-              );
+              const handledFarLookPointer =
+                this.handleFarLookPositionPointerSelection(
+                  touch.clientX,
+                  touch.clientY,
+                  "touch-primary",
+                );
+              if (
+                !handledFarLookPointer &&
+                !this.isFarLookPositionInputMode()
+              ) {
+                this.logClickLookTileDebug(
+                  "touch-primary",
+                  this.positionCursor.x,
+                  this.positionCursor.y,
+                );
+                this.sendMouseInput(
+                  this.positionCursor.x,
+                  this.positionCursor.y,
+                  0,
+                );
+              }
               consumed = true;
             }
           }
@@ -41854,7 +43826,28 @@ class Nethack3DEngine implements Nethack3DEngineController {
             this.fpsTouchMoveGesture = null;
             const dx = touch.clientX - gesture.startX;
             const dy = touch.clientY - gesture.startY;
+            const distance = Math.hypot(dx, dy);
             const durationMs = nowMs - gesture.startedAtMs;
+            const isTap =
+              distance < this.fpsTouchLookMoveThresholdPx &&
+              durationMs <= this.fpsTouchTapMaxDurationMs;
+            if (isTap) {
+              if (this.releaseDeferredGameOverUiReveal()) {
+                consumed = true;
+                continue;
+              }
+              const handledFarLookPointer =
+                this.handleFarLookPositionPointerSelection(
+                  touch.clientX,
+                  touch.clientY,
+                  "touch-primary",
+                );
+              if (handledFarLookPointer || this.isFarLookPositionInputMode()) {
+                consumed = true;
+                continue;
+              }
+            }
+
             const fpsMoveInput =
               durationMs <= this.touchSwipeMaxDurationMs
                 ? this.resolveFpsMovementInputFromSwipe(dx, dy)
@@ -42030,14 +44023,24 @@ class Nethack3DEngine implements Nethack3DEngineController {
         Number.isFinite(this.positionCursor.x) &&
         Number.isFinite(this.positionCursor.y)
       ) {
-        this.logClickLookTileDebug(
-          "touch-primary",
-          this.positionCursor.x,
-          this.positionCursor.y,
-        );
-        this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
-        if (event.cancelable) {
-          event.preventDefault();
+        const handledFarLookPointer =
+          this.handleFarLookPositionPointerSelection(
+            touch.clientX,
+            touch.clientY,
+            "touch-primary",
+          );
+        if (!handledFarLookPointer && !this.isFarLookPositionInputMode()) {
+          this.logClickLookTileDebug(
+            "touch-primary",
+            this.positionCursor.x,
+            this.positionCursor.y,
+          );
+          this.sendMouseInput(this.positionCursor.x, this.positionCursor.y, 0);
+        }
+        if (handledFarLookPointer || !this.isFarLookPositionInputMode()) {
+          if (event.cancelable) {
+            event.preventDefault();
+          }
         }
       }
       return;
@@ -42358,6 +44361,7 @@ class Nethack3DEngine implements Nethack3DEngineController {
     this.camera.updateProjectionMatrix();
     this.updateRendererResolution();
     this.recenterCameraOnPlayerIfNeeded();
+    this.scheduleMinimapActionRailOverlapSync();
     this.syncFpsHeldWeaponAnimationDebugPanelPosition();
   }
 
@@ -42629,6 +44633,9 @@ class Nethack3DEngine implements Nethack3DEngineController {
       return;
     }
     this.animationFrameId = requestAnimationFrame(this.animateFrameCallback);
+    if (this.shouldSkipFrameForFpsDebugOverride(timeMs)) {
+      return;
+    }
     const rawDeltaMs =
       this.lastFrameTimeMs === null ? 1000 / 60 : timeMs - this.lastFrameTimeMs;
     this.lastFrameTimeMs = timeMs;

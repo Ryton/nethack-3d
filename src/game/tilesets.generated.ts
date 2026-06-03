@@ -7,7 +7,7 @@ export type GeneratedTilesetManifestEntry = {
   readonly label: string;
   readonly path: string;
   readonly tileSize: number;
-  readonly tileLayoutVersion: "slashem" | "3.4.3" | "3.6.7" | "3.7" | "evilhack";
+  readonly tileLayoutVersion: "slashem" | "3.4.3" | "3.6.7" | "5.0" | "evilhack";
 };
 
 export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestEntry> =
@@ -61,16 +61,16 @@ export const GENERATED_TILESET_MANIFEST: ReadonlyArray<GeneratedTilesetManifestE
     "tileLayoutVersion": "3.6.7"
   },
   {
-    "label": "Nevanda (3.7)",
-    "path": "assets/3.7/Nevanda (3.7).png",
+    "label": "Nevanda",
+    "path": "assets/5.0/Nevanda.png",
     "tileSize": 32,
-    "tileLayoutVersion": "3.7"
+    "tileLayoutVersion": "5.0"
   },
   {
-    "label": "Vanilla NetHack Tiles (3.7)",
-    "path": "assets/3.7/Vanilla NetHack Tiles (3.7).png",
+    "label": "Vanilla NetHack Tiles",
+    "path": "assets/5.0/Vanilla NetHack Tiles.png",
     "tileSize": 16,
-    "tileLayoutVersion": "3.7"
+    "tileLayoutVersion": "5.0"
   },
   {
     "label": "Absurdly Evil 9.2",

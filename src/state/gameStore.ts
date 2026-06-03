@@ -68,6 +68,7 @@ type GameStore = {
   extendedCommands: string[];
   positionRequest: string | null;
   positionInputActive: boolean;
+  positionInputOrigin: string | null;
   newGamePrompt: NewGamePromptState;
   gameOver: GameOverState;
   engineController: Nethack3DEngineController | null;
@@ -91,7 +92,7 @@ type GameStore = {
   setRepeatActionVisible: (visible: boolean) => void;
   setExtendedCommands: (commands: string[]) => void;
   setPositionRequest: (text: string | null) => void;
-  setPositionInputActive: (active: boolean) => void;
+  setPositionInputActive: (active: boolean, origin?: string | null) => void;
   setNewGamePrompt: (prompt: NewGamePromptState) => void;
   setGameOver: (state: GameOverState) => void;
   setEngineController: (controller: Nethack3DEngineController | null) => void;
@@ -128,6 +129,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   extendedCommands: [],
   positionRequest: null,
   positionInputActive: false,
+  positionInputOrigin: null,
   newGamePrompt: { visible: false, reason: null },
   gameOver: {
     active: false,
@@ -229,8 +231,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setPositionRequest: (text) => {
     set({ positionRequest: text });
   },
-  setPositionInputActive: (active) => {
-    set({ positionInputActive: Boolean(active) });
+  setPositionInputActive: (active, origin = null) => {
+    const normalized = Boolean(active);
+    set({
+      positionInputActive: normalized,
+      positionInputOrigin:
+        normalized && typeof origin === "string" ? origin : null,
+    });
   },
   setNewGamePrompt: (prompt) => {
     set({ newGamePrompt: prompt });
