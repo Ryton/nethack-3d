@@ -18,7 +18,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-EH_BUILD="$SCRIPT_DIR/build/EvilHack-0.9.2_wasm/EvilHack-0.9.2"
+# Default to EvilHack 0.9.3 (shipped to public/). Override with
+# EVILHACK_VERSION=0.9.2 for the rollback build.
+EVILHACK_VERSION="${EVILHACK_VERSION:-0.9.3}"
+EH_BUILD="$SCRIPT_DIR/build/EvilHack-${EVILHACK_VERSION}_wasm/EvilHack-${EVILHACK_VERSION}"
+echo "Building EvilHack ${EVILHACK_VERSION} from $EH_BUILD"
 NH3D_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 WINSHIM_SRC="$SCRIPT_DIR/evilhack/wasm-wasm/win/winshim_evil.c"
 OUTPUT_JS="$EH_BUILD/src/evilhack.js"
@@ -275,7 +279,7 @@ echo "  .lev files: $(ls "$DAT"/*.lev 2>/dev/null | wc -l) regenerated, vaults.d
 # --- Step 2b: Build nhdat and populate wasm-data ---
 # Always rebuild nhdat to pick up the freshly compiled dungeon file.
 # vaults.dat is not in dat/ by default — extract it from native nhdat if needed.
-NATIVE="$EH_BUILD/EvilHack-0.9.2_native"
+NATIVE="$EH_BUILD/EvilHack-${EVILHACK_VERSION}_native"
 if [ ! -f "$DAT/vaults.dat" ] && [ -f "$NATIVE/dat/nhdat" ]; then
     echo "--- Extracting vaults.dat from native nhdat ---"
     (cd "$DAT" && "$UTIL/dlb_tool" xvf "$NATIVE/dat/nhdat" vaults.dat)
@@ -329,9 +333,11 @@ emcc -O3 \
     -o "$EH_BUILD/src/tile.o"
 echo "  done."
 
-# Exclude evilhack-wasm-shims.o — its symbols duplicate unixmain/unixtty/unixunix
-echo "--- Phase 3: Linking $(ls "$EH_BUILD/src"/*.o | grep -v evilhack-wasm-shims.o | wc -l) object files ---"
-OBJS=$(ls "$EH_BUILD/src"/*.o | grep -v evilhack-wasm-shims.o | tr '\n' ' ')
+# Include evilhack-wasm-shims.o — provides tty_procs stub + other shim symbols
+# (windows.c is compiled with TTY_GRAPHICS via config.h, so it references
+# tty_procs even with our SHIM_GRAPHICS-only recompile).
+echo "--- Phase 3: Linking $(ls "$EH_BUILD/src"/*.o | wc -l) object files ---"
+OBJS=$(ls "$EH_BUILD/src"/*.o | tr '\n' ' ')
 
 emcc $OBJS \
     -O2 \

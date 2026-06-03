@@ -279,6 +279,18 @@ chat /YTk5YTE1YjItODE3Yi00YzlhLTk5NDYtOWVkYzU1ODdlZjY2 , named # building evilha
 - Likely a wasm32-vs-x86_64 struct-layout mismatch deeper in `sp_level_loader`
   or `sp_level_coder` opcode handlers (alignment / padding inside `sp_lev`).
 - Workaround keeps `create_room()` path; vaults absent from generated levels.
+- **June 3, 2026**: same bypass re-applied to EvilHack **0.9.3** `src/mklev.c`
+  `makerooms()` (around the `rndvault_getname()` call) — without it the
+  post-news startup hung in `[EVILHACK_FS_OPEN_SPIN]` on `vlt-*.lev`
+  (`load_special()` silently fails, `rndvault_failed` never set, `makerooms`
+  loops forever picking another random vault). Knox-kludge main-dungeon vault
+  (`create_vault()` branch above) is on a different path and NOT affected.
+- Trade-off: **all random vaults disabled** for the wasm build. Levels still
+  generate via `create_room()` fallback; just no random vault inserts.
+- Proper fix: instrument `load_special()` in wasm32 to log which opcode/struct
+  read fails for a `vlt-*.lev` file; compare `sizeof(sp_lev)`, `sizeof(_opvar)`
+  etc. between native x86_64 and wasm32 — likely a `long`/pointer field inside
+  an opcode union that lev_comp serialises without explicit width.
 
 ### Generate `glyph-catalog.evilhack.generated.ts` (June 3 follow-up)
 - After loading `assets/evilhack/Absurdly Evil 93.bmp` (which has EvilHack's
@@ -296,3 +308,73 @@ chat /YTk5YTE1YjItODE3Yi00YzlhLTk5NDYtOWVkYzU1ODdlZjY2 , named # building evilha
 - Look at `src/game/glyphs/glyph-catalog.367.generated.ts` header for source
   metadata (`sourceJsPath`, sha256) — extract step probably runs the wasm
   in node and reads `nethackGlobal.constants` + tile array.
+
+### Extended commands not registered in EvilHack runtime (June 3)
+- `#kick`, `#options`, and the new EvilHack-specific `#telekinesis` are not
+  autocompleted at the `#` prompt and are reported as unknown when typed.
+- Stock NetHack 3.6 extcmd list is being used; EvilHack adds/renames extcmds
+  in `src/cmd.c` (extcmdlist[]) that our bridge or completion UI doesn't see.
+- Investigation: check whether our extcmd menu reads the catalog from the
+  wasm runtime (via an exported helper) or from a hardcoded TS list. If
+  hardcoded, add an EvilHack-specific catalog (or extract it from the wasm
+  the same way as the glyph catalog).
+
+### evilhack-wasm-shims.c is a stub (June 3)
+- Today `scripts/wasm/evilhack-wasm-shims.c` provides empty/zero/no-op
+  implementations of TTY-ish symbols (`tty_get_ext_cmd`, `tty_getlin`,
+  `tty_doprev_message`, `tty_getmsghistory`, `cl_end`, `cmov`, `home`,
+  `standoutbeg`, `standoutend`, `term_*`, `graph_on/off`, `addtopl`,
+  `remember_topl`, `more`, `error`, ...) plus `dosh`/`dosuspend`/`regularize`.
+- Turn it into a **real gateway** that forwards meaningful calls into the
+  JS/runtime layer (via EM_JS or via the existing `shim_*` win-port hooks).
+  In particular:
+  - `tty_get_ext_cmd` -> route to our extcmd menu (would fix `#kick`,
+    `#options`, `#telekinesis` autocompletion regression).
+  - `tty_getlin` -> route to our prompt UI (currently any tty-side getlin
+    call returns empty string).
+  - `tty_doprev_message` / `tty_getmsghistory` -> route to the JS message
+    log so scrollback works on tty-side message popups.
+  - `more` / `addtopl` -> forward to status/topline JS bridge.
+- The shim should remain build-time only; the runtime should never *need*
+  it once SHIM_GRAPHICS is the primary window-port, but EvilHack 0.9.x
+  still calls some tty helpers directly from non-window code paths.
+
+### EvilHack 0.9.3 new races / role-race compat (June 3)
+- 0.9.3 introduces new player races beyond 0.9.2: **aasimar** (`MH_AASIMAR`),
+  **tortle**, **drow**, **illithid** (see `src/role.c` racemask additions in
+  `roles[]`).
+- Verified Priest+dwarf+neutral still valid in 0.9.3, so the current default
+  character (`role:Priest,race:dwarf,gender:male,align:neutral`) parses
+  cleanly through `EVILHACKOPTIONS` / `HACKOPTIONS`.
+- TODO: surface the new races in our character-creation UI:
+  - Add aasimar/tortle/drow/illithid to the race picker for evilhack runtime
+    only (not vanilla/slashem).
+  - Map role x race compatibility from `roles[].allow` racemasks in
+    `imported/evilhack-wasm/build/EvilHack-0.9.3_wasm/EvilHack-0.9.3/src/role.c`
+    so the UI greys out illegal combinations (e.g. illithid Samurai).
+  - Extend any role-specific quest/altar/sound metadata in
+    `src/game/` and `src/i18n/` that currently assumes the 0.9.2 race set.
+- Sanity-check that defaulting to `race:human` if the user picks a role that
+  no longer accepts their previously-saved race doesn't get rejected by
+  `pl_race`'s stricter 0.9.3 validation.
+
+### Support saving in EvilHack (June 3)
+- IDBFS is already mounted for the evilhack runtime (`getRuntimeSaveMountDir`
+  / `getRuntimeSaveDbName` in `LocalNetHackRuntime.ts`), so on-disk persistence
+  framework is in place; what's missing is end-to-end verification of
+  `#save` → reload → resume for the 0.9.3 build.
+- TODO:
+  - Try `S` / `#save` in a running evilhack session, confirm the save file
+    lands under the IDBFS mount and `syncfs` is triggered before the wasm
+    exits.
+  - Reload the page and check that startup finds the save and offers the
+    "Restore game?" prompt (or auto-restores if our auto-resume path is
+    enabled for evilhack).
+  - Wire `recover_savefile` / `hack_save` / `hack_restore` exports for
+    evilhack: they're in the phase3-relink.sh `EXPORTED_FUNCTIONS` list but
+    `updateCheckpointRecoverySupport()` may still gate them behind a
+    runtime-version check (see `supportsRuntimeCheckpointRecovery`).
+  - If saves work but restore corrupts state: likely the same wasm32 vs
+    x86_64 struct-layout class of bug as the vault `.lev` files (sp_lev /
+    long fields). Add a `sizeof()` audit pass on the save record structs.
+  - Update `EVILHACK_BUILD_GUIDE.md` once verified.

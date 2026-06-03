@@ -504,7 +504,15 @@ class LocalNetHackRuntime {
         flagsOffset: isSlashEm ? 12 : isEvilHack ? 16 : 16,
         maxEntries: 512,
         minEntries: isSlashEm || isEvilHack ? 20 : 10,
-        requiredNames: isSlashEm || isEvilHack ? ["2weapon", "pray"] : ["#", "pray"],
+        // SlashEM names its two-weapon toggle "2weapon"; EvilHack 0.9.3
+        // (cmd.c extcmdlist[]) calls it "twoweapon". Mismatched required
+        // names cause validateExtendedCommandEntries() to drop the whole
+        // table and emit an empty extcmd list (breaks `#kick`, `#pray`, ...).
+        requiredNames: isSlashEm
+          ? ["2weapon", "pray"]
+          : isEvilHack
+            ? ["twoweapon", "pray"]
+            : ["#", "pray"],
       },
       menuItem: {
         // NetHack 3.7's `anything` union includes int64/uint64 members, so
@@ -9851,7 +9859,7 @@ class LocalNetHackRuntime {
             mod.ENV.EVILHACKOPTIONS = mod.ENV.NETHACKOPTIONS;
             mod.ENV.HACKOPTIONS = mod.ENV.NETHACKOPTIONS;
             this.lastConfiguredNethackOptions = mod.ENV.NETHACKOPTIONS;
-            console.log(`Configured NETHACKOPTIONS: ${mod.ENV.NETHACKOPTIONS}`);
+            console.log(`Configured NETHACKOPTIONS // EVILHACKOPTIONS: ${mod.ENV.EVILHACKOPTIONS}`);
 
             // Ensure NetHack chdirs into a valid data root inside the wasm FS.
             // If HACKDIR/NETHACKDIR points at a host path, main() will abort
@@ -9886,6 +9894,76 @@ class LocalNetHackRuntime {
                 mod.FS?.__nh3dSlashEmLockLinkFallbackPatched,
               ),
             });
+
+            // EvilHack 0.9.3 currently hangs in a tight openat() loop after
+            // shim_display_file("news") (suspected load_qtlist / mklev path).
+            // Install a narrow FS.open instrumentation that:
+            //   - logs the first few unique paths opened (one line per path)
+            //   - detects "spin" patterns (>=8 opens of same path within 500ms)
+            //     and logs a single warning per path
+            // Never touches Module.Asyncify. EvilHack-only to keep other
+            // runtimes quiet.
+            if (
+              runtimeVersion === "evilhack" &&
+              mod.FS &&
+              typeof mod.FS.open === "function" &&
+              !mod.FS.__nh3dEvilHackOpenProbeInstalled
+            ) {
+              const originalOpen = mod.FS.open.bind(mod.FS);
+              const seenPaths = new Set<string>();
+              const recentOpens = new Map<
+                string,
+                { count: number; windowStartMs: number; reported: boolean }
+              >();
+              const MAX_LOGGED_UNIQUE = 80;
+              const SPIN_WINDOW_MS = 500;
+              const SPIN_THRESHOLD = 8;
+              let totalOpens = 0;
+
+              mod.FS.open = function (
+                path: string,
+                ...args: unknown[]
+              ): unknown {
+                totalOpens += 1;
+                const pathStr = typeof path === "string" ? path : String(path);
+                if (
+                  seenPaths.size < MAX_LOGGED_UNIQUE &&
+                  !seenPaths.has(pathStr)
+                ) {
+                  seenPaths.add(pathStr);
+                  console.log(
+                    `[EVILHACK_FS_OPEN #${totalOpens}] path="${pathStr}"`,
+                  );
+                }
+                const nowMs =
+                  typeof performance !== "undefined" &&
+                  typeof performance.now === "function"
+                    ? performance.now()
+                    : Date.now();
+                let bucket = recentOpens.get(pathStr);
+                if (!bucket || nowMs - bucket.windowStartMs > SPIN_WINDOW_MS) {
+                  bucket = { count: 1, windowStartMs: nowMs, reported: false };
+                  recentOpens.set(pathStr, bucket);
+                } else {
+                  bucket.count += 1;
+                  if (bucket.count >= SPIN_THRESHOLD && !bucket.reported) {
+                    bucket.reported = true;
+                    console.warn(
+                      `[EVILHACK_FS_OPEN_SPIN] path="${pathStr}" opened ${bucket.count}x within ${Math.round(
+                        nowMs - bucket.windowStartMs,
+                      )}ms (total opens so far: ${totalOpens})`,
+                    );
+                  }
+                }
+                return originalOpen(path, ...(args as []));
+              };
+              mod.FS.__nh3dEvilHackOpenProbeInstalled = true;
+              logStartupHook("preRun:evilhack-fs-open-probe", mod, {
+                maxLoggedUnique: MAX_LOGGED_UNIQUE,
+                spinThreshold: SPIN_THRESHOLD,
+                spinWindowMs: SPIN_WINDOW_MS,
+              });
+            }
 
             // Setup IndexedDB file system for persisting saves
             const IDBFS =
