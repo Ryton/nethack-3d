@@ -128,7 +128,16 @@ function parseRoleEntries(roleSource) {
   const section = extractSection(
     roleSource,
     /const struct Role roles(?:\[[^\]]*\])?\s*=\s*\{/,
-    ["/* The player's role", "/* Table of all races */"],
+    [
+      "/* The player's role",
+      "/* Table of all races */",
+      // EvilHack 0.9.x adds secondary role arrays (align_roles[],
+      // race_roles[], draugr_roles[]) AFTER the primary roles[]. Those
+      // hold quest/alignment variants like "Dark Knight" that are NOT
+      // selectable as primary roles via EVILHACKOPTIONS. Stop at the
+      // first one so they don't leak into the generated ruleset.
+      "const struct Role ",
+    ],
     "role table",
   );
   const blocks = splitTopLevelBlocks(section);

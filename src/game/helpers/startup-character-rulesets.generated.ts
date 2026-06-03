@@ -29,8 +29,7 @@ export const GENERATED_STARTUP_ROLE_OPTIONS = [
   "Yeoman",
   "Convict",
   "Druid",
-  "Infidel",
-  "Dark Knight"
+  "Infidel"
 ] as const;
 
 export const GENERATED_STARTUP_RACE_OPTIONS = [
@@ -1015,8 +1014,7 @@ export const GENERATED_STARTUP_CHARACTER_RULESETS = {
       "Samurai",
       "Tourist",
       "Valkyrie",
-      "Wizard",
-      "Dark Knight"
+      "Wizard"
     ],
     "races": [
       "human",
@@ -1338,27 +1336,6 @@ export const GENERATED_STARTUP_CHARACTER_RULESETS = {
         ],
         "aligns": [
           "neutral",
-          "chaotic"
-        ]
-      },
-      "Dark Knight": {
-        "races": [
-          "human",
-          "elf",
-          "dwarf",
-          "orc",
-          "centaur",
-          "drow",
-          "draugr",
-          "vampire",
-          "aasimar"
-        ],
-        "genders": [
-          "male",
-          "female"
-        ],
-        "aligns": [
-          "lawful",
           "chaotic"
         ]
       }
