@@ -113,6 +113,17 @@ emcc -O3 \
     -o "$EH_BUILD/src/mklev.o"
 echo "  done."
 
+echo "--- Recompiling unixmain.o (WASM: authorize_wizard_mode honors WIZARDS=* even with NULL pw) ---"
+emcc -O3 \
+    -I"$EH_BUILD/include" \
+    -I"$EH_BUILD/sys/share" \
+    -I"$EH_BUILD/sys/unix" \
+    -DDLB \
+    -DSHIM_GRAPHICS=1 \
+    -c "$EH_BUILD/sys/unix/unixmain.c" \
+    -o "$EH_BUILD/src/unixmain.o"
+echo "  done."
+
 echo "--- Recompiling rnd.o (WASM: rn2(0) diagnostic) ---"
 emcc -O3 \
     -I"$EH_BUILD/include" \
@@ -320,6 +331,12 @@ echo "  wasm-data populated."
 # sysconf: SYSCF_FILE="sysconf" — game reads it at startup from HACKDIR (/)
 # serverseed: integer file referenced by SERVERSEED_FILE=serverseed in sysconf
 cp "$EH_BUILD/sys/unix/sysconf" "$EH_BUILD/wasm-data/sysconf"
+# WASM: allow any "user" to enter wizard mode (playmode:debug). authorize_wizard_mode()
+# checks sysopt.wizards against get_unix_pw(); under emscripten the passwd entry is
+# unreliable, so default sysconf WIZARDS=root games can block legitimate debug-mode
+# requests. Replace with '*' (anyone allowed) for the embedded wasm sysconf only;
+# upstream source tree is left untouched.
+sed -i 's/^WIZARDS=.*/WIZARDS=*/' "$EH_BUILD/wasm-data/sysconf"
 echo "100" > "$EH_BUILD/wasm-data/serverseed"
 
 # --- Step 3: Phase 3 re-link ---
@@ -353,6 +370,7 @@ emcc $OBJS \
     -s ASYNCIFY_ADVISE=1 \
     -s 'ASYNCIFY_IMPORTS=["local_callback"]' \
     -s ASYNCIFY_STACK_SIZE=65536 \
+    -s STACK_SIZE=1048576 \
     -s ALLOW_TABLE_GROWTH=1 \
     -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
     -s 'EXPORTED_FUNCTIONS=["_main","_malloc","_free","_shim_graphics_set_callback","_nh3d_glyph_at","_nh_top_item_glyph_under_player","_recover_savefile","_resume_checkpoint_save","_hack_save","_hack_restore","_nh_wasm_init","_mapglyph","_glyph_to_tile"]' \

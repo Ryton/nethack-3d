@@ -144,7 +144,7 @@ export const startupInitOptionDefinitions: ReadonlyArray<StartupInitOptionDefini
           label: startupStrings.options.playmode.options.debug,
         },
       ],
-      supportedRuntimeVersions: ["3.6.7", "5.0"],
+      supportedRuntimeVersions: ["3.6.7", "5.0", "evilhack"],
     },
     {
       key: "number_pad",

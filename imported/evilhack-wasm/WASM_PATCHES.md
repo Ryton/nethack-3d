@@ -153,6 +153,72 @@ winshim_evil.o: ../../../../evilhack/wasm-wasm/win/winshim_evil.c $(HACK_H)
 repo and gets symlinked/path-referenced from there; not a vendored EvilHack
 file.)
 
+### A8. `src/mklev.c` — defensive vault-load fallback under Emscripten
+
+In `makerooms()`, `load_special()` historically fails silently on
+`vlt-*.lev` in wasm32 (no room added, `rndvault_failed` never set →
+infinite loop). Replace the previous blanket-bypass (`fnam = NULL`) with a
+detect-and-fallback guard. Around line 372, inside the
+`if (fnam) { ... }` branch and after `Sprintf(protofile, ...)`:
+
+```c
+#ifdef __EMSCRIPTEN__
+    int prev_nroom = nroom;
+    static boolean wasm_vault_silentfail_warned = FALSE;
+#endif
+    Sprintf(protofile, "%s", fnam);
+    Strcat(protofile, LEV_EXT);
+    in_mk_rndvault = TRUE;
+    rndvault_failed = FALSE;
+    (void) load_special(protofile);
+    in_mk_rndvault = FALSE;
+    if (rndvault_failed)
+        return;
+#ifdef __EMSCRIPTEN__
+    if (nroom == prev_nroom) {
+        if (!wasm_vault_silentfail_warned) {
+            wasm_vault_silentfail_warned = TRUE;
+            impossible(
+                "WASM: vault %s loaded silently (no room, no rndvault_failed); using create_room fallback",
+                protofile);
+        }
+        if (!create_room(-1, -1, -1, -1, -1, -1, OROOM, -1))
+            return;
+    }
+#endif
+```
+
+Recompiled by `phase3-relink.sh` (B-section automation already in place).
+
+### A9. `sys/unix/unixmain.c` — allow `WIZARDS=*` when `pw` is NULL
+
+Under emscripten `getpwuid()` returns NULL, so the upstream
+`if (pw && sysopt.wizards && ...)` short-circuit never even reaches the
+wildcard check in `check_user_string("*")` and wizard mode is silently
+denied. Around line 614, prepend a wildcard fast-path:
+
+```c
+boolean
+authorize_wizard_mode()
+{
+    struct passwd *pw = get_unix_pw();
+
+#ifdef __EMSCRIPTEN__
+    /* WASM: getpwuid()/getpwnam() return NULL under emscripten (no /etc/passwd),
+       so the upstream `pw && sysopt.wizards` short-circuit always fails — even
+       when sysconf has WIZARDS=*. Honor the wildcard explicitly here. */
+    if (sysopt.wizards && sysopt.wizards[0] == '*' && !sysopt.wizards[1])
+        return TRUE;
+#endif
+    if (pw && sysopt.wizards && sysopt.wizards[0]) {
+        ...
+    }
+    ...
+}
+```
+
+Recompiled by `phase3-relink.sh` (see B10).
+
 ---
 
 ## Category B — Pipeline / build-script patches (already automated)
@@ -249,6 +315,18 @@ them — confirm by running phase 4 and checking `.lev` count.)
 `phase3-relink.sh` rebuilds `nhdat` in the wasm tree with explicit file
 lists, so the native `dat/Makefile`'s `make dlb` target is not invoked
 (it would fail on the `castle-?.lev` glob because of B8).
+
+### B10. `sysconf` WIZARDS=*, larger stack, unixmain.o recompile
+
+`phase3-relink.sh` automatically:
+
+- Rewrites `wasm-data/sysconf` to `WIZARDS=*` (so `playmode:debug` from
+  the startup-init UI is accepted; pairs with A9).
+- Links with `-sSTACK_SIZE=1048576` (default 64 KB overflows in
+  `parseoptions()`'s comma-recursion on long NETHACKOPTIONS strings,
+  especially when the `playmode:debug` token is added).
+- Recompiles `sys/unix/unixmain.c → src/unixmain.o` so the A9 patch lands
+  in the link.
 
 ---
 
