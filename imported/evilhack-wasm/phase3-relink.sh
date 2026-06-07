@@ -323,6 +323,16 @@ for f in dungeon quest.dat data bogusmon engrave epitaph oracles options \
           vaults.dat; do
     [ -f "$DAT/$f" ] && cp "$DAT/$f" "$EH_BUILD/wasm-data/$f"
 done
+# Embed every .lev standalone too. Several special-level loads (oracle, purgatory,
+# wizard quest, random vlt-*) end up in the fopen_datafile fallback path inside
+# dlb_fopen() under wasm, even though the files are present in nhdat. Without a
+# direct copy at the FS root, load_special() returns FALSE and mkmaze prints
+# "Couldn't load \"...\" - making a maze." or makerooms hits the silent-vault
+# fallback. Embedding them standalone makes the fallback path succeed.
+for f in "$DAT"/*.lev; do
+    [ -f "$f" ] && cp "$f" "$EH_BUILD/wasm-data/$(basename "$f")"
+done
+echo "  embedded $(ls "$EH_BUILD/wasm-data"/*.lev 2>/dev/null | wc -l) .lev files standalone."
 touch "$EH_BUILD/wasm-data/perm" "$EH_BUILD/wasm-data/record" \
       "$EH_BUILD/wasm-data/logfile" "$EH_BUILD/wasm-data/paniclog"
 echo "  wasm-data populated."
